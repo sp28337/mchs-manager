@@ -11,6 +11,20 @@ jobs:
     defaults:
       run:
         working-directory: backend
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: fps
+          POSTGRES_PASSWORD: fps
+          POSTGRES_DB: fps_timekeeping
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U fps -d fps_timekeeping"
+          --health-interval 5s --health-timeout 3s --health-retries 10
+    env:
+      FPS_DATABASE_DSN: postgresql+asyncpg://fps:fps@localhost:5432/fps_timekeeping
+      FPS_JWT_PUBLIC_KEY: ci-dummy-key
     steps:
       - uses: actions/checkout@v4
 
@@ -29,6 +43,9 @@ jobs:
 
       - name: Import boundaries (Architecture разд. 4.2, 7)
         run: lint-imports
+
+      - name: Apply migrations (verifies DDL against real Postgres)
+        run: alembic upgrade head
 
       - name: Unit tests (no DB/Redis required)
         run: pytest tests/unit -v

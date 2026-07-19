@@ -1,4 +1,10 @@
-.PHONY: lint format typecheck test up down
+.PHONY: lint format typecheck test up down migrate migrate-down
+
+migrate:
+	alembic upgrade head
+
+migrate-down:
+	alembic downgrade base
 
 lint:
 	ruff check .
