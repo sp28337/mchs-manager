@@ -49,3 +49,6 @@ jobs:
 
       - name: Unit tests (no DB/Redis required)
         run: pytest tests/unit -v
+
+      - name: Integration tests (real Postgres — RE015 etc.)
+        run: pytest tests/integration -v

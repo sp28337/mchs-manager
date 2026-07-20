@@ -19,6 +19,9 @@ typecheck:
 test:
 	pytest tests/unit -v
 
+test-integration:
+	pytest tests/integration -v
+
 up:
 	docker compose up -d
 
