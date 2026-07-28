@@ -41,6 +41,17 @@ class ConflictPolicyDuplicateCategoryError(LegalRulesDomainError):
     contain duplicate RuleCategory entries. Maps to 400/422."""
 
 
+class PolicyVersionOverlapError(LegalRulesDomainError):
+    """Mirror of RuleVersionOverlapError for ConflictResolutionPolicyVersion
+    (PostgreSQL_Logical_Model разд. 1.6: same EXCLUDE pattern as
+    rule_version, minus the scope dimension). Maps to 409 Conflict."""
+
+
+class PolicyVersionImmutableError(LegalRulesDomainError):
+    """Mirror of RuleVersionImmutableError for ConflictResolutionPolicyVersion.
+    Maps to 423 Locked."""
+
+
 class DocumentNodeDuplicatePositionError(LegalRulesDomainError):
     """Domain Model разд. 2.1 инвариант 2: numbering of
     Chapter/Article/Paragraph must be unique within a document. Maps to 409."""

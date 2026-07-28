@@ -70,6 +70,13 @@ class EffectivePeriod(ValueObject):
     def covers(self, as_of: date) -> bool:
         return self.valid_from <= as_of and (self.valid_to is None or self.valid_to > as_of)
 
+    def __composite_values__(self) -> tuple[date, date | None]:
+        """Required by SQLAlchemy's `composite()` to decompose this VO back
+        into (valid_from, valid_to) column values on write — same reason
+        as `LegalBasis.__composite_values__` (Context7
+        /websites/sqlalchemy_en_20, orm/composites.html)."""
+        return self.valid_from, self.valid_to
+
 
 @dataclass(frozen=True, kw_only=True)
 class LegalBasis(ValueObject):
