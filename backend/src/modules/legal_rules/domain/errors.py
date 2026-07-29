@@ -55,3 +55,24 @@ class PolicyVersionImmutableError(LegalRulesDomainError):
 class DocumentNodeDuplicatePositionError(LegalRulesDomainError):
     """Domain Model разд. 2.1 инвариант 2: numbering of
     Chapter/Article/Paragraph must be unique within a document. Maps to 409."""
+
+
+class RuleNotFoundError(LegalRulesDomainError):
+    """No `Rule` with the given id exists. Maps to 404 Not Found."""
+
+
+class RuleCodeAlreadyExistsError(LegalRulesDomainError):
+    """`legal_rules.rule.code` is UNIQUE (`uq_rule_code`,
+    PostgreSQL_Logical_Model разд. 1.4). Maps to 409 Conflict."""
+
+
+class NormativeDocumentNotFoundError(LegalRulesDomainError):
+    """No `NormativeDocument` with the given id exists. Maps to 404 Not Found."""
+
+
+class NormativeDocumentAlreadyExistsError(LegalRulesDomainError):
+    """`DocumentIdentity` (doc_type, reg_number, adopted_date) is UNIQUE
+    (`uq_document_identity`, PostgreSQL_Logical_Model разд. 1.2) — the
+    cross-aggregate check `NormativeDocument.add_node()` deliberately
+    doesn't perform (see its docstring), done here at the repository/
+    Application boundary instead. Maps to 409 Conflict."""
