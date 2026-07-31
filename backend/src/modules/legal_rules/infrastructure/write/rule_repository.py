@@ -16,7 +16,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.modules.legal_rules.domain.rule import Rule
-from src.modules.legal_rules.infrastructure.write.orm_mapping import rule_table
+from src.modules.legal_rules.infrastructure.write.orm_mapping import rule_table, rule_version_table
 
 
 class RuleRepository:
@@ -29,6 +29,19 @@ class RuleRepository:
     async def get_by_code(self, code: str) -> Rule | None:
         result = await self._session.execute(select(Rule).where(rule_table.c.code == code))
         return result.scalar_one_or_none()
+
+    async def get_by_version_id(self, version_id: UUID) -> Rule | None:
+        """openapi.yaml's `POST /legal-rules/rule-versions/{versionId}/publish`
+        addresses a version directly, with no `ruleId` in the path — but
+        publishing is a `Rule.publish_version()` call on the owning
+        aggregate. Resolves the parent `Rule` (with all its versions
+        eager-loaded, same as `get()`) from just the version id."""
+        rule_id = await self._session.scalar(
+            select(rule_version_table.c.rule_id).where(rule_version_table.c.id == version_id)
+        )
+        if rule_id is None:
+            return None
+        return await self.get(rule_id)
 
     def add(self, rule: Rule) -> None:
         self._session.add(rule)

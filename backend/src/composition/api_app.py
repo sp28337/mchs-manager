@@ -1,8 +1,6 @@
 """Composition Root — Api role (Backend_Architecture разд. 7.3, 8).
 
-Only this file is allowed to know about every module at once. Currently
-empty of module routers (none exist yet) — this is the F012 foundation
-step: a FastAPI app that boots and answers a health-check, run via:
+Only this file is allowed to know about every module at once.
 
     uvicorn src.composition.api_app:app --reload
 
@@ -19,25 +17,22 @@ from typing import TypedDict
 
 from fastapi import FastAPI
 
-from src.composition.settings import get_settings
+from src.composition.di import dispose_infrastructure, init_infrastructure
+from src.modules.legal_rules.api.router import router as legal_rules_router
 
 
 class AppState(TypedDict):
     """Placeholder for resources created once at startup and shared across
-    requests (DB engine, Redis pool, EventBus). Populated in di.py once the
-    first module's Infrastructure exists — kept empty and typed here so the
-    lifespan contract is visible from day one."""
+    requests. `di.py` currently owns the DB engine/session-factory as
+    module-level state rather than something threaded through this dict —
+    kept empty and typed here so the lifespan contract stays visible."""
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[AppState]:
-    settings = get_settings()
-    # Real startup work (create_async_engine, Redis pool, EventBus wiring)
-    # is added in composition/di.py as each module comes online — this
-    # placeholder documents the shape without inventing infra that doesn't
-    # exist yet (no module's Infrastructure/Write is implemented).
-    _ = settings  # noqa: F841 — will be consumed once di.py exists
+    init_infrastructure()
     yield {}
+    await dispose_infrastructure()
 
 
 app = FastAPI(
@@ -55,8 +50,8 @@ async def health() -> dict[str, str]:
     return {"status": "ok"}
 
 
-# app.include_router(...) calls are added here one per module, in the same
-# order/prefix as openapi.yaml's `paths` (Backend_Architecture разд. 8),
-# e.g.:
-#   from src.modules.legal_rules.api.router import router as legal_rules_router
-#   app.include_router(legal_rules_router, prefix="/api/v1/legal-rules", tags=["LegalRules"])
+# One include_router() per module, same prefix/tag as openapi.yaml's
+# `paths` (Backend_Architecture разд. 8). `legal_rules` is first because
+# it's the only module with no incoming dependencies (Architecture разд.
+# 4.2 п.4) and so the first one implemented end-to-end.
+app.include_router(legal_rules_router, prefix="/api/v1/legal-rules", tags=["LegalRules"])

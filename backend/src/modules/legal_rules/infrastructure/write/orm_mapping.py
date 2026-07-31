@@ -219,11 +219,24 @@ def _effective_period_factory(valid_from: Any, valid_to: Any) -> EffectivePeriod
     return EffectivePeriod(valid_from=valid_from, valid_to=valid_to)
 
 
+_mapped = False
+
+
 def start_mappers() -> None:
-    """Idempotent-by-caller: call exactly once per process (Composition
-    Root / test fixture), mirroring the Data Mapper pattern's usual
-    lifecycle. Calling twice raises SQLAlchemy's own
-    `ArgumentError: Class ... already has a primary mapper defined`."""
+    """Idempotent — safe to call from multiple entry points in the same
+    process (Composition Root's `di.py`, and every integration test
+    module that needs the mapping active, each via its own `try:
+    start_mappers() except Exception: pass`). An earlier version relied
+    entirely on callers catching SQLAlchemy's own
+    `ArgumentError: already has a primary mapper defined`, which broke
+    the one caller that didn't wrap it that way (`composition/di.py`'s
+    own guard flag couldn't see that *other* test modules had already
+    called this function directly) — found by running the full
+    integration suite together, not any single file in isolation. Now
+    guarded here, at the actual source of truth, instead."""
+    global _mapped
+    if _mapped:
+        return
     mapper_registry.map_imperatively(
         RuleVersion,
         rule_version_table,
@@ -282,3 +295,4 @@ def start_mappers() -> None:
             ),
         },
     )
+    _mapped = True
