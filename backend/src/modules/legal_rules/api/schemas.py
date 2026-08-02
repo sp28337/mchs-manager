@@ -108,6 +108,15 @@ class RuleResponse(BaseModel):
     description: str | None = None
 
 
+class RuleListEnvelopeResponse(BaseModel):
+    model_config = ConfigDict(populate_by_name=True, serialize_by_alias=True)
+
+    items: list[RuleResponse]
+    page: int
+    page_size: int = Field(alias="pageSize")
+    total_count: int = Field(alias="totalCount")
+
+
 # ---------- RuleVersion
 
 

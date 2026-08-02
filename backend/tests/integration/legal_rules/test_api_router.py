@@ -167,3 +167,35 @@ async def test_get_nonexistent_document_returns_404_problem_json(client: TestCli
     assert body["status"] == 404
     assert body["type"].startswith("https://api.fps-timekeeping.gov.ru/errors/")
     assert "traceId" in body
+
+
+async def test_list_rules_paginates_and_filters_by_category(client: TestClient) -> None:
+    codes = []
+    for i in range(3):
+        code = f"TEST.LISTAPI.{i}.{uuid4().hex.upper()[:8]}"
+        codes.append(code)
+        resp = client.post(
+            "/api/v1/legal-rules/rules",
+            json={"code": code, "category": "norm_calculation", "displayName": f"r{i}"},
+        )
+        assert resp.status_code == 201, resp.text
+
+    resp = client.get(
+        "/api/v1/legal-rules/rules",
+        params={"category": "norm_calculation", "pageSize": 2, "page": 1},
+    )
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["page"] == 1
+    assert body["pageSize"] == 2
+    assert len(body["items"]) == 2
+    assert body["totalCount"] >= 3
+    assert all(item["category"] == "norm_calculation" for item in body["items"])
+
+    engine = create_async_engine(get_settings().database_dsn)
+    async with engine.begin() as conn:
+        for code in codes:
+            await conn.execute(
+                text("DELETE FROM legal_rules.rule WHERE code = :code"), {"code": code}
+            )
+    await engine.dispose()

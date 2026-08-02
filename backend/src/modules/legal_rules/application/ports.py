@@ -21,13 +21,17 @@ from uuid import UUID
 
 from src.modules.legal_rules.domain.normative_document import NormativeDocument
 from src.modules.legal_rules.domain.rule import Rule
-from src.modules.legal_rules.domain.value_objects import DocumentType
+from src.modules.legal_rules.domain.value_objects import DocumentType, RuleCategory
+from src.rule_engine.interpreter.version_resolver import ResolvedRuleVersion
 
 
 class RuleRepositoryPort(Protocol):
     async def get(self, rule_id: UUID) -> Rule | None: ...
     async def get_by_code(self, code: str) -> Rule | None: ...
     async def get_by_version_id(self, version_id: UUID) -> Rule | None: ...
+    async def list(
+        self, *, category: RuleCategory | None, page: int, page_size: int
+    ) -> tuple[list[Rule], int]: ...
     def add(self, rule: Rule) -> None: ...
 
 
@@ -39,3 +43,17 @@ class NormativeDocumentRepositoryPort(Protocol):
     ) -> NormativeDocument | None: ...
 
     def add(self, document: NormativeDocument) -> None: ...
+
+
+class RuleVersionCachePort(Protocol):
+    """LR011 — cache-aside for `GetEffectiveRuleVersion`. See
+    `infrastructure/cache/rule_version_cache.py` for the honest gap this
+    carries (TTL-only, no event-based invalidation yet)."""
+
+    async def get(
+        self, *, rule_code: str, scope: dict[str, str], as_of: date
+    ) -> ResolvedRuleVersion | None: ...
+
+    async def set(
+        self, *, rule_code: str, scope: dict[str, str], as_of: date, value: ResolvedRuleVersion
+    ) -> None: ...

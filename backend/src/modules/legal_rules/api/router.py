@@ -21,7 +21,7 @@ from uuid import UUID, uuid4
 from fastapi import APIRouter, Depends, HTTPException, Path, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.composition.di import get_session
+from src.composition.di import get_rule_version_cache, get_session
 from src.modules.legal_rules.api.schemas import (
     CreateDocumentNodeRequest,
     CreateNormativeDocumentRequest,
@@ -32,6 +32,7 @@ from src.modules.legal_rules.api.schemas import (
     NormativeDocumentResponse,
     Problem,
     PublishRuleVersionRequest,
+    RuleListEnvelopeResponse,
     RuleResponse,
     RuleVersionResponse,
 )
@@ -67,6 +68,8 @@ from src.modules.legal_rules.application.queries.get_effective_rule_version.hand
 from src.modules.legal_rules.application.queries.get_effective_rule_version.query import (
     GetEffectiveRuleVersionQuery,
 )
+from src.modules.legal_rules.application.queries.list_rules.handler import ListRulesHandler
+from src.modules.legal_rules.application.queries.list_rules.query import ListRulesQuery
 from src.modules.legal_rules.domain.errors import (
     DocumentNodeDuplicatePositionError,
     NormativeDocumentAlreadyExistsError,
@@ -77,6 +80,8 @@ from src.modules.legal_rules.domain.errors import (
     RuleVersionOverlapError,
 )
 from src.modules.legal_rules.domain.rule import RuleVersion
+from src.modules.legal_rules.domain.value_objects import RuleCategory
+from src.modules.legal_rules.infrastructure.cache.rule_version_cache import RuleVersionCache
 from src.modules.legal_rules.infrastructure.write.normative_document_repository import (
     NormativeDocumentRepository,
 )
@@ -86,6 +91,7 @@ from src.rule_engine.interpreter.version_resolver import NoApplicableRuleVersion
 router = APIRouter()
 
 SessionDep = Annotated[AsyncSession, Depends(get_session)]
+CacheDep = Annotated[RuleVersionCache, Depends(get_rule_version_cache)]
 
 _ERRORS_BASE = "https://api.fps-timekeeping.gov.ru/errors"
 
@@ -233,6 +239,35 @@ async def create_rule(request: CreateRuleRequest, session: SessionDep) -> RuleRe
     )
 
 
+@router.get("/rules", response_model=RuleListEnvelopeResponse)
+async def list_rules(
+    session: SessionDep,
+    category: Annotated[RuleCategory | None, Query()] = None,
+    page: Annotated[int, Query(ge=1)] = 1,
+    page_size: Annotated[int, Query(alias="pageSize", ge=1, le=200)] = 50,
+) -> RuleListEnvelopeResponse:
+    handler = ListRulesHandler(RuleRepository(session))
+    rules, total_count = await handler.handle(
+        ListRulesQuery(category=category, page=page, page_size=page_size)
+    )
+
+    return RuleListEnvelopeResponse(
+        items=[
+            RuleResponse(
+                id=r.id,
+                code=r.code,
+                category=r.category,
+                display_name=r.display_name,
+                description=r.description,
+            )
+            for r in rules
+        ],
+        page=page,
+        page_size=page_size,
+        total_count=total_count,
+    )
+
+
 @router.post("/rules/{rule_id}/versions", response_model=RuleVersionResponse, status_code=201)
 async def create_rule_version(
     rule_id: Annotated[UUID, Path()], request: CreateRuleVersionRequest, session: SessionDep
@@ -293,6 +328,7 @@ async def publish_rule_version(
 async def get_effective_rule_version(
     rule_id: Annotated[UUID, Path()],
     session: SessionDep,
+    cache: CacheDep,
     as_of: Annotated[str, Query(alias="asOf")],
     scope: Annotated[str, Query()],
 ) -> EffectiveRuleVersionResponse:
@@ -319,7 +355,7 @@ async def get_effective_rule_version(
     # from a Session"), rather than opening a second, separate connection.
     connection = await session.connection()
     try:
-        resolved = await GetEffectiveRuleVersionHandler(connection).handle(
+        resolved = await GetEffectiveRuleVersionHandler(connection, cache).handle(
             GetEffectiveRuleVersionQuery(rule_code=rule.code, scope=scope_dict, as_of=as_of_date)
         )
     except NoApplicableRuleVersionError as exc:
