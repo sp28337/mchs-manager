@@ -42,7 +42,7 @@ from src.modules.scheduling.domain.errors import (
     ScheduleApprovedError,
     ShiftOutsideSchedulePeriodError,
 )
-from src.modules.scheduling.domain.events import ScheduleApproved
+from src.modules.scheduling.domain.events import ScheduleApproved, ScheduleRevised
 from src.modules.scheduling.domain.value_objects import (
     AccountingPeriod,
     DutyType,
@@ -59,10 +59,18 @@ class PlannedShift(Entity):
     employee_id: UUID
     time_range: TimeInterval
     duty_type: DutyType
+    # Смена отменённой версии графика. Не удаляется — по действовавшему на
+    # тот момент приказу она существовала, — но перестаёт занимать время
+    # сотрудника: `excl_planned_shift_no_overlap` частичный
+    # (`WHERE NOT superseded`, миграция 0013).
+    superseded: bool = False
 
     def overlaps(self, other: PlannedShift) -> bool:
         """Пересечение считается только между сменами ОДНОГО сотрудника:
-        две смены разных людей в одно время — это норма, а не конфликт."""
+        две смены разных людей в одно время — это норма, а не конфликт.
+        Отменённые смены не участвуют: они уже не несутся."""
+        if self.superseded or other.superseded:
+            return False
         return self.employee_id == other.employee_id and self.time_range.overlaps(other.time_range)
 
 
@@ -72,6 +80,9 @@ class DutySchedule(AggregateRoot):
     period: AccountingPeriod
     status: ScheduleStatus = ScheduleStatus.DRAFT
     approval_order_ref: str | None = None
+    revision_no: int = 1
+    previous_schedule_id: UUID | None = None
+    revision_reason: str | None = None
     shifts: list[PlannedShift] = field(default_factory=list)
 
     @classmethod
@@ -163,6 +174,70 @@ class DutySchedule(AggregateRoot):
                 approval_order_ref=approval_order_ref,
             )
         )
+
+    def revise(self, *, reason: str) -> DutySchedule:
+        """SD009 — пересмотр утверждённого графика.
+
+        График утверждается приказом, поэтому изменить утверждённый можно
+        только новым приказом: метод возвращает НОВУЮ версию в статусе
+        `draft`, а текущую закрывает. Правка на месте означала бы, что
+        документ, по которому люди уже несли службу, задним числом стал
+        другим (Domain Model разд. 13, SRS разд. 10 п. 1).
+
+        Смены переносятся в новую версию копиями, а оригиналы помечаются
+        `superseded`: пересмотр почти всегда меняет часть состава, и
+        начинать с пустого графика значило бы заставить табельщика ввести
+        заново то, что не менялось. Оригиналы остаются историей —
+        записями о том, кто должен был нести службу по прежнему приказу.
+
+        Пересматривать можно только утверждённый график: черновик просто
+        редактируется, а закрытый уже пересмотрен — у него есть преемник,
+        и вторая ветка версий сделала бы «действующую версию»
+        неоднозначной.
+        """
+        if self.status != ScheduleStatus.APPROVED:
+            raise ScheduleApprovedError(
+                f"пересмотреть можно только утверждённый график; {self.id} в статусе "
+                f"{self.status}"
+            )
+        if not reason.strip():
+            raise ScheduleApprovedError("причина пересмотра обязательна (Domain Model 5.1.3)")
+
+        successor = DutySchedule(
+            id=uuid4(),
+            unit_id=self.unit_id,
+            period=self.period,
+            status=ScheduleStatus.DRAFT,
+            approval_order_ref=None,
+            revision_no=self.revision_no + 1,
+            previous_schedule_id=self.id,
+            revision_reason=reason,
+            shifts=[],
+        )
+        for shift in self.shifts:
+            successor.shifts.append(
+                PlannedShift(
+                    id=uuid4(),
+                    duty_schedule_id=successor.id,
+                    employee_id=shift.employee_id,
+                    time_range=shift.time_range,
+                    duty_type=shift.duty_type,
+                )
+            )
+            shift.superseded = True
+
+        self.status = ScheduleStatus.CLOSED
+
+        self.raise_event(
+            ScheduleRevised(
+                duty_schedule_id=self.id,
+                successor_schedule_id=successor.id,
+                unit_id=self.unit_id,
+                revision_no=successor.revision_no,
+                reason=reason,
+            )
+        )
+        return successor
 
     @property
     def is_editable(self) -> bool:

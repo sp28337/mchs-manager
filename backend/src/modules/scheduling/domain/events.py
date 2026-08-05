@@ -24,3 +24,20 @@ class ScheduleApproved(DomainEvent):
     period_start: date
     period_end: date
     approval_order_ref: str
+
+
+@dataclass(frozen=True, kw_only=True)
+class ScheduleRevised(DomainEvent):
+    """Утверждённый график пересмотрен: породил новую версию и закрыт сам.
+
+    Потребитель тот же, что у `ScheduleApproved`, и причина та же: смены,
+    на которые ссылались уже зарегистрированные факты
+    (`ActualShiftRecord.plannedShiftId`), в новой версии имеют другие
+    идентификаторы. Узнать об этом `TimeAccounting` может только из
+    события."""
+
+    duty_schedule_id: UUID
+    successor_schedule_id: UUID
+    unit_id: UUID
+    revision_no: int
+    reason: str

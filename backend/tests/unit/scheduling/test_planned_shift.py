@@ -186,3 +186,112 @@ def test_shifts_of_returns_one_employees_shifts_in_order() -> None:
 
     mine = schedule.shifts_of(EMPLOYEE)
     assert [s.time_range.start.day for s in mine] == [2, 10]
+
+
+# --- SD009: пересмотр (инвариант 5.1.3) --------------------------------
+
+
+def test_revise_creates_a_successor_and_closes_the_original() -> None:
+    """График утверждается приказом, значит изменить утверждённый можно
+    только новым приказом — новой версией, а не правкой на месте."""
+    original = _march()
+    _shift(original, _at(2, 8), 24)
+    original.approve(approval_order_ref="Приказ № 17")
+    original.pull_pending_events()
+
+    successor = original.revise(reason="Замена по болезни начальника караула")
+
+    assert original.status == ScheduleStatus.CLOSED
+    assert successor.status == ScheduleStatus.DRAFT
+    assert successor.revision_no == 2
+    assert successor.previous_schedule_id == original.id
+    assert successor.revision_reason == "Замена по болезни начальника караула"
+    assert successor.id != original.id
+
+
+def test_revise_carries_the_shifts_over_as_copies() -> None:
+    """Пересмотр меняет часть состава; начинать с пустого графика значило
+    бы заставить табельщика ввести заново то, что не менялось."""
+    original = _march()
+    _shift(original, _at(2, 8), 24)
+    _shift(original, _at(6, 8), 24)
+    original.approve(approval_order_ref="Приказ № 17")
+
+    successor = original.revise(reason="Корректировка состава смен")
+
+    assert len(successor.shifts) == 2
+    assert {s.time_range.start for s in successor.shifts} == {
+        s.time_range.start for s in original.shifts
+    }
+    # Копии, а не те же объекты: у новой версии свои идентификаторы.
+    assert not ({s.id for s in successor.shifts} & {s.id for s in original.shifts})
+    assert all(s.duty_schedule_id == successor.id for s in successor.shifts)
+
+
+def test_the_originals_shifts_become_superseded_but_are_not_deleted() -> None:
+    """Смены отменённой версии — история: по действовавшему приказу они
+    существовали. Но время сотрудника они больше не занимают."""
+    original = _march()
+    _shift(original, _at(2, 8), 24)
+    original.approve(approval_order_ref="Приказ № 17")
+
+    successor = original.revise(reason="Корректировка")
+
+    assert len(original.shifts) == 1, "не удалены"
+    assert original.shifts[0].superseded is True
+    assert successor.shifts[0].superseded is False
+    # И именно поэтому одинаковые по времени смены двух версий не конфликтуют.
+    assert not original.shifts[0].overlaps(successor.shifts[0])
+
+
+def test_the_successor_is_editable_and_needs_its_own_order() -> None:
+    original = _march()
+    original.approve(approval_order_ref="Приказ № 17")
+    successor = original.revise(reason="Корректировка")
+
+    _shift(successor, _at(9, 8), 24)          # черновик — правится
+    assert len(successor.shifts) == 1
+
+    successor.approve(approval_order_ref="Приказ № 23")
+    assert successor.approval_order_ref == "Приказ № 23"
+
+
+def test_only_an_approved_schedule_can_be_revised() -> None:
+    """Черновик просто редактируется, а закрытый уже пересмотрен — вторая
+    ветка версий сделала бы «действующую версию» неоднозначной."""
+    draft = _march()
+    with pytest.raises(ScheduleApprovedError):
+        draft.revise(reason="Причина")
+
+    draft.approve(approval_order_ref="Приказ № 17")
+    successor = draft.revise(reason="Причина")
+    assert draft.status == ScheduleStatus.CLOSED
+
+    with pytest.raises(ScheduleApprovedError):
+        draft.revise(reason="Ещё раз")
+    assert successor.status == ScheduleStatus.DRAFT
+
+
+def test_revision_requires_a_reason() -> None:
+    schedule = _march()
+    schedule.approve(approval_order_ref="Приказ № 17")
+    with pytest.raises(ScheduleApprovedError, match="[Пп]ричина"):
+        schedule.revise(reason="   ")
+
+
+def test_revise_raises_its_event_with_both_ends_of_the_lineage() -> None:
+    from src.modules.scheduling.domain.events import ScheduleRevised
+
+    schedule = _march()
+    schedule.approve(approval_order_ref="Приказ № 17")
+    schedule.pull_pending_events()
+
+    successor = schedule.revise(reason="Корректировка")
+
+    events = schedule.pull_pending_events()
+    assert len(events) == 1
+    event = events[0]
+    assert isinstance(event, ScheduleRevised)
+    assert event.duty_schedule_id == schedule.id
+    assert event.successor_schedule_id == successor.id
+    assert event.revision_no == 2
