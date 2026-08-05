@@ -14,6 +14,7 @@ import pytest
 from src.building_blocks.domain.time_interval import TimeInterval
 from src.modules.time_accounting.application.services.daily_service_time_limit import (
     DailyServiceTimeLimitService,
+    minutes_per_day,
 )
 from src.modules.time_accounting.domain.errors import (
     BusinessTripWithoutPlaceError,
@@ -39,6 +40,7 @@ from src.modules.time_accounting.domain.value_objects import (
 )
 
 MOSCOW = ZoneInfo("Europe/Moscow")
+VLADIVOSTOK = ZoneInfo("Asia/Vladivostok")
 
 
 def march_2026() -> AccountingPeriod:
@@ -116,7 +118,7 @@ def test_an_interrupted_shift_is_recorded_as_two_adjacent_events() -> None:
 def test_a_day_over_24_hours_is_refused_by_the_domain_service() -> None:
     """Два табеля одного сотрудника: мартовский держит суточное дежурство
     с 31-го, апрельский пытается добавить смену, накрывающую его хвост."""
-    service = DailyServiceTimeLimitService(time_zone=MOSCOW)
+    service = DailyServiceTimeLimitService()
     employee = uuid4()
 
     march_31 = TimeInterval(
@@ -128,14 +130,17 @@ def test_a_day_over_24_hours_is_refused_by_the_domain_service() -> None:
 
     with pytest.raises(DailyServiceTimeLimitExceededError) as excinfo:
         service.ensure_within_daily_limit(
-            employee_id=employee, candidate=overlapping, existing_shifts=[march_31]
+            employee_id=employee,
+            candidate=overlapping,
+            existing_shifts=[march_31],
+            time_zone=MOSCOW,
         )
     assert "2026-04-01" in str(excinfo.value)
 
 
 def test_a_shift_starting_exactly_when_the_previous_ends_is_allowed() -> None:
     """Ровно 24 ч за сутки — предел, а не превышение."""
-    service = DailyServiceTimeLimitService(time_zone=MOSCOW)
+    service = DailyServiceTimeLimitService()
     first = TimeInterval(
         start=datetime(2026, 4, 1, 0, tzinfo=MOSCOW), end=datetime(2026, 4, 1, 12, tzinfo=MOSCOW)
     )
@@ -143,7 +148,7 @@ def test_a_shift_starting_exactly_when_the_previous_ends_is_allowed() -> None:
         start=datetime(2026, 4, 1, 12, tzinfo=MOSCOW), end=datetime(2026, 4, 2, 0, tzinfo=MOSCOW)
     )
     service.ensure_within_daily_limit(
-        employee_id=uuid4(), candidate=second, existing_shifts=[first]
+        employee_id=uuid4(), candidate=second, existing_shifts=[first], time_zone=MOSCOW
     )
 
 
@@ -159,22 +164,33 @@ def test_within_one_timesheet_the_limit_cannot_be_violated_at_all() -> None:
             event_type=ServiceTimeEventType.ACTUAL_SHIFT, time_range=shift(2, 10, hours=10)
         )
 
-    service = DailyServiceTimeLimitService(time_zone=MOSCOW)
+    service = DailyServiceTimeLimitService()
     service.ensure_within_daily_limit(
         employee_id=sheet.employee_id,
         candidate=shift(2, 20, hours=4),
         existing_shifts=[e.time_range for e in sheet.actual_shift_events()],
+        time_zone=MOSCOW,
     )
 
 
 def test_a_24_hour_duty_is_split_across_two_days() -> None:
-    service = DailyServiceTimeLimitService(time_zone=MOSCOW)
     duty = TimeInterval(
         start=datetime(2026, 3, 31, 8, tzinfo=MOSCOW), end=datetime(2026, 4, 1, 8, tzinfo=MOSCOW)
     )
-    per_day = service._minutes_per_day([duty])
+    per_day = minutes_per_day([duty], time_zone=MOSCOW)
     assert per_day[date(2026, 3, 31)] == 16 * 60
     assert per_day[date(2026, 4, 1)] == 8 * 60
+
+
+def test_the_same_duty_splits_differently_in_another_time_zone() -> None:
+    """Ровно то, ради чего пояс стал свойством подразделения (миграция
+    0016): те же 24 часа во Владивостоке приходятся на другие сутки."""
+    duty = TimeInterval(
+        start=datetime(2026, 3, 31, 8, tzinfo=MOSCOW), end=datetime(2026, 4, 1, 8, tzinfo=MOSCOW)
+    )
+    per_day = minutes_per_day([duty], time_zone=VLADIVOSTOK)
+    assert per_day[date(2026, 3, 31)] == 9 * 60
+    assert per_day[date(2026, 4, 1)] == 15 * 60
 
 
 # ---------------------------------------------------------- границы периода

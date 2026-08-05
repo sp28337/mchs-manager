@@ -122,6 +122,7 @@ def _to_unit_response(unit: Unit) -> UnitResponse:
         name=unit.name,
         parent_unit_id=unit.parent_unit_id,
         hierarchy_path=unit.hierarchy_path.as_ltree(),
+        time_zone=unit.time_zone,
     )
 
 
@@ -166,7 +167,10 @@ async def create_unit(
     try:
         unit = await handler.handle(
             CreateUnitCommand(
-                code=request.code, name=request.name, parent_unit_id=request.parent_unit_id
+                code=request.code,
+                name=request.name,
+                parent_unit_id=request.parent_unit_id,
+                time_zone=request.time_zone,
             )
         )
     except UnitCodeAlreadyExistsError as exc:

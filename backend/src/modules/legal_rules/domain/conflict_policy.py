@@ -23,7 +23,11 @@ from src.modules.legal_rules.domain.errors import (
     PolicyVersionOverlapError,
 )
 from src.modules.legal_rules.domain.events import ConflictResolutionPolicyPublished
-from src.modules.legal_rules.domain.value_objects import EffectivePeriod, RuleCategory, RuleStatus
+from src.modules.legal_rules.domain.value_objects import (
+    EffectivePeriod,
+    HourCategory,
+    RuleStatus,
+)
 
 _IMMUTABLE_AFTER_PUBLISH = frozenset({"precedence_list", "valid_from"})
 
@@ -32,7 +36,7 @@ _IMMUTABLE_AFTER_PUBLISH = frozenset({"precedence_list", "valid_from"})
 class ConflictResolutionPolicyVersion(Entity):
     policy_id: UUID
     version_no: int
-    precedence_list: tuple[RuleCategory, ...]
+    precedence_list: tuple[HourCategory, ...]
     valid_from: date
     valid_to: date | None = None
     status: RuleStatus = RuleStatus.DRAFT
@@ -77,7 +81,7 @@ class ConflictResolutionPolicy(AggregateRoot):
     def draft_new_version(
         self,
         *,
-        precedence_list: tuple[RuleCategory, ...],
+        precedence_list: tuple[HourCategory, ...],
         valid_from: date,
         valid_to: date | None = None,
     ) -> ConflictResolutionPolicyVersion:

@@ -18,3 +18,4 @@ class CreateUnitCommand(BaseModel):
     code: str = Field(min_length=1, max_length=50)
     name: str = Field(min_length=1, max_length=300)
     parent_unit_id: UUID | None = None
+    time_zone: str | None = None

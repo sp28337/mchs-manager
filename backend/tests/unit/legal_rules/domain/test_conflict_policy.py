@@ -15,7 +15,7 @@ from src.modules.legal_rules.domain.errors import (
     PolicyVersionImmutableError,
     PolicyVersionOverlapError,
 )
-from src.modules.legal_rules.domain.value_objects import RuleCategory, RuleStatus
+from src.modules.legal_rules.domain.value_objects import HourCategory, RuleStatus
 
 NOW = datetime.now(UTC)
 
@@ -29,8 +29,8 @@ def test_duplicate_category_in_precedence_list_is_rejected_at_construction() -> 
     with pytest.raises(ConflictPolicyDuplicateCategoryError):
         policy.draft_new_version(
             precedence_list=(
-                RuleCategory.HOLIDAY_HOURS_CLASSIFICATION,
-                RuleCategory.HOLIDAY_HOURS_CLASSIFICATION,
+                HourCategory.HOLIDAY,
+                HourCategory.HOLIDAY,
             ),
             valid_from=date(2024, 1, 1),
         )
@@ -40,8 +40,8 @@ def test_publish_raises_event_and_sets_published_status() -> None:
     policy = _make_policy()
     v1 = policy.draft_new_version(
         precedence_list=(
-            RuleCategory.HOLIDAY_HOURS_CLASSIFICATION,
-            RuleCategory.NIGHT_HOURS_CLASSIFICATION,
+            HourCategory.HOLIDAY,
+            HourCategory.NIGHT,
         ),
         valid_from=date(2024, 1, 1),
     )
@@ -57,8 +57,8 @@ def test_publishing_supersedes_the_previously_active_version() -> None:
     policy = _make_policy()
     v1 = policy.draft_new_version(
         precedence_list=(
-            RuleCategory.HOLIDAY_HOURS_CLASSIFICATION,
-            RuleCategory.NIGHT_HOURS_CLASSIFICATION,
+            HourCategory.HOLIDAY,
+            HourCategory.NIGHT,
         ),
         valid_from=date(2024, 1, 1),
     )
@@ -66,8 +66,8 @@ def test_publishing_supersedes_the_previously_active_version() -> None:
 
     v2 = policy.draft_new_version(
         precedence_list=(
-            RuleCategory.NIGHT_HOURS_CLASSIFICATION,
-            RuleCategory.HOLIDAY_HOURS_CLASSIFICATION,
+            HourCategory.NIGHT,
+            HourCategory.HOLIDAY,
         ),
         valid_from=date(2024, 6, 1),
     )
@@ -81,12 +81,12 @@ def test_publishing_supersedes_the_previously_active_version() -> None:
 def test_genuine_overlap_is_rejected() -> None:
     policy = _make_policy()
     v1 = policy.draft_new_version(
-        precedence_list=(RuleCategory.OVERTIME_CLASSIFICATION,), valid_from=date(2024, 1, 1)
+        precedence_list=(HourCategory.OVERTIME,), valid_from=date(2024, 1, 1)
     )
     policy.publish_version(v1.id, now=NOW)
 
     v2 = policy.draft_new_version(
-        precedence_list=(RuleCategory.NIGHT_HOURS_CLASSIFICATION,), valid_from=date(2023, 6, 1)
+        precedence_list=(HourCategory.NIGHT,), valid_from=date(2023, 6, 1)
     )
     with pytest.raises(PolicyVersionOverlapError):
         policy.publish_version(v2.id, now=NOW)
@@ -95,7 +95,7 @@ def test_genuine_overlap_is_rejected() -> None:
 def test_republishing_raises() -> None:
     policy = _make_policy()
     v1 = policy.draft_new_version(
-        precedence_list=(RuleCategory.OVERTIME_CLASSIFICATION,), valid_from=date(2024, 1, 1)
+        precedence_list=(HourCategory.OVERTIME,), valid_from=date(2024, 1, 1)
     )
     policy.publish_version(v1.id, now=NOW)
     with pytest.raises(PolicyVersionImmutableError):
@@ -105,18 +105,18 @@ def test_republishing_raises() -> None:
 def test_published_version_precedence_list_is_immutable() -> None:
     policy = _make_policy()
     v1 = policy.draft_new_version(
-        precedence_list=(RuleCategory.OVERTIME_CLASSIFICATION,), valid_from=date(2024, 1, 1)
+        precedence_list=(HourCategory.OVERTIME,), valid_from=date(2024, 1, 1)
     )
     policy.publish_version(v1.id, now=NOW)
 
     with pytest.raises(PolicyVersionImmutableError):
-        v1.precedence_list = (RuleCategory.NIGHT_HOURS_CLASSIFICATION,)
+        v1.precedence_list = (HourCategory.NIGHT,)
 
 
 def test_draft_version_remains_mutable() -> None:
     policy = _make_policy()
     v1 = policy.draft_new_version(
-        precedence_list=(RuleCategory.OVERTIME_CLASSIFICATION,), valid_from=date(2024, 1, 1)
+        precedence_list=(HourCategory.OVERTIME,), valid_from=date(2024, 1, 1)
     )
-    v1.precedence_list = (RuleCategory.NIGHT_HOURS_CLASSIFICATION,)  # must not raise
-    assert v1.precedence_list == (RuleCategory.NIGHT_HOURS_CLASSIFICATION,)
+    v1.precedence_list = (HourCategory.NIGHT,)  # must not raise
+    assert v1.precedence_list == (HourCategory.NIGHT,)

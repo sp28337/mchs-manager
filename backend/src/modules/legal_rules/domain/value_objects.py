@@ -25,6 +25,40 @@ class RuleCategory(StrEnum):
     MINIMUM_REST_PERIOD = "minimum_rest_period"
 
 
+class HourCategory(StrEnum):
+    """Категории ЧАСОВ, между которыми разрешается конфликт
+    (`ConflictResolutionPolicyVersion.precedence_list`).
+
+    --- Почему это не `RuleCategory` --------------------------------------
+
+    Раньше `precedence_list` был типизирован как `tuple[RuleCategory, ...]`,
+    и это была ошибка моделирования, обнаруженная при реализации
+    Алгоритма Ж. Две причины, каждой достаточно:
+
+    * Алгоритм Ж шаг 3 приводит пример списка дословно:
+      `[holiday, weekend, night, overtime]`. Ни одно из этих значений не
+      является `RuleCategory` (там `holiday_hours_classification`,
+      `night_hours_classification` и так далее).
+    * У `RuleCategory` нет вообще никакого значения про выходные, поэтому
+      требуемый ведомственным порядком приоритет «выходной важнее ночи»
+      был физически невыразим.
+
+    Разница содержательная, а не терминологическая: `RuleCategory`
+    отвечает на вопрос «о чём это правило», а `HourCategory` — «чем
+    является этот час». Политика приоритетов упорядочивает вторые.
+
+    `OVERTIME` в перечислении есть, потому что документ его называет, но
+    свойством ЧАСА он не является: переработка вычисляется сравнением
+    суммы факта с нормой периода (Алгоритм З). `ConflictResolutionService`
+    его поэтому пропускает — см. его докстринг.
+    """
+
+    NIGHT = "night"
+    HOLIDAY = "holiday"
+    WEEKEND = "weekend"
+    OVERTIME = "overtime"
+
+
 class RuleStatus(StrEnum):
     """Mirrors legal_rules.rule_status."""
 

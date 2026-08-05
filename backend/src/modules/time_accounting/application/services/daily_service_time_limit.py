@@ -26,11 +26,10 @@
 
 --- Про часовой пояс ---------------------------------------------------
 
-Проверка сформулирована через «сутки», а сутки где-то начинаются. ФПС
-работает в 11 часовых поясах, и ни один документ проекта пояс отсчёта не
-называет, поэтому он приходит параметром, а не константой: решение о нём
-принимается один раз при сборке приложения и видно в сигнатуре, а не
-спрятано в глубине расчёта.
+Проверка сформулирована через «сутки», а сутки где-то начинаются. Пояс
+приходит аргументом МЕТОДА, а не задаётся при сборке сервиса, потому что
+он свойство места службы: подразделения ФПС стоят в 11 часовых поясах, и
+пояс приходит из `personnel.unit.time_zone` (миграция 0016).
 
 Заметим при этом, что на ВЕРДИКТ пояс здесь повлиять не может. Превысить
 24 ч за сутки способен только набор с пересечением (см. утверждение
@@ -58,15 +57,13 @@ _MINUTES_IN_A_DAY = 24 * 60
 class DailyServiceTimeLimitService:
     """Проверяет инвариант 6.1.6 по всем фактическим сменам сотрудника."""
 
-    def __init__(self, *, time_zone: ZoneInfo) -> None:
-        self._tz = time_zone
-
     def ensure_within_daily_limit(
         self,
         *,
         employee_id: UUID,
         candidate: TimeInterval,
         existing_shifts: list[TimeInterval],
+        time_zone: ZoneInfo,
     ) -> None:
         """Проверяемая смена передаётся отдельно от уже существующих,
         потому что в момент проверки она ещё не сохранена — исключать её
@@ -74,7 +71,7 @@ class DailyServiceTimeLimitService:
         допущена и исправлена в `scheduling`: параметр
         `exclude_schedule_id` выбрасывал из проверки как раз те смены,
         ради которых проверка и делалась)."""
-        per_day = self._minutes_per_day([*existing_shifts, candidate])
+        per_day = minutes_per_day([*existing_shifts, candidate], time_zone=time_zone)
 
         exceeded = sorted(day for day, minutes in per_day.items() if minutes > _MINUTES_IN_A_DAY)
         if not exceeded:
@@ -87,32 +84,48 @@ class DailyServiceTimeLimitService:
             f"две из них пересекаются (Domain Model инвариант 6.1.6)"
         )
 
-    def _minutes_per_day(self, intervals: list[TimeInterval]) -> dict[date, float]:
-        """Раскладывает интервалы по календарным суткам выбранного пояса,
-        разрезая те, что пересекают полночь: суточное дежурство с 08:00
-        даёт 16 ч первым суткам и 8 ч вторым."""
-        per_day: dict[date, float] = defaultdict(float)
-        for interval in intervals:
-            for day, slice_ in self._split_by_day(interval):
-                per_day[day] += slice_.duration_minutes()
-        return per_day
 
-    def _split_by_day(self, interval: TimeInterval) -> list[tuple[date, TimeInterval]]:
-        local_start = interval.start.astimezone(self._tz)
-        local_end = interval.end.astimezone(self._tz)
+def minutes_per_day(
+    intervals: list[TimeInterval], *, time_zone: ZoneInfo
+) -> dict[date, float]:
+    """Раскладывает интервалы по календарным суткам пояса, разрезая те,
+    что пересекают полночь: суточное дежурство с 08:00 даёт 16 ч первым
+    суткам и 8 ч вторым."""
+    per_day: dict[date, float] = defaultdict(float)
+    for interval in intervals:
+        for day, slice_ in split_by_day(interval, time_zone=time_zone):
+            per_day[day] += slice_.duration_minutes()
+    return per_day
 
-        pieces: list[tuple[date, TimeInterval]] = []
-        day = local_start.date()
-        while True:
-            day_start = self._midnight(day)
-            day_end = self._midnight(day + timedelta(days=1))
-            piece = interval.intersection(TimeInterval(start=day_start, end=day_end))
-            if piece is not None:
-                pieces.append((day, piece))
-            if day_end >= local_end:
-                break
-            day += timedelta(days=1)
-        return pieces
 
-    def _midnight(self, day: date) -> datetime:
-        return datetime(day.year, day.month, day.day, tzinfo=self._tz)
+def split_by_day(
+    interval: TimeInterval, *, time_zone: ZoneInfo
+) -> list[tuple[date, TimeInterval]]:
+    """Пары «календарная дата -> часть интервала, попавшая в эти сутки».
+
+    Функция модуля, а не метод: ровно этим же занимаются Алгоритмы Д и Е
+    («на какие календарные даты приходится интервал факта»), и второй
+    экземпляр той же арифметики рано или поздно разошёлся бы с первым на
+    переходе через полночь.
+    """
+    local_end = interval.end.astimezone(time_zone)
+
+    pieces: list[tuple[date, TimeInterval]] = []
+    day = interval.start.astimezone(time_zone).date()
+    while True:
+        day_end = midnight(day + timedelta(days=1), time_zone=time_zone)
+        piece = interval.intersection(
+            TimeInterval(start=midnight(day, time_zone=time_zone), end=day_end)
+        )
+        if piece is not None:
+            pieces.append((day, piece))
+        if day_end >= local_end:
+            break
+        day += timedelta(days=1)
+    return pieces
+
+
+def midnight(day: date, *, time_zone: ZoneInfo) -> datetime:
+    """Полночь календарной даты в указанном поясе — точка, в которой
+    «дата» превращается в момент времени."""
+    return datetime(day.year, day.month, day.day, tzinfo=time_zone)

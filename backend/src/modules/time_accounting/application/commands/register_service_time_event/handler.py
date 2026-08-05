@@ -23,6 +23,8 @@
 
 from __future__ import annotations
 
+from zoneinfo import ZoneInfo
+
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.building_blocks.domain.time_interval import TimeInterval
@@ -31,6 +33,7 @@ from src.modules.time_accounting.application.commands.register_service_time_even
     RegisterServiceTimeEventCommand,
 )
 from src.modules.time_accounting.application.ports import (
+    EmployeeCalculationContextPort,
     OvertimeOrderRepositoryPort,
     TimesheetRepositoryPort,
 )
@@ -53,12 +56,14 @@ class RegisterServiceTimeEventHandler:
         orders: OvertimeOrderRepositoryPort,
         outbox: OutboxWriter,
         daily_limit: DailyServiceTimeLimitService,
+        employees: EmployeeCalculationContextPort,
     ) -> None:
         self._session = session
         self._repo = repo
         self._orders = orders
         self._outbox = outbox
         self._daily_limit = daily_limit
+        self._employees = employees
 
     async def handle(self, command: RegisterServiceTimeEventCommand) -> ServiceTimeEvent:
         timesheet = await self._repo.get(command.timesheet_id)
@@ -80,10 +85,17 @@ class RegisterServiceTimeEventHandler:
             # командировка суточного предела не образуют: человек может
             # болеть все 24 часа суток, и это не ошибка ввода.
             neighbours = await self._repo.actual_shift_intervals_of(timesheet.employee_id)
+            context = await self._employees.context_of(timesheet.employee_id)
+            if context is None:
+                raise TimesheetNotFoundError(
+                    f"сотрудник {timesheet.employee_id} не найден: без его подразделения "
+                    f"неизвестен часовой пояс отсчёта суток (миграция 0016)"
+                )
             self._daily_limit.ensure_within_daily_limit(
                 employee_id=timesheet.employee_id,
                 candidate=time_range,
                 existing_shifts=neighbours,
+                time_zone=ZoneInfo(context.time_zone),
             )
 
         event = timesheet.register_event(

@@ -12,6 +12,7 @@
 from __future__ import annotations
 
 from datetime import date, datetime
+from decimal import Decimal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -128,3 +129,57 @@ class OvertimeOrderResponse(BaseModel):
     issued_date: date = Field(alias="issuedDate")
     issued_by: UUID = Field(alias="issuedBy")
     reason: str
+
+
+class HoursBreakdownResponse(BaseModel):
+    """Зеркало openapi `HoursBreakdown`.
+
+    Четыре поля сверх спецификации — `weekendHours`,
+    `underworkedExplainedHours`, `usedConflictPolicyVersionId` и
+    `computedInTimeZone`. Все четыре ADDITIVE (разрешено политикой
+    API_Conventions разд. 1) и все четыре не украшения:
+
+    * без `weekendHours` пропадает результат целого Алгоритма Е;
+    * без разбивки недоработки нельзя отличить пропуск по болезни от
+      пропуска без причины (инвариант 6.1.3), а это разные правовые
+      последствия;
+    * два поля провенанса отвечают на вопрос «по каким правилам это
+      посчитано», без которого пересчёт задним числом не проверить
+      (инвариант 6.1.5).
+    """
+
+    model_config = ConfigDict(populate_by_name=True, serialize_by_alias=True)
+
+    timesheet_id: UUID = Field(alias="timesheetId")
+    employee_id: UUID = Field(alias="employeeId")
+    period_start: date = Field(alias="periodStart")
+    period_end: date = Field(alias="periodEnd")
+    norm_hours: Decimal = Field(alias="normHours")
+    actual_hours: Decimal = Field(alias="actualHours")
+    night_hours: Decimal = Field(alias="nightHours")
+    holiday_hours: Decimal = Field(alias="holidayHours")
+    weekend_hours: Decimal = Field(alias="weekendHours")
+    overtime_hours: Decimal = Field(alias="overtimeHours")
+    underworked_hours: Decimal = Field(alias="underworkedHours")
+    underworked_explained_hours: Decimal = Field(alias="underworkedExplainedHours")
+    computed_from_rule_version_id: UUID = Field(alias="computedFromRuleVersionId")
+    used_conflict_policy_version_id: UUID | None = Field(
+        default=None, alias="usedConflictPolicyVersionId"
+    )
+    computed_from_legal_base: str = Field(alias="computedFromLegalBase")
+    computed_in_time_zone: str = Field(alias="computedInTimeZone")
+    computed_at: datetime = Field(alias="computedAt")
+
+
+class UnitTimesheetDashboardResponse(BaseModel):
+    """Зеркало openapi `UnitTimesheetDashboard`."""
+
+    model_config = ConfigDict(populate_by_name=True, serialize_by_alias=True)
+
+    unit_id: UUID = Field(alias="unitId")
+    period_start: date = Field(alias="periodStart")
+    period_end: date = Field(alias="periodEnd")
+    total_employees: int = Field(alias="totalEmployees")
+    total_overtime_hours: Decimal = Field(alias="totalOvertimeHours")
+    total_underworked_hours: Decimal = Field(alias="totalUnderworkedHours")
+    pending_approval_count: int = Field(alias="pendingApprovalCount")
