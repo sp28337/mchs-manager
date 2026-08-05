@@ -22,6 +22,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.building_blocks.application.problem import problem_exception
 from src.building_blocks.infrastructure.db import get_session
+from src.building_blocks.infrastructure.outbox import OutboxWriter
 from src.modules.service_calendar.api.schemas import (
     CalendarDayResponse,
     CalendarYearResponse,
@@ -61,6 +62,7 @@ from src.modules.service_calendar.domain.errors import (
     DayOutsideCalendarYearError,
     IncompleteCalendarYearError,
 )
+from src.modules.service_calendar.infrastructure.orm_mapping import outbox_message_table
 from src.modules.service_calendar.infrastructure.repositories import CalendarYearRepository
 
 router = APIRouter()
@@ -142,7 +144,9 @@ async def set_calendar_days(
 async def publish_calendar_year(
     year: YearPath, session: SessionDep, idempotency_key: IdempotencyKeyDep
 ) -> CalendarYearResponse:
-    handler = PublishCalendarYearHandler(session, CalendarYearRepository(session))
+    handler = PublishCalendarYearHandler(
+        session, CalendarYearRepository(session), OutboxWriter(session, outbox_message_table)
+    )
     try:
         calendar = await handler.handle(PublishCalendarYearCommand(year=year))
     except CalendarYearNotFoundError as exc:

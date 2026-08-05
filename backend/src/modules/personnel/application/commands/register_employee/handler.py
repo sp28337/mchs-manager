@@ -11,6 +11,7 @@ from __future__ import annotations
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.building_blocks.infrastructure.clock import Clock, SystemClock
+from src.building_blocks.infrastructure.outbox import OutboxWriter
 from src.modules.personnel.application.commands.register_employee.command import (
     RegisterEmployeeCommand,
 )
@@ -34,12 +35,14 @@ class RegisterEmployeeHandler:
         employees: EmployeeRepositoryPort,
         units: UnitRepositoryPort,
         positions: PositionRepositoryPort,
+        outbox: OutboxWriter,
         clock: Clock | None = None,
     ) -> None:
         self._session = session
         self._employees = employees
         self._units = units
         self._positions = positions
+        self._outbox = outbox
         self._clock = clock or SystemClock()
 
     async def handle(self, command: RegisterEmployeeCommand) -> Employee:
@@ -65,5 +68,6 @@ class RegisterEmployeeHandler:
             now=self._clock.now(),
         )
         self._employees.add(employee)
+        await self._outbox.enqueue(employee)
         await self._session.commit()
         return employee

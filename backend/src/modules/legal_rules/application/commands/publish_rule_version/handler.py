@@ -5,6 +5,7 @@ from __future__ import annotations
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.building_blocks.infrastructure.clock import Clock, SystemClock
+from src.building_blocks.infrastructure.outbox import OutboxWriter
 from src.modules.legal_rules.application.commands.publish_rule_version.command import (
     PublishRuleVersionCommand,
 )
@@ -15,10 +16,15 @@ from src.modules.legal_rules.domain.rule import RuleVersion
 
 class PublishRuleVersionHandler:
     def __init__(
-        self, session: AsyncSession, repo: RuleRepositoryPort, clock: Clock | None = None
+        self,
+        session: AsyncSession,
+        repo: RuleRepositoryPort,
+        outbox: OutboxWriter,
+        clock: Clock | None = None,
     ) -> None:
         self._session = session
         self._repo = repo
+        self._outbox = outbox
         self._clock = clock or SystemClock()
 
     async def handle(self, command: PublishRuleVersionCommand) -> RuleVersion:
@@ -36,5 +42,10 @@ class PublishRuleVersionHandler:
         version = rule.publish_version(
             command.version_id, published_by=command.published_by, now=self._clock.now()
         )
+
+        # RuleVersionPublished уходит в outbox ТОЙ ЖЕ транзакцией, что и
+        # смена статуса версии (Architecture разд. 9.2). Один commit ниже —
+        # и состояние, и событие, либо ни то ни другое.
+        await self._outbox.enqueue(rule)
         await self._session.commit()
         return version

@@ -16,6 +16,7 @@ from sqlalchemy import text
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker, create_async_engine
 
+from src.building_blocks.infrastructure.outbox import OutboxWriter
 from src.composition.settings import get_settings
 from src.modules.legal_rules.application.commands.create_document_node.command import (
     CreateDocumentNodeCommand,
@@ -61,7 +62,10 @@ from src.modules.legal_rules.domain.value_objects import (
 from src.modules.legal_rules.infrastructure.write.normative_document_repository import (
     NormativeDocumentRepository,
 )
-from src.modules.legal_rules.infrastructure.write.orm_mapping import start_mappers
+from src.modules.legal_rules.infrastructure.write.orm_mapping import (
+    outbox_message_table,
+    start_mappers,
+)
 from src.modules.legal_rules.infrastructure.write.rule_repository import RuleRepository
 from src.rule_engine.interpreter.version_resolver import NoApplicableRuleVersionError
 
@@ -151,7 +155,11 @@ async def test_full_create_publish_resolve_flow(engine: AsyncEngine) -> None:
         )
 
         # 4. Publish it
-        published = await PublishRuleVersionHandler(session, rule_repo).handle(
+        # `outbox` — обязательный параметр: событие RuleVersionPublished
+        # обязано уйти той же транзакцией, что и публикация версии
+        # (Architecture разд. 9.2), поэтому забыть его нельзя даже здесь.
+        outbox = OutboxWriter(session, outbox_message_table)
+        published = await PublishRuleVersionHandler(session, rule_repo, outbox).handle(
             PublishRuleVersionCommand(
                 rule_id=rule.id,
                 version_id=version.id,

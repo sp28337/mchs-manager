@@ -11,6 +11,7 @@ from __future__ import annotations
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.building_blocks.infrastructure.clock import Clock, SystemClock
+from src.building_blocks.infrastructure.outbox import OutboxWriter
 from src.modules.personnel.application.commands.change_employment_status.command import (
     ChangeEmploymentStatusCommand,
 )
@@ -21,10 +22,15 @@ from src.modules.personnel.domain.errors import EmployeeNotFoundError
 
 class ChangeEmploymentStatusHandler:
     def __init__(
-        self, session: AsyncSession, repo: EmployeeRepositoryPort, clock: Clock | None = None
+        self,
+        session: AsyncSession,
+        repo: EmployeeRepositoryPort,
+        outbox: OutboxWriter,
+        clock: Clock | None = None,
     ) -> None:
         self._session = session
         self._repo = repo
+        self._outbox = outbox
         self._clock = clock or SystemClock()
 
     async def handle(self, command: ChangeEmploymentStatusCommand) -> Employee:
@@ -38,5 +44,6 @@ class ChangeEmploymentStatusHandler:
             reason=command.reason,
             now=self._clock.now(),
         )
+        await self._outbox.enqueue(employee)
         await self._session.commit()
         return employee

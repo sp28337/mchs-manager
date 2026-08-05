@@ -29,11 +29,19 @@ from sqlalchemy.dialects.postgresql import ENUM as PgEnum
 from sqlalchemy.dialects.postgresql import UUID as PgUUID
 from sqlalchemy.orm import registry, relationship
 
+from src.building_blocks.infrastructure.outbox import build_outbox_table
 from src.modules.service_calendar.domain.calendar_year import CalendarDay, CalendarYear
 from src.modules.service_calendar.domain.value_objects import DayType
 
 mapper_registry = registry()
 metadata = MetaData(schema="service_calendar")
+
+# Transactional Outbox (Architecture разд. 9.2). Форма таблицы общая для
+# всех модулей — описывается один раз в building_blocks, создаётся
+# миграцией 0010. Здесь она попадает в MetaData ЭТОГО модуля, чтобы
+# запись события шла той же сессией и той же транзакцией, что и
+# изменение агрегата.
+outbox_message_table = build_outbox_table(metadata)
 
 # The enum's values as plain strings. Exported so the public Contract can
 # zero-fill its per-type counts without importing `domain.DayType` — the

@@ -51,6 +51,7 @@ from sqlalchemy.orm import registry, relationship
 from sqlalchemy.sql.elements import ColumnElement
 from sqlalchemy.types import TypeDecorator, UserDefinedType
 
+from src.building_blocks.infrastructure.outbox import build_outbox_table
 from src.modules.personnel.domain.employee import Employee
 from src.modules.personnel.domain.position import Position
 from src.modules.personnel.domain.service_record import SecondaryAssignment, ServiceRecordEntry
@@ -67,6 +68,13 @@ from src.modules.personnel.domain.value_objects import (
 
 mapper_registry = registry()
 metadata = MetaData(schema="personnel")
+
+# Transactional Outbox (Architecture разд. 9.2). Форма таблицы общая для
+# всех модулей — описывается один раз в building_blocks, создаётся
+# миграцией 0010. Здесь она попадает в MetaData ЭТОГО модуля, чтобы
+# запись события шла той же сессией и той же транзакцией, что и
+# изменение агрегата.
+outbox_message_table = build_outbox_table(metadata)
 
 _employment_status_enum = PgEnum(
     *[s.value for s in EmploymentStatus],

@@ -11,6 +11,7 @@ from __future__ import annotations
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.building_blocks.infrastructure.clock import Clock, SystemClock
+from src.building_blocks.infrastructure.outbox import OutboxWriter
 from src.modules.personnel.application.commands.add_service_record_entry.command import (
     AddServiceRecordEntryCommand,
 )
@@ -34,12 +35,14 @@ class AddServiceRecordEntryHandler:
         employees: EmployeeRepositoryPort,
         units: UnitRepositoryPort,
         positions: PositionRepositoryPort,
+        outbox: OutboxWriter,
         clock: Clock | None = None,
     ) -> None:
         self._session = session
         self._employees = employees
         self._units = units
         self._positions = positions
+        self._outbox = outbox
         self._clock = clock or SystemClock()
 
     async def handle(self, command: AddServiceRecordEntryCommand) -> ServiceRecordEntry:
@@ -66,5 +69,8 @@ class AddServiceRecordEntryHandler:
             rank=command.rank,
             now=self._clock.now(),
         )
+        # `transfer` поднимает EmployeeTransferred — оно должно уйти вместе
+        # с самим переводом, а не отдельно от него.
+        await self._outbox.enqueue(employee)
         await self._session.commit()
         return entry
