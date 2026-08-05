@@ -17,11 +17,13 @@ from typing import TypedDict
 
 from fastapi import FastAPI
 
+from src.building_blocks.application.problem_handlers import install_problem_handlers
 from src.composition.di import dispose_infrastructure, init_infrastructure
 from src.modules.legal_rules.api.router import router as legal_rules_router
 from src.modules.personnel.api.router import router as personnel_router
 from src.modules.scheduling.api.router import router as scheduling_router
 from src.modules.service_calendar.api.router import router as service_calendar_router
+from src.modules.time_accounting.api.router import router as time_accounting_router
 
 
 class AppState(TypedDict):
@@ -43,6 +45,11 @@ app = FastAPI(
     version="1.0.0",
     lifespan=lifespan,
 )
+
+# Единый конверт ошибок RFC 7807 для всех модулей (API_Conventions разд. 3).
+# Ставится здесь, а не в модулях: разд. 3 требует одинакового поведения от
+# всего API, а обработчики исключений — свойство приложения, а не роутера.
+install_problem_handlers(app)
 
 
 @app.get("/health", tags=["_internal"])
@@ -71,3 +78,6 @@ app.include_router(
 # (`personnel` и `legal_rules`), и поставщик PlannedShift для
 # будущего TimeAccounting.
 app.include_router(scheduling_router, prefix="/api/v1/scheduling", tags=["Scheduling"])
+app.include_router(
+    time_accounting_router, prefix="/api/v1/time-accounting", tags=["TimeAccounting"]
+)

@@ -169,7 +169,7 @@ async def test_full_employee_lifecycle_over_http(client: TestClient) -> None:
         headers=_idem(),
     )
     assert rehire.status_code == 422, rehire.text
-    assert rehire.json()["detail"]["status"] == 422
+    assert rehire.json()["status"] == 422
 
     final_history = client.get(f"{BASE}/employees/{employee_id}/service-record-entries").json()
     assert [e["eventType"] for e in final_history] == ["assignment", "transfer", "dismissal"]
@@ -242,7 +242,12 @@ async def test_missing_idempotency_key_is_rejected(client: TestClient) -> None:
     suppression, but it IS required — a client that omits it is not
     conforming, and silently accepting the request would hide that."""
     resp = client.post(f"{BASE}/units", json={"code": f"U-{uuid4().hex[:8]}", "name": "Без ключа"})
-    assert resp.status_code == 422, resp.text
+    # 400, а не 422: API_Conventions разд. 3 разводит эти коды по существу —
+    # 400 «не проходит JSON Schema валидацию тела/параметров», 422
+    # «синтаксически верный запрос нарушает бизнес-инвариант домена».
+    # Отсутствующий обязательный заголовок — первое, а не второе.
+    assert resp.status_code == 400, resp.text
+    assert resp.json()["type"].endswith("/validation-failed")
 
 
 async def test_service_record_entry_missing_its_payload_is_a_400(client: TestClient) -> None:

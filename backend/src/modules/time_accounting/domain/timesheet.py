@@ -36,7 +36,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID, uuid4
 
@@ -148,7 +148,11 @@ class CorrectionEntry(Entity):
     original_event_id: UUID
     reason: str
     created_by: UUID
-    created_at: datetime | None = None
+    # Заполняется доменом, а не DEFAULT now() в БД: SQLAlchemy включает
+    # атрибут в INSERT, раз он у объекта есть, и серверный DEFAULT до
+    # значения не доходит — колонка получила бы NULL. Тот же приём, что у
+    # `DomainEvent.occurred_at`.
+    created_at: datetime = field(default_factory=lambda: datetime.now(UTC))
 
     def __post_init__(self) -> None:
         # openapi CreateCorrectionEntryRequest: reason minLength 10, и

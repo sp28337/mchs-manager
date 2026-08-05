@@ -91,7 +91,7 @@ async def test_full_http_flow_create_publish_resolve(client: TestClient) -> None
         json={"code": rule_code, "category": "norm_calculation", "displayName": "Duplicate"},
     )
     assert dup_resp.status_code == 409, dup_resp.text
-    assert dup_resp.json()["detail"]["status"] == 409
+    assert dup_resp.json()["status"] == 409
 
     # 3. Draft a RuleVersion
     version_resp = client.post(
@@ -167,7 +167,7 @@ async def test_full_http_flow_create_publish_resolve(client: TestClient) -> None
 async def test_get_nonexistent_document_returns_404_problem_json(client: TestClient) -> None:
     resp = client.get(f"/api/v1/legal-rules/documents/{uuid4()}")
     assert resp.status_code == 404
-    body = resp.json()["detail"]
+    body = resp.json()
     assert body["status"] == 404
     assert body["type"].startswith("https://api.fps-timekeeping.gov.ru/errors/")
     assert "traceId" in body

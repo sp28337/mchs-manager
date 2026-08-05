@@ -213,7 +213,7 @@ async def test_publishing_an_incomplete_year_is_rejected(
 
     resp = client.post(f"{BASE}/years/{year}/publish", headers=_idem())
     assert resp.status_code == 422, resp.text
-    assert "missing" in resp.json()["detail"]["detail"]
+    assert "missing" in resp.json()["detail"]
 
 
 async def test_editing_a_published_year_is_locked(client: TestClient, year: int) -> None:

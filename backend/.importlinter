@@ -50,8 +50,8 @@ layers =
 name = Layers: time_accounting
 type = layers
 layers =
-    (src.modules.time_accounting.api)
-    (src.modules.time_accounting.infrastructure)
+    src.modules.time_accounting.api
+    src.modules.time_accounting.infrastructure
     src.modules.time_accounting.application
     src.modules.time_accounting.domain
 
