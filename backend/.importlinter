@@ -2,6 +2,14 @@
 root_package = src
 
 # --- Contract 1: Dependency Rule inside every module (Architecture, разд. 3, 7) ---
+#
+# Layers of modules that are not built yet are wrapped in parentheses —
+# import-linter reads that as an OPTIONAL layer, so a contract can be
+# declared ahead of the code it will govern instead of failing the build
+# with 'module does not exist'. Un-parenthesize each layer as its module
+# lands (`legal_rules` and `personnel` already are), so that a module
+# which quietly loses its `domain` package fails CI rather than passing
+# vacuously.
 [importlinter:contract:layers-legal-rules]
 name = Layers: legal_rules
 type = layers
@@ -24,55 +32,55 @@ layers =
 name = Layers: service_calendar
 type = layers
 layers =
-    src.modules.service_calendar.api
-    src.modules.service_calendar.infrastructure
-    src.modules.service_calendar.application
-    src.modules.service_calendar.domain
+    (src.modules.service_calendar.api)
+    (src.modules.service_calendar.infrastructure)
+    (src.modules.service_calendar.application)
+    (src.modules.service_calendar.domain)
 
 [importlinter:contract:layers-scheduling]
 name = Layers: scheduling
 type = layers
 layers =
-    src.modules.scheduling.api
-    src.modules.scheduling.infrastructure
-    src.modules.scheduling.application
-    src.modules.scheduling.domain
+    (src.modules.scheduling.api)
+    (src.modules.scheduling.infrastructure)
+    (src.modules.scheduling.application)
+    (src.modules.scheduling.domain)
 
 [importlinter:contract:layers-time-accounting]
 name = Layers: time_accounting
 type = layers
 layers =
-    src.modules.time_accounting.api
-    src.modules.time_accounting.infrastructure
-    src.modules.time_accounting.application
-    src.modules.time_accounting.domain
+    (src.modules.time_accounting.api)
+    (src.modules.time_accounting.infrastructure)
+    (src.modules.time_accounting.application)
+    (src.modules.time_accounting.domain)
 
 [importlinter:contract:layers-compensation]
 name = Layers: compensation
 type = layers
 layers =
-    src.modules.compensation.api
-    src.modules.compensation.infrastructure
-    src.modules.compensation.application
-    src.modules.compensation.domain
+    (src.modules.compensation.api)
+    (src.modules.compensation.infrastructure)
+    (src.modules.compensation.application)
+    (src.modules.compensation.domain)
 
 [importlinter:contract:layers-rest-balance]
 name = Layers: rest_balance
 type = layers
 layers =
-    src.modules.rest_balance.api
-    src.modules.rest_balance.infrastructure
-    src.modules.rest_balance.application
-    src.modules.rest_balance.domain
+    (src.modules.rest_balance.api)
+    (src.modules.rest_balance.infrastructure)
+    (src.modules.rest_balance.application)
+    (src.modules.rest_balance.domain)
 
 [importlinter:contract:layers-leave-management]
 name = Layers: leave_management
 type = layers
 layers =
-    src.modules.leave_management.api
-    src.modules.leave_management.infrastructure
-    src.modules.leave_management.application
-    src.modules.leave_management.domain
+    (src.modules.leave_management.api)
+    (src.modules.leave_management.infrastructure)
+    (src.modules.leave_management.application)
+    (src.modules.leave_management.domain)
 
 # --- Contract 2: cross-module isolation (Architecture, разд. 4.2) ---
 # NOTE: import-linter's `independence` contract type forbids ALL imports

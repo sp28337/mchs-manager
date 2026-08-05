@@ -19,6 +19,7 @@ from fastapi import FastAPI
 
 from src.composition.di import dispose_infrastructure, init_infrastructure
 from src.modules.legal_rules.api.router import router as legal_rules_router
+from src.modules.personnel.api.router import router as personnel_router
 
 
 class AppState(TypedDict):
@@ -55,3 +56,7 @@ async def health() -> dict[str, str]:
 # it's the only module with no incoming dependencies (Architecture разд.
 # 4.2 п.4) and so the first one implemented end-to-end.
 app.include_router(legal_rules_router, prefix="/api/v1/legal-rules", tags=["LegalRules"])
+# `personnel` next: a Generic subdomain (Architecture разд. 4) that every
+# Core module references by employee id, so it has to exist before
+# `TimeAccounting`/`Scheduling` can be built against it.
+app.include_router(personnel_router, prefix="/api/v1/personnel", tags=["Personnel"])
