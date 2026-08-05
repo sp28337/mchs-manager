@@ -41,10 +41,10 @@ layers =
 name = Layers: scheduling
 type = layers
 layers =
-    (src.modules.scheduling.api)
-    (src.modules.scheduling.infrastructure)
-    (src.modules.scheduling.application)
-    (src.modules.scheduling.domain)
+    src.modules.scheduling.api
+    src.modules.scheduling.infrastructure
+    src.modules.scheduling.application
+    src.modules.scheduling.domain
 
 [importlinter:contract:layers-time-accounting]
 name = Layers: time_accounting
