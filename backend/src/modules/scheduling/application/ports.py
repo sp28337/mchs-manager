@@ -17,8 +17,8 @@ from datetime import date
 from typing import Protocol
 from uuid import UUID
 
+from src.building_blocks.domain.time_interval import TimeInterval
 from src.modules.scheduling.domain.duty_schedule import DutySchedule
-from src.modules.scheduling.domain.value_objects import TimeInterval
 
 
 class DutyScheduleRepositoryPort(Protocol):

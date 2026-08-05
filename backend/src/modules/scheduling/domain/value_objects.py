@@ -7,7 +7,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import date, datetime
+from datetime import date
 from enum import StrEnum
 
 from src.building_blocks.domain.value_object import ValueObject
@@ -39,43 +39,6 @@ class DutyType(StrEnum):
     FIVE_DAY_WEEK = "five_day_week"
     SHIFT = "shift"
     TWENTY_FOUR_HOUR_DUTY = "twenty_four_hour_duty"
-
-
-@dataclass(frozen=True, kw_only=True)
-class TimeInterval(ValueObject):
-    """{начало, конец}; инвариант VO: начало строго раньше конца
-    (Domain Model разд. 5.1).
-
-    Полуоткрытый `[start, end)` — как `tstzrange(..., '[)')` в БД и как все
-    остальные интервалы кодовой базы. Смена, кончающаяся в 08:00, и смена,
-    начинающаяся в 08:00, не пересекаются: это пересменка, а не наложение.
-    """
-
-    start: datetime
-    end: datetime
-
-    def __post_init__(self) -> None:
-        if self.end <= self.start:
-            raise ValueError(f"начало {self.start} должно быть строго раньше конца {self.end}")
-        if self.start.tzinfo is None or self.end.tzinfo is None:
-            # tstzrange хранит момент времени, а не «стенные часы». Наивный
-            # datetime здесь молча получил бы таймзону сервера — и смена,
-            # заведённая в Калининграде и на Камчатке, оказалась бы в одном
-            # и том же моменте.
-            raise ValueError("границы смены должны быть с таймзоной (aware datetime)")
-
-    def overlaps(self, other: TimeInterval) -> bool:
-        return self.start < other.end and other.start < self.end
-
-    def duration_hours(self) -> float:
-        return (self.end - self.start).total_seconds() / 3600
-
-    def gap_to(self, later: TimeInterval) -> float:
-        """Часы между концом этой смены и началом следующей. Отрицательное
-        значение означает пересечение — используется
-        `RestPeriodPolicyService` (SD006) для проверки минимального
-        межсменного отдыха."""
-        return (later.start - self.end).total_seconds() / 3600
 
 
 @dataclass(frozen=True, kw_only=True)

@@ -39,8 +39,8 @@ from collections.abc import Awaitable, Callable
 from datetime import date
 from uuid import UUID
 
+from src.building_blocks.domain.time_interval import TimeInterval
 from src.modules.scheduling.domain.errors import MinimumRestPeriodViolationError
-from src.modules.scheduling.domain.value_objects import TimeInterval
 
 MINIMUM_REST_PERIOD_RULE_CODE = "REST.MINIMUM_BETWEEN_SHIFTS"
 

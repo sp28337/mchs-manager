@@ -29,6 +29,7 @@ from sqlalchemy.dialects.postgresql import Range as PgRange
 from sqlalchemy.orm import composite, registry, relationship
 from sqlalchemy.types import TypeDecorator
 
+from src.building_blocks.domain.time_interval import TimeInterval
 from src.building_blocks.infrastructure.outbox import build_outbox_table
 from src.modules.scheduling.domain.duty_schedule import DutySchedule, PlannedShift
 from src.modules.scheduling.domain.value_objects import (
@@ -36,7 +37,6 @@ from src.modules.scheduling.domain.value_objects import (
     AccountingPeriodType,
     DutyType,
     ScheduleStatus,
-    TimeInterval,
 )
 
 mapper_registry = registry()

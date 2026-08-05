@@ -217,7 +217,7 @@ async def test_overlapping_shift_inside_one_schedule_is_409(client: TestClient) 
 
     clash = _add_shift(client, schedule["id"], employee, datetime(2026, 3, 2, 20, tzinfo=UTC), 24)
     assert clash.status_code == 409, clash.text
-    problem = clash.json()["detail"]
+    problem = clash.json()
     assert problem["status"] == 409
     assert problem["type"].endswith("/overlapping-interval")
     assert problem["traceId"]
@@ -240,7 +240,7 @@ async def test_overlap_ACROSS_two_schedules_is_also_409(client: TestClient) -> N
     # 1 апреля 08:00 → 2 апреля 08:00 — пересекается с мартовской
     clash = _add_shift(client, april["id"], employee, datetime(2026, 4, 1, 8, tzinfo=UTC), 24)
     assert clash.status_code == 409, clash.text
-    assert clash.json()["detail"]["type"].endswith("/overlapping-interval")
+    assert clash.json()["type"].endswith("/overlapping-interval")
 
 
 async def test_a_shift_violating_the_minimum_rest_is_422(client: TestClient) -> None:
@@ -258,7 +258,7 @@ async def test_a_shift_violating_the_minimum_rest_is_422(client: TestClient) -> 
         client, schedule["id"], employee, datetime(2026, 3, 3, 20, tzinfo=UTC), 24
     )
     assert too_soon.status_code == 422, too_soon.text
-    assert "межсменный отдых" in too_soon.json()["detail"]["title"]
+    assert "межсменный отдых" in too_soon.json()["title"]
 
     # Ровно 24 ч спустя — принимается.
     ok = _add_shift(client, schedule["id"], employee, datetime(2026, 3, 4, 8, tzinfo=UTC), 24)
@@ -284,7 +284,7 @@ async def test_a_dismissed_employee_cannot_be_scheduled(client: TestClient) -> N
     resp = _add_shift(client, schedule["id"], employee, datetime(2026, 3, 2, 8, tzinfo=UTC), 24)
 
     assert resp.status_code == 422, resp.text
-    assert "dismissed" in resp.json()["detail"]["detail"]
+    assert "dismissed" in resp.json()["detail"]
 
 
 async def test_a_shift_dated_before_the_rest_rule_took_effect_is_refused(
@@ -307,7 +307,7 @@ async def test_a_shift_dated_before_the_rest_rule_took_effect_is_refused(
     early = _schedule(client, start=date(2017, 3, 1), end=date(2017, 4, 1))
     second = _add_shift(client, early["id"], employee, datetime(2017, 3, 2, 8, tzinfo=UTC), 24)
     assert second.status_code == 422, second.text
-    assert second.json()["detail"]["type"].endswith("/rule-version-not-found")
+    assert second.json()["type"].endswith("/rule-version-not-found")
 
 
 # --- SD013: draft → approve → revise -----------------------------------
