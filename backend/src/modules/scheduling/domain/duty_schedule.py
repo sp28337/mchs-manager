@@ -37,6 +37,7 @@ from uuid import UUID, uuid4
 
 from src.building_blocks.domain.aggregate_root import AggregateRoot
 from src.building_blocks.domain.entity import Entity
+from src.building_blocks.domain.time_interval import TimeInterval
 from src.modules.scheduling.domain.errors import (
     OverlappingShiftError,
     ScheduleApprovedError,
@@ -47,7 +48,6 @@ from src.modules.scheduling.domain.value_objects import (
     AccountingPeriod,
     DutyType,
     ScheduleStatus,
-    TimeInterval,
 )
 
 

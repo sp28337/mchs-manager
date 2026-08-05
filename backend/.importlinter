@@ -52,8 +52,8 @@ type = layers
 layers =
     (src.modules.time_accounting.api)
     (src.modules.time_accounting.infrastructure)
-    (src.modules.time_accounting.application)
-    (src.modules.time_accounting.domain)
+    src.modules.time_accounting.application
+    src.modules.time_accounting.domain
 
 [importlinter:contract:layers-compensation]
 name = Layers: compensation
@@ -109,6 +109,7 @@ source_modules =
     src.modules.personnel
     src.modules.service_calendar
     src.modules.scheduling
+    src.modules.time_accounting
 forbidden_modules =
     src.modules.legal_rules.domain
     src.modules.legal_rules.application
@@ -126,11 +127,16 @@ forbidden_modules =
     src.modules.scheduling.application
     src.modules.scheduling.infrastructure
     src.modules.scheduling.api
+    src.modules.time_accounting.domain
+    src.modules.time_accounting.application
+    src.modules.time_accounting.infrastructure
+    src.modules.time_accounting.api
 ignore_imports =
     src.modules.legal_rules.** -> src.modules.legal_rules.**
     src.modules.personnel.** -> src.modules.personnel.**
     src.modules.service_calendar.** -> src.modules.service_calendar.**
     src.modules.scheduling.** -> src.modules.scheduling.**
+    src.modules.time_accounting.** -> src.modules.time_accounting.**
 
 # --- Contract 3: building_blocks must never depend on a module ---
 [importlinter:contract:building-blocks-independence]

@@ -13,8 +13,9 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.building_blocks.domain.time_interval import TimeInterval
 from src.modules.scheduling.domain.duty_schedule import DutySchedule
-from src.modules.scheduling.domain.value_objects import ScheduleStatus, TimeInterval
+from src.modules.scheduling.domain.value_objects import ScheduleStatus
 from src.modules.scheduling.infrastructure.orm_mapping import (
     duty_schedule_table,
     planned_shift_table,

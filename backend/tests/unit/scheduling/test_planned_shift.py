@@ -8,6 +8,7 @@ from uuid import uuid4
 
 import pytest
 
+from src.building_blocks.domain.time_interval import TimeInterval
 from src.modules.scheduling.domain.duty_schedule import DutySchedule
 from src.modules.scheduling.domain.errors import (
     OverlappingShiftError,
@@ -20,7 +21,6 @@ from src.modules.scheduling.domain.value_objects import (
     AccountingPeriodType,
     DutyType,
     ScheduleStatus,
-    TimeInterval,
 )
 
 UNIT = uuid4()

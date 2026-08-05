@@ -27,6 +27,7 @@ from __future__ import annotations
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.building_blocks.domain.time_interval import TimeInterval
 from src.modules.scheduling.application.commands.add_planned_shift.command import (
     AddPlannedShiftCommand,
 )
@@ -43,7 +44,6 @@ from src.modules.scheduling.domain.errors import (
     EmployeeNotAvailableForShiftError,
     ScheduleNotFoundError,
 )
-from src.modules.scheduling.domain.value_objects import TimeInterval
 
 _ACTIVE = "active"
 

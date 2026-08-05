@@ -11,11 +11,11 @@ from uuid import uuid4
 
 import pytest
 
+from src.building_blocks.domain.time_interval import TimeInterval
 from src.modules.scheduling.application.services.rest_period_policy import (
     RestPeriodPolicyService,
 )
 from src.modules.scheduling.domain.errors import MinimumRestPeriodViolationError
-from src.modules.scheduling.domain.value_objects import TimeInterval
 
 pytestmark = pytest.mark.asyncio
 
