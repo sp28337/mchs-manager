@@ -56,15 +56,40 @@ def _port_open(host: str, port: int, *, timeout: float = 1.0) -> bool:
 
 
 @pytest.fixture(scope="session", autouse=True)
-def _require_database() -> None:
-    """Пропускает весь пакет интеграционных тестов, если Postgres не
-    слушает порт из `FPS_DATABASE_DSN`."""
-    url = make_url(get_settings().database_dsn)
-    host, port = url.host or "localhost", url.port or 5432
+def _require_infrastructure() -> None:
+    """Пропускает весь пакет интеграционных тестов, если не поднята
+    инфраструктура из `docker-compose.yml`.
 
-    if not _port_open(host, port):
+    Проверяются ОБА порта, Postgres и Redis. Redis добавлен не для
+    симметрии: `test_api_router` поднимает целиком FastAPI-приложение и
+    дёргает `GET .../effective-version`, который ходит в
+    `RuleVersionCache`. При выключенном Redis этот тест падал
+    `ConnectionRefusedError`, хотя проверял только доступность БД —
+    ровно та же полу-проверка, из-за которой раньше не работал пропуск
+    по Postgres.
+
+    Скипать всё, а не только Redis-зависимые тесты, — сознательно:
+    контракт этого пакета «прогон против настоящего стека», а стек
+    определён docker-compose как Postgres + Redis. Частичный прогон даёт
+    ложную уверенность.
+    """
+    url = make_url(get_settings().database_dsn)
+    checks = {
+        "PostgreSQL": (url.host or "localhost", url.port or 5432),
+        "Redis": _redis_host_port(),
+    }
+
+    down = [f"{name} ({host}:{port})" for name, (host, port) in checks.items()
+            if not _port_open(host, port)]
+    if down:
         pytest.skip(
-            f"PostgreSQL недоступен на {host}:{port} — запустите `make up` "
-            f"(см. docker-compose.yml)",
+            f"Недоступно: {', '.join(down)} — запустите `make up` (см. docker-compose.yml)",
             allow_module_level=True,
         )
+
+
+def _redis_host_port() -> tuple[str, int]:
+    """`redis://host:port/db` -> (host, port). `make_url` работает и с
+    Redis-URL: это тот же RFC 3986, а не что-то специфичное для SQLAlchemy."""
+    url = make_url(get_settings().redis_url.replace("redis://", "redis+driver://", 1))
+    return url.host or "localhost", url.port or 6379
