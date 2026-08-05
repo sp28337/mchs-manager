@@ -33,6 +33,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.building_blocks.application.problem import problem_exception
 from src.building_blocks.infrastructure.db import get_session
+from src.building_blocks.infrastructure.outbox import OutboxWriter
 from src.modules.personnel.api.schemas import (
     ChangeEmploymentStatusRequest,
     CreateEmployeeRequest,
@@ -97,6 +98,7 @@ from src.modules.personnel.domain.errors import (
 )
 from src.modules.personnel.domain.service_record import ServiceRecordEntry
 from src.modules.personnel.domain.unit import Unit
+from src.modules.personnel.infrastructure.orm_mapping import outbox_message_table
 from src.modules.personnel.infrastructure.repositories import (
     EmployeeRepository,
     PositionRepository,
@@ -230,6 +232,7 @@ async def register_employee(
         EmployeeRepository(session),
         UnitRepository(session),
         PositionRepository(session),
+        OutboxWriter(session, outbox_message_table),
     )
     try:
         employee = await handler.handle(
@@ -294,7 +297,9 @@ async def change_employment_status(
     session: SessionDep,
     idempotency_key: IdempotencyKeyDep,
 ) -> EmployeeResponse:
-    handler = ChangeEmploymentStatusHandler(session, EmployeeRepository(session))
+    handler = ChangeEmploymentStatusHandler(
+        session, EmployeeRepository(session), OutboxWriter(session, outbox_message_table)
+    )
     try:
         employee = await handler.handle(
             ChangeEmploymentStatusCommand(
@@ -330,6 +335,7 @@ async def add_service_record_entry(
         EmployeeRepository(session),
         UnitRepository(session),
         PositionRepository(session),
+        OutboxWriter(session, outbox_message_table),
     )
     try:
         entry = await handler.handle(

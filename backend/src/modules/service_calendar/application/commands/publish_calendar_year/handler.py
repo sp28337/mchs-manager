@@ -11,6 +11,7 @@ from __future__ import annotations
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.building_blocks.infrastructure.clock import Clock, SystemClock
+from src.building_blocks.infrastructure.outbox import OutboxWriter
 from src.modules.service_calendar.application.commands.publish_calendar_year.command import (
     PublishCalendarYearCommand,
 )
@@ -24,10 +25,12 @@ class PublishCalendarYearHandler:
         self,
         session: AsyncSession,
         repo: CalendarYearRepositoryPort,
+        outbox: OutboxWriter,
         clock: Clock | None = None,
     ) -> None:
         self._session = session
         self._repo = repo
+        self._outbox = outbox
         self._clock = clock or SystemClock()
 
     async def handle(self, command: PublishCalendarYearCommand) -> CalendarYear:
@@ -36,5 +39,8 @@ class PublishCalendarYearHandler:
             raise CalendarYearNotFoundError(str(command.year))
 
         calendar.publish(now=self._clock.now())
+        # CalendarYearPublished — событие, по которому инвалидируется кэш
+        # справочных данных (Backend_Architecture разд. 4).
+        await self._outbox.enqueue(calendar)
         await self._session.commit()
         return calendar

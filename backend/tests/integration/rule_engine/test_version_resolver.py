@@ -37,7 +37,11 @@ async def _db_reachable() -> bool:
             pass
         await engine.dispose()
         return True
-    except OperationalError:
+    except (OperationalError, OSError):
+        # OSError matters: asyncpg raises a bare ConnectionRefusedError when the
+        # port is closed, and SQLAlchemy does not wrap OS-level errors in
+        # OperationalError — catching only the latter made this check a no-op
+        # in exactly the case it exists for. See tests/integration/conftest.py.
         return False
 
 

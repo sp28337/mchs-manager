@@ -31,6 +31,7 @@ from sqlalchemy.dialects.postgresql import UUID as PgUUID
 from sqlalchemy.orm import composite, registry, relationship
 from sqlalchemy.types import TypeDecorator
 
+from src.building_blocks.infrastructure.outbox import build_outbox_table
 from src.modules.legal_rules.domain.conflict_policy import (
     ConflictResolutionPolicy,
     ConflictResolutionPolicyVersion,
@@ -49,6 +50,13 @@ from src.modules.legal_rules.domain.value_objects import (
 
 mapper_registry = registry()
 metadata = MetaData(schema="legal_rules")
+
+# Transactional Outbox (Architecture разд. 9.2). Форма таблицы общая для
+# всех модулей — описывается один раз в building_blocks, создаётся
+# миграцией 0010. Здесь она попадает в MetaData ЭТОГО модуля, чтобы
+# запись события шла той же сессией и той же транзакцией, что и
+# изменение агрегата.
+outbox_message_table = build_outbox_table(metadata)
 
 _rule_category_enum = PgEnum(
     *[c.value for c in RuleCategory], name="rule_category", schema="legal_rules", create_type=False

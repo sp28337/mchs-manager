@@ -24,6 +24,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.building_blocks.application.problem import problem_exception
 from src.building_blocks.infrastructure.db import get_session
+from src.building_blocks.infrastructure.outbox import OutboxWriter
 from src.modules.legal_rules.api.dependencies import get_rule_version_cache
 from src.modules.legal_rules.api.schemas import (
     CreateDocumentNodeRequest,
@@ -87,6 +88,7 @@ from src.modules.legal_rules.infrastructure.cache.rule_version_cache import Rule
 from src.modules.legal_rules.infrastructure.write.normative_document_repository import (
     NormativeDocumentRepository,
 )
+from src.modules.legal_rules.infrastructure.write.orm_mapping import outbox_message_table
 from src.modules.legal_rules.infrastructure.write.rule_repository import RuleRepository
 from src.rule_engine.interpreter.version_resolver import NoApplicableRuleVersionError
 
@@ -289,7 +291,9 @@ async def publish_rule_version(
             404, "not-found", "Версия правила не найдена", f"rule_version {version_id} not found"
         )
 
-    handler = PublishRuleVersionHandler(session, repo)
+    handler = PublishRuleVersionHandler(
+        session, repo, OutboxWriter(session, outbox_message_table)
+    )
     try:
         version = await handler.handle(
             PublishRuleVersionCommand(
