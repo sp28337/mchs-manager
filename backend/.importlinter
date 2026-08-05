@@ -32,10 +32,10 @@ layers =
 name = Layers: service_calendar
 type = layers
 layers =
-    (src.modules.service_calendar.api)
-    (src.modules.service_calendar.infrastructure)
-    (src.modules.service_calendar.application)
-    (src.modules.service_calendar.domain)
+    src.modules.service_calendar.api
+    src.modules.service_calendar.infrastructure
+    src.modules.service_calendar.application
+    src.modules.service_calendar.domain
 
 [importlinter:contract:layers-scheduling]
 name = Layers: scheduling

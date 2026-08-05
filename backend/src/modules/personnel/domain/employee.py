@@ -28,10 +28,12 @@ in `openapi.yaml`), inside another bounded context that this module must
 not read — Architecture разд. 4.2 п.1 permits `Contracts/` only, and
 `TimeAccounting` does not exist yet. What this aggregate can see is the
 employee's *current* `EmploymentStatus`, so what it enforces is: an
-employee who is sick, suspended or on leave right now cannot be seconded
-(`SecondmentWhileUnavailableError`), plus no two secondments overlapping
-each other (mirroring `excl_secondary_assignment_no_overlap`, migration
-0008). A retrospective secondment overlapping a *past* sickness interval
+employee who is sick or suspended right now cannot be seconded
+(`SecondmentWhileUnavailableError` — those two states only, matching
+инвариант 4's "нетрудоспособность или отстранение"; leave is not
+incapacity), plus no two secondments overlapping each other (mirroring
+`excl_secondary_assignment_no_overlap`, migration 0008). A retrospective
+secondment overlapping a *past* sickness interval
 is not detectable from here and is not silently pretended otherwise —
 that check belongs on the `TimeAccounting` side, against
 `ServiceTimeEvent`, once that module can be asked.
@@ -41,6 +43,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import date, datetime
+from typing import Any
 from uuid import UUID, uuid4
 
 from src.building_blocks.domain.aggregate_root import AggregateRoot
@@ -48,6 +51,7 @@ from src.modules.personnel.domain.errors import (
     EmployeeDismissedError,
     InvalidEmploymentStatusTransitionError,
     OverlappingSecondaryAssignmentError,
+    PersonnelNumberImmutableError,
     SecondmentWhileUnavailableError,
     SecondPrimaryPositionError,
     ServiceRecordBackdatedError,
@@ -65,17 +69,27 @@ from src.modules.personnel.domain.value_objects import (
     ServiceRecordEventType,
 )
 
-# PE003. Read as "from -> everything reachable in one step".
+# PE003. A literal transcription of Domain Model разд. 3.1 инвариант 3:
 #
-# `DISMISSED` maps to the empty set and that is the whole point of the
-# table: увольнение терминально. Re-hiring the same person is a NEW
-# `Employee` with its own `hired_at` and its own service history —
-# resurrecting the old row would leave an unexplained gap in a record
-# that is legally required to be continuous (Domain Model разд. 13).
+#     Active ⇄ OnLeave,  Active ⇄ Sick,
+#     Active → Suspended → (Active | Dismissed),
+#     * → Dismissed  (терминальное состояние, необратимо)
 #
-# `SUSPENDED` (отстранение) can only end by returning to duty or by
-# dismissal — not by going on leave, which would treat a disciplinary
-# state as if it were an ordinary one.
+# Note what that does NOT contain: any edge between `OnLeave` and `Sick`.
+# Every move between the two non-terminal absence states goes back through
+# `Active`, so falling ill during leave is recorded as "returned to duty,
+# then fell ill" rather than as a silent reclassification of one absence
+# into another. That distinction is the whole point — the two states have
+# different consequences for the norm (Алгоритм З: sickness produces
+# `underworked_explained_hours`, leave does not), so an undocumented
+# OnLeave→Sick edge would let a period change its accounting meaning with
+# no `ServiceRecordEntry` marking when.
+#
+# `DISMISSED` maps to the empty set: увольнение терминально. Re-hiring the
+# same person is a NEW `Employee` with its own `hired_at` and its own
+# service history — resurrecting the old row would leave an unexplained
+# gap in a record that is legally required to be continuous (Domain Model
+# разд. 13).
 _ALLOWED_TRANSITIONS: dict[EmploymentStatus, frozenset[EmploymentStatus]] = {
     EmploymentStatus.ACTIVE: frozenset(
         {
@@ -85,19 +99,19 @@ _ALLOWED_TRANSITIONS: dict[EmploymentStatus, frozenset[EmploymentStatus]] = {
             EmploymentStatus.DISMISSED,
         }
     ),
-    EmploymentStatus.ON_LEAVE: frozenset(
-        {EmploymentStatus.ACTIVE, EmploymentStatus.SICK, EmploymentStatus.DISMISSED}
-    ),
-    EmploymentStatus.SICK: frozenset(
-        {EmploymentStatus.ACTIVE, EmploymentStatus.ON_LEAVE, EmploymentStatus.DISMISSED}
-    ),
+    EmploymentStatus.ON_LEAVE: frozenset({EmploymentStatus.ACTIVE, EmploymentStatus.DISMISSED}),
+    EmploymentStatus.SICK: frozenset({EmploymentStatus.ACTIVE, EmploymentStatus.DISMISSED}),
     EmploymentStatus.SUSPENDED: frozenset({EmploymentStatus.ACTIVE, EmploymentStatus.DISMISSED}),
     EmploymentStatus.DISMISSED: frozenset(),
 }
 
-# Statuses in which an employee is not available for an additional post.
+# Domain Model разд. 3.1 инвариант 4: "нельзя нести обязанности по
+# совмещаемой должности, будучи признанным нетрудоспособным" — временная
+# нетрудоспособность и отстранение, and those two only. `ON_LEAVE` is
+# deliberately NOT here: being on leave is not incapacity, and an employee
+# may legitimately hold a secondment across their own leave.
 _UNAVAILABLE_FOR_SECONDMENT = frozenset(
-    {EmploymentStatus.SICK, EmploymentStatus.SUSPENDED, EmploymentStatus.ON_LEAVE}
+    {EmploymentStatus.SICK, EmploymentStatus.SUSPENDED}
 )
 
 
@@ -115,6 +129,31 @@ class Employee(AggregateRoot):
     dismissed_at: date | None = None
     service_record: list[ServiceRecordEntry] = field(default_factory=list)
     secondary_assignments: list[SecondaryAssignment] = field(default_factory=list)
+
+    def __setattr__(self, name: str, value: Any) -> None:
+        """Domain Model разд. 3.1, VO `PersonalIdentity`: "табельный номер
+        уникален и **неизменяем**".
+
+        Immutability is the half that a UNIQUE constraint cannot express —
+        `uq_employee_personnel_number` (migration 0007) stops two employees
+        sharing a number, but would happily let one employee's number be
+        swapped for an unused one, silently detaching every historical
+        record that identifies them by it.
+
+        Same short-circuit-before-getattr shape, and for the same reason,
+        as `legal_rules`' `RuleVersion.__setattr__`: SQLAlchemy's ORM
+        instrumentation sets its own internal state marker through this
+        method before the instance has any queryable state, so the getattr
+        must never run for unrelated attribute names. The first assignment
+        (from the dataclass `__init__`, when the attribute does not exist
+        yet) reads `None` and is allowed; every later one is not.
+        """
+        if name == "personnel_number" and getattr(self, "personnel_number", None) is not None:
+            raise PersonnelNumberImmutableError(
+                f"employee {getattr(self, 'id', '?')}: personnel_number "
+                f"{self.personnel_number!r} is immutable"
+            )
+        super().__setattr__(name, value)
 
     # ---------------------------------------------------------------- create
 

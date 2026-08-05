@@ -29,6 +29,9 @@ from src.modules.legal_rules.infrastructure.write.orm_mapping import (
 from src.modules.personnel.infrastructure.orm_mapping import (
     start_mappers as start_personnel_mappers,
 )
+from src.modules.service_calendar.infrastructure.orm_mapping import (
+    start_mappers as start_service_calendar_mappers,
+)
 
 
 def init_infrastructure() -> None:
@@ -46,6 +49,7 @@ def init_infrastructure() -> None:
     # shared mapper configuration whose order would matter.
     start_legal_rules_mappers()
     start_personnel_mappers()
+    start_service_calendar_mappers()
 
     settings = get_settings()
     init_engine(dsn=settings.database_dsn, pool_size=settings.database_pool_size)
