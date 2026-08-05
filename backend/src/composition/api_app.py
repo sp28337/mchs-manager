@@ -20,6 +20,7 @@ from fastapi import FastAPI
 from src.composition.di import dispose_infrastructure, init_infrastructure
 from src.modules.legal_rules.api.router import router as legal_rules_router
 from src.modules.personnel.api.router import router as personnel_router
+from src.modules.scheduling.api.router import router as scheduling_router
 from src.modules.service_calendar.api.router import router as service_calendar_router
 
 
@@ -66,3 +67,7 @@ app.include_router(personnel_router, prefix="/api/v1/personnel", tags=["Personne
 app.include_router(
     service_calendar_router, prefix="/api/v1/service-calendar", tags=["ServiceCalendar"]
 )
+# `scheduling` — первый модуль, потребляющий чужие Contracts
+# (`personnel` и `legal_rules`), и поставщик PlannedShift для
+# будущего TimeAccounting.
+app.include_router(scheduling_router, prefix="/api/v1/scheduling", tags=["Scheduling"])

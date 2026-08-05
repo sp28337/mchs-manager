@@ -82,27 +82,55 @@ layers =
     (src.modules.leave_management.application)
     (src.modules.leave_management.domain)
 
-# --- Contract 2: cross-module isolation (Architecture, разд. 4.2) ---
-# NOTE: import-linter's `independence` contract type forbids ALL imports
-# between the listed modules, including `contracts/`. As soon as a module
-# starts consuming another module's Contracts (e.g. Compensation ->
-# TimeAccounting.Contracts), this contract must be relaxed to a `forbidden`
-# contract per module pair with `ignore_imports` allow-listing only the
-# `*.contracts.*` paths. Left strict here deliberately as the starting
-# point — CI will fail loudly the first time cross-module integration is
-# added, forcing a conscious, reviewed exception rather than silent drift.
-[importlinter:contract:independence-of-modules]
-name = Modules are independent except via contracts/
-type = independence
-modules =
+# --- Contract 2: изоляция модулей (Architecture, разд. 4.2) ---
+#
+# Раньше здесь стоял контракт типа `independence`, который запрещает ЛЮБЫЕ
+# импорты между модулями — включая `contracts/`. В комментарии к нему было
+# записано, что при появлении первого реального межмодульного вызова его
+# придётся ослабить до `forbidden` со списком внутренностей. Этот момент
+# наступил: `scheduling` спрашивает статус сотрудника у `personnel` и
+# минимальный межсменный отдых у `legal_rules` (инварианты 5.1.4 и 5.1.2),
+# и оба вызова идут через `contracts/`.
+#
+# Теперь запрещены именно ВНУТРЕННОСТИ чужого модуля — `domain`,
+# `application`, `infrastructure`, `api`, — а `contracts` не перечислен и
+# потому разрешён. Это ровно формулировка Architecture разд. 4.2 п.1
+# («Модуль может импортировать только Contracts/ другого модуля»), тогда
+# как `independence` был строже документа и держался лишь до первой
+# настоящей интеграции.
+#
+# `ignore_imports` снимает самозапрет: модуль обязан видеть собственные
+# слои, а без этих строк он попадал бы под собственный же запрет.
+[importlinter:contract:module-internals-are-private]
+name = Модули видят друг у друга только contracts/
+type = forbidden
+source_modules =
     src.modules.legal_rules
     src.modules.personnel
     src.modules.service_calendar
     src.modules.scheduling
-    src.modules.time_accounting
-    src.modules.compensation
-    src.modules.rest_balance
-    src.modules.leave_management
+forbidden_modules =
+    src.modules.legal_rules.domain
+    src.modules.legal_rules.application
+    src.modules.legal_rules.infrastructure
+    src.modules.legal_rules.api
+    src.modules.personnel.domain
+    src.modules.personnel.application
+    src.modules.personnel.infrastructure
+    src.modules.personnel.api
+    src.modules.service_calendar.domain
+    src.modules.service_calendar.application
+    src.modules.service_calendar.infrastructure
+    src.modules.service_calendar.api
+    src.modules.scheduling.domain
+    src.modules.scheduling.application
+    src.modules.scheduling.infrastructure
+    src.modules.scheduling.api
+ignore_imports =
+    src.modules.legal_rules.** -> src.modules.legal_rules.**
+    src.modules.personnel.** -> src.modules.personnel.**
+    src.modules.service_calendar.** -> src.modules.service_calendar.**
+    src.modules.scheduling.** -> src.modules.scheduling.**
 
 # --- Contract 3: building_blocks must never depend on a module ---
 [importlinter:contract:building-blocks-independence]

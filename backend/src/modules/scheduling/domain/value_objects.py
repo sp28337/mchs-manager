@@ -92,3 +92,15 @@ class AccountingPeriod(ValueObject):
 
     def contains(self, moment: date) -> bool:
         return self.start <= moment < self.end
+
+    def __composite_values__(self) -> tuple[str, date, date]:
+        """Требуется SQLAlchemy `composite()`, чтобы разложить VO обратно
+        по колонкам при записи (та же роль, что у
+        `EffectivePeriod.__composite_values__` в `legal_rules`).
+
+        `period_type` отдаётся строкой, а не членом enum: колонка — нативный
+        PostgreSQL enum, и он ждёт значение, а не объект. Порядок кортежа
+        обязан совпадать с порядком колонок в `composite()`
+        (`orm_mapping._accounting_period_factory`).
+        """
+        return self.period_type.value, self.start, self.end
