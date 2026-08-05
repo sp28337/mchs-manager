@@ -73,9 +73,7 @@ def test_active_can_move_to_every_other_status(target: EmploymentStatus) -> None
     ("start", "target"),
     [
         (EmploymentStatus.ON_LEAVE, EmploymentStatus.ACTIVE),
-        (EmploymentStatus.ON_LEAVE, EmploymentStatus.SICK),
         (EmploymentStatus.SICK, EmploymentStatus.ACTIVE),
-        (EmploymentStatus.SICK, EmploymentStatus.ON_LEAVE),
         (EmploymentStatus.SUSPENDED, EmploymentStatus.ACTIVE),
     ],
 )
@@ -113,6 +111,30 @@ def test_dismissed_is_terminal_for_every_target(target: EmploymentStatus) -> Non
 
     with pytest.raises(InvalidEmploymentStatusTransitionError):
         _move(employee, target, when=date(2024, 7, 1))
+
+
+@pytest.mark.parametrize(
+    ("start", "target"),
+    [
+        (EmploymentStatus.ON_LEAVE, EmploymentStatus.SICK),
+        (EmploymentStatus.SICK, EmploymentStatus.ON_LEAVE),
+    ],
+)
+def test_absence_states_do_not_connect_directly(
+    start: EmploymentStatus, target: EmploymentStatus
+) -> None:
+    """Domain Model разд. 3.1 инвариант 3 lists `Active ⇄ OnLeave` and
+    `Active ⇄ Sick` — and no edge between the two absence states. Falling
+    ill during leave goes back through `Active`, so the moment one kind of
+    absence becomes the other is recorded rather than implied. The two are
+    not interchangeable downstream: Алгоритм З counts sickness toward
+    `underworked_explained_hours` and leave not at all.
+    """
+    employee = _employee()
+    _move(employee, start)
+
+    with pytest.raises(InvalidEmploymentStatusTransitionError):
+        _move(employee, target, when=date(2024, 6, 1))
 
 
 def test_suspended_cannot_go_on_leave() -> None:

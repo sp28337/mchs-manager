@@ -13,6 +13,7 @@ import pytest
 from src.modules.personnel.domain.employee import Employee
 from src.modules.personnel.domain.errors import (
     OverlappingSecondaryAssignmentError,
+    PersonnelNumberImmutableError,
     SecondmentWhileUnavailableError,
     SecondPrimaryPositionError,
     ServiceRecordBackdatedError,
@@ -147,14 +148,13 @@ def test_secondments_touching_at_the_boundary_do_not_overlap() -> None:
     assert len(employee.secondary_assignments) == 2
 
 
-@pytest.mark.parametrize(
-    "status",
-    [EmploymentStatus.SICK, EmploymentStatus.SUSPENDED, EmploymentStatus.ON_LEAVE],
-)
-def test_unavailable_employee_cannot_be_seconded(status: EmploymentStatus) -> None:
-    """The DoD for PE002 names sickness. See `Employee`'s module docstring
-    for why this is checked against the employee's CURRENT status rather
-    than against sickness intervals, which live in `TimeAccounting`."""
+@pytest.mark.parametrize("status", [EmploymentStatus.SICK, EmploymentStatus.SUSPENDED])
+def test_incapacitated_employee_cannot_be_seconded(status: EmploymentStatus) -> None:
+    """Domain Model разд. 3.1 инвариант 4 — "нельзя нести обязанности по
+    совмещаемой должности, будучи признанным нетрудоспособным": временная
+    нетрудоспособность и отстранение. See `Employee`'s module docstring for
+    why this is checked against the employee's CURRENT status rather than
+    against sickness intervals, which live in `TimeAccounting`."""
     employee = _employee()
     employee.change_employment_status(
         new_status=status, effective_date=date(2024, 1, 1), reason="тест", now=NOW
@@ -164,6 +164,24 @@ def test_unavailable_employee_cannot_be_seconded(status: EmploymentStatus) -> No
         employee.add_secondary_assignment(
             position_id=uuid4(), unit_id=HOME_UNIT, valid_from=date(2024, 2, 1)
         )
+
+
+def test_employee_on_leave_may_still_hold_a_secondment() -> None:
+    """`ON_LEAVE` is deliberately absent from the incapacity set: being on
+    leave is not being unfit for duty, and инвариант 4 names only
+    нетрудоспособность and отстранение."""
+    employee = _employee()
+    employee.change_employment_status(
+        new_status=EmploymentStatus.ON_LEAVE,
+        effective_date=date(2024, 1, 1),
+        reason="основной отпуск",
+        now=NOW,
+    )
+
+    assignment = employee.add_secondary_assignment(
+        position_id=uuid4(), unit_id=HOME_UNIT, valid_from=date(2024, 2, 1)
+    )
+    assert assignment in employee.secondary_assignments
 
 
 def test_dismissal_closes_open_secondments_rather_than_deleting_them() -> None:
@@ -196,6 +214,15 @@ def test_secondary_assignment_rejects_an_inverted_period() -> None:
 
 
 # ------------------------------------------------- append-only service record
+
+
+def test_personnel_number_is_immutable() -> None:
+    """Domain Model разд. 3.1, VO `PersonalIdentity`. The UNIQUE constraint
+    covers "no two employees share one"; this covers "and it never changes
+    under the one who has it"."""
+    employee = _employee()
+    with pytest.raises(PersonnelNumberImmutableError):
+        employee.personnel_number = "999999"
 
 
 def test_recorded_service_record_entry_cannot_be_modified() -> None:

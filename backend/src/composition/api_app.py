@@ -20,6 +20,7 @@ from fastapi import FastAPI
 from src.composition.di import dispose_infrastructure, init_infrastructure
 from src.modules.legal_rules.api.router import router as legal_rules_router
 from src.modules.personnel.api.router import router as personnel_router
+from src.modules.service_calendar.api.router import router as service_calendar_router
 
 
 class AppState(TypedDict):
@@ -60,3 +61,8 @@ app.include_router(legal_rules_router, prefix="/api/v1/legal-rules", tags=["Lega
 # Core module references by employee id, so it has to exist before
 # `TimeAccounting`/`Scheduling` can be built against it.
 app.include_router(personnel_router, prefix="/api/v1/personnel", tags=["Personnel"])
+# `service_calendar`: the other Generic subdomain, and the reference data
+# every norm calculation reads (Алгоритм Б шаги 5-7).
+app.include_router(
+    service_calendar_router, prefix="/api/v1/service-calendar", tags=["ServiceCalendar"]
+)

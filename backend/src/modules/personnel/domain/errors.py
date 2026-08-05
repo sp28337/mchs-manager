@@ -63,6 +63,12 @@ class PositionNotFoundError(PersonnelDomainError):
     """No `Position` with the given id exists. Maps to 404."""
 
 
+class PersonnelNumberImmutableError(PersonnelDomainError):
+    """Domain Model разд. 3.1, VO `PersonalIdentity`: табельный номер
+    неизменяем. Raised by `Employee.__setattr__` on any attempt to change
+    it after construction. Maps to 423 Locked."""
+
+
 class PersonnelNumberAlreadyExistsError(PersonnelDomainError):
     """`personnel.employee.personnel_number` is UNIQUE
     (`uq_employee_personnel_number`, migration 0007). Cross-aggregate, so
