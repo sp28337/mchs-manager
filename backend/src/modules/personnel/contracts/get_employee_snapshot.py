@@ -75,7 +75,11 @@ from pydantic import BaseModel, ConfigDict
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.modules.personnel.infrastructure.orm_mapping import employee_table, position_table
+from src.modules.personnel.infrastructure.orm_mapping import (
+    employee_table,
+    position_table,
+    unit_table,
+)
 
 __all__ = [
     "EmployeeNotFound",
@@ -108,6 +112,16 @@ class EmployeeSnapshot(BaseModel):
     employment_status: str
     hired_at: date
     dismissed_at: date | None
+    # Часовой пояс места службы, УПЛОЩЁННЫЙ из текущего подразделения — по
+    # той же причине, что и `regime_type` из должности: потребителю иначе
+    # понадобился бы второй контракт и знание о том, что пояс живёт на
+    # подразделении, а не на человеке (внутренний факт этого модуля).
+    #
+    # Нужен он ровно одному потребителю и по существу: Алгоритмы Г-Е
+    # (ночные/праздничные/выходные часы) переводят моменты в календарные
+    # даты, а ночное время ТК РФ ст. 96 («с 22 до 6 часов») — это местные
+    # стенные часы места службы.
+    time_zone: str
 
     @property
     def is_dismissed(self) -> bool:
@@ -144,11 +158,15 @@ async def get_employee_snapshot(
                 employee_table.c.employment_status,
                 employee_table.c.hired_at,
                 employee_table.c.dismissed_at,
+                unit_table.c.time_zone,
             )
             .select_from(
                 employee_table.join(
                     position_table,
                     employee_table.c.current_position_id == position_table.c.id,
+                ).join(
+                    unit_table,
+                    employee_table.c.current_unit_id == unit_table.c.id,
                 )
             )
             .where(employee_table.c.id == employee_id)
@@ -170,4 +188,5 @@ async def get_employee_snapshot(
         employment_status=row.employment_status,
         hired_at=row.hired_at,
         dismissed_at=row.dismissed_at,
+        time_zone=row.time_zone,
     )

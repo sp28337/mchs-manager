@@ -14,7 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.modules.personnel.application.commands.create_unit.command import CreateUnitCommand
 from src.modules.personnel.application.ports import UnitRepositoryPort
 from src.modules.personnel.domain.errors import UnitCodeAlreadyExistsError, UnitNotFoundError
-from src.modules.personnel.domain.unit import Unit
+from src.modules.personnel.domain.unit import DEFAULT_TIME_ZONE, Unit
 
 
 class CreateUnitHandler:
@@ -31,12 +31,21 @@ class CreateUnitHandler:
             raise UnitCodeAlreadyExistsError(command.code)
 
         if command.parent_unit_id is None:
-            unit = Unit.create_root(code=command.code, name=command.name)
+            unit = Unit.create_root(
+                code=command.code,
+                name=command.name,
+                time_zone=command.time_zone or DEFAULT_TIME_ZONE,
+            )
         else:
             parent = await self._repo.get(command.parent_unit_id)
             if parent is None:
                 raise UnitNotFoundError(str(command.parent_unit_id))
-            unit = Unit.create_child(code=command.code, name=command.name, parent=parent)
+            unit = Unit.create_child(
+                code=command.code,
+                name=command.name,
+                parent=parent,
+                time_zone=command.time_zone,
+            )
 
         self._repo.add(unit)
         # No UnitOfWork/Outbox yet (Architecture разд. 9.2 — not migrated,

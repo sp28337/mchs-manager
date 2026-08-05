@@ -36,6 +36,12 @@ class CreateUnitRequest(BaseModel):
     code: str = Field(min_length=1, max_length=50)
     name: str = Field(min_length=1, max_length=300)
     parent_unit_id: UUID | None = Field(default=None, alias="parentUnitId")
+    # Additive относительно openapi `CreateUnitRequest` (разрешено
+    # политикой изменений API_Conventions разд. 1). Необязателен: у
+    # дочернего подразделения по умолчанию пояс родителя, у корневого —
+    # Europe/Moscow. Указывать его приходится ровно там, где подразделение
+    # действительно в другом поясе.
+    time_zone: str | None = Field(default=None, alias="timeZone", max_length=64)
 
 
 class UnitResponse(BaseModel):
@@ -49,6 +55,7 @@ class UnitResponse(BaseModel):
     # ltree literal, exactly as stored. The `HierarchyPath` VO is a domain
     # concept and does not cross the wire.
     hierarchy_path: str = Field(alias="hierarchyPath")
+    time_zone: str = Field(alias="timeZone")
 
 
 # ---------- Position

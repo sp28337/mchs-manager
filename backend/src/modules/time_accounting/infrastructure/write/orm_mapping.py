@@ -50,23 +50,43 @@ metadata = MetaData(schema="time_accounting")
 
 outbox_message_table = build_outbox_table(metadata)
 
+# Перечисления объявлены ЧЕРЕЗ КЛАСС, а не через список значений, и это
+# не стилистика.
+#
+# `PgEnum(*[e.value for e in E], ...)` — форма, применённая в остальных
+# модулях, — возвращает из БД голые строки. Для сравнений `==` это
+# незаметно (`StrEnum` сравнивается со строкой), но у `ServiceTimeEvent`
+# есть свойства `counts_as_service_time` / `is_explained_absence`, которые
+# спрашивают у значения его СОБСТВЕННЫЙ атрибут. На загруженном из БД
+# табеле это падало с `'str' object has no attribute
+# 'counts_as_service_time'` — то есть Алгоритм В не мог разделить события
+# на группы ровно тогда, когда работал с сохранёнными данными.
+#
+# `values_callable` нужен, чтобы SQLAlchemy писал в БД `.value`
+# (`actual_shift`), а не имя члена (`ACTUAL_SHIFT`) — иначе тип в БД и тип
+# в коде разошлись бы уже при вставке.
+_ENUM_VALUES = lambda enum_class: [member.value for member in enum_class]  # noqa: E731
+
 _timesheet_status_enum = PgEnum(
-    *[s.value for s in TimesheetStatus],
+    TimesheetStatus,
     name="timesheet_status",
     schema="time_accounting",
     create_type=False,
+    values_callable=_ENUM_VALUES,
 )
 _event_type_enum = PgEnum(
-    *[e.value for e in ServiceTimeEventType],
+    ServiceTimeEventType,
     name="service_time_event_type",
     schema="time_accounting",
     create_type=False,
+    values_callable=_ENUM_VALUES,
 )
 _period_type_enum = PgEnum(
-    *[p.value for p in AccountingPeriodType],
+    AccountingPeriodType,
     name="accounting_period_type",
     schema="time_accounting",
     create_type=False,
+    values_callable=_ENUM_VALUES,
 )
 
 

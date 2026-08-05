@@ -223,8 +223,23 @@ async def test_event_ids_are_unique_across_the_outbox(client: TestClient, sessio
 async def test_reader_returns_unpublished_oldest_first_and_marks_them(
     client: TestClient, session
 ) -> None:  # type: ignore[no-untyped-def]
-    employee = _register_employee(client)
     reader = OutboxReader(session, outbox_message_table)
+
+    # Очередь осушается ДО регистрации, а не фильтруется после.
+    #
+    # Раньше тест брал `limit=500` и искал своё событие среди прочитанного.
+    # Это работало ровно до тех пор, пока в схеме `personnel` не набралось
+    # больше 500 неопубликованных сообщений: релея нет (F013), очередь
+    # никто не разбирает, и каждый прогон интеграционных тестов
+    # добавляет в неё события. Тест начал падать не потому, что сломался
+    # outbox, а потому, что его собственное допущение о размере очереди
+    # перестало выполняться — то есть он проверял объём данных вместо
+    # поведения.
+    while backlog := await reader.fetch_unpublished(limit=500):
+        await reader.mark_published([m["id"] for m in backlog])
+        await session.commit()
+
+    employee = _register_employee(client)
 
     pending = await reader.fetch_unpublished(limit=500)
     mine = [m for m in pending if str(m["aggregate_id"]) == employee["id"]]

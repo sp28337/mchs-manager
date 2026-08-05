@@ -42,6 +42,7 @@ from src.modules.legal_rules.domain.value_objects import (
     DocumentNodeType,
     DocumentType,
     EffectivePeriod,
+    HourCategory,
     LegalBasis,
     RuleCategory,
     RuleStatus,
@@ -107,10 +108,13 @@ class _OpaqueJsonType(TypeDecorator[Any]):
         return value
 
 
-class _PrecedenceListType(TypeDecorator[tuple[RuleCategory, ...]]):
-    """jsonb array of strings <-> `tuple[RuleCategory, ...]`
+class _PrecedenceListType(TypeDecorator[tuple[HourCategory, ...]]):
+    """jsonb array of strings <-> `tuple[HourCategory, ...]`
     (PostgreSQL_Logical_Model разд. 1.6: `precedence_list jsonb NOT NULL`,
-    `CHECK (jsonb_typeof(precedence_list) = 'array')`)."""
+    `CHECK (jsonb_typeof(precedence_list) = 'array')`).
+
+    Раньше здесь стоял `RuleCategory` — см. докстринг `HourCategory` о том,
+    почему это было ошибкой и делало требуемую политику невыразимой."""
 
     impl = JSONB
     cache_ok = True
@@ -118,10 +122,10 @@ class _PrecedenceListType(TypeDecorator[tuple[RuleCategory, ...]]):
     def process_bind_param(self, value: Any, dialect: Any) -> Any:
         if value is None:
             return None
-        return [RuleCategory(v).value for v in value]
+        return [HourCategory(v).value for v in value]
 
-    def process_result_value(self, value: Any, dialect: Any) -> tuple[RuleCategory, ...] | None:
-        return tuple(RuleCategory(v) for v in value) if value is not None else None
+    def process_result_value(self, value: Any, dialect: Any) -> tuple[HourCategory, ...] | None:
+        return tuple(HourCategory(v) for v in value) if value is not None else None
 
 
 rule_table = Table(

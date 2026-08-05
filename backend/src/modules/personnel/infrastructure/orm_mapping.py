@@ -155,6 +155,7 @@ unit_table = Table(
     Column("name", Text, nullable=False),
     Column("parent_unit_id", PgUUID(as_uuid=True), ForeignKey("personnel.unit.id"), nullable=True),
     Column("hierarchy_path", _HierarchyPathType, nullable=False),
+    Column("time_zone", Text, nullable=False),
     # created_at: DB DEFAULT now(), never read/written by the domain.
 )
 

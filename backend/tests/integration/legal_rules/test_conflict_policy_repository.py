@@ -16,7 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker, create_async
 from src.composition.settings import get_settings
 from src.modules.legal_rules.domain.conflict_policy import ConflictResolutionPolicy
 from src.modules.legal_rules.domain.errors import PolicyVersionImmutableError
-from src.modules.legal_rules.domain.value_objects import RuleCategory, RuleStatus
+from src.modules.legal_rules.domain.value_objects import HourCategory, RuleStatus
 from src.modules.legal_rules.infrastructure.write.orm_mapping import start_mappers
 
 pytestmark = pytest.mark.asyncio
@@ -59,9 +59,9 @@ async def test_precedence_list_round_trips_in_order(engine: AsyncEngine) -> None
     session_factory = async_sessionmaker(engine, expire_on_commit=False)
     policy_id = uuid4()
     ordered = (
-        RuleCategory.HOLIDAY_HOURS_CLASSIFICATION,
-        RuleCategory.NIGHT_HOURS_CLASSIFICATION,
-        RuleCategory.OVERTIME_CLASSIFICATION,
+        HourCategory.HOLIDAY,
+        HourCategory.NIGHT,
+        HourCategory.OVERTIME,
     )
 
     async with session_factory() as session:
@@ -83,7 +83,7 @@ async def test_precedence_list_round_trips_in_order(engine: AsyncEngine) -> None
         assert loaded_version.status == RuleStatus.PUBLISHED
 
         with pytest.raises(PolicyVersionImmutableError):
-            loaded_version.precedence_list = (RuleCategory.NIGHT_HOURS_CLASSIFICATION,)
+            loaded_version.precedence_list = (HourCategory.NIGHT,)
 
     async with engine.begin() as conn:
         await conn.execute(
