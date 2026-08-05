@@ -12,6 +12,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from src.building_blocks.application.problem import Problem
 from src.modules.legal_rules.domain.value_objects import (
     DocumentNodeType,
     DocumentType,
@@ -20,19 +21,13 @@ from src.modules.legal_rules.domain.value_objects import (
 )
 from src.rule_engine.schemas.action import Action
 
-
-class Problem(BaseModel):
-    """RFC 7807 — API_Conventions_FPS.md разд. 3. Every error response
-    across the whole API uses this envelope, not just `legal_rules`."""
-
-    model_config = ConfigDict(frozen=True)
-
-    type: str
-    title: str
-    status: int
-    detail: str | None = None
-    instance: str | None = None
-    trace_id: str | None = Field(default=None, alias="traceId")
+# `Problem` (RFC 7807) is re-exported, not redeclared: it is the error
+# envelope of the WHOLE API, so it lives in `building_blocks/application`
+# where every module can reach it without importing another module's `api`
+# package (which Architecture разд. 4.2 forbids). Re-exported here so the
+# existing `from ...legal_rules.api.schemas import Problem` imports keep
+# resolving to the one shared definition.
+__all__ = ["Problem"]
 
 
 # ---------- NormativeDocument

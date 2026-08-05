@@ -43,16 +43,27 @@ async def redis() -> Redis:  # type: ignore[misc]
 
 def _sample_value() -> ResolvedRuleVersion:
     action = _action_adapter.validate_python(
-        {"node_type": "set_result", "field": "weekly_norm_hours", "formula": {"node_type": "literal", "value": 40}}
+        {
+            "node_type": "set_result",
+            "field": "weekly_norm_hours",
+            "formula": {"node_type": "literal", "value": 40},
+        }
     )
     return ResolvedRuleVersion(
-        id=uuid4(), rule_id=uuid4(), version_no=1, valid_from=date(2024, 1, 1), valid_to=None, actions=[action]
+        id=uuid4(),
+        rule_id=uuid4(),
+        version_no=1,
+        valid_from=date(2024, 1, 1),
+        valid_to=None,
+        actions=[action],
     )
 
 
 async def test_cold_miss_returns_none(redis: Redis) -> None:
     cache = RuleVersionCache(redis, ttl_seconds=5)
-    result = await cache.get(rule_code=f"TEST.{uuid4()}", scope={"category": "normal"}, as_of=date(2024, 6, 1))
+    result = await cache.get(
+        rule_code=f"TEST.{uuid4()}", scope={"category": "normal"}, as_of=date(2024, 6, 1)
+    )
     assert result is None
 
 

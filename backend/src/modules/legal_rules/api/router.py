@@ -1,10 +1,11 @@
 """LR012 — `legal_rules` API router. Presentation-layer rule (Architecture
 разд. 3): knows only about Application (Command/Query + Handler), never
 imports `domain`/`infrastructure` for business logic — it constructs
-concrete repositories only because Composition/di.py doesn't yet exist as
-a full DI container (see `composition/di.py` docstring); that construction
-is infrastructure wiring, not business logic, and mirrors what a real
-Composition Root's `di.py` will do once it grows to cover this module.
+concrete repositories only because there is no DI container assembling
+handlers yet; that construction is infrastructure wiring, not business
+logic. Note what it does NOT import: `composition/di.py`. A module that
+imports the Composition Root transitively imports every other module —
+see `building_blocks/infrastructure/db.py`.
 
 Domain exceptions -> RFC 7807 `Problem` mapping follows API_Conventions_FPS.md
 разд. 3's catalog exactly (`404` not-found, `409` overlapping/conflict,
@@ -18,10 +19,12 @@ from datetime import date as date_cls
 from typing import Annotated
 from uuid import UUID, uuid4
 
-from fastapi import APIRouter, Depends, HTTPException, Path, Query
+from fastapi import APIRouter, Depends, Path, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.composition.di import get_rule_version_cache, get_session
+from src.building_blocks.application.problem import problem_exception
+from src.building_blocks.infrastructure.db import get_session
+from src.modules.legal_rules.api.dependencies import get_rule_version_cache
 from src.modules.legal_rules.api.schemas import (
     CreateDocumentNodeRequest,
     CreateNormativeDocumentRequest,
@@ -30,7 +33,6 @@ from src.modules.legal_rules.api.schemas import (
     DocumentNodeResponse,
     EffectiveRuleVersionResponse,
     NormativeDocumentResponse,
-    Problem,
     PublishRuleVersionRequest,
     RuleListEnvelopeResponse,
     RuleResponse,
@@ -93,24 +95,10 @@ router = APIRouter()
 SessionDep = Annotated[AsyncSession, Depends(get_session)]
 CacheDep = Annotated[RuleVersionCache, Depends(get_rule_version_cache)]
 
-_ERRORS_BASE = "https://api.fps-timekeeping.gov.ru/errors"
-
-
-def _problem(status: int, error_type: str, title: str, detail: str) -> HTTPException:
-    """Builds the RFC 7807 body per API_Conventions_FPS.md разд. 3. Every
-    Problem here carries a `traceId` so a rejected request can be
-    correlated with `audit.audit_log` later (разд. 3: "без него невозможно
-    связать отклонённый запрос с записью аудита") — the audit table/writer
-    itself doesn't exist yet, so this is currently just a bare UUID with
-    nothing to join against; flagged, not silently omitted."""
-    problem = Problem(
-        type=f"{_ERRORS_BASE}/{error_type}",
-        title=title,
-        status=status,
-        detail=detail,
-        trace_id=str(uuid4()),
-    )
-    return HTTPException(status_code=status, detail=problem.model_dump(mode="json", by_alias=True))
+# The RFC 7807 builder is shared across every module's router
+# (`building_blocks/application/problem.py`) rather than reimplemented per
+# module — see that module's docstring for why it lives there.
+_problem = problem_exception
 
 
 def _to_rule_version_response(version: RuleVersion) -> RuleVersionResponse:

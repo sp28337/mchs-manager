@@ -85,7 +85,8 @@ def upgrade() -> None:
                        OR NEW.valid_from IS DISTINCT FROM OLD.valid_from
                        OR NEW.rule_id IS DISTINCT FROM OLD.rule_id THEN
                         RAISE EXCEPTION
-                            'rule_version % is published/superseded and immutable except for status/valid_to',
+                            'rule_version % is published/superseded and immutable '
+                            'except for status/valid_to',
                             OLD.id;
                     END IF;
                     RETURN NEW;
