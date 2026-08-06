@@ -39,7 +39,9 @@ class Problem(BaseModel):
     trace_id: str | None = Field(default=None, alias="traceId")
 
 
-def problem_exception(status: int, error_type: str, title: str, detail: str) -> HTTPException:
+def problem_exception(
+    status: int, error_type: str, title: str, detail: str, **extensions: str
+) -> HTTPException:
     """Builds the `HTTPException` whose body is an RFC 7807 `Problem`.
 
     Every Problem carries a `traceId` so a rejected request can be
@@ -48,6 +50,16 @@ def problem_exception(status: int, error_type: str, title: str, detail: str) -> 
     The audit table and its writer do not exist yet, so today this is a
     bare UUID with nothing to join against — flagged, not silently
     omitted.
+
+    `extensions` — расширения RFC 7807 разд. 3.2 («Problem type definitions
+    MAY extend the problem details object with additional members»).
+    Нужны там, где отказ обязан назвать величину: остаток ДДО в 422
+    списания (DoD RB005) невозможно передать одним `detail`, не заставив
+    клиента разбирать русский текст регулярным выражением.
+
+    Расширения кладутся в тело мимо `Problem`, а не в саму модель:
+    `Problem` — точное зеркало схемы `openapi.yaml`, и добавлять в него
+    поля конкретных ошибок значило бы объявить их общими для всех.
     """
     problem = Problem(
         type=f"{ERRORS_BASE}/{error_type}",
@@ -56,4 +68,8 @@ def problem_exception(status: int, error_type: str, title: str, detail: str) -> 
         detail=detail,
         trace_id=str(uuid4()),
     )
-    return HTTPException(status_code=status, detail=problem.model_dump(mode="json", by_alias=True))
+    body = problem.model_dump(mode="json", by_alias=True)
+    # Расширение не может переопределить обязательное поле: `status`,
+    # разошедшийся с кодом ответа, сделал бы тело ложным.
+    body.update({k: v for k, v in extensions.items() if k not in body})
+    return HTTPException(status_code=status, detail=body)

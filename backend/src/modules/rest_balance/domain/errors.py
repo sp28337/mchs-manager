@@ -67,6 +67,10 @@ class AlreadyReversedError(RestBalanceDomainError):
     Отображается в 409."""
 
 
+class MovementNotFoundError(RestBalanceDomainError):
+    """Движение не найдено. Отображается в 404."""
+
+
 class ReversalReasonRequiredError(RestBalanceDomainError):
     """Инвариант 8.1.3 требует сторно «с указанием причины».
 

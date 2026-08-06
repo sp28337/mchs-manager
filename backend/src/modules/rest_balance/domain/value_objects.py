@@ -55,6 +55,11 @@ class MovementGround(ValueObject):
     def is_empty(self) -> bool:
         return self.compensation_line_id is None and self.leave_grant_id is None
 
+    def __composite_values__(self) -> tuple[UUID | None, UUID | None]:
+        """Порядок обязан совпадать с порядком колонок в `composite()`
+        (`infrastructure/orm_mapping.py`)."""
+        return self.compensation_line_id, self.leave_grant_id
+
 
 @dataclass(frozen=True, kw_only=True)
 class RestDays(ValueObject):
@@ -81,6 +86,9 @@ class RestDays(ValueObject):
 
     def __add__(self, other: RestDays) -> RestDays:
         return RestDays(days=self.days + other.days)
+
+    def __composite_values__(self) -> tuple[Decimal]:
+        return (self.days,)
 
 
 @dataclass(frozen=True, kw_only=True)

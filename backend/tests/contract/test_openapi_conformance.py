@@ -1,4 +1,4 @@
-"""CO019/TA035 — сверка реализованного API с `docs/openapi.yaml`.
+"""CO019/TA035/RB011 — сверка реализованного API с `docs/openapi.yaml`.
 
 --- Почему не schemathesis --------------------------------------------
 
@@ -58,6 +58,7 @@ IMPLEMENTED_PREFIXES = (
     "/scheduling",
     "/time-accounting",
     "/compensation",
+    "/rest-balance",
 )
 
 API_PREFIX = "/api/v1"
@@ -162,6 +163,10 @@ def test_the_spec_has_no_operations_for_unimplemented_modules_we_claim_to_serve(
         "/legal-rules/conflict-policies",
         "/legal-rules/conflict-policies/{}/versions",
         "/legal-rules/conflict-policy-versions/{}/publish",
+        # RB006. Сторно — единственный законный способ исправить движение
+        # баланса (Domain Model инвариант 8.1.3), а операции над ним
+        # спецификация не описывает: журнал в ней только читается.
+        "/rest-balance/movements/{}/reversal",
     }
 
     undocumented = {

@@ -68,10 +68,10 @@ layers =
 name = Layers: rest_balance
 type = layers
 layers =
-    (src.modules.rest_balance.api)
-    (src.modules.rest_balance.infrastructure)
-    (src.modules.rest_balance.application)
-    (src.modules.rest_balance.domain)
+    src.modules.rest_balance.api
+    src.modules.rest_balance.infrastructure
+    src.modules.rest_balance.application
+    src.modules.rest_balance.domain
 
 [importlinter:contract:layers-leave-management]
 name = Layers: leave_management
