@@ -1,0 +1,204 @@
+@import "tailwindcss";
+
+/* Тёмная тема переключается КЛАССОМ, а не системной настройкой: роль
+   `next-themes` — дать человеку выбор, а не угадать его (Tailwind v4,
+   разд. Dark mode: «override the dark variant to apply when the `dark`
+   class is present»). */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* ==========================================================================
+   FE003 — дизайн-токены.
+
+   Палитра выведена из материалов самой службы, а не из корпоративной
+   палитры вообще: графит боевой одежды, холодная бумага документа,
+   сигнальный оранжевый — тот самый цвет, которым в пожарной охране
+   обозначают то, что требует действия.
+
+   Отсюда правило, которому подчинён весь интерфейс: СИГНАЛЬНЫЙ ЦВЕТ НЕ
+   УКРАШАЕТ. Он появляется там и только там, где что-то требует решения
+   человека — переработка сверх нормы, отказ, конфликт со сменой,
+   недостаток остатка. Кнопка «Сохранить» сигнальной не бывает.
+
+   Третий смысловой цвет — `trace`, приглушённый индиго. Им отмечено
+   единственное, что отличает эту систему от любой учётной панели:
+   ПРАВОВОЙ СЛЕД. Число, выведенное расчётом, обязано показывать норму, по
+   которой оно получено (Domain Model — провенанс, инвариант 6.1.5), и
+   отличаться на вид от числа, которое просто записали. Индиго не
+   пересекается ни с «требует внимания», ни с «подтверждено», поэтому
+   служит третьим измерением, а не оттенком первых двух.
+
+   Значения объявлены в `:root`/`.dark`, а `@theme inline` только
+   ссылается на них: так утилиты Tailwind получают ПЕРЕМЕННУЮ, а не
+   зафиксированный цвет, и смена темы работает без перезагрузки.
+   ========================================================================== */
+
+:root {
+  /* -- Поверхности ------------------------------------------------------ */
+  --fps-paper: #f4f5f3;
+  --fps-paper-raised: #ffffff;
+  --fps-paper-sunken: #e9ebe7;
+
+  /* -- Чернила ---------------------------------------------------------- */
+  --fps-ink: #14171c;
+  --fps-ink-muted: #545a63;
+  --fps-ink-faint: #7c828a;
+
+  /* -- Линовка ---------------------------------------------------------- */
+  --fps-rule: #d3d6d0;
+  --fps-rule-strong: #adb1aa;
+
+  /* -- Смысловые -------------------------------------------------------- */
+  --fps-signal: #c4400f;
+  --fps-signal-soft: #fbeae3;
+  --fps-verify: #0b5f54;
+  --fps-verify-soft: #dfeeeb;
+  --fps-trace: #4144b0;
+  --fps-trace-soft: #e8e8f8;
+}
+
+/* Не инверсия: бумага становится графитом, но сигнальный и подтверждающий
+   цвета осветляются — на тёмном фоне исходные теряют ту различимость,
+   ради которой выбраны. Контраст проверен по WCAG 2.2 (1.4.3, 4.5:1 для
+   текста, 3:1 для границ и состояний). */
+.dark {
+  --fps-paper: #101216;
+  --fps-paper-raised: #171a1f;
+  --fps-paper-sunken: #0a0c0f;
+
+  --fps-ink: #e8eae6;
+  --fps-ink-muted: #a3a9b0;
+  --fps-ink-faint: #7b8189;
+
+  --fps-rule: #2c3038;
+  --fps-rule-strong: #444a53;
+
+  --fps-signal: #ff8a5c;
+  --fps-signal-soft: #2a1710;
+  --fps-verify: #4fcfbd;
+  --fps-verify-soft: #0c211f;
+  --fps-trace: #9a9df3;
+  --fps-trace-soft: #191a2e;
+}
+
+@theme inline {
+  --color-paper: var(--fps-paper);
+  --color-paper-raised: var(--fps-paper-raised);
+  --color-paper-sunken: var(--fps-paper-sunken);
+
+  --color-ink: var(--fps-ink);
+  --color-ink-muted: var(--fps-ink-muted);
+  --color-ink-faint: var(--fps-ink-faint);
+
+  --color-rule: var(--fps-rule);
+  --color-rule-strong: var(--fps-rule-strong);
+
+  --color-signal: var(--fps-signal);
+  --color-signal-soft: var(--fps-signal-soft);
+  --color-verify: var(--fps-verify);
+  --color-verify-soft: var(--fps-verify-soft);
+  --color-trace: var(--fps-trace);
+  --color-trace-soft: var(--fps-trace-soft);
+
+  /* -- Типографика ------------------------------------------------------
+     Три роли, три гарнитуры, и каждая выбрана под кириллицу первым делом:
+     интерфейс русскоязычный целиком, и «характерный шрифт без кириллицы»
+     здесь не характерный, а неприменимый.
+
+     `display` — PT Sans Narrow (ParaType, спроектирован для русского
+     языка): узкий, документный, даёт заголовкам вид служебного бланка без
+     стилизации под газету.
+     `sans` — IBM Plex Sans: гарнитура технической документации, спокойная
+     на длинных таблицах.
+     `mono` — IBM Plex Mono: числа, идентификаторы и правовой след.
+     -------------------------------------------------------------------- */
+  --font-display: var(--font-pt-sans-narrow), "PT Sans Narrow", sans-serif;
+  --font-sans: var(--font-plex-sans), "IBM Plex Sans", system-ui, sans-serif;
+  --font-mono: var(--font-plex-mono), "IBM Plex Mono", ui-monospace, monospace;
+
+  /* Малые и одинаковые. Документ не скруглён; сильное скругление читалось
+     бы как потребительское приложение, каким система не является. */
+  --radius-xs: 2px;
+  --radius-sm: 3px;
+  --radius-md: 4px;
+}
+
+@layer base {
+  * {
+    border-color: var(--fps-rule);
+  }
+
+  html {
+    color-scheme: light;
+  }
+
+  html.dark {
+    color-scheme: dark;
+  }
+
+  body {
+    background-color: var(--fps-paper);
+    color: var(--fps-ink);
+    font-family: var(--font-sans);
+    /* Числа в таблицах должны стоять столбцом: колонка часов, где 1 уже
+       8, нечитаема. */
+    font-variant-numeric: tabular-nums;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  h1,
+  h2,
+  h3 {
+    font-family: var(--font-display);
+    font-weight: 700;
+    letter-spacing: 0.005em;
+  }
+
+  /* Видимый фокус — не украшение, а требование WCAG 2.2 (2.4.11 Focus Not
+     Obscured, 2.4.13 Focus Appearance). Обводка сигнальным цветом: она
+     обязана быть заметнее всего остального на экране. */
+  :focus-visible {
+    outline: 2px solid var(--fps-signal);
+    outline-offset: 2px;
+    border-radius: var(--radius-xs);
+  }
+}
+
+/* --------------------------------------------------------------------------
+   ПРАВОВОЙ СЛЕД — подпись этого интерфейса.
+
+   Число, полученное расчётом, подчёркнуто пунктиром цвета `trace`. Это не
+   декор: пунктир отделяет ВЫВЕДЕННОЕ от ЗАПИСАННОГО, и человек, которому
+   придётся объяснять цифру в служебной проверке, видит сразу, есть ли у
+   неё норма-основание.
+
+   Анимация одна на весь интерфейс и служит той же цели: при наведении и
+   фокусе подчёркивание уплотняется, показывая, что след раскрывается.
+   -------------------------------------------------------------------------- */
+@layer components {
+  .legal-trace {
+    font-family: var(--font-mono);
+    text-decoration: underline;
+    text-decoration-style: dotted;
+    text-decoration-color: var(--fps-trace);
+    text-underline-offset: 4px;
+    text-decoration-thickness: 1px;
+    cursor: help;
+    transition: text-decoration-thickness 120ms ease-out;
+  }
+
+  .legal-trace:hover,
+  .legal-trace:focus-visible {
+    text-decoration-thickness: 2px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

@@ -1,4 +1,4 @@
-"""CO019/TA035/RB011 — сверка реализованного API с `docs/openapi.yaml`.
+"""CO019/TA035/RB011/LM012 — сверка реализованного API с `docs/openapi.yaml`.
 
 --- Почему не schemathesis --------------------------------------------
 
@@ -59,6 +59,7 @@ IMPLEMENTED_PREFIXES = (
     "/time-accounting",
     "/compensation",
     "/rest-balance",
+    "/leave",
 )
 
 API_PREFIX = "/api/v1"
