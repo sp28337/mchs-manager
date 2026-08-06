@@ -39,6 +39,10 @@ class EmployeeCalculationContext(BaseModel):
     time_zone: str
     hired_at: date
     dismissed_at: date | None
+    # Категория должности НА ДАТУ периода (Алгоритм Б шаг 1). `None`, если
+    # летопись службы на эту дату молчит — тогда это измерение просто не
+    # попадает в `scope`, а не подменяется текущим значением.
+    position_category: str | None = None
 
 
 class TimesheetRepositoryPort(Protocol):
@@ -91,7 +95,9 @@ class EmployeeCalculationContextPort(Protocol):
     переводящим моменты в календарные даты.
     """
 
-    async def context_of(self, employee_id: UUID) -> EmployeeCalculationContext | None: ...
+    async def context_of(
+        self, employee_id: UUID, *, as_of: date | None = None
+    ) -> EmployeeCalculationContext | None: ...
 
 
 class NormRulePort(Protocol):

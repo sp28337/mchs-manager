@@ -67,12 +67,32 @@ def evaluate_condition(node: ConditionNode, context: EvaluationContext) -> bool:
     raise TypeError(f"Unhandled ConditionNode variant: {type(node).__name__}")  # pragma: no cover
 
 
+FormulaValue = float | bool | str
+
+
+def as_number(value: FormulaValue) -> float:
+    """Числовое значение формулы или отказ.
+
+    Нужна с тех пор, как литерал научился быть строкой и булевым (см.
+    докстринг `LiteralFormula`): вызывающий, который ждёт часы, обязан
+    получить отказ, а не `float("monetary")` в трассировке где-то ниже.
+    `bool` отвергается наравне со строкой — в Python он подкласс `int`,
+    и «истина, равная одному часу» не то, что имел в виду автор правила.
+    """
+    if isinstance(value, bool) or not isinstance(value, int | float):
+        raise TypeError(
+            f"формула вернула {value!r}, а ожидалось число: это правило задаёт "
+            f"нечисловое значение и числовым потребителем использовано быть не может"
+        )
+    return float(value)
+
+
 async def evaluate_formula(
     node: Formula,
     context: EvaluationContext,
     *,
     resolve_rule_reference: RuleReferenceResolver | None = None,
-) -> float:
+) -> FormulaValue:
     """Async because `rule_reference` may need a DB round-trip via the
     injected resolver — every other node type is pure computation, but the
     walker as a whole must be async so `rule_reference` can appear
@@ -86,15 +106,25 @@ async def evaluate_formula(
             raise KeyError(f"Formula references unknown variable '{node.name}'")
         return float(context[node.name])
     if isinstance(node, OperatorFormula):
+        # Арифметика над строками и булевыми не определена, и вести себя
+        # «как Python» здесь нельзя: `"a" * 3` дал бы `"aaa"`, а не отказ.
         values = [
-            await evaluate_formula(arg, context, resolve_rule_reference=resolve_rule_reference)
+            as_number(
+                await evaluate_formula(
+                    arg, context, resolve_rule_reference=resolve_rule_reference
+                )
+            )
             for arg in node.args
         ]
         return _apply_operator(node.op, values)
     if isinstance(node, FunctionFormula):
         fn = resolve_function(node.function_name)
         values = [
-            await evaluate_formula(arg, context, resolve_rule_reference=resolve_rule_reference)
+            as_number(
+                await evaluate_formula(
+                    arg, context, resolve_rule_reference=resolve_rule_reference
+                )
+            )
             for arg in node.args
         ]
         return fn(*values)

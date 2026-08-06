@@ -152,6 +152,7 @@ def _to_service_record_response(entry: ServiceRecordEntry) -> ServiceRecordEntry
         position_id=entry.position_id,
         unit_id=entry.unit_id,
         rank=entry.rank,
+        legal_base=entry.legal_base,
         recorded_at=entry.recorded_at,
     )
 
@@ -350,6 +351,7 @@ async def add_service_record_entry(
                 position_id=request.position_id,
                 unit_id=request.unit_id,
                 rank=request.rank,
+                legal_base=request.legal_base,
             )
         )
     except EmployeeNotFoundError as exc:

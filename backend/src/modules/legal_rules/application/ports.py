@@ -19,6 +19,7 @@ from datetime import date
 from typing import Protocol
 from uuid import UUID
 
+from src.modules.legal_rules.domain.conflict_policy import ConflictResolutionPolicy
 from src.modules.legal_rules.domain.normative_document import NormativeDocument
 from src.modules.legal_rules.domain.rule import Rule
 from src.modules.legal_rules.domain.value_objects import DocumentType, RuleCategory
@@ -57,3 +58,17 @@ class RuleVersionCachePort(Protocol):
     async def set(
         self, *, rule_code: str, scope: dict[str, str], as_of: date, value: ResolvedRuleVersion
     ) -> None: ...
+
+
+class ConflictPolicyRepositoryPort(Protocol):
+    """Порт репозитория `ConflictResolutionPolicy`.
+
+    Появился вместе с API политики — до Алгоритма Ж завести её было
+    нечем, хотя агрегат и маппинг существовали с фазы 2.
+    """
+
+    async def get(self, policy_id: UUID) -> ConflictResolutionPolicy | None: ...
+    async def get_by_code(self, code: str) -> ConflictResolutionPolicy | None: ...
+    async def get_by_version_id(self, version_id: UUID) -> ConflictResolutionPolicy | None: ...
+    async def list_all(self) -> list[ConflictResolutionPolicy]: ...
+    def add(self, policy: ConflictResolutionPolicy) -> None: ...

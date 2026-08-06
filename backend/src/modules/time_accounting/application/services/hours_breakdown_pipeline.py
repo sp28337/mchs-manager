@@ -111,11 +111,18 @@ class HoursBreakdownPipeline:
         period_end = timesheet.period.end
         time_zone = ZoneInfo(context.time_zone)
 
-        # --- Шаг 1 (Алгоритм А шаги 2-5) ---
+        # --- Шаг 1 (Алгоритм А шаги 2-5) + Алгоритм Б шаг 2 ---
+        #
+        # `position_category` попадает в scope только если летопись службы
+        # его на дату периода знает. Подставлять текущее значение было бы
+        # хуже, чем не указывать измерение вовсе: молча посчитанный по
+        # сегодняшней должности прошлый период выглядит как правильный.
         scope = {
             "legal_base": context.legal_base,
             "service_condition_category": context.service_condition_category,
         }
+        if context.position_category is not None:
+            scope["position_category"] = context.position_category
 
         # --- Шаг 2 (Алгоритм Б) ---
         norm = await self._norm.calculate(

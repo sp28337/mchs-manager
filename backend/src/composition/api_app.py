@@ -19,6 +19,7 @@ from fastapi import FastAPI
 
 from src.building_blocks.application.problem_handlers import install_problem_handlers
 from src.composition.di import dispose_infrastructure, init_infrastructure
+from src.modules.compensation.api.router import router as compensation_router
 from src.modules.legal_rules.api.router import router as legal_rules_router
 from src.modules.personnel.api.router import router as personnel_router
 from src.modules.scheduling.api.router import router as scheduling_router
@@ -81,3 +82,4 @@ app.include_router(scheduling_router, prefix="/api/v1/scheduling", tags=["Schedu
 app.include_router(
     time_accounting_router, prefix="/api/v1/time-accounting", tags=["TimeAccounting"]
 )
+app.include_router(compensation_router, prefix="/api/v1/compensation", tags=["Compensation"])

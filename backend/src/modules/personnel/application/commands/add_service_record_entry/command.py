@@ -15,7 +15,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from src.modules.personnel.domain.value_objects import ServiceRecordEventType
+from src.modules.personnel.domain.value_objects import LegalBase, ServiceRecordEventType
 
 
 class AddServiceRecordEntryCommand(BaseModel):
@@ -27,3 +27,4 @@ class AddServiceRecordEntryCommand(BaseModel):
     position_id: UUID | None = None
     unit_id: UUID | None = None
     rank: str | None = Field(default=None, max_length=100)
+    legal_base: LegalBase | None = None

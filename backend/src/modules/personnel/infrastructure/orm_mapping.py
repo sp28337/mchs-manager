@@ -204,6 +204,7 @@ service_record_entry_table = Table(
     Column("position_id", PgUUID(as_uuid=True), ForeignKey("personnel.position.id"), nullable=True),
     Column("unit_id", PgUUID(as_uuid=True), ForeignKey("personnel.unit.id"), nullable=True),
     Column("rank", Text, nullable=True),
+    Column("legal_base", _legal_base_enum, nullable=True),
     Column("recorded_at", DateTime(timezone=True), nullable=False),
 )
 

@@ -26,6 +26,10 @@ from src.modules.personnel.contracts.get_employee_snapshot import (
     EmployeeNotFound,
     get_employee_snapshot,
 )
+from src.modules.personnel.contracts.get_employee_snapshot_as_of import (
+    EmployeeStateUnknownAsOf,
+    get_employee_state_as_of,
+)
 from src.modules.scheduling.contracts.get_planned_shifts import (
     get_planned_shifts_for_employee,
 )
@@ -38,7 +42,7 @@ from src.modules.time_accounting.application.services.norm_calculation import (
     NORM_CALCULATION_RULE_CODE,
     WEEKLY_NORM_FIELD,
 )
-from src.rule_engine.interpreter.tree_walker import evaluate_formula
+from src.rule_engine.interpreter.tree_walker import as_number, evaluate_formula
 from src.rule_engine.schemas.action import SetResultAction
 
 
@@ -76,18 +80,66 @@ class PersonnelEmployeeCalculationContext:
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
 
-    async def context_of(self, employee_id: UUID) -> EmployeeCalculationContext | None:
+    async def context_of(
+        self, employee_id: UUID, *, as_of: date | None = None
+    ) -> EmployeeCalculationContext | None:
+        """`as_of` — дата начала учётного периода (Алгоритм Б шаг 1).
+
+        Категории должности и подразделение берутся на эту дату из
+        летописи службы, а не текущие: без этого пересчёт марта 2024
+        после перевода сотрудника тихо давал бы другую норму — другой
+        `scope`, другая `RuleVersion`, другое число, без ошибки и без
+        следа.
+
+        Если летопись на дату молчит (сотрудник заведён без записи
+        `assignment` — так делает, например, упрощённая регистрация),
+        используется текущий снимок. Это осознанная деградация, а не
+        умолчание: отказать было бы правильнее теоретически, но на деле
+        означало бы, что ни один табель существующих сотрудников
+        утвердить нельзя, пока кто-то не заполнит им летопись задним
+        числом. Расхождение при этом не скрыто — расчёт пишет
+        использованную правовую базу и пояс в собственный провенанс.
+        """
         try:
             snapshot = await get_employee_snapshot(self._session, employee_id=employee_id)
         except EmployeeNotFound:
             return None
+
+        position_category: str | None = None
+        service_condition_category = snapshot.service_condition_category
+        regime_type = snapshot.regime_type
+        time_zone = snapshot.time_zone
+        unit_id = snapshot.unit_id
+        legal_base = snapshot.legal_base
+
+        if as_of is not None:
+            try:
+                historical = await get_employee_state_as_of(
+                    self._session, employee_id=employee_id, as_of=as_of
+                )
+            except EmployeeStateUnknownAsOf:
+                pass
+            else:
+                position_category = historical.position_category
+                service_condition_category = historical.service_condition_category
+                regime_type = historical.regime_type
+                time_zone = historical.time_zone
+                unit_id = historical.unit_id
+                # Правовая база НА ДАТУ (миграция 0020): ФЗ-141 и ТК РФ
+                # дают разные нормы, и применять к вольнонаёмному периоду
+                # закон о службе — значит считать по закону, который тогда
+                # на человека не распространялся. Если летопись молчит,
+                # остаётся текущее значение карточки.
+                legal_base = historical.legal_base or snapshot.legal_base
+
         return EmployeeCalculationContext(
             employee_id=snapshot.employee_id,
-            unit_id=snapshot.unit_id,
-            legal_base=snapshot.legal_base,
-            service_condition_category=snapshot.service_condition_category,
-            regime_type=snapshot.regime_type,
-            time_zone=snapshot.time_zone,
+            unit_id=unit_id,
+            legal_base=legal_base,
+            position_category=position_category,
+            service_condition_category=service_condition_category,
+            regime_type=regime_type,
+            time_zone=time_zone,
             hired_at=snapshot.hired_at,
             dismissed_at=snapshot.dismissed_at,
         )
@@ -117,7 +169,7 @@ class LegalRulesNormRule:
 
         for action in resolved.actions:
             if isinstance(action, SetResultAction) and action.field == WEEKLY_NORM_FIELD:
-                value = await evaluate_formula(action.formula, {})
+                value = as_number(await evaluate_formula(action.formula, {}))
                 return Decimal(str(value)), resolved.id
 
         raise RuleVersionNotApplicable(

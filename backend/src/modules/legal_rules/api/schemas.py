@@ -16,6 +16,7 @@ from src.building_blocks.application.problem import Problem
 from src.modules.legal_rules.domain.value_objects import (
     DocumentNodeType,
     DocumentType,
+    HourCategory,
     RuleCategory,
     RuleStatus,
 )
@@ -171,3 +172,88 @@ class EffectiveRuleVersionResponse(BaseModel):
     valid_from: date = Field(alias="validFrom")
     valid_to: date | None = Field(default=None, alias="validTo")
     actions: list[Action]
+
+
+class CreateConflictPolicyRequest(BaseModel):
+    """ADDITIVE относительно `openapi.yaml`, которая не описывает над
+    политикой разрешения конфликта категорий НИ ОДНОЙ операции, хотя
+    Domain Model разд. 2.3 объявляет её агрегатом, а логическая модель
+    разд. 1.6 — парой таблиц.
+
+    Пробел спецификации, а не расширение по вкусу: Алгоритм Ж требует
+    действующую политику как обязательный вход, и без этих операций
+    утверждение любого табеля отказывало бы навсегда — завести порядок
+    приоритетов было бы нечем. Эталонный `openapi.yaml` следует дополнить
+    при ближайшей ревизии.
+    """
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    code: str = Field(min_length=1, max_length=100)
+
+
+class ConflictPolicyVersionResponse(BaseModel):
+    model_config = ConfigDict(populate_by_name=True, serialize_by_alias=True)
+
+    id: UUID
+    policy_id: UUID = Field(alias="policyId")
+    version_no: int = Field(alias="versionNo")
+    precedence_list: list[str] = Field(alias="precedenceList")
+    valid_from: date = Field(alias="validFrom")
+    valid_to: date | None = Field(default=None, alias="validTo")
+    status: RuleStatus
+
+
+class ConflictPolicyResponse(BaseModel):
+    model_config = ConfigDict(populate_by_name=True, serialize_by_alias=True)
+
+    id: UUID
+    code: str
+    versions: list[ConflictPolicyVersionResponse] = Field(default_factory=list)
+
+
+class CreateConflictPolicyVersionRequest(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    # Список, а не множество, и порядок — это и есть содержание:
+    # первая применимая категория забирает час целиком (Алгоритм Ж шаг 4).
+    precedence_list: list[HourCategory] = Field(alias="precedenceList", min_length=1)
+    valid_from: date = Field(alias="validFrom")
+    valid_to: date | None = Field(default=None, alias="validTo")
+
+
+class DryRunRequest(BaseModel):
+    """Зеркало openapi `DryRunRequest`."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    historical_period_start: date = Field(alias="historicalPeriodStart")
+    historical_period_end: date = Field(alias="historicalPeriodEnd")
+    sample_size: int = Field(alias="sampleSize", ge=1, le=10000)
+
+
+class DryRunSampleDifference(BaseModel):
+    model_config = ConfigDict(populate_by_name=True, serialize_by_alias=True)
+
+    employee_id: UUID = Field(alias="employeeId")
+    old_value: float = Field(alias="oldValue")
+    new_value: float = Field(alias="newValue")
+
+
+class DryRunResultResponse(BaseModel):
+    """Зеркало openapi `DryRunResult` плюс сами величины.
+
+    `oldValue`/`newValue` — ADDITIVE (API_Conventions разд. 1): без них
+    ответ сообщал бы «расхождение есть», не говоря какое, и юристу
+    пришлось бы искать его глазами по двум редакциям правила.
+    """
+
+    model_config = ConfigDict(populate_by_name=True, serialize_by_alias=True)
+
+    old_value: float = Field(alias="oldValue")
+    new_value: float = Field(alias="newValue")
+    compared_entities: int = Field(alias="comparedEntities")
+    differences_found: int = Field(alias="differencesFound")
+    sample_differences: list[DryRunSampleDifference] = Field(
+        default_factory=list, alias="sampleDifferences"
+    )

@@ -67,6 +67,7 @@ class AddServiceRecordEntryHandler:
             position_id=command.position_id,
             unit_id=command.unit_id,
             rank=command.rank,
+            legal_base=command.legal_base,
             now=self._clock.now(),
         )
         # `transfer` поднимает EmployeeTransferred — оно должно уйти вместе

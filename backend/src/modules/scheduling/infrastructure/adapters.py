@@ -25,7 +25,7 @@ from src.modules.personnel.contracts.get_employee_snapshot import (
 from src.modules.scheduling.application.services.rest_period_policy import (
     MINIMUM_REST_PERIOD_RULE_CODE,
 )
-from src.rule_engine.interpreter.tree_walker import evaluate_formula
+from src.rule_engine.interpreter.tree_walker import as_number, evaluate_formula
 from src.rule_engine.schemas.action import SetResultAction
 
 MINIMUM_REST_FIELD = "minimum_rest_hours"
@@ -72,7 +72,11 @@ class LegalRulesMinimumRestPeriod:
 
         for action in resolved.actions:
             if isinstance(action, SetResultAction) and action.field == MINIMUM_REST_FIELD:
-                return await evaluate_formula(action.formula, {})
+                # `as_number` — не церемония: с тех пор как литерал
+                # научился быть строкой (Алгоритм К шаг 4), правило может
+                # вернуть нечисловое значение, и тогда «минимальный отдых»
+                # обязан отказать, а не превратиться в NaN где-то ниже.
+                return as_number(await evaluate_formula(action.formula, {}))
 
         raise RuleVersionNotApplicable(
             f"версия правила {MINIMUM_REST_PERIOD_RULE_CODE} на {as_of} не задаёт "

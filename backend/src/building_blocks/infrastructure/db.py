@@ -58,6 +58,22 @@ async def dispose_engine() -> None:
     _session_factory = None
 
 
+def get_session_factory() -> async_sessionmaker[AsyncSession]:
+    """Фабрика сессий для кода вне запроса — Celery-воркера.
+
+    `get_session()` — зависимость FastAPI: она отдаёт сессию на время
+    обработки запроса. Воркеру нужна фабрика: у него нет запроса, а
+    границы транзакции он определяет сам (релей — одна транзакция на
+    пачку, потребитель — одна на сообщение).
+    """
+    if _session_factory is None:
+        raise RuntimeError(
+            "session factory не инициализирована: вызовите init_engine() "
+            "(Composition Root) до обращения к БД"
+        )
+    return _session_factory
+
+
 async def get_session() -> AsyncIterator[AsyncSession]:
     """FastAPI dependency: one `AsyncSession` per request.
 

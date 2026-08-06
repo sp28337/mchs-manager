@@ -196,6 +196,11 @@ class Employee(AggregateRoot):
                 position_id=position_id,
                 unit_id=unit_id,
                 rank=rank,
+                # Приём на службу УСТАНАВЛИВАЕТ правовую базу (миграция
+                # 0020). Без неё летопись молчала бы о самом первом
+                # состоянии, и расчёт периода приёма брал бы правовую базу
+                # из карточки — то есть сегодняшнюю, а не тогдашнюю.
+                legal_base=legal_base,
                 recorded_at=now,
             )
         )
@@ -273,10 +278,23 @@ class Employee(AggregateRoot):
     # ------------------------------------------------------------- position
 
     def transfer(
-        self, *, position_id: UUID, unit_id: UUID, effective_date: date, now: datetime
+        self,
+        *,
+        position_id: UUID,
+        unit_id: UUID,
+        effective_date: date,
+        legal_base: LegalBase | None = None,
+        now: datetime,
     ) -> ServiceRecordEntry:
         """Перевод: the ONLY way the primary post/unit changes. One post in,
-        one post out — see the PE001 note in the module docstring."""
+        one post out — see the PE001 note in the module docstring.
+
+        `legal_base` — на случай перевода, меняющего правовую базу
+        (переход из гражданского персонала в аттестованный состав и
+        обратно). Передаётся В КОНСТРУКТОР записи, а не присваивается
+        после: летопись append-only, и её собственный guard такое
+        присваивание отвергает — правильно делая.
+        """
         self._require_not_dismissed("transfer")
         previous_unit_id = self.current_unit_id
         previous_position_id = self.current_position_id
@@ -291,8 +309,11 @@ class Employee(AggregateRoot):
             effective_date=effective_date,
             position_id=position_id,
             unit_id=unit_id,
+            legal_base=legal_base,
             recorded_at=now,
         )
+        if legal_base is not None:
+            self.legal_base = legal_base
         self._append_service_record(entry)
         self.raise_event(
             EmployeeTransferred(
@@ -382,6 +403,7 @@ class Employee(AggregateRoot):
         position_id: UUID | None = None,
         unit_id: UUID | None = None,
         rank: str | None = None,
+        legal_base: LegalBase | None = None,
         now: datetime,
     ) -> ServiceRecordEntry:
         """PE009 — the general append used by
@@ -394,10 +416,15 @@ class Employee(AggregateRoot):
         that a caller could perform half of.
         """
         if event_type == ServiceRecordEventType.TRANSFER and unit_id is not None:
+            # Перевод, меняющий правовую базу: из гражданского персонала
+            # в аттестованный состав и обратно. Карточка отвечает на «кто
+            # он сейчас», летопись — на «кем был в марте» (Алгоритм А
+            # шаг 4), и `transfer` меняет обе.
             return self.transfer(
                 position_id=position_id or self.current_position_id,
                 unit_id=unit_id,
                 effective_date=effective_date,
+                legal_base=legal_base,
                 now=now,
             )
         if event_type == ServiceRecordEventType.RANK_CHANGE and rank is not None:
@@ -412,8 +439,11 @@ class Employee(AggregateRoot):
             position_id=position_id,
             unit_id=unit_id,
             rank=rank,
+            legal_base=legal_base,
             recorded_at=now,
         )
+        if legal_base is not None:
+            self.legal_base = legal_base
         self._append_service_record(entry)
         return entry
 
