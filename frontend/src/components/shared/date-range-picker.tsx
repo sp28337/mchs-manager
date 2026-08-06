@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils/cn";
+import { inclusiveEnd } from "@/lib/utils/format";
 
 /**
  * FE011 — выбор учётного периода.
@@ -78,14 +79,6 @@ const PRESETS: Preset[] = [
   },
 ];
 
-/** Последний включённый день периода — для подписи человеку. */
-function inclusiveEndLabel(exclusiveEnd: string): string {
-  if (!exclusiveEnd) return "";
-  const date = new Date(`${exclusiveEnd}T00:00:00Z`);
-  date.setUTCDate(date.getUTCDate() - 1);
-  return date.toLocaleDateString("ru-RU");
-}
-
 export interface DateRangePickerProps {
   className?: string;
 }
@@ -120,7 +113,7 @@ export function DateRangePicker({ className }: DateRangePickerProps) {
 
   return (
     <form
-      className={cn("flex flex-wrap items-end gap-3", className)}
+      className={cn("flex flex-wrap items-start gap-3", className)}
       onSubmit={(event) => {
         event.preventDefault();
         if (!invalid && start && end) apply(start, end);
@@ -150,7 +143,7 @@ export function DateRangePicker({ className }: DateRangePickerProps) {
         />
         {end && !invalid ? (
           <p className="font-mono text-[11px] text-ink-faint">
-            по {inclusiveEndLabel(end)}
+            по {inclusiveEnd(end).toLocaleDateString("ru-RU", { timeZone: "UTC" })}
           </p>
         ) : null}
         {invalid ? (
@@ -160,11 +153,18 @@ export function DateRangePicker({ className }: DateRangePickerProps) {
         ) : null}
       </div>
 
-      <Button type="submit" variant="outline" disabled={invalid || !start || !end}>
+      {/* Кнопка и пресеты выравниваются по полю, а не по подписи: отступ
+          повторяет высоту `Label` со строкой ниже. */}
+      <Button
+        type="submit"
+        variant="outline"
+        className="mt-[1.375rem]"
+        disabled={invalid || !start || !end}
+      >
         Показать
       </Button>
 
-      <div className="flex flex-wrap gap-1">
+      <div className="mt-[1.375rem] flex flex-wrap gap-1">
         {PRESETS.map((preset) => (
           <Button
             key={preset.label}
