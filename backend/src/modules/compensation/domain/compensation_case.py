@@ -19,6 +19,10 @@
   приходит из `RuleVersion`), и отказывает в записи волеизъявления там,
   где он не разрешён. Само значение признака — данные, а не код.
 * **7.1.4, финализированное дело неизменяемо** — здесь, целиком.
+* **Денежная форма только по рапорту** — здесь, целиком. Приказ № 410
+  п. 18 и Приказ № 539 п. 103: денежная компенсация есть замена отдыха
+  по просьбе сотрудника, а не форма, назначаемая правилом. Инварианта с
+  номером в Domain Model у этого нет — акт вышел позже документа.
 
 --- Почему предел хранится в агрегате, а не проверяется снаружи --------
 
@@ -48,6 +52,7 @@ from src.modules.compensation.domain.errors import (
     CompensationExceedsFactError,
     ElectionNotApplicableError,
     EmptyCompensationCaseError,
+    MonetaryFormRequiresElectionError,
 )
 from src.modules.compensation.domain.events import (
     CompensationCaseFinalized,
@@ -166,9 +171,29 @@ class CompensationCase(AggregateRoot):
         compensation_form: CompensationForm,
         legal_basis_rule_version_id: UUID,
         election_allowed: bool = False,
+        elected_at: datetime | None = None,
     ) -> CompensationLine:
-        """Алгоритм К шаг 7 плюс проверка инварианта 7.1.2 (шаг 8)."""
+        """Алгоритм К шаг 7 плюс проверка инварианта 7.1.2 (шаг 8).
+
+        `elected_at` — дата рапорта, если форма выбрана сотрудником уже на
+        момент начисления. Без неё денежная форма невозможна: см.
+        `MonetaryFormRequiresElectionError`.
+        """
         self._require_draft("добавить строку в")
+
+        if compensation_form is CompensationForm.MONETARY and elected_at is None:
+            # Приказ № 410 п. 18 и Приказ № 539 п. 103: денежная
+            # компенсация — замена отдыха ПО ПРОСЬБЕ сотрудника. Ни один
+            # из актов не знает порядка, при котором она назначается сама
+            # собой, и назначить её здесь значило бы записать решение
+            # системы как волеизъявление человека.
+            raise MonetaryFormRequiresElectionError(
+                f"строка по категории {hour_category} в денежной форме без рапорта "
+                f"сотрудника: Приказ № 410 п. 18 допускает денежную компенсацию только "
+                f"«по просьбе сотрудника вместо предоставления дополнительных дней "
+                f"отдыха», Приказ № 539 п. 103 — «по рапорту сотрудника и на основании "
+                f"решения руководителя»"
+            )
 
         if self.compensable is None:
             raise CompensationExceedsFactError(
@@ -194,6 +219,7 @@ class CompensationCase(AggregateRoot):
             compensation_form=compensation_form,
             legal_basis_rule_version_id=legal_basis_rule_version_id,
             election_allowed=election_allowed,
+            employee_election_at=elected_at,
         )
         self.lines.append(line)
         return line
