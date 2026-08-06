@@ -36,6 +36,9 @@ from src.modules.legal_rules.api.schemas import (
     CreateRuleRequest,
     CreateRuleVersionRequest,
     DocumentNodeResponse,
+    DryRunRequest,
+    DryRunResultResponse,
+    DryRunSampleDifference,
     EffectiveRuleVersionResponse,
     NormativeDocumentResponse,
     PublishRuleVersionRequest,
@@ -86,6 +89,11 @@ from src.modules.legal_rules.application.commands.publish_rule_version.command i
 )
 from src.modules.legal_rules.application.commands.publish_rule_version.handler import (
     PublishRuleVersionHandler,
+)
+from src.modules.legal_rules.application.queries.dry_run_rule_version.handler import (
+    DryRunNotApplicable,
+    RuleVersionNotFound,
+    dry_run_rule_version,
 )
 from src.modules.legal_rules.application.queries.get_effective_rule_version.handler import (
     GetEffectiveRuleVersionHandler,
@@ -546,3 +554,46 @@ async def publish_conflict_policy_version(
         ) from exc
 
     return _to_policy_version_response(version)
+
+
+@router.post("/rule-versions/{version_id}/dry-run", response_model=DryRunResultResponse)
+async def dry_run_rule_version_endpoint(
+    version_id: Annotated[UUID, Path()],
+    request: DryRunRequest,
+    session: SessionDep,
+) -> DryRunResultResponse:
+    """Песочница для черновика версии: показать последствия ДО публикации.
+
+    Без `Idempotency-Key`, в отличие от остальных `POST` этого роутера, и
+    так же в спецификации: операция ничего не меняет. `POST` она лишь
+    потому, что принимает тело запроса, — повторный вызов даёт тот же
+    ответ и не создаёт ничего.
+    """
+    try:
+        result = await dry_run_rule_version(
+            await session.connection(),
+            rules=RuleRepository(session),
+            version_id=version_id,
+            historical_period_start=request.historical_period_start,
+            historical_period_end=request.historical_period_end,
+            sample_size=request.sample_size,
+        )
+    except RuleVersionNotFound as exc:
+        raise _problem(404, "not-found", "Версия правила не найдена", str(exc)) from exc
+    except DryRunNotApplicable as exc:
+        raise _problem(
+            422, "domain-invariant-violation", "Сравнение невыполнимо", str(exc)
+        ) from exc
+
+    return DryRunResultResponse(
+        old_value=result.old_value,
+        new_value=result.new_value,
+        compared_entities=result.compared_entities,
+        differences_found=result.differences_found,
+        sample_differences=[
+            DryRunSampleDifference(
+                employee_id=d.employee_id, old_value=d.old_value, new_value=d.new_value
+            )
+            for d in result.sample_differences
+        ],
+    )

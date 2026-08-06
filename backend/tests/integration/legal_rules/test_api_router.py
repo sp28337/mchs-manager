@@ -322,3 +322,223 @@ async def test_a_second_policy_with_the_same_code_is_409(client: TestClient) -> 
         f"{BASE}/conflict-policies", json={"code": code}, headers=_idem()
     )
     assert duplicate.status_code == 409, duplicate.text
+
+
+# ------------------------------- песочница черновика версии правила
+
+
+async def test_dry_run_compares_a_draft_against_the_effective_version(
+    client: TestClient,
+) -> None:
+    """Смысл операции: юрист обязан увидеть последствия ДО публикации,
+    потому что опубликованная версия неизменяема, а расчёты периодов,
+    попавших в её интервал, поменяются автоматически."""
+    code = f"TEST.DRYRUN.{uuid4().hex[:8].upper()}"
+    doc = client.post(
+        f"{BASE}/documents",
+        json={
+            "docType": "federal_law",
+            "regNumber": f"141-DR-{uuid4().hex[:6]}",
+            "adoptedDate": "2016-05-23",
+            "title": "ФЗ-141 (фрагмент для песочницы)",
+            "validFrom": "2016-07-01",
+        },
+        headers=_idem(),
+    )
+    node = client.post(
+        f"{BASE}/documents/{doc.json()['id']}/nodes",
+        json={"nodeType": "article", "ordinalNumber": "54"},
+        headers=_idem(),
+    )
+    rule = client.post(
+        f"{BASE}/rules",
+        json={
+            "code": code,
+            "category": "norm_calculation",
+            "displayName": "Норма для песочницы",
+        },
+        headers=_idem(),
+    )
+    assert rule.status_code == 201, rule.text
+    rule_id = rule.json()["id"]
+
+    def _version(value: int, valid_from: str) -> str:
+        created = client.post(
+            f"{BASE}/rules/{rule_id}/versions",
+            json={
+                "scope": {},
+                "legalBasisNodeId": node.json()["id"],
+                "actions": [
+                    {
+                        "node_type": "set_result",
+                        "field": "weekly_norm_hours",
+                        "formula": {"node_type": "literal", "value": value},
+                    }
+                ],
+                "validFrom": valid_from,
+            },
+            headers=_idem(),
+        )
+        assert created.status_code == 201, created.text
+        return str(created.json()["id"])
+
+    published = _version(40, "2016-07-01")
+    assert (
+        client.post(
+            f"{BASE}/rule-versions/{published}/publish",
+            json={"changeReason": "Действующая норма для проверки песочницы"},
+            headers=_idem(),
+        ).status_code
+        == 200
+    )
+
+    draft = _version(36, "2027-01-01")
+
+    result = client.post(
+        f"{BASE}/rule-versions/{draft}/dry-run",
+        json={
+            "historicalPeriodStart": "2026-01-01",
+            "historicalPeriodEnd": "2026-12-31",
+            "sampleSize": 100,
+        },
+    )
+    assert result.status_code == 200, result.text
+    body = result.json()
+    assert body["oldValue"] == 40
+    assert body["newValue"] == 36
+    assert body["differencesFound"] == 1
+
+    # Песочница ничего не меняет: черновик остался черновиком.
+    listing = client.get(f"{BASE}/rules", params={"pageSize": 200})
+    assert any(r["code"] == code for r in listing.json()["items"])
+
+
+async def test_dry_run_of_an_identical_draft_reports_no_difference(
+    client: TestClient,
+) -> None:
+    code = f"TEST.DRYRUN.{uuid4().hex[:8].upper()}"
+    doc = client.post(
+        f"{BASE}/documents",
+        json={
+            "docType": "federal_law",
+            "regNumber": f"141-DR-{uuid4().hex[:6]}",
+            "adoptedDate": "2016-05-23",
+            "title": "ФЗ-141 (фрагмент)",
+            "validFrom": "2016-07-01",
+        },
+        headers=_idem(),
+    )
+    node = client.post(
+        f"{BASE}/documents/{doc.json()['id']}/nodes",
+        json={"nodeType": "article", "ordinalNumber": "54"},
+        headers=_idem(),
+    )
+    rule = client.post(
+        f"{BASE}/rules",
+        json={"code": code, "category": "norm_calculation", "displayName": "Норма"},
+        headers=_idem(),
+    )
+    rule_id = rule.json()["id"]
+
+    def _version(valid_from: str) -> str:
+        created = client.post(
+            f"{BASE}/rules/{rule_id}/versions",
+            json={
+                "scope": {},
+                "legalBasisNodeId": node.json()["id"],
+                "actions": [
+                    {
+                        "node_type": "set_result",
+                        "field": "weekly_norm_hours",
+                        "formula": {"node_type": "literal", "value": 40},
+                    }
+                ],
+                "validFrom": valid_from,
+            },
+            headers=_idem(),
+        )
+        assert created.status_code == 201, created.text
+        return str(created.json()["id"])
+
+    published = _version("2016-07-01")
+    client.post(
+        f"{BASE}/rule-versions/{published}/publish",
+        json={"changeReason": "Действующая норма"},
+        headers=_idem(),
+    )
+    draft = _version("2027-01-01")
+
+    result = client.post(
+        f"{BASE}/rule-versions/{draft}/dry-run",
+        json={
+            "historicalPeriodStart": "2026-01-01",
+            "historicalPeriodEnd": "2026-12-31",
+            "sampleSize": 10,
+        },
+    )
+    assert result.status_code == 200, result.text
+    assert result.json()["differencesFound"] == 0
+
+
+async def test_dry_run_of_a_first_version_is_refused(client: TestClient) -> None:
+    """Сравнивать не с чем — и это отказ, а не «ноль расхождений»: юрист,
+    увидевший ноль, решил бы, что правка безопасна."""
+    code = f"TEST.DRYRUN.{uuid4().hex[:8].upper()}"
+    doc = client.post(
+        f"{BASE}/documents",
+        json={
+            "docType": "federal_law",
+            "regNumber": f"141-DR-{uuid4().hex[:6]}",
+            "adoptedDate": "2016-05-23",
+            "title": "ФЗ-141 (фрагмент)",
+            "validFrom": "2016-07-01",
+        },
+        headers=_idem(),
+    )
+    node = client.post(
+        f"{BASE}/documents/{doc.json()['id']}/nodes",
+        json={"nodeType": "article", "ordinalNumber": "54"},
+        headers=_idem(),
+    )
+    rule = client.post(
+        f"{BASE}/rules",
+        json={"code": code, "category": "norm_calculation", "displayName": "Норма"},
+        headers=_idem(),
+    )
+    draft = client.post(
+        f"{BASE}/rules/{rule.json()['id']}/versions",
+        json={
+            "scope": {},
+            "legalBasisNodeId": node.json()["id"],
+            "actions": [
+                {
+                    "node_type": "set_result",
+                    "field": "weekly_norm_hours",
+                    "formula": {"node_type": "literal", "value": 36},
+                }
+            ],
+            "validFrom": "2027-01-01",
+        },
+        headers=_idem(),
+    )
+    result = client.post(
+        f"{BASE}/rule-versions/{draft.json()['id']}/dry-run",
+        json={
+            "historicalPeriodStart": "2026-01-01",
+            "historicalPeriodEnd": "2026-12-31",
+            "sampleSize": 10,
+        },
+    )
+    assert result.status_code == 422, result.text
+
+
+async def test_dry_run_of_an_unknown_version_is_404(client: TestClient) -> None:
+    result = client.post(
+        f"{BASE}/rule-versions/{uuid4()}/dry-run",
+        json={
+            "historicalPeriodStart": "2026-01-01",
+            "historicalPeriodEnd": "2026-12-31",
+            "sampleSize": 10,
+        },
+    )
+    assert result.status_code == 404, result.text

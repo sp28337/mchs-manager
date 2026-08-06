@@ -220,3 +220,40 @@ class CreateConflictPolicyVersionRequest(BaseModel):
     precedence_list: list[HourCategory] = Field(alias="precedenceList", min_length=1)
     valid_from: date = Field(alias="validFrom")
     valid_to: date | None = Field(default=None, alias="validTo")
+
+
+class DryRunRequest(BaseModel):
+    """Зеркало openapi `DryRunRequest`."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    historical_period_start: date = Field(alias="historicalPeriodStart")
+    historical_period_end: date = Field(alias="historicalPeriodEnd")
+    sample_size: int = Field(alias="sampleSize", ge=1, le=10000)
+
+
+class DryRunSampleDifference(BaseModel):
+    model_config = ConfigDict(populate_by_name=True, serialize_by_alias=True)
+
+    employee_id: UUID = Field(alias="employeeId")
+    old_value: float = Field(alias="oldValue")
+    new_value: float = Field(alias="newValue")
+
+
+class DryRunResultResponse(BaseModel):
+    """Зеркало openapi `DryRunResult` плюс сами величины.
+
+    `oldValue`/`newValue` — ADDITIVE (API_Conventions разд. 1): без них
+    ответ сообщал бы «расхождение есть», не говоря какое, и юристу
+    пришлось бы искать его глазами по двум редакциям правила.
+    """
+
+    model_config = ConfigDict(populate_by_name=True, serialize_by_alias=True)
+
+    old_value: float = Field(alias="oldValue")
+    new_value: float = Field(alias="newValue")
+    compared_entities: int = Field(alias="comparedEntities")
+    differences_found: int = Field(alias="differencesFound")
+    sample_differences: list[DryRunSampleDifference] = Field(
+        default_factory=list, alias="sampleDifferences"
+    )
