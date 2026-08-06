@@ -77,10 +77,10 @@ layers =
 name = Layers: leave_management
 type = layers
 layers =
-    (src.modules.leave_management.api)
-    (src.modules.leave_management.infrastructure)
-    (src.modules.leave_management.application)
-    (src.modules.leave_management.domain)
+    src.modules.leave_management.api
+    src.modules.leave_management.infrastructure
+    src.modules.leave_management.application
+    src.modules.leave_management.domain
 
 # --- Contract 2: изоляция модулей (Architecture, разд. 4.2) ---
 #

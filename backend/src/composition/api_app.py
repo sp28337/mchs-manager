@@ -20,6 +20,7 @@ from fastapi import FastAPI
 from src.building_blocks.application.problem_handlers import install_problem_handlers
 from src.composition.di import dispose_infrastructure, init_infrastructure
 from src.modules.compensation.api.router import router as compensation_router
+from src.modules.leave_management.api.router import router as leave_management_router
 from src.modules.legal_rules.api.router import router as legal_rules_router
 from src.modules.personnel.api.router import router as personnel_router
 from src.modules.rest_balance.api.router import router as rest_balance_router
@@ -85,3 +86,4 @@ app.include_router(
 )
 app.include_router(compensation_router, prefix="/api/v1/compensation", tags=["Compensation"])
 app.include_router(rest_balance_router, prefix="/api/v1/rest-balance", tags=["RestBalance"])
+app.include_router(leave_management_router, prefix="/api/v1/leave", tags=["LeaveManagement"])

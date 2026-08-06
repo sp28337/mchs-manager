@@ -30,6 +30,12 @@ from src.modules.compensation.infrastructure.orm_mapping import (
 from src.modules.compensation.infrastructure.orm_mapping import (
     start_mappers as start_compensation_mappers,
 )
+from src.modules.leave_management.infrastructure.orm_mapping import (
+    outbox_message_table as leave_management_outbox,
+)
+from src.modules.leave_management.infrastructure.orm_mapping import (
+    start_mappers as start_leave_management_mappers,
+)
 from src.modules.legal_rules.infrastructure.write.orm_mapping import (
     outbox_message_table as legal_rules_outbox,
 )
@@ -88,6 +94,7 @@ def init_infrastructure() -> None:
     start_time_accounting_mappers()
     start_compensation_mappers()
     start_rest_balance_mappers()
+    start_leave_management_mappers()
 
     # Регистрация таблиц outbox в релее. Только Composition Root знает обо
     # всех модулях сразу, поэтому список живёт здесь, а не в
@@ -100,6 +107,7 @@ def init_infrastructure() -> None:
         time_accounting_outbox,
         compensation_outbox,
         rest_balance_outbox,
+        leave_management_outbox,
     ):
         register_outbox_table(table)
 
