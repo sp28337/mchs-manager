@@ -64,6 +64,10 @@ class CompensationCaseResponse(BaseModel):
     id: UUID
     employee_id: UUID = Field(alias="employeeId")
     timesheet_id: UUID = Field(alias="timesheetId")
+    # Additive: подразделение, к которому отнесены затраты. Без него
+    # финансист не может сверить дело с бюджетом части, а перевод
+    # сотрудника делает принадлежность затрат неочевидной.
+    unit_id: UUID = Field(alias="unitId")
     period_start: date = Field(alias="periodStart")
     period_end: date = Field(alias="periodEnd")
     status: CaseStatus
@@ -78,3 +82,25 @@ class RecordEmployeeElectionRequest(BaseModel):
     # `ruleCategory` принимается как псевдоним — см. докстринг модуля.
     hour_category: HourCategory = Field(alias="hourCategory")
     compensation_form: CompensationForm = Field(alias="compensationForm")
+
+
+class RegionalCompensationForecastResponse(BaseModel):
+    """Зеркало openapi `RegionalCompensationForecast`.
+
+    Три additive-поля. `employeeCount` и `caseCount` — чтобы цифру можно
+    было объяснить: прогноз в 4000 часов по трём делам и по трёмстам —
+    разные новости для финансиста, а из одной суммы это не видно.
+    `computedAt` — потому что проекция строится раз в сутки, и без отметки
+    времени пользователь не отличит вчерашние данные от сегодняшних.
+    """
+
+    model_config = ConfigDict(populate_by_name=True, serialize_by_alias=True)
+
+    region_unit_id: UUID = Field(alias="regionUnitId")
+    period_start: date = Field(alias="periodStart")
+    period_end: date = Field(alias="periodEnd")
+    forecast_monetary_hours: Decimal = Field(alias="forecastMonetaryHours")
+    forecast_rest_days: Decimal = Field(alias="forecastRestDays")
+    employee_count: int = Field(alias="employeeCount")
+    case_count: int = Field(alias="caseCount")
+    computed_at: datetime = Field(alias="computedAt")

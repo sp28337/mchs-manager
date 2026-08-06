@@ -63,6 +63,16 @@ class ApprovedPeriodPort(Protocol):
     ) -> ApprovedPeriod | None: ...
 
 
+class EmployeeUnitPort(Protocol):
+    """Подразделение, где сотрудник служил НА ДАТУ (миграция 0019).
+
+    На дату, а не сегодня: компенсация за март относится к мартовской
+    части, даже если в апреле человека перевели.
+    """
+
+    async def unit_at(self, *, employee_id: UUID, as_of: date) -> UUID | None: ...
+
+
 class CompensationRulePort(Protocol):
     """Алгоритм К шаги 3-4: форма компенсации и допустимость выбора для
     категории часов на дату."""

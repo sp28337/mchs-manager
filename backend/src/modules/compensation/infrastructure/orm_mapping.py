@@ -85,6 +85,7 @@ compensation_case_table = Table(
     Column("id", PgUUID(as_uuid=True), primary_key=True),
     Column("employee_id", PgUUID(as_uuid=True), nullable=False),
     Column("timesheet_id", PgUUID(as_uuid=True), nullable=False),
+    Column("unit_id", PgUUID(as_uuid=True), nullable=False),
     Column("period_start", Date, nullable=False),
     Column("period_end", Date, nullable=False),
     Column("status", _case_status_enum, nullable=False),

@@ -87,6 +87,38 @@ def _idem() -> dict[str, str]:
     return {"Idempotency-Key": str(uuid4())}
 
 
+async def _drain(relay, factory, redis) -> None:  # type: ignore[no-untyped-def]
+    """Осушает outbox до пустоты.
+
+    В работающей системе это делает beat каждые 10 секунд, и очередь
+    почти всегда пуста. В тестовой БД накапливаются события всех прежних
+    прогонов, и без осушения проверка «релей опубликовал ровно моё
+    событие» проверяла бы размер накопленного мусора.
+    """
+    while await relay(factory, redis, batch_size=500):
+        pass
+
+
+@pytest.fixture
+async def worker_deps():  # type: ignore[misc]
+    """Собственные пул соединений и Redis для фоновых функций.
+
+    Глобальные создаёт lifespan `TestClient` — в СВОЁМ event loop, а тест
+    работает в другом. Пул asyncpg к чужому циклу не привязывается, и
+    попытка им воспользоваться падает с «attached to a different loop».
+    Ровно поэтому релей и потребитель принимают зависимости аргументами:
+    у воркера Celery ситуация та же, только вместо TestClient — новый loop
+    на каждую задачу.
+    """
+    from redis.asyncio import Redis
+
+    engine = create_async_engine(get_settings().database_dsn)
+    redis = Redis.from_url(get_settings().redis_url)
+    yield async_sessionmaker(engine, expire_on_commit=False), redis
+    await redis.aclose()
+    await engine.dispose()
+
+
 def _rule_ids(client: TestClient) -> dict[str, str]:
     listing = client.get(f"{LEGAL}/rules", params={"pageSize": 200})
     assert listing.status_code == 200, listing.text
@@ -554,3 +586,193 @@ async def test_compensation_never_exceeds_the_approved_fact(
     }
     assert by_category.get("night", Decimal(0)) == Decimal(str(summary["nightHours"]))
     assert by_category.get("overtime", Decimal(0)) == Decimal(str(summary["overtimeHours"]))
+
+
+# ------------------------------- CO017: асинхронная цепочка через релей
+
+
+async def test_approving_a_timesheet_creates_a_case_through_the_event_chain(
+    client: TestClient, compensable, worker_deps
+) -> None:  # type: ignore[no-untyped-def]
+    """DoD CO017: «тест подтверждает появление дела без прямого вызова API».
+
+    Проверяется вся цепочка Architecture Д6: утверждение табеля пишет
+    `TimesheetApproved` в outbox -> релей (F013) переносит его в поток
+    Redis -> потребитель `compensation` заводит дело. Ни один шаг не
+    подменяется; вызываются те же функции, что дёргает Celery по
+    расписанию, — отличается только то, что здесь их зовёт тест, а не
+    beat.
+    """
+    if not await _db_reachable():
+        pytest.skip("PostgreSQL не запущена — `make up`")
+
+    from src.building_blocks.infrastructure.outbox_tasks import relay_all_once
+    from src.modules.compensation.infrastructure.tasks import (
+        consume_timesheet_approved_once,
+    )
+
+    factory, redis = worker_deps
+    await _drain(relay_all_once, factory, redis)
+
+    employee = _employee(client)
+    _approved_march(client, employee)
+
+    # Дела ещё нет: событие только записано в outbox.
+    assert client.get(f"{COMP}/employees/{employee}/history").json() == []
+
+    await relay_all_once(factory, redis)
+    await consume_timesheet_approved_once(factory, redis)
+
+    history = client.get(f"{COMP}/employees/{employee}/history")
+    assert history.status_code == 200, history.text
+    assert len(history.json()) == 1
+    case = history.json()[0]
+    assert case["status"] == "draft"
+    assert len(case["lines"]) == 1
+    assert case["lines"][0]["hourCategory"] == "night"
+
+
+async def test_replaying_the_same_event_does_not_duplicate_the_case(
+    client: TestClient, compensable, worker_deps
+) -> None:  # type: ignore[no-untyped-def]
+    """Доставка at-least-once: обработчик обязан переживать повтор.
+
+    Второй проход потребителя не должен ни завести второе дело, ни
+    упасть — дубликат подтверждается как успех, иначе сообщение
+    возвращалось бы в pending-лист вечно.
+    """
+    if not await _db_reachable():
+        pytest.skip("PostgreSQL не запущена — `make up`")
+
+    from src.building_blocks.infrastructure.outbox_tasks import relay_all_once
+    from src.modules.compensation.infrastructure.tasks import _create_case
+
+    factory, redis = worker_deps
+    await _drain(relay_all_once, factory, redis)
+
+    employee = _employee(client)
+    _approved_march(client, employee)
+    await relay_all_once(factory, redis)
+
+    payload = {
+        "employee_id": employee,
+        "period_start": "2026-03-01",
+        "period_end": "2026-04-01",
+    }
+    await _create_case(factory, payload)
+    await _create_case(factory, payload)
+
+    assert len(client.get(f"{COMP}/employees/{employee}/history").json()) == 1
+
+
+async def test_the_relay_marks_what_it_published(
+    client: TestClient, session, compensable, worker_deps
+) -> None:  # type: ignore[no-untyped-def]
+    """Опубликованное помечается в той же транзакции: иначе следующий
+    проход отправил бы то же событие снова, и так до бесконечности."""
+    if not await _db_reachable():
+        pytest.skip("PostgreSQL не запущена — `make up`")
+
+    from src.building_blocks.infrastructure.outbox_tasks import relay_all_once
+
+    factory, redis = worker_deps
+    await _drain(relay_all_once, factory, redis)
+
+    employee = _employee(client)
+    _approved_march(client, employee)
+
+    first = await relay_all_once(factory, redis)
+    assert first > 0, "утверждение табеля обязано было положить событие в outbox"
+
+    second = await relay_all_once(factory, redis)
+    assert second == 0, "повторный проход не должен публиковать уже опубликованное"
+
+
+# ------------------------------------------- CO013-CO015: прогноз региона
+
+
+async def test_the_regional_forecast_aggregates_finalized_cases(
+    client: TestClient, compensable, worker_deps
+) -> None:  # type: ignore[no-untyped-def]
+    """Прогноз строится ночной задачей и складывается вверх по иерархии:
+    затраты части входят в затраты гарнизона."""
+    if not await _db_reachable():
+        pytest.skip("PostgreSQL не запущена — `make up`")
+
+    from src.modules.compensation.infrastructure.forecast import rebuild_forecast
+
+    garrison = client.post(
+        f"{PERSONNEL}/units",
+        json={"code": f"CO-G-{uuid4().hex[:8]}", "name": "Гарнизон"},
+        headers=_idem(),
+    )
+    assert garrison.status_code == 201, garrison.text
+    station = client.post(
+        f"{PERSONNEL}/units",
+        json={
+            "code": f"CO-S-{uuid4().hex[:8]}",
+            "name": "ПЧ в гарнизоне",
+            "parentUnitId": garrison.json()["id"],
+        },
+        headers=_idem(),
+    )
+    assert station.status_code == 201, station.text
+
+    position = client.post(
+        f"{PERSONNEL}/positions",
+        json={
+            "code": f"CO-FP-{uuid4().hex[:8]}",
+            "title": "Пожарный",
+            "category": "operational",
+            "defaultRegimeType": "twenty_four_hour_duty",
+        },
+        headers=_idem(),
+    )
+    employee = client.post(
+        f"{PERSONNEL}/employees",
+        json={
+            "personnelNumber": str(uuid4().int)[:9],
+            "fullName": "Прогнозов Прогноз Прогнозович",
+            "rank": "прапорщик внутренней службы",
+            "legalBase": "fps_service",
+            "currentPositionId": position.json()["id"],
+            "currentUnitId": station.json()["id"],
+            "hiredAt": "2020-01-01",
+        },
+        headers=_idem(),
+    )
+    assert employee.status_code == 201, employee.text
+    employee_id = employee.json()["id"]
+
+    _approved_march(client, employee_id)
+    case_id = _create_case(client, employee_id).json()["id"]
+    assert client.post(f"{COMP}/cases/{case_id}/finalize", headers=_idem()).status_code == 200
+
+    await rebuild_forecast(worker_deps[0])
+
+    params = {"periodStart": "2026-03-01", "periodEnd": "2026-04-01"}
+    at_station = client.get(f"{COMP}/regions/{station.json()['id']}/forecast", params=params)
+    assert at_station.status_code == 200, at_station.text
+    # Ночные — деньгами: 8 ч уходят в денежную часть прогноза.
+    assert Decimal(str(at_station.json()["forecastMonetaryHours"])) == Decimal("8.00")
+    assert at_station.json()["caseCount"] == 1
+
+    # Затраты части вошли в затраты гарнизона, у которого своих дел нет.
+    at_garrison = client.get(f"{COMP}/regions/{garrison.json()['id']}/forecast", params=params)
+    assert at_garrison.status_code == 200, at_garrison.text
+    assert Decimal(str(at_garrison.json()["forecastMonetaryHours"])) == Decimal("8.00")
+
+
+async def test_a_region_without_finalized_cases_has_no_forecast(
+    client: TestClient, compensable
+) -> None:  # type: ignore[no-untyped-def]
+    """404, а не нули: «ничего не начислено» и «прогноз ещё не строился» —
+    разные ответы."""
+    if not await _db_reachable():
+        pytest.skip("PostgreSQL не запущена — `make up`")
+
+    response = client.get(
+        f"{COMP}/regions/{uuid4()}/forecast",
+        params={"periodStart": "2026-03-01", "periodEnd": "2026-04-01"},
+    )
+    assert response.status_code == 404, response.text

@@ -36,6 +36,7 @@ def case(**hours: str) -> CompensationCase:
     return CompensationCase.open_for(
         employee_id=uuid4(),
         timesheet_id=uuid4(),
+        unit_id=uuid4(),
         period=AccountingPeriod(start=date(2026, 3, 1), end=date(2026, 4, 1)),
         compensable=CompensableHours(
             night_hours=Decimal(hours.get("night", "0")),

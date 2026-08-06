@@ -21,22 +21,41 @@ The dependency now runs one way only: Composition -> modules -> building_blocks.
 from __future__ import annotations
 
 from src.building_blocks.infrastructure.db import dispose_engine, init_engine
+from src.building_blocks.infrastructure.outbox_tasks import register_outbox_table
 from src.building_blocks.infrastructure.redis_client import dispose_redis, init_redis
 from src.composition.settings import get_settings
 from src.modules.compensation.infrastructure.orm_mapping import (
+    outbox_message_table as compensation_outbox,
+)
+from src.modules.compensation.infrastructure.orm_mapping import (
     start_mappers as start_compensation_mappers,
+)
+from src.modules.legal_rules.infrastructure.write.orm_mapping import (
+    outbox_message_table as legal_rules_outbox,
 )
 from src.modules.legal_rules.infrastructure.write.orm_mapping import (
     start_mappers as start_legal_rules_mappers,
 )
 from src.modules.personnel.infrastructure.orm_mapping import (
+    outbox_message_table as personnel_outbox,
+)
+from src.modules.personnel.infrastructure.orm_mapping import (
     start_mappers as start_personnel_mappers,
+)
+from src.modules.scheduling.infrastructure.orm_mapping import (
+    outbox_message_table as scheduling_outbox,
 )
 from src.modules.scheduling.infrastructure.orm_mapping import (
     start_mappers as start_scheduling_mappers,
 )
 from src.modules.service_calendar.infrastructure.orm_mapping import (
+    outbox_message_table as service_calendar_outbox,
+)
+from src.modules.service_calendar.infrastructure.orm_mapping import (
     start_mappers as start_service_calendar_mappers,
+)
+from src.modules.time_accounting.infrastructure.write.orm_mapping import (
+    outbox_message_table as time_accounting_outbox,
 )
 from src.modules.time_accounting.infrastructure.write.orm_mapping import (
     start_mappers as start_time_accounting_mappers,
@@ -62,6 +81,19 @@ def init_infrastructure() -> None:
     start_scheduling_mappers()
     start_time_accounting_mappers()
     start_compensation_mappers()
+
+    # Регистрация таблиц outbox в релее. Только Composition Root знает обо
+    # всех модулях сразу, поэтому список живёт здесь, а не в
+    # `building_blocks` (контракт `.importlinter` №3).
+    for table in (
+        legal_rules_outbox,
+        personnel_outbox,
+        service_calendar_outbox,
+        scheduling_outbox,
+        time_accounting_outbox,
+        compensation_outbox,
+    ):
+        register_outbox_table(table)
 
     settings = get_settings()
     init_engine(dsn=settings.database_dsn, pool_size=settings.database_pool_size)

@@ -11,11 +11,12 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Header, Path, Query
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.building_blocks.application.problem import problem_exception
@@ -26,6 +27,7 @@ from src.modules.compensation.api.schemas import (
     CompensationLineResponse,
     CreateCompensationCaseRequest,
     RecordEmployeeElectionRequest,
+    RegionalCompensationForecastResponse,
 )
 from src.modules.compensation.application.commands.create_compensation_case.command import (
     CreateCompensationCaseCommand,
@@ -63,9 +65,11 @@ from src.modules.compensation.domain.errors import (
 )
 from src.modules.compensation.infrastructure.adapters import (
     LegalRulesCompensationRule,
+    PersonnelEmployeeUnit,
     TimeAccountingApprovedPeriod,
 )
 from src.modules.compensation.infrastructure.orm_mapping import outbox_message_table
+from src.modules.compensation.infrastructure.read_orm_mapping import regional_forecast_table
 from src.modules.compensation.infrastructure.repositories import CompensationCaseRepository
 from src.modules.legal_rules.contracts.get_effective_rule_version import (
     RuleVersionNotApplicable,
@@ -99,6 +103,7 @@ def _to_response(case: CompensationCase) -> CompensationCaseResponse:
         period_start=case.period.start,
         period_end=case.period.end,
         status=case.status,
+        unit_id=case.unit_id,
         corrects_case_id=case.corrects_case_id,
         finalized_at=case.finalized_at,
         lines=[_to_line_response(line) for line in case.lines],
@@ -123,6 +128,7 @@ async def create_compensation_case(
         CompensationCaseRepository(session),
         TimeAccountingApprovedPeriod(session),
         _allocation(session),
+        PersonnelEmployeeUnit(session),
     )
     try:
         case = await handler.handle(
@@ -242,3 +248,43 @@ async def get_compensation_history(
         employee_id=employee_id, page=page, page_size=page_size
     )
     return [_to_response(case) for case in cases]
+
+
+@router.get(
+    "/regions/{region_unit_id}/forecast",
+    response_model=RegionalCompensationForecastResponse,
+)
+async def get_regional_forecast(
+    region_unit_id: Annotated[UUID, Path()],
+    session: SessionDep,
+    period_start: Annotated[date, Query(alias="periodStart")],
+    period_end: Annotated[date, Query(alias="periodEnd")],
+) -> RegionalCompensationForecastResponse:
+    """CO015. Читает проекцию, построенную ночной задачей (CO014).
+
+    Отсутствие строки — это 404, а не нули: «за регион ничего не
+    начислено» и «прогноз ещё не строился» — разные ответы, и подменять
+    второй первым значит показать финансисту ноль там, где данных просто
+    нет.
+    """
+    row = (
+        await session.execute(
+            select(regional_forecast_table).where(
+                regional_forecast_table.c.region_unit_id == region_unit_id,
+                regional_forecast_table.c.period_start == period_start,
+                regional_forecast_table.c.period_end == period_end,
+            )
+        )
+    ).one_or_none()
+
+    if row is None:
+        raise _problem(
+            404,
+            "not-found",
+            "Прогноз не найден",
+            f"за период [{period_start}, {period_end}) по подразделению {region_unit_id} "
+            f"проекция прогноза не построена: либо финализированных дел нет, либо "
+            f"ночная задача ещё не отработала",
+        )
+
+    return RegionalCompensationForecastResponse(**dict(row._mapping))

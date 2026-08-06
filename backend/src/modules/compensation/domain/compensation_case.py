@@ -96,6 +96,10 @@ class CompensationLine(Entity):
 class CompensationCase(AggregateRoot):
     employee_id: UUID
     timesheet_id: UUID
+    # Подразделение, где сотрудник служил В ПЕРИОДЕ, а не сегодня
+    # (миграция 0019): компенсация за март относится к мартовской части,
+    # даже если в апреле человека перевели.
+    unit_id: UUID
     period: AccountingPeriod
     # `None` у дела, загруженного из БД: предел — копия чужого факта, и в
     # таблице его нет (см. докстринг `infrastructure/orm_mapping.py`).
@@ -114,6 +118,7 @@ class CompensationCase(AggregateRoot):
         *,
         employee_id: UUID,
         timesheet_id: UUID,
+        unit_id: UUID,
         period: AccountingPeriod,
         compensable: CompensableHours,
         corrects_case_id: UUID | None = None,
@@ -130,6 +135,7 @@ class CompensationCase(AggregateRoot):
             id=uuid4(),
             employee_id=employee_id,
             timesheet_id=timesheet_id,
+            unit_id=unit_id,
             period=period,
             compensable=compensable,
             status=CaseStatus.DRAFT,
@@ -142,7 +148,7 @@ class CompensationCase(AggregateRoot):
         # Короткое замыкание через `getattr(..., None)` — по той же
         # причине, что во всех агрегатах кодовой базы: инструментация
         # SQLAlchemy пишет служебные маркеры до появления состояния.
-        if name in {"employee_id", "timesheet_id", "period"}:
+        if name in {"employee_id", "timesheet_id", "unit_id", "period"}:
             current = getattr(self, name, None)
             if current is not None and current != value:
                 raise CaseFinalizedError(
@@ -311,6 +317,7 @@ class CompensationCase(AggregateRoot):
             id=uuid4(),
             employee_id=self.employee_id,
             timesheet_id=self.timesheet_id,
+            unit_id=self.unit_id,
             period=self.period,
             compensable=compensable,
             status=CaseStatus.DRAFT,

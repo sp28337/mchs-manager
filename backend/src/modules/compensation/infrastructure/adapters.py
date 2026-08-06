@@ -23,6 +23,14 @@ from src.modules.legal_rules.contracts.get_effective_rule_version import (
     RuleVersionNotApplicable,
     get_effective_rule_version,
 )
+from src.modules.personnel.contracts.get_employee_snapshot import (
+    EmployeeNotFound,
+    get_employee_snapshot,
+)
+from src.modules.personnel.contracts.get_employee_snapshot_as_of import (
+    EmployeeStateUnknownAsOf,
+    get_employee_state_as_of,
+)
 from src.modules.time_accounting.contracts.get_approved_breakdown import (
     ApprovedBreakdownNotFound,
     get_approved_breakdown,
@@ -114,3 +122,30 @@ class LegalRulesCompensationRule:
             default_form=default_form,
             election_allowed=election_allowed,
         )
+
+
+class PersonnelEmployeeUnit:
+    """`EmployeeUnitPort` поверх контракта `personnel`.
+
+    Если летопись службы на дату молчит (сотрудник заведён без записи
+    `assignment`), берётся текущее подразделение — та же осознанная
+    деградация, что в `time_accounting`: отказ означал бы, что дело о
+    компенсации нельзя завести, пока кто-то не заполнит летопись задним
+    числом.
+    """
+
+    def __init__(self, session: AsyncSession) -> None:
+        self._session = session
+
+    async def unit_at(self, *, employee_id: UUID, as_of: date) -> UUID | None:
+        try:
+            state = await get_employee_state_as_of(
+                self._session, employee_id=employee_id, as_of=as_of
+            )
+        except EmployeeStateUnknownAsOf:
+            try:
+                snapshot = await get_employee_snapshot(self._session, employee_id=employee_id)
+            except EmployeeNotFound:
+                return None
+            return snapshot.unit_id
+        return state.unit_id

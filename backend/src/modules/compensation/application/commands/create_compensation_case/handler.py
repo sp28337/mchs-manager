@@ -30,6 +30,7 @@ from src.modules.compensation.application.commands.create_compensation_case.comm
 from src.modules.compensation.application.ports import (
     ApprovedPeriodPort,
     CompensationCaseRepositoryPort,
+    EmployeeUnitPort,
 )
 from src.modules.compensation.application.services.compensation_allocation import (
     CompensationAllocationService,
@@ -52,11 +53,13 @@ class CreateCompensationCaseHandler:
         repo: CompensationCaseRepositoryPort,
         periods: ApprovedPeriodPort,
         allocation: CompensationAllocationService,
+        units: EmployeeUnitPort,
     ) -> None:
         self._session = session
         self._repo = repo
         self._periods = periods
         self._allocation = allocation
+        self._units = units
 
     async def handle(self, command: CreateCompensationCaseCommand) -> CompensationCase:
         period = await self._periods.approved_period(
@@ -83,9 +86,21 @@ class CreateCompensationCaseHandler:
                 f"{command.period_end}) уже существует: {existing.id}"
             )
 
+        # Подразделение НА НАЧАЛО периода, а не текущее (миграция 0019):
+        # затраты марта принадлежат мартовской части.
+        unit_id = await self._units.unit_at(
+            employee_id=command.employee_id, as_of=command.period_start
+        )
+        if unit_id is None:
+            raise TimesheetNotApprovedError(
+                f"подразделение сотрудника {command.employee_id} на "
+                f"{command.period_start} неизвестно: отнести затраты не к чему"
+            )
+
         case = CompensationCase.open_for(
             employee_id=command.employee_id,
             timesheet_id=period.timesheet_id,
+            unit_id=unit_id,
             period=AccountingPeriod(start=command.period_start, end=command.period_end),
             compensable=CompensableHours(
                 night_hours=period.night_hours,

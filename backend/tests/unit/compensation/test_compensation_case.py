@@ -61,6 +61,7 @@ def case(compensable: CompensableHours | None = None) -> CompensationCase:
     return CompensationCase.open_for(
         employee_id=uuid4(),
         timesheet_id=uuid4(),
+        unit_id=uuid4(),
         period=march_2026(),
         compensable=compensable or breakdown(night="12", overtime="20"),
     )
@@ -261,6 +262,7 @@ def test_a_correction_references_the_case_it_fixes() -> None:
     assert correction.corrects_case_id == subject.id
     assert correction.status == CaseStatus.DRAFT
     assert correction.employee_id == subject.employee_id
+    assert correction.unit_id == subject.unit_id
     assert correction.period == subject.period
     # Строки НЕ копируются: исправляется именно начисление, и копия
     # неверных строк была бы предложением их не заметить.
