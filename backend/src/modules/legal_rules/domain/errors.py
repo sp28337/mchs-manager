@@ -76,3 +76,12 @@ class NormativeDocumentAlreadyExistsError(LegalRulesDomainError):
     cross-aggregate check `NormativeDocument.add_node()` deliberately
     doesn't perform (see its docstring), done here at the repository/
     Application boundary instead. Maps to 409 Conflict."""
+
+class PolicyNotFoundError(LegalRulesDomainError):
+    """Политика разрешения конфликта категорий не найдена. Отображается
+    в 404."""
+
+
+class PolicyCodeAlreadyExistsError(LegalRulesDomainError):
+    """`uq_conflict_resolution_policy_code` — код политики уникален.
+    Отображается в 409."""

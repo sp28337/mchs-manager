@@ -20,6 +20,17 @@ from src.composition.settings import get_settings
 pytestmark = pytest.mark.asyncio
 
 
+def _idem() -> dict[str, str]:
+    """`openapi.yaml` требует `Idempotency-Key` у каждой изменяющей
+    состояние операции. Роутер `legal_rules` его не требовал — расхождение
+    со спецификацией, исправленное вместе с добавлением операций над
+    политикой разрешения конфликта категорий."""
+    return {"Idempotency-Key": str(uuid4())}
+
+
+BASE = "/api/v1/legal-rules"
+
+
 async def _db_reachable() -> bool:
     try:
         engine = create_async_engine(get_settings().database_dsn)
@@ -62,6 +73,7 @@ async def test_full_http_flow_create_publish_resolve(client: TestClient) -> None
             "title": "FZ-141 HTTP test copy",
             "validFrom": "2016-05-23",
         },
+        headers=_idem(),
     )
     assert doc_resp.status_code == 201, doc_resp.text
     document_id = doc_resp.json()["id"]
@@ -69,6 +81,7 @@ async def test_full_http_flow_create_publish_resolve(client: TestClient) -> None
     node_resp = client.post(
         f"/api/v1/legal-rules/documents/{document_id}/nodes",
         json={"nodeType": "article", "ordinalNumber": "54"},
+        headers=_idem(),
     )
     assert node_resp.status_code == 201, node_resp.text
     node_id = node_resp.json()["id"]
@@ -81,6 +94,7 @@ async def test_full_http_flow_create_publish_resolve(client: TestClient) -> None
             "category": "norm_calculation",
             "displayName": "Норма для HTTP-теста",
         },
+        headers=_idem(),
     )
     assert rule_resp.status_code == 201, rule_resp.text
     rule_id = rule_resp.json()["id"]
@@ -89,6 +103,7 @@ async def test_full_http_flow_create_publish_resolve(client: TestClient) -> None
     dup_resp = client.post(
         "/api/v1/legal-rules/rules",
         json={"code": rule_code, "category": "norm_calculation", "displayName": "Duplicate"},
+        headers=_idem(),
     )
     assert dup_resp.status_code == 409, dup_resp.text
     assert dup_resp.json()["status"] == 409
@@ -108,6 +123,7 @@ async def test_full_http_flow_create_publish_resolve(client: TestClient) -> None
             ],
             "validFrom": "2024-01-01",
         },
+        headers=_idem(),
     )
     assert version_resp.status_code == 201, version_resp.text
     version_id = version_resp.json()["id"]
@@ -117,6 +133,7 @@ async def test_full_http_flow_create_publish_resolve(client: TestClient) -> None
     publish_resp = client.post(
         f"/api/v1/legal-rules/rule-versions/{version_id}/publish",
         json={"changeReason": "Initial publication via HTTP integration test"},
+        headers=_idem(),
     )
     assert publish_resp.status_code == 200, publish_resp.text
     assert publish_resp.json()["status"] == "published"
@@ -125,6 +142,7 @@ async def test_full_http_flow_create_publish_resolve(client: TestClient) -> None
     republish_resp = client.post(
         f"/api/v1/legal-rules/rule-versions/{version_id}/publish",
         json={"changeReason": "Attempting to republish, should fail"},
+        headers=_idem(),
     )
     assert republish_resp.status_code == 423, republish_resp.text
 
@@ -181,7 +199,8 @@ async def test_list_rules_paginates_and_filters_by_category(client: TestClient) 
         resp = client.post(
             "/api/v1/legal-rules/rules",
             json={"code": code, "category": "norm_calculation", "displayName": f"r{i}"},
-        )
+            headers=_idem(),
+    )
         assert resp.status_code == 201, resp.text
 
     resp = client.get(
@@ -203,3 +222,103 @@ async def test_list_rules_paginates_and_filters_by_category(client: TestClient) 
                 text("DELETE FROM legal_rules.rule WHERE code = :code"), {"code": code}
             )
     await engine.dispose()
+
+
+# ------------------- политика разрешения конфликта категорий часов
+
+
+async def test_conflict_policy_can_be_created_versioned_and_published(
+    client: TestClient,
+) -> None:
+    """Операций над политикой в `openapi.yaml` не было вовсе, хотя
+    Алгоритм Ж требует её как обязательный вход: без порядка приоритетов
+    час, одновременно ночной и праздничный, отнести не к чему, и
+    утверждение любого табеля отказывало бы навсегда.
+
+    Порядок `[holiday, weekend, night]` — из примера Алгоритма Ж шаг 3,
+    где он помечен как подлежащий юридической проверке (открытый вопрос
+    SRS 9.3). Здесь он данные, а не константа кода, — ровно затем, чтобы
+    юрист мог его изменить, не трогая расчёт.
+    """
+    code = f"TEST.PRECEDENCE.{uuid4().hex[:8].upper()}"
+
+    created = client.post(f"{BASE}/conflict-policies", json={"code": code}, headers=_idem())
+    assert created.status_code == 201, created.text
+    assert created.json()["versions"] == []
+
+    version = client.post(
+        f"{BASE}/conflict-policies/{code}/versions",
+        json={
+            "precedenceList": ["holiday", "weekend", "night"],
+            "validFrom": "2019-01-01",
+        },
+        headers=_idem(),
+    )
+    assert version.status_code == 201, version.text
+    body = version.json()
+    # Порядок — это и есть содержание списка, поэтому проверяется он, а не
+    # состав.
+    assert body["precedenceList"] == ["holiday", "weekend", "night"]
+    assert body["status"] == "draft"
+
+    published = client.post(
+        f"{BASE}/conflict-policy-versions/{body['id']}/publish", headers=_idem()
+    )
+    assert published.status_code == 200, published.text
+    assert published.json()["status"] == "published"
+
+    republished = client.post(
+        f"{BASE}/conflict-policy-versions/{body['id']}/publish", headers=_idem()
+    )
+    assert republished.status_code == 423, republished.text
+
+
+async def test_a_duplicate_category_in_the_precedence_list_is_refused(
+    client: TestClient,
+) -> None:
+    """Domain Model разд. 2.3 инвариант 1: категория не может встречаться
+    в списке дважды — иначе «приоритет» перестал бы быть порядком."""
+    code = f"TEST.PRECEDENCE.{uuid4().hex[:8].upper()}"
+    assert (
+        client.post(f"{BASE}/conflict-policies", json={"code": code}, headers=_idem()).status_code
+        == 201
+    )
+
+    response = client.post(
+        f"{BASE}/conflict-policies/{code}/versions",
+        json={
+            "precedenceList": ["holiday", "holiday", "night"],
+            "validFrom": "2019-01-01",
+        },
+        headers=_idem(),
+    )
+    assert response.status_code == 422, response.text
+
+
+async def test_an_unknown_hour_category_is_refused_by_the_schema(
+    client: TestClient,
+) -> None:
+    """`overtime` в перечислении есть (документ его называет), а
+    `pre_holiday` — нет: предпраздничный день влияет на норму, но
+    компенсируемой категорией часа не является."""
+    code = f"TEST.PRECEDENCE.{uuid4().hex[:8].upper()}"
+    client.post(f"{BASE}/conflict-policies", json={"code": code}, headers=_idem())
+
+    response = client.post(
+        f"{BASE}/conflict-policies/{code}/versions",
+        json={"precedenceList": ["pre_holiday"], "validFrom": "2019-01-01"},
+        headers=_idem(),
+    )
+    assert response.status_code == 400, response.text
+
+
+async def test_a_second_policy_with_the_same_code_is_409(client: TestClient) -> None:
+    code = f"TEST.PRECEDENCE.{uuid4().hex[:8].upper()}"
+    assert (
+        client.post(f"{BASE}/conflict-policies", json={"code": code}, headers=_idem()).status_code
+        == 201
+    )
+    duplicate = client.post(
+        f"{BASE}/conflict-policies", json={"code": code}, headers=_idem()
+    )
+    assert duplicate.status_code == 409, duplicate.text

@@ -45,8 +45,16 @@ WEEKLY_NORM_HOURS = 40
 # `version_resolver`), поэтому версия правила заводится ровно под тот
 # scope, который сложит Алгоритм А для этого сотрудника: аттестованный
 # состав, обычные условия службы.
-NORM_SCOPE = {"legal_base": "fps_service", "service_condition_category": "normal"}
+NORM_SCOPE = {
+    "legal_base": "fps_service",
+    "service_condition_category": "normal",
+    # Третье измерение scope Алгоритма Б шаг 2. Приходит из летописи
+    # службы на дату периода, а не из текущей карточки, — поэтому все
+    # сотрудники этих тестов заводятся на оперативную должность.
+    "position_category": "operational",
+}
 PRECEDENCE_LIST = ["holiday", "weekend", "night"]
+POLICY_CODE = "HOURS.CATEGORY_PRECEDENCE"
 CALCULATION_YEAR = 2026
 MOSCOW = ZoneInfo("Europe/Moscow")
 
@@ -165,47 +173,40 @@ def _publish_norm_rule(client: TestClient) -> None:
     assert published.status_code == 200, published.text
 
 
-async def _seed_conflict_policy(session) -> None:  # type: ignore[no-untyped-def]
-    """Порядок приоритетов категорий вставляется SQL, а не через API.
+def _publish_conflict_policy(client: TestClient) -> None:
+    """Порядок приоритетов категорий часов — через настоящий API.
 
-    ПРОБЕЛ, который стоит назвать: `openapi.yaml` не описывает ни одной
-    операции над `conflict_resolution_policy`, хотя Domain Model 2.3
-    объявляет её отдельным агрегатом, а логическая модель разд. 1.6 —
-    отдельной парой таблиц. То есть завести порядок приоритетов через API
-    сегодня нельзя ничем, и это не обход в тесте, а отсутствующая часть
-    спецификации (нужен CRUD уровня `legal_rules`, как у правил).
+    Раньше здесь был прямой INSERT, потому что `openapi.yaml` не описывала
+    над политикой ни одной операции: Domain Model разд. 2.3 объявляет её
+    агрегатом, логическая модель разд. 1.6 — парой таблиц, а завести её
+    было нечем. Пробел закрыт (`POST /legal-rules/conflict-policies`), и
+    тест теперь ходит тем же путём, что пойдёт юрист, — иначе он проверял
+    бы схему БД, а не работающую систему.
 
-    Сам порядок `[holiday, weekend, night]` — из примера Алгоритма Ж
-    шаг 3, и он же помечен там как подлежащий юридической проверке
-    (открытый вопрос SRS 9.3).
+    Порядок `[holiday, weekend, night]` — из примера Алгоритма Ж шаг 3,
+    помеченного там как подлежащий юридической проверке (SRS 9.3).
     """
-    await session.execute(
-        text(
-            """
-            INSERT INTO legal_rules.conflict_resolution_policy (id, code)
-            VALUES (gen_random_uuid(), 'HOURS.CATEGORY_PRECEDENCE')
-            ON CONFLICT (code) DO NOTHING
-            """
+    existing = client.get(f"{LEGAL}/conflict-policies")
+    assert existing.status_code == 200, existing.text
+    if any(p["code"] == POLICY_CODE and p["versions"] for p in existing.json()):
+        return
+
+    if not any(p["code"] == POLICY_CODE for p in existing.json()):
+        created = client.post(
+            f"{LEGAL}/conflict-policies", json={"code": POLICY_CODE}, headers=_idem()
         )
+        assert created.status_code == 201, created.text
+
+    version = client.post(
+        f"{LEGAL}/conflict-policies/{POLICY_CODE}/versions",
+        json={"precedenceList": PRECEDENCE_LIST, "validFrom": "2012-07-01"},
+        headers=_idem(),
     )
-    await session.execute(
-        text(
-            """
-            INSERT INTO legal_rules.conflict_resolution_policy_version
-                (id, policy_id, version_no, precedence_list, valid_from, valid_to, status)
-            SELECT gen_random_uuid(), p.id, 1, CAST(:precedence AS jsonb),
-                   DATE '2012-07-01', NULL, 'published'
-              FROM legal_rules.conflict_resolution_policy p
-             WHERE p.code = 'HOURS.CATEGORY_PRECEDENCE'
-               AND NOT EXISTS (
-                   SELECT 1 FROM legal_rules.conflict_resolution_policy_version v
-                    WHERE v.policy_id = p.id
-               )
-            """
-        ),
-        {"precedence": json.dumps(PRECEDENCE_LIST)},
+    assert version.status_code == 201, version.text
+    published = client.post(
+        f"{LEGAL}/conflict-policy-versions/{version.json()['id']}/publish", headers=_idem()
     )
-    await session.commit()
+    assert published.status_code == 200, published.text
 
 
 def _publish_calendar_year(client: TestClient) -> None:
@@ -257,12 +258,13 @@ def _publish_calendar_year(client: TestClient) -> None:
 
 
 @pytest.fixture
-async def calculable(client: TestClient, session):  # type: ignore[misc, no-untyped-def]
+def calculable(client: TestClient) -> None:
     """Всё, без чего утверждение табеля обязано отказать: опубликованный
-    календарь, норма и порядок приоритетов категорий."""
+    календарь, норма и порядок приоритетов категорий. Всё три — через
+    настоящие API соответствующих модулей."""
     _publish_norm_rule(client)
     _publish_calendar_year(client)
-    await _seed_conflict_policy(session)
+    _publish_conflict_policy(client)
 
 
 def _employee(client: TestClient) -> str:

@@ -19,7 +19,7 @@ from datetime import date as date_cls
 from typing import Annotated
 from uuid import UUID, uuid4
 
-from fastapi import APIRouter, Depends, Path, Query
+from fastapi import APIRouter, Depends, Header, Path, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.building_blocks.application.problem import problem_exception
@@ -27,6 +27,10 @@ from src.building_blocks.infrastructure.db import get_session
 from src.building_blocks.infrastructure.outbox import OutboxWriter
 from src.modules.legal_rules.api.dependencies import get_rule_version_cache
 from src.modules.legal_rules.api.schemas import (
+    ConflictPolicyResponse,
+    ConflictPolicyVersionResponse,
+    CreateConflictPolicyRequest,
+    CreateConflictPolicyVersionRequest,
     CreateDocumentNodeRequest,
     CreateNormativeDocumentRequest,
     CreateRuleRequest,
@@ -38,6 +42,12 @@ from src.modules.legal_rules.api.schemas import (
     RuleListEnvelopeResponse,
     RuleResponse,
     RuleVersionResponse,
+)
+from src.modules.legal_rules.application.commands.create_conflict_policy.command import (
+    CreateConflictPolicyCommand,
+)
+from src.modules.legal_rules.application.commands.create_conflict_policy.handler import (
+    CreateConflictPolicyHandler,
 )
 from src.modules.legal_rules.application.commands.create_document_node.command import (
     CreateDocumentNodeCommand,
@@ -59,6 +69,18 @@ from src.modules.legal_rules.application.commands.create_rule_version.command im
 from src.modules.legal_rules.application.commands.create_rule_version.handler import (
     CreateRuleVersionHandler,
 )
+from src.modules.legal_rules.application.commands.draft_conflict_policy_version.command import (
+    DraftConflictPolicyVersionCommand,
+)
+from src.modules.legal_rules.application.commands.draft_conflict_policy_version.handler import (
+    DraftConflictPolicyVersionHandler,
+)
+from src.modules.legal_rules.application.commands.publish_conflict_policy_version.command import (
+    PublishConflictPolicyVersionCommand,
+)
+from src.modules.legal_rules.application.commands.publish_conflict_policy_version.handler import (
+    PublishConflictPolicyVersionHandler,
+)
 from src.modules.legal_rules.application.commands.publish_rule_version.command import (
     PublishRuleVersionCommand,
 )
@@ -73,10 +95,19 @@ from src.modules.legal_rules.application.queries.get_effective_rule_version.quer
 )
 from src.modules.legal_rules.application.queries.list_rules.handler import ListRulesHandler
 from src.modules.legal_rules.application.queries.list_rules.query import ListRulesQuery
+from src.modules.legal_rules.domain.conflict_policy import (
+    ConflictResolutionPolicy,
+    ConflictResolutionPolicyVersion,
+)
 from src.modules.legal_rules.domain.errors import (
+    ConflictPolicyDuplicateCategoryError,
     DocumentNodeDuplicatePositionError,
     NormativeDocumentAlreadyExistsError,
     NormativeDocumentNotFoundError,
+    PolicyCodeAlreadyExistsError,
+    PolicyNotFoundError,
+    PolicyVersionImmutableError,
+    PolicyVersionOverlapError,
     RuleCodeAlreadyExistsError,
     RuleNotFoundError,
     RuleVersionImmutableError,
@@ -85,6 +116,9 @@ from src.modules.legal_rules.domain.errors import (
 from src.modules.legal_rules.domain.rule import RuleVersion
 from src.modules.legal_rules.domain.value_objects import RuleCategory
 from src.modules.legal_rules.infrastructure.cache.rule_version_cache import RuleVersionCache
+from src.modules.legal_rules.infrastructure.write.conflict_policy_repository import (
+    ConflictResolutionPolicyRepository,
+)
 from src.modules.legal_rules.infrastructure.write.normative_document_repository import (
     NormativeDocumentRepository,
 )
@@ -96,6 +130,15 @@ router = APIRouter()
 
 SessionDep = Annotated[AsyncSession, Depends(get_session)]
 CacheDep = Annotated[RuleVersionCache, Depends(get_rule_version_cache)]
+
+# `openapi.yaml` помечает `Idempotency-Key` обязательным у каждой
+# изменяющей состояние операции, и остальные четыре модуля его требуют.
+# Этот роутер не требовал — расхождение со спецификацией, а не решение:
+# создание правила и публикация версии меняют состояние ровно так же, как
+# создание подразделения, и повтор запроса при обрыве связи здесь так же
+# нежелателен. (Подавление повторов по ключу — отдельная задача; заголовок
+# пока объявлен обязательным, но не хранится, как и в остальных модулях.)
+IdempotencyKeyDep = Annotated[UUID, Header(alias="Idempotency-Key")]
 
 # The RFC 7807 builder is shared across every module's router
 # (`building_blocks/application/problem.py`) rather than reimplemented per
@@ -120,7 +163,9 @@ def _to_rule_version_response(version: RuleVersion) -> RuleVersionResponse:
 
 @router.post("/documents", response_model=NormativeDocumentResponse, status_code=201)
 async def create_normative_document(
-    request: CreateNormativeDocumentRequest, session: SessionDep
+    request: CreateNormativeDocumentRequest,
+    session: SessionDep,
+    idempotency_key: IdempotencyKeyDep,
 ) -> NormativeDocumentResponse:
     handler = CreateNormativeDocumentHandler(session, NormativeDocumentRepository(session))
     try:
@@ -173,7 +218,10 @@ async def get_normative_document(
 
 @router.post("/documents/{document_id}/nodes", response_model=DocumentNodeResponse, status_code=201)
 async def create_document_node(
-    document_id: Annotated[UUID, Path()], request: CreateDocumentNodeRequest, session: SessionDep
+    document_id: Annotated[UUID, Path()],
+    request: CreateDocumentNodeRequest,
+    session: SessionDep,
+    idempotency_key: IdempotencyKeyDep,
 ) -> DocumentNodeResponse:
     handler = CreateDocumentNodeHandler(session, NormativeDocumentRepository(session))
     try:
@@ -206,7 +254,9 @@ async def create_document_node(
 
 
 @router.post("/rules", response_model=RuleResponse, status_code=201)
-async def create_rule(request: CreateRuleRequest, session: SessionDep) -> RuleResponse:
+async def create_rule(
+    request: CreateRuleRequest, session: SessionDep, idempotency_key: IdempotencyKeyDep
+) -> RuleResponse:
     handler = CreateRuleHandler(session, RuleRepository(session))
     try:
         rule = await handler.handle(
@@ -260,7 +310,10 @@ async def list_rules(
 
 @router.post("/rules/{rule_id}/versions", response_model=RuleVersionResponse, status_code=201)
 async def create_rule_version(
-    rule_id: Annotated[UUID, Path()], request: CreateRuleVersionRequest, session: SessionDep
+    rule_id: Annotated[UUID, Path()],
+    request: CreateRuleVersionRequest,
+    session: SessionDep,
+    idempotency_key: IdempotencyKeyDep,
 ) -> RuleVersionResponse:
     handler = CreateRuleVersionHandler(session, RuleRepository(session))
     try:
@@ -282,7 +335,10 @@ async def create_rule_version(
 
 @router.post("/rule-versions/{version_id}/publish", response_model=RuleVersionResponse)
 async def publish_rule_version(
-    version_id: Annotated[UUID, Path()], request: PublishRuleVersionRequest, session: SessionDep
+    version_id: Annotated[UUID, Path()],
+    request: PublishRuleVersionRequest,
+    session: SessionDep,
+    idempotency_key: IdempotencyKeyDep,
 ) -> RuleVersionResponse:
     repo = RuleRepository(session)
     rule = await repo.get_by_version_id(version_id)
@@ -363,3 +419,130 @@ async def get_effective_rule_version(
         valid_to=resolved.valid_to,
         actions=resolved.actions,
     )
+
+
+# ---------------------------------- Политика разрешения конфликта категорий
+#
+# Операций над ней в `openapi.yaml` нет вовсе — см. докстринг
+# `CreateConflictPolicyRequest`. Это пробел спецификации, из-за которого
+# Алгоритм Ж не мог получить свой обязательный вход: порядок приоритетов
+# категорий часов невозможно было завести никаким способом, кроме прямого
+# INSERT в базу.
+
+
+def _to_policy_version_response(
+    version: ConflictResolutionPolicyVersion,
+) -> ConflictPolicyVersionResponse:
+    return ConflictPolicyVersionResponse(
+        id=version.id,
+        policy_id=version.policy_id,
+        version_no=version.version_no,
+        precedence_list=[category.value for category in version.precedence_list],
+        valid_from=version.valid_from,
+        valid_to=version.valid_to,
+        status=version.status,
+    )
+
+
+def _to_policy_response(policy: ConflictResolutionPolicy) -> ConflictPolicyResponse:
+    return ConflictPolicyResponse(
+        id=policy.id,
+        code=policy.code,
+        versions=[
+            _to_policy_version_response(v)
+            for v in sorted(policy.versions, key=lambda v: v.version_no)
+        ],
+    )
+
+
+@router.post("/conflict-policies", response_model=ConflictPolicyResponse, status_code=201)
+async def create_conflict_policy(
+    request: CreateConflictPolicyRequest, session: SessionDep, idempotency_key: IdempotencyKeyDep
+) -> ConflictPolicyResponse:
+    handler = CreateConflictPolicyHandler(
+        session, ConflictResolutionPolicyRepository(session)
+    )
+    try:
+        policy = await handler.handle(CreateConflictPolicyCommand(code=request.code))
+    except PolicyCodeAlreadyExistsError as exc:
+        raise _problem(409, "conflict", "Код политики уже используется", str(exc)) from exc
+    except ValueError as exc:
+        raise _problem(422, "validation-failed", "Некорректная политика", str(exc)) from exc
+
+    return _to_policy_response(policy)
+
+
+@router.get("/conflict-policies", response_model=list[ConflictPolicyResponse])
+async def list_conflict_policies(session: SessionDep) -> list[ConflictPolicyResponse]:
+    policies = await ConflictResolutionPolicyRepository(session).list_all()
+    return [_to_policy_response(p) for p in policies]
+
+
+@router.post(
+    "/conflict-policies/{policy_code}/versions",
+    response_model=ConflictPolicyVersionResponse,
+    status_code=201,
+)
+async def draft_conflict_policy_version(
+    policy_code: Annotated[str, Path()],
+    request: CreateConflictPolicyVersionRequest,
+    session: SessionDep,
+    idempotency_key: IdempotencyKeyDep,
+) -> ConflictPolicyVersionResponse:
+    handler = DraftConflictPolicyVersionHandler(
+        session, ConflictResolutionPolicyRepository(session)
+    )
+    try:
+        version = await handler.handle(
+            DraftConflictPolicyVersionCommand(
+                policy_code=policy_code,
+                precedence_list=tuple(request.precedence_list),
+                valid_from=request.valid_from,
+                valid_to=request.valid_to,
+            )
+        )
+    except PolicyNotFoundError as exc:
+        raise _problem(404, "not-found", "Политика не найдена", str(exc)) from exc
+    except ConflictPolicyDuplicateCategoryError as exc:
+        raise _problem(
+            422,
+            "domain-invariant-violation",
+            "Категория указана дважды",
+            str(exc),
+        ) from exc
+    except ValueError as exc:
+        raise _problem(422, "validation-failed", "Некорректная версия", str(exc)) from exc
+
+    return _to_policy_version_response(version)
+
+
+@router.post(
+    "/conflict-policy-versions/{version_id}/publish",
+    response_model=ConflictPolicyVersionResponse,
+)
+async def publish_conflict_policy_version(
+    version_id: Annotated[UUID, Path()],
+    session: SessionDep,
+    idempotency_key: IdempotencyKeyDep,
+) -> ConflictPolicyVersionResponse:
+    handler = PublishConflictPolicyVersionHandler(
+        session,
+        ConflictResolutionPolicyRepository(session),
+        OutboxWriter(session, outbox_message_table),
+    )
+    try:
+        version = await handler.handle(
+            PublishConflictPolicyVersionCommand(version_id=version_id)
+        )
+    except PolicyNotFoundError as exc:
+        raise _problem(404, "not-found", "Версия политики не найдена", str(exc)) from exc
+    except PolicyVersionOverlapError as exc:
+        raise _problem(
+            409, "overlapping-interval", "Версия пересекается с действующей", str(exc)
+        ) from exc
+    except PolicyVersionImmutableError as exc:
+        raise _problem(
+            423, "immutable-resource", "Версия уже опубликована", str(exc)
+        ) from exc
+
+    return _to_policy_version_response(version)

@@ -69,7 +69,11 @@ class ApproveTimesheetHandler:
         if timesheet is None:
             raise TimesheetNotFoundError(str(command.timesheet_id))
 
-        context = await self._employees.context_of(timesheet.employee_id)
+        # Дата — начало периода, а не сегодня (Алгоритм Б шаг 1): состав
+        # и должность берутся такими, какими были в том периоде.
+        context = await self._employees.context_of(
+            timesheet.employee_id, as_of=timesheet.period.start
+        )
         if context is None:
             raise TimesheetNotFoundError(
                 f"сотрудник {timesheet.employee_id} не найден: расчёт периода невозможен "

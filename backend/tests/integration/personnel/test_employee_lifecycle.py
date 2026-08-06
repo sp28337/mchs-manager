@@ -12,11 +12,12 @@ Same shape and same skip-if-no-DB behaviour as
 
 from __future__ import annotations
 
-from uuid import uuid4
+from datetime import date
+from uuid import UUID, uuid4
 
 import pytest
 from sqlalchemy.exc import OperationalError
-from sqlalchemy.ext.asyncio import create_async_engine
+from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from starlette.testclient import TestClient
 
 from src.composition.settings import get_settings
@@ -24,6 +25,16 @@ from src.composition.settings import get_settings
 pytestmark = pytest.mark.asyncio
 
 BASE = "/api/v1/personnel"
+
+
+@pytest.fixture
+async def session():  # type: ignore[misc]
+    """Прямая сессия для контрактов, у которых нет HTTP-поверхности:
+    `get_employee_state_as_of` вызывается расчётом, а не клиентом."""
+    engine = create_async_engine(get_settings().database_dsn)
+    async with async_sessionmaker(engine, expire_on_commit=False)() as db_session:
+        yield db_session
+    await engine.dispose()
 
 
 async def _db_reachable() -> bool:
@@ -263,3 +274,164 @@ async def test_service_record_entry_missing_its_payload_is_a_400(client: TestCli
         headers=_idem(),
     )
     assert resp.status_code == 400, resp.text
+
+
+# ------------------- состояние на дату (Алгоритм Б шаг 1)
+
+
+async def test_the_state_as_of_a_past_date_survives_a_later_transfer(
+    client: TestClient, session
+) -> None:  # type: ignore[no-untyped-def]
+    """Правовое требование, а не техническое удобство.
+
+    SRS разд. 4 требует «пересчитать переработку за любой прошлый год»,
+    Domain Model инвариант 6.1.5 — чтобы повторный расчёт тех же данных
+    дал идентичный результат. Пока категории брались текущими, пересчёт
+    марта 2024 после перевода сотрудника с оперативной должности на
+    административную тихо давал другую норму: другой `scope` → другая
+    `RuleVersion` → другое число, без ошибки и без следа.
+    """
+    from src.modules.personnel.contracts.get_employee_snapshot_as_of import (
+        EmployeeStateUnknownAsOf,
+        get_employee_state_as_of,
+    )
+
+    operational = client.post(
+        f"{BASE}/positions",
+        json={
+            "code": f"P-OPS-{uuid4().hex[:8]}",
+            "title": "Пожарный",
+            "category": "operational",
+            "defaultRegimeType": "twenty_four_hour_duty",
+        },
+        headers=_idem(),
+    )
+    assert operational.status_code == 201, operational.text
+    administrative = client.post(
+        f"{BASE}/positions",
+        json={
+            "code": f"P-ADM-{uuid4().hex[:8]}",
+            "title": "Инспектор",
+            "category": "administrative",
+            "defaultRegimeType": "five_day_week",
+        },
+        headers=_idem(),
+    )
+    assert administrative.status_code == 201, administrative.text
+
+    unit = client.post(
+        f"{BASE}/units",
+        json={"code": f"U-ASOF-{uuid4().hex[:8]}", "name": "ПЧ для проверки истории"},
+        headers=_idem(),
+    )
+    assert unit.status_code == 201, unit.text
+
+    employee = client.post(
+        f"{BASE}/employees",
+        json={
+            "personnelNumber": str(uuid4().int)[:9],
+            "fullName": "Переводов Перевод Переводович",
+            "rank": "прапорщик внутренней службы",
+            "legalBase": "fps_service",
+            "currentPositionId": operational.json()["id"],
+            "currentUnitId": unit.json()["id"],
+            "hiredAt": "2024-01-10",
+        },
+        headers=_idem(),
+    )
+    assert employee.status_code == 201, employee.text
+    employee_id = employee.json()["id"]
+
+    transfer = client.post(
+        f"{BASE}/employees/{employee_id}/service-record-entries",
+        json={
+            "eventType": "transfer",
+            "effectiveDate": "2025-06-01",
+            "positionId": administrative.json()["id"],
+            "unitId": unit.json()["id"],
+        },
+        headers=_idem(),
+    )
+    assert transfer.status_code == 201, transfer.text
+
+    # Сегодня сотрудник административный...
+    now = await get_employee_state_as_of(
+        session, employee_id=UUID(employee_id), as_of=date(2026, 1, 1)
+    )
+    assert now.position_category == "administrative"
+    assert now.regime_type == "five_day_week"
+
+    # ...а в марте 2024 был оперативным, и пересчёт того периода обязан
+    # видеть именно это.
+    then = await get_employee_state_as_of(
+        session, employee_id=UUID(employee_id), as_of=date(2024, 3, 1)
+    )
+    assert then.position_category == "operational"
+    assert then.regime_type == "twenty_four_hour_duty"
+
+    # До приёма на службу состояния нет — и это отказ, а не подстановка
+    # текущего: иначе человеку начислялась бы норма за период, когда он
+    # ещё не служил.
+    with pytest.raises(EmployeeStateUnknownAsOf):
+        await get_employee_state_as_of(
+            session, employee_id=UUID(employee_id), as_of=date(2023, 1, 1)
+        )
+
+
+async def test_a_rank_change_does_not_erase_the_position(
+    client: TestClient, session
+) -> None:  # type: ignore[no-untyped-def]
+    """Запись `rank_change` не несёт ни должности, ни подразделения (они
+    NULL). Брать состояние «из последней записи» значило бы считать, что
+    присвоение звания перевело человека в никуда."""
+    from src.modules.personnel.contracts.get_employee_snapshot_as_of import (
+        get_employee_state_as_of,
+    )
+
+    position = client.post(
+        f"{BASE}/positions",
+        json={
+            "code": f"P-RANK-{uuid4().hex[:8]}",
+            "title": "Пожарный",
+            "category": "operational",
+            "defaultRegimeType": "twenty_four_hour_duty",
+        },
+        headers=_idem(),
+    )
+    unit = client.post(
+        f"{BASE}/units",
+        json={"code": f"U-RANK-{uuid4().hex[:8]}", "name": "ПЧ для проверки звания"},
+        headers=_idem(),
+    )
+    employee = client.post(
+        f"{BASE}/employees",
+        json={
+            "personnelNumber": str(uuid4().int)[:9],
+            "fullName": "Званиев Звание Званиевич",
+            "rank": "сержант внутренней службы",
+            "legalBase": "fps_service",
+            "currentPositionId": position.json()["id"],
+            "currentUnitId": unit.json()["id"],
+            "hiredAt": "2024-01-10",
+        },
+        headers=_idem(),
+    )
+    assert employee.status_code == 201, employee.text
+    employee_id = employee.json()["id"]
+
+    promoted = client.post(
+        f"{BASE}/employees/{employee_id}/service-record-entries",
+        json={
+            "eventType": "rank_change",
+            "effectiveDate": "2025-02-01",
+            "rank": "старший сержант внутренней службы",
+        },
+        headers=_idem(),
+    )
+    assert promoted.status_code == 201, promoted.text
+
+    state = await get_employee_state_as_of(
+        session, employee_id=UUID(employee_id), as_of=date(2025, 3, 1)
+    )
+    assert state.position_category == "operational"
+    assert state.rank == "старший сержант внутренней службы"
