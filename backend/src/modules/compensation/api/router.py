@@ -61,6 +61,7 @@ from src.modules.compensation.domain.errors import (
     CompensationExceedsFactError,
     ElectionNotApplicableError,
     EmptyCompensationCaseError,
+    MonetaryFormRequiresElectionError,
     NothingToCompensateError,
     TimesheetNotApprovedError,
 )
@@ -152,6 +153,18 @@ async def create_compensation_case(
     except CompensationExceedsFactError as exc:
         raise _problem(
             422, "domain-invariant-violation", "Компенсация превышает факт", str(exc)
+        ) from exc
+    except MonetaryFormRequiresElectionError as exc:
+        # Не должен возникать через этот путь: сервис распределения
+        # приводит денежную форму по умолчанию к отдыху (Приказ № 410
+        # п. 18). Отображается на случай, если правило заведёт денежную
+        # форму способом, которого сервис ещё не знает, — 500 на
+        # нарушении нормы права скрыл бы причину.
+        raise _problem(
+            422,
+            "domain-invariant-violation",
+            "Денежная форма требует рапорта сотрудника",
+            str(exc),
         ) from exc
     except RuleVersionNotApplicable as exc:
         raise _problem(

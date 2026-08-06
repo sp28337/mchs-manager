@@ -21,6 +21,7 @@ from src.modules.compensation.domain.errors import (
     CompensationExceedsFactError,
     ElectionNotApplicableError,
     EmptyCompensationCaseError,
+    MonetaryFormRequiresElectionError,
 )
 from src.modules.compensation.domain.events import (
     CompensationCaseFinalized,
@@ -72,8 +73,12 @@ def _add(
     category: HourCategory,
     hours: str,
     *,
-    form: CompensationForm = CompensationForm.MONETARY,
+    # Дополнительное время отдыха, а не деньги: Приказ № 410 п. 11
+    # устанавливает его как саму меру компенсации, п. 18 делает денежную
+    # выплату заменой по просьбе сотрудника.
+    form: CompensationForm = CompensationForm.ADDITIONAL_REST_TIME,
     election_allowed: bool = False,
+    elected_at: datetime | None = None,
 ) -> None:
     subject.add_line(
         hour_category=category,
@@ -81,6 +86,7 @@ def _add(
         compensation_form=form,
         legal_basis_rule_version_id=RULE_VERSION,
         election_allowed=election_allowed,
+        elected_at=elected_at,
     )
 
 
@@ -185,6 +191,76 @@ def test_an_election_is_refused_where_the_rule_decides_the_form() -> None:
         )
 
 
+# ------------------------------- денежная форма только по рапорту
+
+
+def test_a_monetary_line_without_a_rapport_is_refused() -> None:
+    """Приказ № 410 п. 18: денежная компенсация выплачивается «по просьбе
+    сотрудника... вместо предоставления дополнительных дней отдыха».
+    Приказ № 539 п. 103: «по рапорту сотрудника и на основании решения
+    руководителя».
+
+    Строка с формой `monetary` и пустой датой волеизъявления утверждала
+    бы, что просьба была.
+    """
+    subject = case()
+    with pytest.raises(MonetaryFormRequiresElectionError):
+        _add(
+            subject,
+            HourCategory.OVERTIME,
+            "20",
+            form=CompensationForm.MONETARY,
+            election_allowed=True,
+        )
+
+
+def test_a_monetary_line_with_a_rapport_is_allowed() -> None:
+    subject = case()
+    _add(
+        subject,
+        HourCategory.OVERTIME,
+        "20",
+        form=CompensationForm.MONETARY,
+        election_allowed=True,
+        elected_at=datetime(2026, 4, 5, 10, tzinfo=UTC),
+    )
+    line = subject.line_for(HourCategory.OVERTIME)
+    assert line is not None
+    assert line.compensation_form == CompensationForm.MONETARY
+    assert line.employee_election_at == datetime(2026, 4, 5, 10, tzinfo=UTC)
+
+
+def test_a_rest_line_needs_no_rapport() -> None:
+    """Отдых — сама мера компенсации (Приказ № 410 п. 11), а не замена по
+    просьбе: рапорт для него не требуется."""
+    subject = case()
+    _add(subject, HourCategory.OVERTIME, "20")
+    line = subject.line_for(HourCategory.OVERTIME)
+    assert line is not None
+    assert line.compensation_form == CompensationForm.ADDITIONAL_REST_TIME
+    assert line.employee_election_at is None
+
+
+def test_an_election_turns_a_rest_line_into_money_with_its_date() -> None:
+    """Путь, которым денежная форма возникает законно: строка рождается
+    отдыхом, рапорт сотрудника её заменяет, и дата рапорта остаётся в
+    строке как след юридического факта."""
+    subject = case()
+    _add(subject, HourCategory.OVERTIME, "20", election_allowed=True)
+    subject.record_election(
+        hour_category=HourCategory.OVERTIME,
+        election=EmployeeElection(
+            form=CompensationForm.MONETARY,
+            elected_at=datetime(2026, 4, 5, 10, tzinfo=UTC),
+        ),
+    )
+
+    line = subject.line_for(HourCategory.OVERTIME)
+    assert line is not None
+    assert line.compensation_form == CompensationForm.MONETARY
+    assert line.employee_election_at == datetime(2026, 4, 5, 10, tzinfo=UTC)
+
+
 def test_an_election_for_a_category_without_a_line_is_refused() -> None:
     subject = case()
     with pytest.raises(ElectionNotApplicableError):
@@ -285,7 +361,15 @@ def test_finalizing_raises_an_event_per_line_plus_one_for_the_case() -> None:
     """DoD CO009: финализация публикует `CompensationLineCreated` для
     каждой строки."""
     subject = case(breakdown(night="12", overtime="20"))
-    _add(subject, HourCategory.OVERTIME, "20")
+    # Денежная форма — только с датой рапорта: Приказ № 410 п. 18.
+    _add(
+        subject,
+        HourCategory.OVERTIME,
+        "20",
+        form=CompensationForm.MONETARY,
+        election_allowed=True,
+        elected_at=datetime(2026, 4, 5, 10, tzinfo=UTC),
+    )
     _add(
         subject,
         HourCategory.NIGHT,

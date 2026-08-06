@@ -8,7 +8,7 @@
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import UTC, date, datetime
 from decimal import Decimal
 from uuid import UUID, uuid4
 
@@ -23,6 +23,7 @@ from src.modules.compensation.domain.value_objects import (
     AccountingPeriod,
     CompensableHours,
     CompensationForm,
+    EmployeeElection,
     HourCategory,
 )
 
@@ -58,9 +59,16 @@ def _service(
     return CompensationAllocationService(resolve)
 
 
+RAPPORT_AT = datetime(2026, 4, 5, 10, tzinfo=UTC)
+
+
+def _elects(form: CompensationForm) -> EmployeeElection:
+    return EmployeeElection(form=form, elected_at=RAPPORT_AT)
+
+
 def _rule(
     version: UUID,
-    form: CompensationForm = CompensationForm.MONETARY,
+    form: CompensationForm = CompensationForm.ADDITIONAL_REST_TIME,
     *,
     election_allowed: bool = False,
 ) -> CompensationRule:
@@ -132,7 +140,15 @@ async def test_the_whole_category_is_compensated() -> None:
     assert line.legal_basis_rule_version_id == OVERTIME_RULE
 
 
-async def test_the_default_form_applies_when_no_election_was_made() -> None:
+async def test_a_monetary_default_becomes_rest_without_a_rapport() -> None:
+    """Приказ № 410 п. 18 и Приказ № 539 п. 103: денежная компенсация
+    выплачивается ПО ПРОСЬБЕ сотрудника вместо отдыха.
+
+    Правило, объявившее денежную форму по умолчанию, эту просьбу не
+    заменяет: без рапорта остаётся законная форма — дополнительное время
+    отдыха (п. 11 Приказа № 410). Спецификация (Алгоритм К шаг 5)
+    предписывала обратное; отступление описано в докстринге сервиса.
+    """
     subject = case(overtime="20")
     await _service(
         {"overtime": _rule(OVERTIME_RULE, CompensationForm.MONETARY, election_allowed=True)}
@@ -140,25 +156,42 @@ async def test_the_default_form_applies_when_no_election_was_made() -> None:
 
     line = subject.line_for(HourCategory.OVERTIME)
     assert line is not None
-    assert line.compensation_form == CompensationForm.MONETARY
+    assert line.compensation_form == CompensationForm.ADDITIONAL_REST_TIME
     assert line.election_allowed is True
+    # Рапорта не было — и строка об этом не врёт.
+    assert line.employee_election_at is None
 
 
-async def test_an_election_overrides_the_default_where_allowed() -> None:
-    """ТК РФ ст. 152: за сверхурочную работу работник вправе выбрать
-    дополнительное время отдыха вместо повышенной оплаты."""
+async def test_a_rest_default_passes_through_unchanged() -> None:
+    """Приведение к отдыху касается только денежной формы: правило,
+    назначившее отдых, применяется как есть."""
     subject = case(overtime="20")
     await _service(
-        {"overtime": _rule(OVERTIME_RULE, CompensationForm.MONETARY, election_allowed=True)}
-    ).allocate(
-        case=subject,
-        legal_base="fps_service",
-        elections={HourCategory.OVERTIME: CompensationForm.ADDITIONAL_REST_TIME},
-    )
+        {"overtime": _rule(OVERTIME_RULE, CompensationForm.ADDITIONAL_REST_TIME)}
+    ).allocate(case=subject, legal_base="fps_service")
 
     line = subject.line_for(HourCategory.OVERTIME)
     assert line is not None
     assert line.compensation_form == CompensationForm.ADDITIONAL_REST_TIME
+
+
+async def test_a_rapport_for_money_is_honoured_with_its_date() -> None:
+    """Обратной подмены нет: просьба сотрудника исполняется дословно, и
+    дата рапорта сохраняется — Приказ № 410 п. 16 отводит на его передачу
+    табельщику три рабочих дня, то есть считает момент существенным."""
+    subject = case(overtime="20")
+    await _service(
+        {"overtime": _rule(OVERTIME_RULE, election_allowed=True)}
+    ).allocate(
+        case=subject,
+        legal_base="fps_service",
+        elections={HourCategory.OVERTIME: _elects(CompensationForm.MONETARY)},
+    )
+
+    line = subject.line_for(HourCategory.OVERTIME)
+    assert line is not None
+    assert line.compensation_form == CompensationForm.MONETARY
+    assert line.employee_election_at == RAPPORT_AT
 
 
 async def test_an_election_is_ignored_where_the_rule_forbids_it() -> None:
@@ -172,42 +205,41 @@ async def test_an_election_is_ignored_where_the_rule_forbids_it() -> None:
     """
     subject = case(night="12")
     await _service(
-        {"night": _rule(NIGHT_RULE, CompensationForm.MONETARY, election_allowed=False)}
+        {"night": _rule(NIGHT_RULE, CompensationForm.ADDITIONAL_REST_TIME)}
     ).allocate(
         case=subject,
         legal_base="fps_service",
-        elections={HourCategory.NIGHT: CompensationForm.ADDITIONAL_REST_TIME},
+        elections={HourCategory.NIGHT: _elects(CompensationForm.MONETARY)},
     )
 
     line = subject.line_for(HourCategory.NIGHT)
     assert line is not None
-    assert line.compensation_form == CompensationForm.MONETARY
+    assert line.compensation_form == CompensationForm.ADDITIONAL_REST_TIME
     assert line.election_allowed is False
+    assert line.employee_election_at is None
 
 
 async def test_categories_may_have_different_forms_and_rules() -> None:
-    """Ночные — деньгами по правилу, сверхурочные — отгулом по выбору
+    """Ночные — отдыхом по правилу, сверхурочные — деньгами по рапорту
     сотрудника. Разные категории компенсируются независимо, и каждая
     ссылается на СВОЮ версию правила."""
     subject = case(night="12", overtime="20")
     await _service(
         {
-            "night": _rule(NIGHT_RULE, CompensationForm.MONETARY),
-            "overtime": _rule(
-                OVERTIME_RULE, CompensationForm.MONETARY, election_allowed=True
-            ),
+            "night": _rule(NIGHT_RULE),
+            "overtime": _rule(OVERTIME_RULE, election_allowed=True),
         }
     ).allocate(
         case=subject,
         legal_base="fps_service",
-        elections={HourCategory.OVERTIME: CompensationForm.ADDITIONAL_REST_TIME},
+        elections={HourCategory.OVERTIME: _elects(CompensationForm.MONETARY)},
     )
 
     night = subject.line_for(HourCategory.NIGHT)
     overtime = subject.line_for(HourCategory.OVERTIME)
     assert night is not None and overtime is not None
-    assert night.compensation_form == CompensationForm.MONETARY
-    assert overtime.compensation_form == CompensationForm.ADDITIONAL_REST_TIME
+    assert night.compensation_form == CompensationForm.ADDITIONAL_REST_TIME
+    assert overtime.compensation_form == CompensationForm.MONETARY
     assert night.legal_basis_rule_version_id != overtime.legal_basis_rule_version_id
 
 

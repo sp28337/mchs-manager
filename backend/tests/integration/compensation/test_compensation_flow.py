@@ -320,19 +320,36 @@ def compensable(client: TestClient) -> None:
     _publish_norm_rule(client)
     _publish_calendar_year(client)
     _publish_conflict_policy(client)
-    # Ночные — деньгами без выбора; сверхурочные — с правом выбора
-    # (ТК РФ ст. 152).
+    # Форма по умолчанию — дополнительное время отдыха у всех категорий:
+    # Приказ № 410 п. 11 устанавливает его как саму меру компенсации, а
+    # п. 18 делает денежную выплату заменой ПО ПРОСЬБЕ сотрудника.
+    #
+    # Право выбора — там, где его даёт закон: ТК РФ ст. 152 за
+    # сверхурочную работу, ст. 153 за выходные и праздники. У ночных
+    # часов выбора нет.
     _publish_compensation_rule(
-        client, hour_category="night", default_form="monetary", election_allowed=False
+        client,
+        hour_category="night",
+        default_form="additional_rest_time",
+        election_allowed=False,
     )
     _publish_compensation_rule(
-        client, hour_category="overtime", default_form="monetary", election_allowed=True
+        client,
+        hour_category="overtime",
+        default_form="additional_rest_time",
+        election_allowed=True,
     )
     _publish_compensation_rule(
-        client, hour_category="weekend", default_form="monetary", election_allowed=True
+        client,
+        hour_category="weekend",
+        default_form="additional_rest_time",
+        election_allowed=True,
     )
     _publish_compensation_rule(
-        client, hour_category="holiday", default_form="monetary", election_allowed=True
+        client,
+        hour_category="holiday",
+        default_form="additional_rest_time",
+        election_allowed=True,
     )
 
 
@@ -460,6 +477,12 @@ async def test_a_case_is_created_from_the_approved_breakdown(
     assert line["legalBasisRuleVersionId"]
     # Ночные по заведённому правилу выбора не допускают.
     assert line["electionAllowed"] is False
+    # Форма — отдых, и дата рапорта пуста: Приказ № 410 п. 11 даёт
+    # дополнительное время отдыха как саму меру компенсации, а денежная
+    # выплата (п. 18, Приказ № 539 п. 103) возникает только из просьбы
+    # сотрудника, которой здесь не было.
+    assert line["compensationForm"] == "additional_rest_time"
+    assert line["employeeElectionAt"] is None
 
 
 async def test_a_second_case_for_the_same_period_is_409(
@@ -765,14 +788,16 @@ async def test_the_regional_forecast_aggregates_finalized_cases(
     params = {"periodStart": "2026-03-01", "periodEnd": "2026-04-01"}
     at_station = client.get(f"{COMP}/regions/{station.json()['id']}/forecast", params=params)
     assert at_station.status_code == 200, at_station.text
-    # Ночные — деньгами: 8 ч уходят в денежную часть прогноза.
-    assert Decimal(str(at_station.json()["forecastMonetaryHours"])) == Decimal("8.00")
+    # Ночные — отдыхом: рапорта не было, а без него денежной формы не
+    # существует (Приказ № 410 п. 18). 8 ч дают одни сутки отдыха.
+    assert Decimal(str(at_station.json()["forecastMonetaryHours"])) == Decimal("0.00")
+    assert Decimal(str(at_station.json()["forecastRestDays"])) == Decimal("1.00")
     assert at_station.json()["caseCount"] == 1
 
     # Затраты части вошли в затраты гарнизона, у которого своих дел нет.
     at_garrison = client.get(f"{COMP}/regions/{garrison.json()['id']}/forecast", params=params)
     assert at_garrison.status_code == 200, at_garrison.text
-    assert Decimal(str(at_garrison.json()["forecastMonetaryHours"])) == Decimal("8.00")
+    assert Decimal(str(at_garrison.json()["forecastRestDays"])) == Decimal("1.00")
 
 
 async def test_a_region_without_finalized_cases_has_no_forecast(
