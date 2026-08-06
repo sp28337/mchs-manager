@@ -70,6 +70,12 @@ class AccountingPeriod(ValueObject):
         if self.end <= self.start:
             raise ValueError("period_end должен быть строго позже period_start")
 
+    def __composite_values__(self) -> tuple[date, date]:
+        """Требуется SQLAlchemy `composite()`, чтобы разложить VO обратно
+        по колонкам при записи. Порядок обязан совпадать с порядком
+        колонок в `composite()` (`orm_mapping._period_factory`)."""
+        return self.start, self.end
+
 
 @dataclass(frozen=True, kw_only=True)
 class EmployeeElection(ValueObject):

@@ -23,6 +23,9 @@ from __future__ import annotations
 from src.building_blocks.infrastructure.db import dispose_engine, init_engine
 from src.building_blocks.infrastructure.redis_client import dispose_redis, init_redis
 from src.composition.settings import get_settings
+from src.modules.compensation.infrastructure.orm_mapping import (
+    start_mappers as start_compensation_mappers,
+)
 from src.modules.legal_rules.infrastructure.write.orm_mapping import (
     start_mappers as start_legal_rules_mappers,
 )
@@ -58,6 +61,7 @@ def init_infrastructure() -> None:
     start_service_calendar_mappers()
     start_scheduling_mappers()
     start_time_accounting_mappers()
+    start_compensation_mappers()
 
     settings = get_settings()
     init_engine(dsn=settings.database_dsn, pool_size=settings.database_pool_size)

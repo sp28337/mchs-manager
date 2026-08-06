@@ -59,9 +59,9 @@ layers =
 name = Layers: compensation
 type = layers
 layers =
-    (src.modules.compensation.api)
-    (src.modules.compensation.infrastructure)
-    (src.modules.compensation.application)
+    src.modules.compensation.api
+    src.modules.compensation.infrastructure
+    src.modules.compensation.application
     src.modules.compensation.domain
 
 [importlinter:contract:layers-rest-balance]

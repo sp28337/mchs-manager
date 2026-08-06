@@ -45,6 +45,7 @@ from __future__ import annotations
 
 import dataclasses
 from datetime import date, datetime
+from decimal import Decimal
 from enum import Enum
 from typing import Any
 from uuid import UUID
@@ -107,6 +108,13 @@ def to_jsonable(value: Any) -> Any:
     if isinstance(value, Enum):
         return to_jsonable(value.value)
     if isinstance(value, UUID):
+        return str(value)
+    if isinstance(value, Decimal):
+        # Строкой, а не `float`. Часы отсюда уходят в начисление
+        # компенсации: `float(Decimal("7.20"))` даёт 7.199999999999999, и
+        # подписчик, начисляющий сутки отдыха, получил бы не ту величину,
+        # которую зафиксировал расчёт. `jsonb` числа хранит как `numeric`,
+        # но пройти до него значение обязано без промежуточного `float`.
         return str(value)
     if isinstance(value, datetime | date):
         return value.isoformat()

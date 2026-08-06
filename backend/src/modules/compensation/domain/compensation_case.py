@@ -97,7 +97,12 @@ class CompensationCase(AggregateRoot):
     employee_id: UUID
     timesheet_id: UUID
     period: AccountingPeriod
-    compensable: CompensableHours
+    # `None` у дела, загруженного из БД: предел — копия чужого факта, и в
+    # таблице его нет (см. докстринг `infrastructure/orm_mapping.py`).
+    # Репозиторий восстанавливает его из контракта `time_accounting` там,
+    # где он нужен, а `add_line` без него отказывает — молча пропустить
+    # проверку инварианта 7.1.2 хуже, чем отказать.
+    compensable: CompensableHours | None = None
     status: CaseStatus = CaseStatus.DRAFT
     corrects_case_id: UUID | None = None
     finalized_at: datetime | None = None
@@ -158,6 +163,12 @@ class CompensationCase(AggregateRoot):
     ) -> CompensationLine:
         """Алгоритм К шаг 7 плюс проверка инварианта 7.1.2 (шаг 8)."""
         self._require_draft("добавить строку в")
+
+        if self.compensable is None:
+            raise CompensationExceedsFactError(
+                f"дело {self.id} загружено без утверждённого HoursBreakdown: проверить "
+                f"инвариант 7.1.2 не по чему, добавление строк невозможно"
+            )
 
         available = self.compensable.of(hour_category)
         already = self.hours_allocated_to(hour_category)

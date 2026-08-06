@@ -42,7 +42,7 @@ from src.modules.time_accounting.application.services.norm_calculation import (
     NORM_CALCULATION_RULE_CODE,
     WEEKLY_NORM_FIELD,
 )
-from src.rule_engine.interpreter.tree_walker import evaluate_formula
+from src.rule_engine.interpreter.tree_walker import as_number, evaluate_formula
 from src.rule_engine.schemas.action import SetResultAction
 
 
@@ -162,7 +162,7 @@ class LegalRulesNormRule:
 
         for action in resolved.actions:
             if isinstance(action, SetResultAction) and action.field == WEEKLY_NORM_FIELD:
-                value = await evaluate_formula(action.formula, {})
+                value = as_number(await evaluate_formula(action.formula, {}))
                 return Decimal(str(value)), resolved.id
 
         raise RuleVersionNotApplicable(
