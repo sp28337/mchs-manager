@@ -22,6 +22,7 @@ from src.composition.di import dispose_infrastructure, init_infrastructure
 from src.modules.compensation.api.router import router as compensation_router
 from src.modules.legal_rules.api.router import router as legal_rules_router
 from src.modules.personnel.api.router import router as personnel_router
+from src.modules.rest_balance.api.router import router as rest_balance_router
 from src.modules.scheduling.api.router import router as scheduling_router
 from src.modules.service_calendar.api.router import router as service_calendar_router
 from src.modules.time_accounting.api.router import router as time_accounting_router
@@ -83,3 +84,4 @@ app.include_router(
     time_accounting_router, prefix="/api/v1/time-accounting", tags=["TimeAccounting"]
 )
 app.include_router(compensation_router, prefix="/api/v1/compensation", tags=["Compensation"])
+app.include_router(rest_balance_router, prefix="/api/v1/rest-balance", tags=["RestBalance"])

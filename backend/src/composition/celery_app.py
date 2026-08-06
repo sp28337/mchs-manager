@@ -75,6 +75,19 @@ celery.conf.update(
             "task": "compensation.consume_timesheet_approved",
             "schedule": 10.0,
         },
+        "consume-compensation-lines-every-10-seconds": {
+            "task": "rest_balance.consume_compensation_lines",
+            "schedule": 10.0,
+        },
+        "refresh-current-balance-every-minute": {
+            "task": "rest_balance.refresh_current_balance",
+            # RB012. Минута, а не десять секунд: остаток меняется
+            # движениями, а движения — редкое событие в масштабе рабочего
+            # дня. Число, отставшее на минуту, честнее числа, ради
+            # свежести которого база занята пересчётом постоянно. Точный
+            # ответ на дату всё равно считается по журналу, а не отсюда.
+            "schedule": 60.0,
+        },
         "rebuild-regional-forecast-daily": {
             "task": "compensation.rebuild_regional_forecast",
             # Раз в сутки ночью (CO014): прогноз — управленческий отчёт,
@@ -103,6 +116,7 @@ def register_tasks() -> None:
     """
     from src.building_blocks.infrastructure import outbox_tasks  # noqa: F401
     from src.modules.compensation.infrastructure import tasks as compensation_tasks  # noqa: F401
+    from src.modules.rest_balance.infrastructure import tasks as rest_balance_tasks  # noqa: F401
 
 
 register_tasks()
@@ -151,5 +165,33 @@ def rebuild_regional_forecast() -> int:
     def _run() -> Coroutine[Any, Any, int]:
         init_infrastructure()
         return rebuild_forecast(get_session_factory())
+
+    return run_async(_run)
+
+
+@celery.task(name="rest_balance.consume_compensation_lines")
+def consume_compensation_lines() -> int:
+    """RB004. Начисляет ДДО по строкам компенсации с формой отдыха."""
+    from src.modules.rest_balance.infrastructure.tasks import (
+        consume_compensation_lines_once,
+    )
+
+    def _run() -> Coroutine[Any, Any, int]:
+        init_infrastructure()
+        return consume_compensation_lines_once(get_session_factory(), get_redis())
+
+    return run_async(_run)
+
+
+@celery.task(name="rest_balance.refresh_current_balance")
+def refresh_current_balance() -> None:
+    """RB012. Пересчитывает материализованный остаток ДДО."""
+    from src.modules.rest_balance.infrastructure.current_balance import (
+        refresh_current_balance as refresh,
+    )
+
+    def _run() -> Coroutine[Any, Any, None]:
+        init_infrastructure()
+        return refresh(get_session_factory())
 
     return run_async(_run)
