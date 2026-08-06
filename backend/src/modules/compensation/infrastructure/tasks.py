@@ -52,6 +52,7 @@ from src.modules.compensation.application.services.compensation_allocation impor
 )
 from src.modules.compensation.domain.errors import (
     CaseAlreadyExistsError,
+    NothingToCompensateError,
     TimesheetNotApprovedError,
 )
 from src.modules.compensation.infrastructure.adapters import (
@@ -184,6 +185,15 @@ async def _create_case(
             )
         except CaseAlreadyExistsError:
             # Повтор доставки или гонка двух воркеров — не ошибка.
+            return
+        except NothingToCompensateError:
+            # Приказ № 410 пп. 13-14: у этого сотрудника компенсируемых
+            # часов нет по закону. Событие обработано — повторять его
+            # бессмысленно, следующая доставка дала бы тот же ответ.
+            logger.info(
+                "compensation: за период сотрудника %s компенсировать нечего (Приказ 410)",
+                payload.get("employee_id"),
+            )
             return
         except TimesheetNotApprovedError:
             # Табель успели переоткрыть между публикацией события и его

@@ -336,7 +336,16 @@ def compensable(client: TestClient) -> None:
     )
 
 
-def _employee(client: TestClient) -> str:
+def _employee(client: TestClient, *, regime: str = "five_day_week") -> str:
+    """По умолчанию — ПЯТИДНЕВКА.
+
+    Приказ № 410 п. 14 исключает из компенсации ночные, праздничные и
+    выходные часы сменного состава в пределах нормы, поэтому у караула
+    компенсировать нечего до тех пор, пока не появится переработка.
+    Тесты общего цикла проверяют не это ограничение, а сам цикл, и потому
+    берут режим, к которому изъятие не относится. Само изъятие проверяется
+    отдельными тестами ниже.
+    """
     unit = client.post(
         f"{PERSONNEL}/units",
         json={"code": f"CO-U-{uuid4().hex[:8]}", "name": "ПЧ compensation"},
@@ -348,7 +357,7 @@ def _employee(client: TestClient) -> str:
             "code": f"CO-P-{uuid4().hex[:8]}",
             "title": "Пожарный",
             "category": "operational",
-            "defaultRegimeType": "twenty_four_hour_duty",
+            "defaultRegimeType": regime,
         },
         headers=_idem(),
     )
@@ -722,9 +731,12 @@ async def test_the_regional_forecast_aggregates_finalized_cases(
         f"{PERSONNEL}/positions",
         json={
             "code": f"CO-FP-{uuid4().hex[:8]}",
-            "title": "Пожарный",
+            "title": "Инспектор",
             "category": "operational",
-            "defaultRegimeType": "twenty_four_hour_duty",
+            # Пятидневка: у сменного состава ночные часы в пределах нормы
+            # не компенсируются (Приказ № 410 п. 14), и прогнозировать было
+            # бы нечего.
+            "defaultRegimeType": "five_day_week",
         },
         headers=_idem(),
     )
@@ -776,3 +788,65 @@ async def test_a_region_without_finalized_cases_has_no_forecast(
         params={"periodStart": "2026-03-01", "periodEnd": "2026-04-01"},
     )
     assert response.status_code == 404, response.text
+
+
+# ------------------- Приказ МЧС России № 410, пп. 13-14
+
+
+async def test_shift_personnel_get_no_compensation_within_the_norm(
+    client: TestClient, compensable
+) -> None:  # type: ignore[no-untyped-def]
+    """п. 14 дословно: «за выполнение служебных обязанностей в ночное
+    время, в выходные и нерабочие праздничные дни при суммированном учете
+    служебного времени (должности с посменным несением дежурства) в
+    пределах нормальной продолжительности служебного времени компенсация
+    в виде дополнительного времени отдыха, дополнительных дней отдыха не
+    предоставляется».
+
+    Одно суточное дежурство даёт 8 ночных часов и не даёт переработки:
+    24 ч против нормы 176 ч. Компенсировать нечего — и это не пустое
+    дело, а отсутствие основания.
+    """
+    if not await _db_reachable():
+        pytest.skip("PostgreSQL не запущена — `make up`")
+
+    employee = _employee(client, regime="twenty_four_hour_duty")
+    _approved_march(client, employee)
+
+    response = _create_case(client, employee)
+    assert response.status_code == 422, response.text
+    assert "410" in response.json()["detail"]
+    assert client.get(f"{COMP}/employees/{employee}/history").json() == []
+
+
+async def test_five_day_week_personnel_do_get_night_compensation(
+    client: TestClient, compensable
+) -> None:  # type: ignore[no-untyped-def]
+    """п. 11 без изъятия п. 14: у пятидневного режима ночная служба —
+    именно привлечение, а не обычный порядок, и компенсируется."""
+    if not await _db_reachable():
+        pytest.skip("PostgreSQL не запущена — `make up`")
+
+    employee = _employee(client, regime="five_day_week")
+    _approved_march(client, employee)
+
+    created = _create_case(client, employee)
+    assert created.status_code == 201, created.text
+    assert [line["hourCategory"] for line in created.json()["lines"]] == ["night"]
+
+
+async def test_unstandardized_personnel_get_no_compensation_at_all(
+    client: TestClient, compensable
+) -> None:  # type: ignore[no-untyped-def]
+    """п. 13: «за выполнение указанными сотрудниками служебных
+    обязанностей сверх установленной для них нормальной продолжительности
+    служебного времени компенсация не предоставляется» — им полагается
+    дополнительный отпуск (раздел V), предмет `leave_management`."""
+    if not await _db_reachable():
+        pytest.skip("PostgreSQL не запущена — `make up`")
+
+    employee = _employee(client, regime="unstandardized")
+    _approved_march(client, employee)
+
+    response = _create_case(client, employee)
+    assert response.status_code == 422, response.text

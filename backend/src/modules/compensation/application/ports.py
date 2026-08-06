@@ -39,6 +39,9 @@ class ApprovedPeriod(BaseModel):
     weekend_hours: Decimal
     overtime_hours: Decimal
     legal_base: str
+    # Режим службы: Приказ № 410 п. 13/14 делает состав компенсируемых
+    # часов зависящим от него (см. `CompensableHoursPolicy`).
+    regime_type: str
 
 
 class CompensationCaseRepositoryPort(Protocol):

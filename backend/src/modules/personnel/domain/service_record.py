@@ -24,12 +24,20 @@ from uuid import UUID
 
 from src.building_blocks.domain.entity import Entity
 from src.modules.personnel.domain.errors import PersonnelDomainError
-from src.modules.personnel.domain.value_objects import ServiceRecordEventType
+from src.modules.personnel.domain.value_objects import LegalBase, ServiceRecordEventType
 
 # Everything except `recorded_at` itself — which is what the guard reads to
 # tell "still being constructed" from "already recorded" (see below).
 _APPEND_ONLY_FIELDS = frozenset(
-    {"employee_id", "event_type", "effective_date", "position_id", "unit_id", "rank"}
+    {
+        "employee_id",
+        "event_type",
+        "effective_date",
+        "position_id",
+        "unit_id",
+        "rank",
+        "legal_base",
+    }
 )
 
 
@@ -55,6 +63,11 @@ class ServiceRecordEntry(Entity):
     position_id: UUID | None = None
     unit_id: UUID | None = None
     rank: str | None = None
+    # Правовая база службы, УСТАНОВЛЕННАЯ этим событием (миграция 0020).
+    # `None` означает «событие правовую базу не меняло» — присвоение
+    # звания её не устанавливает, и требовать повторения неизменившегося
+    # факта значило бы напрашиваться на опечатку.
+    legal_base: LegalBase | None = None
     # Declared LAST deliberately: a dataclass `__init__` assigns fields in
     # declaration order, so every guarded field is set while `recorded_at`
     # is still absent, and the guard below only starts biting afterwards.

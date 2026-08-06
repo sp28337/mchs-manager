@@ -32,12 +32,16 @@ from src.modules.compensation.application.ports import (
     CompensationCaseRepositoryPort,
     EmployeeUnitPort,
 )
+from src.modules.compensation.application.services.compensable_hours_policy import (
+    CompensableHoursPolicy,
+)
 from src.modules.compensation.application.services.compensation_allocation import (
     CompensationAllocationService,
 )
 from src.modules.compensation.domain.compensation_case import CompensationCase
 from src.modules.compensation.domain.errors import (
     CaseAlreadyExistsError,
+    NothingToCompensateError,
     TimesheetNotApprovedError,
 )
 from src.modules.compensation.domain.value_objects import (
@@ -60,6 +64,7 @@ class CreateCompensationCaseHandler:
         self._periods = periods
         self._allocation = allocation
         self._units = units
+        self._policy = CompensableHoursPolicy()
 
     async def handle(self, command: CreateCompensationCaseCommand) -> CompensationCase:
         period = await self._periods.approved_period(
@@ -97,17 +102,32 @@ class CreateCompensationCaseHandler:
                 f"{command.period_start} неизвестно: отнести затраты не к чему"
             )
 
-        case = CompensationCase.open_for(
-            employee_id=command.employee_id,
-            timesheet_id=period.timesheet_id,
-            unit_id=unit_id,
-            period=AccountingPeriod(start=command.period_start, end=command.period_end),
-            compensable=CompensableHours(
+        # Приказ № 410 пп. 13-14: не всякий зафиксированный час подлежит
+        # компенсации. У сменного состава ночные, праздничные и выходные
+        # часы в пределах нормы не компенсируются вовсе — это характер их
+        # службы, а не привлечение сверх неё.
+        compensable = self._policy.compensable(
+            breakdown=CompensableHours(
                 night_hours=period.night_hours,
                 holiday_hours=period.holiday_hours,
                 weekend_hours=period.weekend_hours,
                 overtime_hours=period.overtime_hours,
             ),
+            regime_type=period.regime_type,
+        )
+        if not compensable.non_empty_categories():
+            raise NothingToCompensateError(
+                f"за период [{command.period_start}, {command.period_end}) сотруднику "
+                f"{command.employee_id} компенсировать нечего: режим "
+                f"{period.regime_type}, Приказ МЧС России № 410 пп. 13-14"
+            )
+
+        case = CompensationCase.open_for(
+            employee_id=command.employee_id,
+            timesheet_id=period.timesheet_id,
+            unit_id=unit_id,
+            period=AccountingPeriod(start=command.period_start, end=command.period_end),
+            compensable=compensable,
         )
         await self._allocation.allocate(case=case, legal_base=period.legal_base)
 

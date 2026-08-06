@@ -435,3 +435,142 @@ async def test_a_rank_change_does_not_erase_the_position(
     )
     assert state.position_category == "operational"
     assert state.rank == "старший сержант внутренней службы"
+
+
+async def test_the_legal_base_of_a_past_period_survives_a_later_transfer(
+    client: TestClient, session
+) -> None:  # type: ignore[no-untyped-def]
+    """Правовая база — исторический факт (миграция 0020).
+
+    ФЗ-141 и ТК РФ дают разные нормы: у аттестованного состава служебное
+    время (ст. 54-55 ФЗ-141), у гражданского персонала рабочее (ст. 91,
+    99, 104, 152, 153 ТК РФ). Пересчёт периода, когда человек был
+    вольнонаёмным, по нормам ФЗ-141 — это применение к нему закона,
+    который тогда на него не распространялся.
+    """
+    from src.modules.personnel.contracts.get_employee_snapshot_as_of import (
+        get_employee_state_as_of,
+    )
+
+    position = client.post(
+        f"{BASE}/positions",
+        json={
+            "code": f"P-LB-{uuid4().hex[:8]}",
+            "title": "Специалист",
+            "category": "administrative",
+            "defaultRegimeType": "five_day_week",
+        },
+        headers=_idem(),
+    )
+    unit = client.post(
+        f"{BASE}/units",
+        json={"code": f"U-LB-{uuid4().hex[:8]}", "name": "ПЧ правовой базы"},
+        headers=_idem(),
+    )
+
+    # Принят вольнонаёмным: ТК РФ.
+    employee = client.post(
+        f"{BASE}/employees",
+        json={
+            "personnelNumber": str(uuid4().int)[:9],
+            "fullName": "Правовой Базис Базисович",
+            # У гражданского персонала специального звания нет; поле
+            # обязательно по openapi, поэтому пишется прямо.
+            "rank": "без специального звания",
+            "legalBase": "labor_code",
+            "currentPositionId": position.json()["id"],
+            "currentUnitId": unit.json()["id"],
+            "hiredAt": "2024-01-10",
+        },
+        headers=_idem(),
+    )
+    assert employee.status_code == 201, employee.text
+    employee_id = employee.json()["id"]
+
+    # В 2025-м переведён в аттестованный состав: ФЗ-141.
+    transfer = client.post(
+        f"{BASE}/employees/{employee_id}/service-record-entries",
+        json={
+            "eventType": "transfer",
+            "effectiveDate": "2025-06-01",
+            "positionId": position.json()["id"],
+            "unitId": unit.json()["id"],
+            "legalBase": "fps_service",
+        },
+        headers=_idem(),
+    )
+    assert transfer.status_code == 201, transfer.text
+    assert transfer.json()["legalBase"] == "fps_service"
+
+    # Карточка отвечает на «кто он сейчас».
+    current = client.get(f"{BASE}/employees/{employee_id}")
+    assert current.json()["legalBase"] == "fps_service"
+
+    # Летопись — на «кем был тогда».
+    then = await get_employee_state_as_of(
+        session, employee_id=UUID(employee_id), as_of=date(2024, 3, 1)
+    )
+    assert then.legal_base == "labor_code"
+
+    now = await get_employee_state_as_of(
+        session, employee_id=UUID(employee_id), as_of=date(2026, 1, 1)
+    )
+    assert now.legal_base == "fps_service"
+
+
+async def test_a_rank_change_does_not_touch_the_legal_base(
+    client: TestClient, session
+) -> None:  # type: ignore[no-untyped-def]
+    """Присвоение звания правовую базу не устанавливает: колонка в такой
+    записи `NULL`, и состояние на дату берётся из последней записи, где
+    она заполнена."""
+    from src.modules.personnel.contracts.get_employee_snapshot_as_of import (
+        get_employee_state_as_of,
+    )
+
+    position = client.post(
+        f"{BASE}/positions",
+        json={
+            "code": f"P-LBR-{uuid4().hex[:8]}",
+            "title": "Пожарный",
+            "category": "operational",
+            "defaultRegimeType": "twenty_four_hour_duty",
+        },
+        headers=_idem(),
+    )
+    unit = client.post(
+        f"{BASE}/units",
+        json={"code": f"U-LBR-{uuid4().hex[:8]}", "name": "ПЧ звания"},
+        headers=_idem(),
+    )
+    employee = client.post(
+        f"{BASE}/employees",
+        json={
+            "personnelNumber": str(uuid4().int)[:9],
+            "fullName": "Званиев Звание Званиевич",
+            "rank": "сержант внутренней службы",
+            "legalBase": "fps_service",
+            "currentPositionId": position.json()["id"],
+            "currentUnitId": unit.json()["id"],
+            "hiredAt": "2024-01-10",
+        },
+        headers=_idem(),
+    )
+    employee_id = employee.json()["id"]
+
+    promoted = client.post(
+        f"{BASE}/employees/{employee_id}/service-record-entries",
+        json={
+            "eventType": "rank_change",
+            "effectiveDate": "2025-02-01",
+            "rank": "старший сержант внутренней службы",
+        },
+        headers=_idem(),
+    )
+    assert promoted.status_code == 201, promoted.text
+    assert promoted.json()["legalBase"] is None
+
+    state = await get_employee_state_as_of(
+        session, employee_id=UUID(employee_id), as_of=date(2025, 3, 1)
+    )
+    assert state.legal_base == "fps_service"

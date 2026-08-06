@@ -144,6 +144,11 @@ class CreateServiceRecordEntryRequest(BaseModel):
     position_id: UUID | None = Field(default=None, alias="positionId")
     unit_id: UUID | None = Field(default=None, alias="unitId")
     rank: str | None = Field(default=None, max_length=100)
+    # Additive (API_Conventions разд. 1). Правовая база, установленная
+    # этим кадровым событием: переход из гражданского персонала в
+    # аттестованный состав меняет применимый закон (ФЗ-141 против ТК РФ),
+    # и без него пересчёт прошлого периода взял бы не тот.
+    legal_base: LegalBase | None = Field(default=None, alias="legalBase")
 
 
 class ServiceRecordEntryResponse(BaseModel):
@@ -156,4 +161,5 @@ class ServiceRecordEntryResponse(BaseModel):
     position_id: UUID | None = Field(default=None, alias="positionId")
     unit_id: UUID | None = Field(default=None, alias="unitId")
     rank: str | None = None
+    legal_base: LegalBase | None = Field(default=None, alias="legalBase")
     recorded_at: datetime = Field(alias="recordedAt")

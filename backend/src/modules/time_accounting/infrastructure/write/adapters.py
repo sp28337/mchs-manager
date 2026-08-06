@@ -110,6 +110,7 @@ class PersonnelEmployeeCalculationContext:
         regime_type = snapshot.regime_type
         time_zone = snapshot.time_zone
         unit_id = snapshot.unit_id
+        legal_base = snapshot.legal_base
 
         if as_of is not None:
             try:
@@ -124,11 +125,17 @@ class PersonnelEmployeeCalculationContext:
                 regime_type = historical.regime_type
                 time_zone = historical.time_zone
                 unit_id = historical.unit_id
+                # Правовая база НА ДАТУ (миграция 0020): ФЗ-141 и ТК РФ
+                # дают разные нормы, и применять к вольнонаёмному периоду
+                # закон о службе — значит считать по закону, который тогда
+                # на человека не распространялся. Если летопись молчит,
+                # остаётся текущее значение карточки.
+                legal_base = historical.legal_base or snapshot.legal_base
 
         return EmployeeCalculationContext(
             employee_id=snapshot.employee_id,
             unit_id=unit_id,
-            legal_base=snapshot.legal_base,
+            legal_base=legal_base,
             position_category=position_category,
             service_condition_category=service_condition_category,
             regime_type=regime_type,

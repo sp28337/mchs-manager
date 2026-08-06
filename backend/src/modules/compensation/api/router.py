@@ -61,6 +61,7 @@ from src.modules.compensation.domain.errors import (
     CompensationExceedsFactError,
     ElectionNotApplicableError,
     EmptyCompensationCaseError,
+    NothingToCompensateError,
     TimesheetNotApprovedError,
 )
 from src.modules.compensation.infrastructure.adapters import (
@@ -144,6 +145,10 @@ async def create_compensation_case(
         ) from exc
     except CaseAlreadyExistsError as exc:
         raise _problem(409, "conflict", "Дело за этот период уже заведено", str(exc)) from exc
+    except NothingToCompensateError as exc:
+        raise _problem(
+            422, "domain-invariant-violation", "Компенсировать нечего", str(exc)
+        ) from exc
     except CompensationExceedsFactError as exc:
         raise _problem(
             422, "domain-invariant-violation", "Компенсация превышает факт", str(exc)

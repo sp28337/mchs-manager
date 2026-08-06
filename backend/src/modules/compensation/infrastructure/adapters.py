@@ -75,7 +75,25 @@ class TimeAccountingApprovedPeriod:
             # персонала в аттестованный состав задним числом изменил бы
             # правило компенсации за уже отработанный период.
             legal_base=breakdown.computed_from_legal_base,
+            regime_type=await self._regime_of(employee_id, period_start),
         )
+
+    async def _regime_of(self, employee_id: UUID, as_of: date) -> str:
+        """Режим службы НА ДАТУ периода.
+
+        Из летописи, а не из текущей карточки: перевод оперативного
+        сотрудника на административную должность в апреле не должен
+        менять состав компенсируемых часов за март (Приказ № 410 п. 14
+        привязан к тому, как человек служил, а не как служит сейчас).
+        """
+        try:
+            state = await get_employee_state_as_of(
+                self._session, employee_id=employee_id, as_of=as_of
+            )
+        except EmployeeStateUnknownAsOf:
+            snapshot = await get_employee_snapshot(self._session, employee_id=employee_id)
+            return snapshot.regime_type
+        return state.regime_type
 
 
 class LegalRulesCompensationRule:
