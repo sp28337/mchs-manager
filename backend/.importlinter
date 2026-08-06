@@ -62,7 +62,7 @@ layers =
     (src.modules.compensation.api)
     (src.modules.compensation.infrastructure)
     (src.modules.compensation.application)
-    (src.modules.compensation.domain)
+    src.modules.compensation.domain
 
 [importlinter:contract:layers-rest-balance]
 name = Layers: rest_balance
@@ -110,6 +110,7 @@ source_modules =
     src.modules.service_calendar
     src.modules.scheduling
     src.modules.time_accounting
+    src.modules.compensation
 forbidden_modules =
     src.modules.legal_rules.domain
     src.modules.legal_rules.application
@@ -131,12 +132,17 @@ forbidden_modules =
     src.modules.time_accounting.application
     src.modules.time_accounting.infrastructure
     src.modules.time_accounting.api
+    src.modules.compensation.domain
+    src.modules.compensation.application
+    src.modules.compensation.infrastructure
+    src.modules.compensation.api
 ignore_imports =
     src.modules.legal_rules.** -> src.modules.legal_rules.**
     src.modules.personnel.** -> src.modules.personnel.**
     src.modules.service_calendar.** -> src.modules.service_calendar.**
     src.modules.scheduling.** -> src.modules.scheduling.**
     src.modules.time_accounting.** -> src.modules.time_accounting.**
+    src.modules.compensation.** -> src.modules.compensation.**
 
 # --- Contract 3: building_blocks must never depend on a module ---
 [importlinter:contract:building-blocks-independence]
