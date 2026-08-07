@@ -33,7 +33,12 @@ class CreateProfileRequest(BaseModel):
     working_conditions: WorkingConditions = Field(
         default=WorkingConditions.NORMAL, alias="workingConditions"
     )
-    rural_locality: bool = Field(default=False, alias="ruralLocality")
+    northern_locality: bool = Field(default=False, alias="northernLocality")
+    """Районы Крайнего Севера, приравненные и — для сотрудников —
+    другие местности с неблагоприятными условиями (Приказ № 308 п. 1,
+    Приказ № 307 п. 4)."""
+    disability_i_or_ii: bool = Field(default=False, alias="disabilityGroupIorII")
+    """Приказ № 307 п. 5 — только для работников без званий."""
     guard_number: int = Field(alias="guardNumber", ge=1, le=4)
     first_shift_date: date = Field(alias="firstShiftDate")
 
@@ -46,8 +51,13 @@ class ProfileResponse(BaseModel):
     employment_kind: EmploymentKind = Field(alias="employmentKind")
     gender: Gender
     working_conditions: WorkingConditions = Field(alias="workingConditions")
-    rural_locality: bool = Field(alias="ruralLocality")
+    northern_locality: bool = Field(alias="northernLocality")
+    disability_i_or_ii: bool = Field(alias="disabilityGroupIorII")
     guard_number: int = Field(alias="guardNumber")
+    accounting_period_kinds: list[str] = Field(alias="accountingPeriodKinds")
+    """Учётные периоды, допустимые для этого вида занятости: сотруднику
+    полугодие или год (Приказ № 308 п. 2), работнику ещё и три месяца
+    (Приказ № 307 п. 7)."""
     first_shift_date: date = Field(alias="firstShiftDate")
     accounting_year: int = Field(alias="accountingYear")
     weekly_norm_hours: Decimal = Field(alias="weeklyNormHours")

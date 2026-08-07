@@ -32,7 +32,7 @@ WEEKLY = derive_weekly_norm(
     employment=EmploymentKind.ATTESTED,
     gender=Gender.MALE,
     conditions=WorkingConditions.NORMAL,
-    rural_locality=False,
+    northern_locality=False,
 )
 
 

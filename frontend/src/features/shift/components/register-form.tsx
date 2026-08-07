@@ -30,8 +30,9 @@ import {
  *
  * * основание (служба или трудовой договор) решает, каким законом
  *   считается время;
- * * условия и пол в сельской местности дают 36-часовую неделю вместо
- *   40-часовой — это 4 часа нормы в неделю, около 200 часов в год;
+ * * условия труда, пол в северной местности и инвалидность I-II группы
+ *   сокращают неделю до 36 или 35 часов — это до 5 часов нормы в неделю,
+ *   больше двухсот часов в год;
  * * караул и дата его первой смены задают график: без них неизвестно, в
  *   какие сутки человек заступал.
  *
@@ -54,7 +55,8 @@ export function RegisterForm() {
   const [employment, setEmployment] = useState<EmploymentKind>("attested");
   const [gender, setGender] = useState<Gender>("male");
   const [conditions, setConditions] = useState<WorkingConditions>("normal");
-  const [rural, setRural] = useState(false);
+  const [northern, setNorthern] = useState(false);
+  const [disability, setDisability] = useState(false);
   const [guard, setGuard] = useState(1);
   const [firstShiftDay, setFirstShiftDay] = useState(1);
   const [pending, setPending] = useState(false);
@@ -63,11 +65,15 @@ export function RegisterForm() {
   const nameId = useId();
   const yearId = useId();
 
-  // Сокращение по сельской местности — институт Трудового кодекса
-  // (ст. 263.1), и на службу по ФЗ-141 он не распространяется. Спрашивать
-  // об этом аттестованного сотрудника значило бы задать вопрос, ответ на
-  // который ни на что не повлияет.
-  const ruralApplies = employment === "civilian" && gender === "female";
+  // Северное сокращение спрашивается только у женщин: оба приказа
+  // (№ 308 п. 1 и № 307 п. 4) говорят именно о них. Задать вопрос
+  // мужчине значило бы спросить о том, что ни на что не повлияет.
+  const northernApplies = gender === "female";
+
+  // Инвалидность I или II группы даёт 35 часов только работнику
+  // (Приказ № 307 п. 5). Приказ № 308 такого пункта не знает: службу в
+  // ФПС ГПС инвалид I или II группы не проходит.
+  const disabilityApplies = employment === "civilian";
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -82,7 +88,8 @@ export function RegisterForm() {
         employmentKind: employment,
         gender,
         workingConditions: conditions,
-        ruralLocality: ruralApplies && rural,
+        northernLocality: northernApplies && northern,
+        disabilityGroupIorII: disabilityApplies && disability,
         guardNumber: guard,
         firstShiftDate: `${year}-01-0${firstShiftDay}`,
       });
@@ -138,7 +145,7 @@ export function RegisterForm() {
         options={["male", "female"] as const}
         labels={GENDER_LABELS}
         onChange={setGender}
-        hint="Влияет только в одном случае: женщинам в сельской местности ст. 263.1 ТК РФ даёт 36-часовую неделю."
+        hint="Влияет в одном случае: женщинам на Крайнем Севере и в приравненных местностях положена 36-часовая неделя (Приказ № 308 п. 1, Приказ № 307 п. 4)."
       />
 
       <Choice
@@ -147,21 +154,43 @@ export function RegisterForm() {
         options={["normal", "harmful_or_dangerous"] as const}
         labels={CONDITIONS_LABELS}
         onChange={setConditions}
-        hint="По результатам специальной оценки. Вредные 3-4 степени или опасные дают 36 часов в неделю вместо 40 (ч. 6 ст. 54 ФЗ-141, ст. 92 ТК РФ)."
+        hint="По результатам специальной оценки. Вредные 3-4 степени или опасные дают 36 часов в неделю вместо 40 (Приказ № 308 п. 1, Приказ № 307 п. 6)."
       />
 
-      {ruralApplies ? (
+      {northernApplies ? (
         <label className="flex max-w-md items-start gap-2 text-sm">
           <input
             type="checkbox"
-            checked={rural}
-            onChange={(event) => setRural(event.target.checked)}
+            checked={northern}
+            onChange={(event) => setNorthern(event.target.checked)}
             className="mt-1"
           />
           <span>
-            Работаю в сельской местности
+            {employment === "attested"
+              ? "Служу в районе Крайнего Севера, приравненной или иной местности с неблагоприятными условиями"
+              : "Работаю в районе Крайнего Севера или приравненной местности"}
             <span className="block text-xs text-ink-muted">
-              Ст. 263.1 ТК РФ: 36-часовая неделя с оплатой как за полную.
+              {employment === "attested"
+                ? "Приказ МЧС России № 308 п. 1 (ч. 4 ст. 54 ФЗ-141): 36 часов в неделю. Круг местностей шире, чем в Трудовом кодексе, — в него входят и отдалённые."
+                : "Приказ МЧС России № 307 п. 4 (ст. 320 ТК РФ): 36 часов в неделю."}
+            </span>
+          </span>
+        </label>
+      ) : null}
+
+      {disabilityApplies ? (
+        <label className="flex max-w-md items-start gap-2 text-sm">
+          <input
+            type="checkbox"
+            checked={disability}
+            onChange={(event) => setDisability(event.target.checked)}
+            className="mt-1"
+          />
+          <span>
+            Инвалидность I или II группы
+            <span className="block text-xs text-ink-muted">
+              Приказ МЧС России № 307 п. 5 (абз. 4 ч. 1 ст. 92 ТК РФ): 35 часов
+              в неделю — самая короткая из возможных норм.
             </span>
           </span>
         </label>

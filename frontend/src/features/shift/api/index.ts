@@ -20,7 +20,8 @@ export interface RegisterInput {
   employmentKind: EmploymentKind;
   gender: Gender;
   workingConditions: WorkingConditions;
-  ruralLocality: boolean;
+  northernLocality: boolean;
+  disabilityGroupIorII: boolean;
   guardNumber: number;
   firstShiftDate: string;
 }

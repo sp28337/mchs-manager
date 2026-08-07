@@ -35,7 +35,7 @@ def _norm(**overrides):  # type: ignore[no-untyped-def]
         "employment": EmploymentKind.ATTESTED,
         "gender": Gender.MALE,
         "conditions": WorkingConditions.NORMAL,
-        "rural_locality": False,
+        "northern_locality": False,
     }
     kwargs.update(overrides)
     return derive_weekly_norm(**kwargs)  # type: ignore[arg-type]
@@ -46,12 +46,12 @@ def _norm(**overrides):  # type: ignore[no-untyped-def]
 
 def test_normal_conditions_give_forty_hours() -> None:
     assert _norm().hours == Decimal("40")
-    assert "ст. 54 ФЗ-141" in _norm().basis
+    assert "308" in _norm().basis, "основание — приказ о СМЕННОЙ работе"
 
 
 def test_harmful_conditions_give_thirty_six_for_both_kinds() -> None:
     """Вредность сокращает неделю и служащему, и работнику — но по разным
-    нормам, и основание обязано это различать: человек понесёт его
+    пунктам, и основание обязано это различать: человек понесёт его
     начальнику."""
     attested = _norm(conditions=WorkingConditions.HARMFUL_OR_DANGEROUS)
     civilian = _norm(
@@ -59,26 +59,54 @@ def test_harmful_conditions_give_thirty_six_for_both_kinds() -> None:
         conditions=WorkingConditions.HARMFUL_OR_DANGEROUS,
     )
     assert attested.hours == civilian.hours == Decimal("36")
-    assert "ФЗ-141" in attested.basis
-    assert "ТК РФ" in civilian.basis
+    assert "308" in attested.basis and "ФЗ-141" in attested.basis
+    assert "307" in civilian.basis and "92 ТК РФ" in civilian.basis
 
 
-def test_rural_women_get_thirty_six_only_under_the_labour_code() -> None:
-    """Ст. 263.1 ТК РФ — институт трудового права. На аттестованную
-    сотрудницу он не распространяется: она проходит службу, и её норма
-    задана ФЗ-141."""
+def test_northern_women_get_thirty_six_under_both_orders() -> None:
+    """Приказ № 308 п. 1 даёт сокращение и СОТРУДНИЦАМ — по ч. 4 ст. 54
+    ФЗ-141, а не только работницам по ст. 320 ТК РФ.
+
+    Это исправление: пока приказов 307 и 308 не было, аттестованной
+    женщине здесь считалась полная сорокачасовая неделя, то есть норма
+    завышалась на 4 часа в неделю — около двухсот часов в год.
+    """
+    attested = _norm(gender=Gender.FEMALE, northern_locality=True)
     civilian = _norm(
-        employment=EmploymentKind.CIVILIAN, gender=Gender.FEMALE, rural_locality=True
+        employment=EmploymentKind.CIVILIAN, gender=Gender.FEMALE, northern_locality=True
     )
-    assert civilian.hours == Decimal("36")
-    assert "263.1" in civilian.basis
+    assert attested.hours == civilian.hours == Decimal("36")
+    assert "ч. 4 ст. 54 ФЗ-141" in attested.basis
+    assert "320 ТК РФ" in civilian.basis
 
-    attested = _norm(
-        employment=EmploymentKind.ATTESTED, gender=Gender.FEMALE, rural_locality=True
+
+def test_northern_reduction_does_not_apply_to_men() -> None:
+    """Оба приказа говорят о женщинах. Распространить сокращение на всех
+    значило бы занизить норму — то есть выдумать переработку."""
+    assert _norm(gender=Gender.MALE, northern_locality=True).hours == Decimal("40")
+
+
+def test_disability_gives_thirty_five_and_only_to_workers() -> None:
+    """Приказ № 307 п. 5 — 35 часов инвалидам I или II группы. Приказ
+    № 308 такого пункта не содержит, и это не пробел: службу в ФПС ГПС
+    инвалид I или II группы не проходит."""
+    civilian = _norm(employment=EmploymentKind.CIVILIAN, disability_group_i_or_ii=True)
+    assert civilian.hours == Decimal("35")
+    assert "307 п. 5" in civilian.basis
+
+    attested = _norm(employment=EmploymentKind.ATTESTED, disability_group_i_or_ii=True)
+    assert attested.hours == Decimal("40")
+
+
+def test_disability_wins_over_harmful_conditions() -> None:
+    """35 короче 36. Проверь вредность первой — и работник с
+    инвалидностью во вредных условиях получил бы 36 вместо 35."""
+    both = _norm(
+        employment=EmploymentKind.CIVILIAN,
+        disability_group_i_or_ii=True,
+        conditions=WorkingConditions.HARMFUL_OR_DANGEROUS,
     )
-    assert attested.hours == Decimal("40"), (
-        "сокращение по сельской местности не переносится на службу по ФЗ-141"
-    )
+    assert both.hours == Decimal("35")
 
 
 def test_reductions_do_not_stack() -> None:
@@ -86,7 +114,7 @@ def test_reductions_do_not_stack() -> None:
     both = _norm(
         employment=EmploymentKind.CIVILIAN,
         gender=Gender.FEMALE,
-        rural_locality=True,
+        northern_locality=True,
         conditions=WorkingConditions.HARMFUL_OR_DANGEROUS,
     )
     assert both.hours == Decimal("36")
