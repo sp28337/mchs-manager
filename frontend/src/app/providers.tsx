@@ -6,9 +6,7 @@ import { useState } from "react";
 import { Toaster } from "sonner";
 
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { SessionProvider } from "@/lib/auth/session-provider";
 import { ApiError } from "@/lib/api-client/client";
-import type { Session } from "@/lib/auth/session";
 
 /**
  * FE004 — провайдеры приложения.
@@ -16,7 +14,7 @@ import type { Session } from "@/lib/auth/session";
  * `QueryClient` создаётся в `useState`, а не в модуле: модульный
  * экземпляр на сервере был бы ОБЩИМ ДЛЯ ВСЕХ ЗАПРОСОВ, то есть кеш
  * одного пользователя достался бы другому. Здесь это не абстрактный риск
- * — в кеше лежат табели и остатки конкретных людей.
+ * — в кеше лежат расчёты конкретных людей.
  */
 function makeQueryClient(): QueryClient {
   return new QueryClient({
@@ -44,19 +42,12 @@ function makeQueryClient(): QueryClient {
   });
 }
 
-export function Providers({
-  session,
-  children,
-}: {
-  session: Session | null;
-  children: React.ReactNode;
-}) {
+export function Providers({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(makeQueryClient);
 
   return (
     <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
       <QueryClientProvider client={queryClient}>
-        <SessionProvider session={session}>
           <TooltipProvider delayDuration={200}>
             {children}
             <Toaster
@@ -67,7 +58,6 @@ export function Providers({
               toastOptions={{ className: "font-sans text-sm" }}
             />
           </TooltipProvider>
-        </SessionProvider>
       </QueryClientProvider>
     </ThemeProvider>
   );

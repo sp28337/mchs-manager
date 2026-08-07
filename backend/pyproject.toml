@@ -11,7 +11,6 @@ dependencies = [
     "alembic>=1.14.0",
     "pydantic>=2.10.0",
     "pydantic-settings>=2.7.0",
-    "celery[redis]>=5.4.0",
     "redis>=5.2.0",
 ]
 
@@ -51,14 +50,6 @@ plugins = ["pydantic.mypy"]
 # декоратором и объявляет нетипизированной саму задачу — то есть шумит на
 # том, что проверить всё равно не может. Ослабление ТОЧЕЧНОЕ: касается
 # только импорта celery, остальной код продолжает проверяться строго.
-[[tool.mypy.overrides]]
-module = ["celery.*"]
-ignore_missing_imports = true
-
-[[tool.mypy.overrides]]
-module = ["src.composition.celery_app"]
-disallow_untyped_decorators = false
-
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
