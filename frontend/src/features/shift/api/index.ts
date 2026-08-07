@@ -5,6 +5,8 @@ import { apiClient, type RequestOptions } from "@/lib/api-client/client";
 import type {
   Absence,
   AbsenceKind,
+  CalendarDay,
+  DayType,
   Calculation,
   EmploymentKind,
   Gender,
@@ -55,6 +57,19 @@ export function removeAbsence(
   options?: RequestOptions,
 ): Promise<void> {
   return apiClient.delete<void>(`${BASE}/profiles/${id}/absences/${absenceId}`, options);
+}
+
+export function getCalendar(id: string, options?: RequestOptions): Promise<CalendarDay[]> {
+  return apiClient.get<CalendarDay[]>(`${BASE}/profiles/${id}/calendar`, options);
+}
+
+/** Замещает личные правки целиком — см. `PUT` на сервере. */
+export function setCalendar(
+  id: string,
+  days: { day: string; dayType: DayType }[],
+  options?: RequestOptions,
+): Promise<CalendarDay[]> {
+  return apiClient.put<CalendarDay[]>(`${BASE}/profiles/${id}/calendar`, { days }, options);
 }
 
 export function getCalculation(

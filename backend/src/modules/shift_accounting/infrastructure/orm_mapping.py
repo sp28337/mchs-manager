@@ -37,6 +37,11 @@ working_conditions_enum = PgEnum(
     "normal", "harmful_or_dangerous", name="working_conditions",
     schema="shift_accounting", create_type=False,
 )
+day_type_enum = PgEnum(
+    "working", "weekend", "holiday", "pre_holiday",
+    name="day_type", schema="service_calendar", create_type=False,
+)
+
 absence_kind_enum = PgEnum(
     "annual_leave", "sick_leave", "study_leave", "unpaid_leave",
     "business_trip", "other_excused",
@@ -75,6 +80,19 @@ absence_table = Table(
     Column("ends_on", Date, nullable=False),
     Column("note", String(500)),
     Column("created_at", DateTime(timezone=True), nullable=False, server_default=func.now()),
+)
+
+calendar_override_table = Table(
+    "calendar_override",
+    metadata,
+    Column(
+        "profile_id",
+        PgUUID(as_uuid=True),
+        ForeignKey("shift_accounting.profile.id", ondelete="CASCADE"),
+        primary_key=True,
+    ),
+    Column("day", Date, primary_key=True),
+    Column("day_type", day_type_enum, nullable=False),
 )
 
 reported_timesheet_table = Table(

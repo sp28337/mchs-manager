@@ -14,6 +14,7 @@
 from __future__ import annotations
 
 from datetime import date as date_cls
+from datetime import timedelta
 from decimal import Decimal
 from typing import Annotated
 from uuid import UUID, uuid4
@@ -33,12 +34,14 @@ from src.modules.service_calendar.infrastructure.orm_mapping import (
 from src.modules.shift_accounting.api.schemas import (
     AbsenceResponse,
     CalculationResponse,
+    CalendarDayResponse,
     CreateAbsenceRequest,
     CreateProfileRequest,
     DiscrepancyResponse,
     ProfileResponse,
     ReconciliationResponse,
     ReportedFiguresRequest,
+    SetCalendarDaysRequest,
     ShiftResponse,
 )
 from src.modules.shift_accounting.domain.calculation import (
@@ -64,6 +67,7 @@ from src.modules.shift_accounting.domain.value_objects import (
 )
 from src.modules.shift_accounting.infrastructure.orm_mapping import (
     absence_table,
+    calendar_override_table,
     profile_table,
     reported_timesheet_table,
 )
@@ -260,36 +264,71 @@ async def remove_absence(
 # ----------------------------------------------------------------- расчёт
 
 
-async def _calendar_facts(
-    session: AsyncSession, period_start: date_cls, period_end: date_cls
-) -> tuple[CalendarFacts, frozenset[date_cls], bool]:
-    """Рабочие/предпраздничные дни и праздники периода из календаря.
+async def _effective_days(
+    session: AsyncSession, profile_id: UUID, period_start: date_cls, period_end: date_cls
+) -> dict[date_cls, str]:
+    """Тип каждого дня периода: личная правка → общий календарь → умолчание.
 
-    Возвращается ещё и признак публикации: неопубликованный календарь
-    считается по неполным данным, и человек обязан узнать об этом до
-    того, как понесёт расчёт начальнику.
+    Три источника, и порядок между ними — это порядок доверия.
+
+    ЛИЧНАЯ ПРАВКА выигрывает всегда. Общий календарь — уставная основа по
+    ст. 112 ТК РФ, но переносы выходных Правительство устанавливает
+    отдельным постановлением на каждый год, и пока оно не внесено, общий
+    календарь неполон. Человек, держащий перед глазами настоящий
+    производственный календарь, знает точнее, и его правка обязана
+    побеждать.
+
+    УМОЛЧАНИЕ (суббота и воскресенье — выходные, остальное рабочее) нужно
+    для дней, которых в общем календаре нет вовсе. Без него такие дни
+    молча выпадали бы из счёта рабочих, занижая норму, — то есть
+    выдумывали бы переработку. Умолчание не точно, но оно хотя бы явно, и
+    экран говорит, что календарь не опубликован.
     """
-    counts = (
-        await session.execute(
-            select(calendar_day_table.c.day_type, func.count())
-            .where(
-                calendar_day_table.c.day >= period_start,
-                calendar_day_table.c.day < period_end,
+    shared: dict[date_cls, str] = {
+        row.day: row.day_type
+        for row in (
+            await session.execute(
+                select(calendar_day_table.c.day, calendar_day_table.c.day_type).where(
+                    calendar_day_table.c.day >= period_start,
+                    calendar_day_table.c.day < period_end,
+                )
             )
-            .group_by(calendar_day_table.c.day_type)
-        )
-    ).all()
-    by_type = {row[0]: row[1] for row in counts}
+        ).all()
+    }
+    overrides: dict[date_cls, str] = {
+        row.day: row.day_type
+        for row in (
+            await session.execute(
+                select(
+                    calendar_override_table.c.day, calendar_override_table.c.day_type
+                ).where(
+                    calendar_override_table.c.profile_id == profile_id,
+                    calendar_override_table.c.day >= period_start,
+                    calendar_override_table.c.day < period_end,
+                )
+            )
+        ).all()
+    }
 
-    holidays = (
-        await session.execute(
-            select(calendar_day_table.c.day).where(
-                calendar_day_table.c.day >= period_start,
-                calendar_day_table.c.day < period_end,
-                calendar_day_table.c.day_type == "holiday",
-            )
-        )
-    ).scalars().all()
+    days: dict[date_cls, str] = {}
+    cursor = period_start
+    while cursor < period_end:
+        default = "weekend" if cursor.weekday() >= 5 else "working"
+        days[cursor] = overrides.get(cursor) or shared.get(cursor) or default
+        cursor += timedelta(days=1)
+    return days
+
+
+async def _calendar_facts(
+    session: AsyncSession, profile_id: UUID, period_start: date_cls, period_end: date_cls
+) -> tuple[CalendarFacts, frozenset[date_cls], bool]:
+    """Рабочие и предпраздничные дни периода плюс праздники.
+
+    Возвращается ещё и признак публикации общего календаря: посчитанное
+    по неопубликованному человек обязан увидеть как предварительное,
+    прежде чем нести расчёт начальнику.
+    """
+    days = await _effective_days(session, profile_id, period_start, period_end)
 
     published = (
         await session.execute(
@@ -301,10 +340,17 @@ async def _calendar_facts(
 
     return (
         CalendarFacts(
-            working_days=by_type.get("working", 0),
-            pre_holiday_days=by_type.get("pre_holiday", 0),
+            # Предпраздничный день считается рабочим И сокращённым: в
+            # производственном календаре он входит в число рабочих дней,
+            # а час снимается сверх того (ст. 95 ТК РФ). Считать его
+            # только предпраздничным значило бы вычесть девять часов
+            # вместо одного.
+            working_days=sum(
+                1 for kind in days.values() if kind in ("working", "pre_holiday")
+            ),
+            pre_holiday_days=sum(1 for kind in days.values() if kind == "pre_holiday"),
         ),
-        frozenset(holidays),
+        frozenset(day for day, kind in days.items() if kind == "holiday"),
         bool(published),
     )
 
@@ -340,7 +386,9 @@ async def _calculate(
         northern_locality=row.northern_locality,
         disability_group_i_or_ii=row.disability_i_or_ii,
     )
-    calendar, holidays, published = await _calendar_facts(session, period_start, period_end)
+    calendar, holidays, published = await _calendar_facts(
+        session, profile_id, period_start, period_end
+    )
 
     absence_rows = (
         await session.execute(
@@ -408,6 +456,131 @@ async def get_calculation(
 ) -> CalculationResponse:
     _, response = await _calculate(session, profile_id, period_start, period_end)
     return response
+
+
+# --------------------------------------------------- календарь года
+
+@router.get("/profiles/{profileId}/calendar", response_model=list[CalendarDayResponse])
+async def get_calendar(
+    profile_id: ProfileId,
+    session: SessionDep,
+    year: Annotated[int | None, Query(ge=2000, le=2100)] = None,
+) -> list[CalendarDayResponse]:
+    """Календарь учётного года глазами этого профиля.
+
+    Отдаётся КАЖДЫЙ день года, а не только праздники: человек размечает
+    календарь целиком, и показывать ему дырявую сетку значило бы
+    заставить достраивать её в уме.
+    """
+    row = (
+        await session.execute(
+            select(profile_table.c.accounting_year).where(profile_table.c.id == profile_id)
+        )
+    ).one_or_none()
+    if row is None:
+        raise _problem(404, "not-found", "Профиль не найден", str(profile_id))
+
+    target = year or row.accounting_year
+    period_start = date_cls(target, 1, 1)
+    period_end = date_cls(target + 1, 1, 1)
+
+    shared = {
+        item.day: item.day_type
+        for item in (
+            await session.execute(
+                select(calendar_day_table.c.day, calendar_day_table.c.day_type).where(
+                    calendar_day_table.c.day >= period_start,
+                    calendar_day_table.c.day < period_end,
+                )
+            )
+        ).all()
+    }
+    overrides = {
+        item.day: item.day_type
+        for item in (
+            await session.execute(
+                select(
+                    calendar_override_table.c.day, calendar_override_table.c.day_type
+                ).where(calendar_override_table.c.profile_id == profile_id)
+            )
+        ).all()
+    }
+
+    days: list[CalendarDayResponse] = []
+    cursor = period_start
+    while cursor < period_end:
+        if cursor in overrides:
+            days.append(
+                CalendarDayResponse(
+                    day=cursor, day_type=overrides[cursor], source="override"
+                )
+            )
+        elif cursor in shared:
+            days.append(
+                CalendarDayResponse(day=cursor, day_type=shared[cursor], source="calendar")
+            )
+        else:
+            days.append(
+                CalendarDayResponse(
+                    day=cursor,
+                    day_type="weekend" if cursor.weekday() >= 5 else "working",
+                    source="default",
+                )
+            )
+        cursor += timedelta(days=1)
+    return days
+
+
+@router.put("/profiles/{profileId}/calendar", response_model=list[CalendarDayResponse])
+async def set_calendar(
+    profile_id: ProfileId, request: SetCalendarDaysRequest, session: SessionDep
+) -> list[CalendarDayResponse]:
+    """Заменяет личные правки календаря целиком.
+
+    `PUT`, а не `POST`: человек правит календарь как единое целое, и
+    повторная отправка обязана ЗАМЕСТИТЬ прежний набор. Иначе снятая
+    отметка осталась бы в базе, и расчёт продолжал бы её учитывать —
+    расхождение между тем, что человек видит, и тем, по чему считают.
+    """
+    row = (
+        await session.execute(
+            select(profile_table.c.accounting_year).where(profile_table.c.id == profile_id)
+        )
+    ).one_or_none()
+    if row is None:
+        raise _problem(404, "not-found", "Профиль не найден", str(profile_id))
+
+    # Правка вне учётного года принимается, но `GET` её не покажет: он
+    # отдаёт один год. Невидимая правка, влияющая на расчёт, — худший
+    # вид расхождения, поэтому такой запрос отклоняется целиком.
+    outside = sorted(item.day for item in request.days if item.day.year != row.accounting_year)
+    if outside:
+        raise _problem(
+            422,
+            "day-outside-accounting-year",
+            "День вне учётного года",
+            f"Учётный год профиля — {row.accounting_year}, "
+            f"а в запросе есть дни другого года: "
+            f"{', '.join(day.isoformat() for day in outside[:5])}"
+            f"{' и другие' if len(outside) > 5 else ''}.",
+        )
+
+    await session.execute(
+        delete(calendar_override_table).where(
+            calendar_override_table.c.profile_id == profile_id
+        )
+    )
+    if request.days:
+        await session.execute(
+            insert(calendar_override_table),
+            [
+                {"profile_id": profile_id, "day": item.day, "day_type": item.day_type}
+                for item in request.days
+            ],
+        )
+    await session.commit()
+
+    return await get_calendar(profile_id, session, None)
 
 
 # ------------------------------------------------------------------ сверка

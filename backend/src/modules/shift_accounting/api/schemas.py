@@ -6,7 +6,7 @@ from datetime import date
 from decimal import Decimal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from src.modules.shift_accounting.domain.value_objects import (
     AbsenceKind,
@@ -138,6 +138,61 @@ class CalculationResponse(BaseModel):
     """
 
     shifts: list[ShiftResponse] = Field(default_factory=list)
+
+
+class CalendarDayResponse(BaseModel):
+    """День года с указанием, откуда взят его тип.
+
+    `source` показывается человеку намеренно: он должен видеть, что
+    правил сам, а что пришло из производственного календаря. Без этого
+    личная правка растворяется среди чужих данных, и при разборе с
+    начальником неясно, чьё это утверждение.
+    """
+
+    model_config = ConfigDict(populate_by_name=True, serialize_by_alias=True)
+
+    day: date
+    day_type: str = Field(alias="dayType")
+    source: str
+    """`override` — правка человека, `calendar` — общий календарь,
+    `default` — умолчание по дню недели."""
+
+
+class CalendarDayOverride(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="forbid", populate_by_name=True)
+
+    day: date
+    day_type: str = Field(alias="dayType", pattern="^(working|weekend|holiday|pre_holiday)$")
+
+
+class SetCalendarDaysRequest(BaseModel):
+    """Личные правки календаря года.
+
+    Список ЗАМЕЩАЕТ прежние правки целиком: человек правит календарь как
+    единое целое, и частичное слияние оставляло бы отметки, которые он
+    считает снятыми.
+    """
+
+    model_config = ConfigDict(frozen=True, extra="forbid", populate_by_name=True)
+
+    days: list[CalendarDayOverride] = Field(default_factory=list, max_length=366)
+
+    @model_validator(mode="after")
+    def _each_day_once(self) -> SetCalendarDaysRequest:
+        """Один день — одна отметка.
+
+        Дважды названный день с разными типами — это вопрос без ответа:
+        какой из них человек считает верным, неизвестно. Молча взять
+        последний значило бы решить за него, и решение осталось бы
+        невидимым. Первичный ключ таблицы такую запись всё равно не
+        примет, так что выбор здесь между внятным отказом и ошибкой 500.
+        """
+        seen: set[date] = set()
+        for item in self.days:
+            if item.day in seen:
+                raise ValueError(f"день {item.day.isoformat()} указан дважды")
+            seen.add(item.day)
+        return self
 
 
 class ReportedFiguresRequest(BaseModel):

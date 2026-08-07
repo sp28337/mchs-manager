@@ -22,6 +22,7 @@ import {
 } from "../schemas";
 import { PeriodSummary } from "./period-summary";
 import { ShiftStrip } from "./shift-strip";
+import { YearCalendarEditor } from "./year-calendar-editor";
 
 /**
  * Рабочий экран: период, расчёт, график, отсутствия и сверка.
@@ -222,6 +223,8 @@ export function Workspace({ profile }: { profile: Profile }) {
       ) : (
         <p className="text-sm text-ink-muted">{busy ? "Считаем…" : "Нет данных."}</p>
       )}
+
+      <YearCalendarEditor profile={profile} onSaved={reload} />
 
       <AbsenceSection
         profile={profile}
