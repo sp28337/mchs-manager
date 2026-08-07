@@ -154,27 +154,44 @@ def test_the_spec_has_no_operations_for_unimplemented_modules_we_claim_to_serve(
     Дополнения перечислены поимённо, потому что каждое из них —
     обязательство: при следующей ревизии `openapi.yaml` они должны
     попасть в спецификацию, а не остаться недокументированными.
+
+    Сверка идёт по ОПЕРАЦИЯМ, а не по путям. Разница не теоретическая:
+    `GET /personnel/units` появился на пути, где спецификация описывает
+    только `POST`, и проверка на уровне путей его бы не заметила —
+    недокументированная операция притворилась бы документированной за
+    счёт соседки.
     """
-    spec = {_normalise(p) for p in _spec_paths()}
+    spec = {
+        f"{method} {_normalise(path)}"
+        for path, methods in _spec_paths().items()
+        for method in methods
+    }
     routes = _app_routes()
 
     additive = {
         # Пробел спецификации: Алгоритм Ж требует политику приоритетов как
         # обязательный вход, а операций над ней openapi не описывает.
-        "/legal-rules/conflict-policies",
-        "/legal-rules/conflict-policies/{}/versions",
-        "/legal-rules/conflict-policy-versions/{}/publish",
+        "get /legal-rules/conflict-policies",
+        "post /legal-rules/conflict-policies",
+        "post /legal-rules/conflict-policies/{}/versions",
+        "post /legal-rules/conflict-policy-versions/{}/publish",
         # RB006. Сторно — единственный законный способ исправить движение
         # баланса (Domain Model инвариант 8.1.3), а операции над ним
         # спецификация не описывает: журнал в ней только читается.
-        "/rest-balance/movements/{}/reversal",
+        "post /rest-balance/movements/{}/reversal",
+        # PE011+. Спецификация даёт создание подразделения и чтение по
+        # идентификатору, но не способ узнать, какие подразделения есть.
+        # Экран иерархии начинается с корня, а идентификатор корня взять
+        # неоткуда — см. `ListUnitsQuery`.
+        "get /personnel/units",
     }
 
     undocumented = {
-        path
-        for path in (_normalise(p) for p in routes)
-        if path.startswith(IMPLEMENTED_PREFIXES) and path not in spec
-    } - additive
+        f"{method} {_normalise(path)}"
+        for path, methods in routes.items()
+        for method in methods
+        if path.startswith(IMPLEMENTED_PREFIXES)
+    } - spec - additive
 
     assert not undocumented, (
         "приложение отвечает по путям, которых нет в docs/openapi.yaml и "

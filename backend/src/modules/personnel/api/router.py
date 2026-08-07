@@ -84,6 +84,8 @@ from src.modules.personnel.application.queries.list_service_record_entries.handl
 from src.modules.personnel.application.queries.list_service_record_entries.query import (
     ListServiceRecordEntriesQuery,
 )
+from src.modules.personnel.application.queries.list_units.handler import ListUnitsHandler
+from src.modules.personnel.application.queries.list_units.query import ListUnitsQuery
 from src.modules.personnel.domain.employee import Employee
 from src.modules.personnel.domain.errors import (
     EmployeeDismissedError,
@@ -182,6 +184,27 @@ async def create_unit(
         raise _problem(404, "not-found", "Родительское подразделение не найдено", str(exc)) from exc
 
     return _to_unit_response(unit)
+
+
+@router.get("/units", response_model=list[UnitResponse])
+async def list_units(
+    session: SessionDep,
+    root_unit_id: Annotated[UUID | None, Query(alias="rootUnitId")] = None,
+) -> list[UnitResponse]:
+    """Дополнение к `openapi.yaml` — см. `ListUnitsQuery`.
+
+    Без конверта `items/page/pageSize/totalCount`, в отличие от
+    `GET /personnel/employees`. Конверт существует ради страниц, а эта
+    выдача не постраничная: дерево, разрезанное на страницы, перестаёт
+    быть деревом. Пустой конверт вокруг полного ответа обещал бы
+    постраничность, которой нет.
+    """
+    handler = ListUnitsHandler(UnitRepository(session))
+    try:
+        units = await handler.handle(ListUnitsQuery(root_unit_id=root_unit_id))
+    except UnitNotFoundError as exc:
+        raise _problem(404, "not-found", "Подразделение не найдено", str(exc)) from exc
+    return [_to_unit_response(unit) for unit in units]
 
 
 @router.get("/units/{unit_id}", response_model=UnitResponse)

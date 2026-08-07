@@ -83,10 +83,20 @@ const TONE_CLASSES: Record<Tone, string> = {
 
 export interface StatusBadgeProps {
   status: string;
+  /**
+   * Подпись вместо словарной.
+   *
+   * Нужна там, где одно значение перечисления означает в разных модулях
+   * разное. `active` у отпуска — «действует», у СОТРУДНИКА — «на
+   * службе»: сказать про человека «действует» нельзя, это слово про
+   * документ. Единый словарь такое различие вместить не может — ключ-то
+   * один, — а заводить второй словарь значило бы развести и цвета.
+   */
+  label?: string;
   className?: string;
 }
 
-export function StatusBadge({ status, className }: StatusBadgeProps) {
+export function StatusBadge({ status, label, className }: StatusBadgeProps) {
   // Неизвестный статус показывается КАК ЕСТЬ, а не прячется: новое
   // значение перечисления на бэкенде должно быть заметно, а не молча
   // превратиться в пустоту.
@@ -101,7 +111,7 @@ export function StatusBadge({ status, className }: StatusBadgeProps) {
         className,
       )}
     >
-      {meta.label}
+      {label ?? meta.label}
     </span>
   );
 }

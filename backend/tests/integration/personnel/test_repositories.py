@@ -111,6 +111,44 @@ async def test_list_subtree_returns_the_whole_branch(session) -> None:  # type: 
     assert subtree_ids == {region.id, station.id}, "ltree `<@` includes self, excludes siblings"
 
 
+async def test_list_all_orders_parents_before_their_children(session) -> None:  # type: ignore[no-untyped-def]
+    """Гарантия, на которой держится сборка дерева у клиента.
+
+    `UnitTreeView` собирает иерархию за один проход по массиву, кладя
+    каждое подразделение в уже созданный узел родителя. Это верно ровно
+    потому, что сортировка по `hierarchy_path` ставит родителя раньше
+    потомка: путь родителя — префикс пути потомка, а префикс всегда
+    меньше строки, которую он начинает. Порядок здесь — часть контракта,
+    а не побочный эффект, поэтому он проверяется.
+    """
+    repo = UnitRepository(session)
+    root = Unit.create_root(code=f"ROOT.{uuid4().hex[:8]}", name="МЧС России")
+    region = Unit.create_child(code=f"RC.{uuid4().hex[:8]}", name="РЦ", parent=root)
+    station = Unit.create_child(code=f"PCH.{uuid4().hex[:8]}", name="ПЧ", parent=region)
+    for unit in (root, region, station):
+        repo.add(unit)
+    await session.commit()
+    session.expunge_all()
+
+    listed = await repo.list_all()
+    order = [u.id for u in listed]
+    assert order.index(root.id) < order.index(region.id) < order.index(station.id)
+
+    # Проверка идёт по ВСЕЙ таблице, а не по трём только что созданным
+    # строкам: остальные приходят из соседних тестов, вставлявших их в
+    # произвольном порядке и в другое время. Совпасть с порядком вставки
+    # такой результат уже не может — значит, проверяется сортировка, а не
+    # случайность.
+    known = {u.id for u in listed}
+    seen: set = set()
+    for unit in listed:
+        if unit.parent_unit_id is not None and unit.parent_unit_id in known:
+            assert unit.parent_unit_id in seen, (
+                f"{unit.name}: родитель обязан идти раньше потомка"
+            )
+        seen.add(unit.id)
+
+
 async def test_subtree_query_uses_the_gist_index(session) -> None:  # type: ignore[no-untyped-def]
     """DB008's DoD verbatim: "Запрос по ltree-иерархии использует
     gist-индекс (EXPLAIN)".
