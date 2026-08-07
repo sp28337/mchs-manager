@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 
+import { DevLoginPanel } from "@/features/auth/components/dev-login-panel";
 import { LoginForm } from "@/features/auth/components/login-form";
 
 export const metadata: Metadata = { title: "Вход — Учёт служебного времени ФПС ГПС" };
@@ -20,6 +22,15 @@ export default function LoginPage() {
       </header>
 
       <LoginForm />
+
+      {/* Панель для разработки существует только в dev-сборке. Условие
+          вычисляется на сервере при отрисовке, поэтому в production в
+          разметку не попадает даже скрытой: её там просто нет. */}
+      {process.env.NODE_ENV !== "production" ? (
+        <Suspense fallback={null}>
+          <DevLoginPanel />
+        </Suspense>
+      ) : null}
     </div>
   );
 }
