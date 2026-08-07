@@ -70,6 +70,21 @@ class UnitRepository:
         )
         return list(result.scalars().all())
 
+    async def list_all(self) -> list[Unit]:
+        """Весь справочник подразделений, упорядоченный по ltree-пути.
+
+        Без предела выборки — и это осознанно. Справочник подразделений
+        ФПС ГПС конечен и мал на порядки: гарнизоны, части, караулы — это
+        тысячи строк в масштабе страны и десятки в масштабе одного
+        территориального органа. Постраничная выдача дерева к тому же
+        бесполезна: страница, разрезающая ветвь пополам, оставляет
+        клиенту потомков без родителей.
+        """
+        result = await self._session.execute(
+            select(Unit).order_by(unit_table.c.hierarchy_path)
+        )
+        return list(result.scalars().all())
+
     def add(self, unit: Unit) -> None:
         self._session.add(unit)
 

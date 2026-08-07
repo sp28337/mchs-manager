@@ -135,6 +135,34 @@ class CreateRuleVersionRequest(BaseModel):
     valid_to: date | None = Field(default=None, alias="validTo")
 
 
+class RuleVersionDetailResponse(BaseModel):
+    """`RuleVersionResponse` плюс само определение — для списка версий
+    правила (дополнение к `openapi.yaml`, см. `ListRuleVersionsQuery`).
+
+    `formulaDefinition` здесь есть, а в `RuleVersionResponse` нет, и это
+    не небрежность. Ответ на создание версии возвращает то, что клиент
+    только что прислал; повторять там определение незачем. А список
+    версий читает тот, кто их НЕ создавал, — юрист, разбирающий, чем
+    редакция 3 отличается от редакции 2, — и список без определений
+    заставил бы его запрашивать каждую версию отдельно, чтобы увидеть
+    хоть что-то, кроме номера и дат.
+    """
+
+    model_config = ConfigDict(populate_by_name=True, serialize_by_alias=True)
+
+    id: UUID
+    rule_id: UUID = Field(alias="ruleId")
+    version_no: int = Field(alias="versionNo")
+    scope: dict[str, str]
+    legal_basis_node_id: UUID = Field(alias="legalBasisNodeId")
+    valid_from: date = Field(alias="validFrom")
+    valid_to: date | None = Field(default=None, alias="validTo")
+    status: RuleStatus
+    published_at: datetime | None = Field(default=None, alias="publishedAt")
+    published_by: UUID | None = Field(default=None, alias="publishedBy")
+    formula_definition: Any = Field(alias="formulaDefinition")
+
+
 class PublishRuleVersionRequest(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 

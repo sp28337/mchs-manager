@@ -44,6 +44,7 @@ from src.modules.legal_rules.api.schemas import (
     PublishRuleVersionRequest,
     RuleListEnvelopeResponse,
     RuleResponse,
+    RuleVersionDetailResponse,
     RuleVersionResponse,
 )
 from src.modules.legal_rules.application.commands.create_conflict_policy.command import (
@@ -100,6 +101,12 @@ from src.modules.legal_rules.application.queries.get_effective_rule_version.hand
 )
 from src.modules.legal_rules.application.queries.get_effective_rule_version.query import (
     GetEffectiveRuleVersionQuery,
+)
+from src.modules.legal_rules.application.queries.list_rule_versions.handler import (
+    ListRuleVersionsHandler,
+)
+from src.modules.legal_rules.application.queries.list_rule_versions.query import (
+    ListRuleVersionsQuery,
 )
 from src.modules.legal_rules.application.queries.list_rules.handler import ListRulesHandler
 from src.modules.legal_rules.application.queries.list_rules.query import ListRulesQuery
@@ -314,6 +321,40 @@ async def list_rules(
         page_size=page_size,
         total_count=total_count,
     )
+
+
+@router.get("/rules/{rule_id}/versions", response_model=list[RuleVersionDetailResponse])
+async def list_rule_versions(
+    rule_id: Annotated[UUID, Path()], session: SessionDep
+) -> list[RuleVersionDetailResponse]:
+    """Дополнение к `openapi.yaml` — см. `ListRuleVersionsQuery`.
+
+    Отдаёт ВСЕ редакции, включая заменённые: история нормы и есть предмет
+    этого модуля, а список из одной действующей редакции не отвечал бы на
+    вопрос «по какой норме считали в марте».
+    """
+    handler = ListRuleVersionsHandler(RuleRepository(session))
+    try:
+        versions = await handler.handle(ListRuleVersionsQuery(rule_id=rule_id))
+    except RuleNotFoundError as exc:
+        raise _problem(404, "not-found", "Правило не найдено", str(exc)) from exc
+
+    return [
+        RuleVersionDetailResponse(
+            id=version.id,
+            rule_id=version.rule_id,
+            version_no=version.version_no,
+            scope=version.scope.as_dict(),
+            legal_basis_node_id=version.legal_basis.node_id,
+            valid_from=version.valid_from,
+            valid_to=version.valid_to,
+            status=version.status,
+            published_at=version.published_at,
+            published_by=version.published_by,
+            formula_definition=version.formula_definition,
+        )
+        for version in versions
+    ]
 
 
 @router.post("/rules/{rule_id}/versions", response_model=RuleVersionResponse, status_code=201)

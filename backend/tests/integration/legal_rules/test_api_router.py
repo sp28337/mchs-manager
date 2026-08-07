@@ -182,6 +182,119 @@ async def test_full_http_flow_create_publish_resolve(client: TestClient) -> None
     await engine.dispose()
 
 
+async def test_the_version_list_shows_drafts_and_superseded_alongside_the_published_one(
+    client: TestClient,
+) -> None:
+    """Дополнение `GET /rules/{id}/versions`.
+
+    Проверяется ровно то, ради чего операция заведена: черновик виден в
+    списке. `GET .../effective-version` его не показывает по построению —
+    черновик не действует, — и без этого списка юрист терял бы созданный
+    черновик при первой перезагрузке страницы.
+
+    Заодно проверяется, что определение приходит вместе с версией: список
+    номеров без формул не отвечает на вопрос «чем редакция 2 отличается
+    от редакции 1».
+    """
+    reg_number = f"TEST-VERSIONS-{uuid4()}"
+    doc_resp = client.post(
+        f"{BASE}/documents",
+        json={
+            "docType": "federal_law",
+            "regNumber": reg_number,
+            "adoptedDate": "2016-05-23",
+            "title": "ФЗ-141 для списка версий",
+            "validFrom": "2016-05-23",
+        },
+        headers=_idem(),
+    )
+    assert doc_resp.status_code == 201, doc_resp.text
+    document_id = doc_resp.json()["id"]
+
+    node_resp = client.post(
+        f"{BASE}/documents/{document_id}/nodes",
+        json={"nodeType": "article", "ordinalNumber": "54"},
+        headers=_idem(),
+    )
+    node_id = node_resp.json()["id"]
+
+    rule_resp = client.post(
+        f"{BASE}/rules",
+        json={
+            "code": f"TEST.VERSIONS.{uuid4().hex.upper()}",
+            "category": "norm_calculation",
+            "displayName": "Правило для списка версий",
+        },
+        headers=_idem(),
+    )
+    rule_id = rule_resp.json()["id"]
+
+    def _draft(hours: int, valid_from: str) -> str:
+        response = client.post(
+            f"{BASE}/rules/{rule_id}/versions",
+            json={
+                "scope": {"category": "normal"},
+                "legalBasisNodeId": node_id,
+                "actions": [
+                    {
+                        "node_type": "set_result",
+                        "field": "weekly_norm_hours",
+                        "formula": {"node_type": "literal", "value": hours},
+                    }
+                ],
+                "validFrom": valid_from,
+            },
+            headers=_idem(),
+        )
+        assert response.status_code == 201, response.text
+        return str(response.json()["id"])
+
+    published_id = _draft(40, "2024-01-01")
+    client.post(
+        f"{BASE}/rule-versions/{published_id}/publish",
+        json={"changeReason": "Первая редакция для проверки списка версий"},
+        headers=_idem(),
+    )
+    draft_id = _draft(36, "2025-01-01")
+
+    listing = client.get(f"{BASE}/rules/{rule_id}/versions")
+    assert listing.status_code == 200, listing.text
+    versions = listing.json()
+
+    by_id = {v["id"]: v for v in versions}
+    assert draft_id in by_id, "черновик обязан быть в списке — ради этого список и заведён"
+    assert by_id[draft_id]["status"] == "draft"
+    assert by_id[published_id]["status"] == "published"
+
+    assert [v["versionNo"] for v in versions] == sorted(v["versionNo"] for v in versions), (
+        "порядок — по номеру редакции, а не по дате начала действия"
+    )
+
+    definition = by_id[draft_id]["formulaDefinition"]
+    assert definition[0]["formula"]["value"] == 36, (
+        "определение приходит вместе с версией, иначе сравнить редакции нечем"
+    )
+
+    unknown = client.get(f"{BASE}/rules/{uuid4()}/versions")
+    assert unknown.status_code == 404, unknown.text
+
+    engine = create_async_engine(get_settings().database_dsn)
+    async with engine.begin() as conn:
+        await conn.execute(
+            text("DELETE FROM legal_rules.rule_version WHERE rule_id = :id"), {"id": rule_id}
+        )
+        await conn.execute(text("DELETE FROM legal_rules.rule WHERE id = :id"), {"id": rule_id})
+        await conn.execute(
+            text("DELETE FROM legal_rules.document_node WHERE document_id = :id"),
+            {"id": document_id},
+        )
+        await conn.execute(
+            text("DELETE FROM legal_rules.normative_document WHERE id = :id"),
+            {"id": document_id},
+        )
+    await engine.dispose()
+
+
 async def test_get_nonexistent_document_returns_404_problem_json(client: TestClient) -> None:
     resp = client.get(f"/api/v1/legal-rules/documents/{uuid4()}")
     assert resp.status_code == 404
