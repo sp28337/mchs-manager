@@ -1,8 +1,6 @@
 import type { Metadata } from "next";
 import { IBM_Plex_Mono, IBM_Plex_Sans, PT_Sans_Narrow } from "next/font/google";
 
-import { getServerSession } from "@/lib/auth/server";
-
 import { Providers } from "./providers";
 import "./globals.css";
 
@@ -35,11 +33,9 @@ export const metadata: Metadata = {
     "Учёт служебного времени, компенсаций и отпусков сотрудников федеральной противопожарной службы",
 };
 
-export default async function RootLayout({
+export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
-  const session = await getServerSession();
-
   return (
     <html
       lang="ru"
@@ -47,7 +43,7 @@ export default async function RootLayout({
       suppressHydrationWarning
     >
       <body className="min-h-dvh bg-paper text-ink">
-        <Providers session={session}>{children}</Providers>
+        <Providers>{children}</Providers>
       </body>
     </html>
   );

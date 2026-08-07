@@ -1,154 +1,48 @@
+# Контракты архитектуры. Проверяются `lint-imports` в `make lint`.
+#
+# После разворота приложения модулей осталось два, и правила стали
+# короче — но не мягче: именно они не дают расчёту нормы снова обрасти
+# слоями, ради избавления от которых всё и переписывалось.
+
 [importlinter]
 root_package = src
+include_external_packages = True
 
-# --- Contract 1: Dependency Rule inside every module (Architecture, разд. 3, 7) ---
-#
-# Layers of modules that are not built yet are wrapped in parentheses —
-# import-linter reads that as an OPTIONAL layer, so a contract can be
-# declared ahead of the code it will govern instead of failing the build
-# with 'module does not exist'. Un-parenthesize each layer as its module
-# lands (`legal_rules` and `personnel` already are), so that a module
-# which quietly loses its `domain` package fails CI rather than passing
-# vacuously.
-[importlinter:contract:layers-legal-rules]
-name = Layers: legal_rules
+[importlinter:contract:layers-shift-accounting]
+name = Слои модуля shift_accounting
 type = layers
 layers =
-    src.modules.legal_rules.api
-    src.modules.legal_rules.infrastructure
-    src.modules.legal_rules.application
-    src.modules.legal_rules.domain
-
-[importlinter:contract:layers-personnel]
-name = Layers: personnel
-type = layers
-layers =
-    src.modules.personnel.api
-    src.modules.personnel.infrastructure
-    src.modules.personnel.application
-    src.modules.personnel.domain
+    src.modules.shift_accounting.api
+    src.modules.shift_accounting.application
+    src.modules.shift_accounting.infrastructure
+    src.modules.shift_accounting.domain
 
 [importlinter:contract:layers-service-calendar]
-name = Layers: service_calendar
+name = Слои модуля service_calendar
 type = layers
 layers =
     src.modules.service_calendar.api
-    src.modules.service_calendar.infrastructure
     src.modules.service_calendar.application
+    src.modules.service_calendar.infrastructure
     src.modules.service_calendar.domain
 
-[importlinter:contract:layers-scheduling]
-name = Layers: scheduling
-type = layers
-layers =
-    src.modules.scheduling.api
-    src.modules.scheduling.infrastructure
-    src.modules.scheduling.application
-    src.modules.scheduling.domain
-
-[importlinter:contract:layers-time-accounting]
-name = Layers: time_accounting
-type = layers
-layers =
-    src.modules.time_accounting.api
-    src.modules.time_accounting.infrastructure
-    src.modules.time_accounting.application
-    src.modules.time_accounting.domain
-
-[importlinter:contract:layers-compensation]
-name = Layers: compensation
-type = layers
-layers =
-    src.modules.compensation.api
-    src.modules.compensation.infrastructure
-    src.modules.compensation.application
-    src.modules.compensation.domain
-
-[importlinter:contract:layers-rest-balance]
-name = Layers: rest_balance
-type = layers
-layers =
-    src.modules.rest_balance.api
-    src.modules.rest_balance.infrastructure
-    src.modules.rest_balance.application
-    src.modules.rest_balance.domain
-
-[importlinter:contract:layers-leave-management]
-name = Layers: leave_management
-type = layers
-layers =
-    src.modules.leave_management.api
-    src.modules.leave_management.infrastructure
-    src.modules.leave_management.application
-    src.modules.leave_management.domain
-
-# --- Contract 2: изоляция модулей (Architecture, разд. 4.2) ---
-#
-# Раньше здесь стоял контракт типа `independence`, который запрещает ЛЮБЫЕ
-# импорты между модулями — включая `contracts/`. В комментарии к нему было
-# записано, что при появлении первого реального межмодульного вызова его
-# придётся ослабить до `forbidden` со списком внутренностей. Этот момент
-# наступил: `scheduling` спрашивает статус сотрудника у `personnel` и
-# минимальный межсменный отдых у `legal_rules` (инварианты 5.1.4 и 5.1.2),
-# и оба вызова идут через `contracts/`.
-#
-# Теперь запрещены именно ВНУТРЕННОСТИ чужого модуля — `domain`,
-# `application`, `infrastructure`, `api`, — а `contracts` не перечислен и
-# потому разрешён. Это ровно формулировка Architecture разд. 4.2 п.1
-# («Модуль может импортировать только Contracts/ другого модуля»), тогда
-# как `independence` был строже документа и держался лишь до первой
-# настоящей интеграции.
-#
-# `ignore_imports` снимает самозапрет: модуль обязан видеть собственные
-# слои, а без этих строк он попадал бы под собственный же запрет.
-[importlinter:contract:module-internals-are-private]
-name = Модули видят друг у друга только contracts/
+[importlinter:contract:domain-is-pure]
+name = Домен не знает ни о базе, ни о вебе
 type = forbidden
 source_modules =
-    src.modules.legal_rules
-    src.modules.personnel
-    src.modules.service_calendar
-    src.modules.scheduling
-    src.modules.time_accounting
-    src.modules.compensation
-forbidden_modules =
-    src.modules.legal_rules.domain
-    src.modules.legal_rules.application
-    src.modules.legal_rules.infrastructure
-    src.modules.legal_rules.api
-    src.modules.personnel.domain
-    src.modules.personnel.application
-    src.modules.personnel.infrastructure
-    src.modules.personnel.api
+    src.modules.shift_accounting.domain
     src.modules.service_calendar.domain
-    src.modules.service_calendar.application
-    src.modules.service_calendar.infrastructure
-    src.modules.service_calendar.api
-    src.modules.scheduling.domain
-    src.modules.scheduling.application
-    src.modules.scheduling.infrastructure
-    src.modules.scheduling.api
-    src.modules.time_accounting.domain
-    src.modules.time_accounting.application
-    src.modules.time_accounting.infrastructure
-    src.modules.time_accounting.api
-    src.modules.compensation.domain
-    src.modules.compensation.application
-    src.modules.compensation.infrastructure
-    src.modules.compensation.api
-ignore_imports =
-    src.modules.legal_rules.** -> src.modules.legal_rules.**
-    src.modules.personnel.** -> src.modules.personnel.**
-    src.modules.service_calendar.** -> src.modules.service_calendar.**
-    src.modules.scheduling.** -> src.modules.scheduling.**
-    src.modules.time_accounting.** -> src.modules.time_accounting.**
-    src.modules.compensation.** -> src.modules.compensation.**
+forbidden_modules =
+    sqlalchemy
+    fastapi
+    pydantic
+    redis
 
-# --- Contract 3: building_blocks must never depend on a module ---
 [importlinter:contract:building-blocks-independence]
-name = building_blocks has zero dependency on any module
+name = building_blocks ничего не знает о модулях
 type = forbidden
 source_modules =
     src.building_blocks
 forbidden_modules =
     src.modules
+    src.composition

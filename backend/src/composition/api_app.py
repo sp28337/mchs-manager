@@ -19,14 +19,8 @@ from fastapi import FastAPI
 
 from src.building_blocks.application.problem_handlers import install_problem_handlers
 from src.composition.di import dispose_infrastructure, init_infrastructure
-from src.modules.compensation.api.router import router as compensation_router
-from src.modules.leave_management.api.router import router as leave_management_router
-from src.modules.legal_rules.api.router import router as legal_rules_router
-from src.modules.personnel.api.router import router as personnel_router
-from src.modules.rest_balance.api.router import router as rest_balance_router
-from src.modules.scheduling.api.router import router as scheduling_router
 from src.modules.service_calendar.api.router import router as service_calendar_router
-from src.modules.time_accounting.api.router import router as time_accounting_router
+from src.modules.shift_accounting.api.router import router as shift_accounting_router
 
 
 class AppState(TypedDict):
@@ -63,27 +57,18 @@ async def health() -> dict[str, str]:
     return {"status": "ok"}
 
 
-# One include_router() per module, same prefix/tag as openapi.yaml's
-# `paths` (Backend_Architecture разд. 8). `legal_rules` is first because
-# it's the only module with no incoming dependencies (Architecture разд.
-# 4.2 п.4) and so the first one implemented end-to-end.
-app.include_router(legal_rules_router, prefix="/api/v1/legal-rules", tags=["LegalRules"])
-# `personnel` next: a Generic subdomain (Architecture разд. 4) that every
-# Core module references by employee id, so it has to exist before
-# `TimeAccounting`/`Scheduling` can be built against it.
-app.include_router(personnel_router, prefix="/api/v1/personnel", tags=["Personnel"])
-# `service_calendar`: the other Generic subdomain, and the reference data
-# every norm calculation reads (Алгоритм Б шаги 5-7).
+# Два модуля, и порядок отражает зависимость.
+#
+# `service_calendar` — производственный календарь: он не справочник, а
+# вход расчёта. Норма периода считается по числу рабочих и
+# предпраздничных дней (ст. 104, 95 ТК РФ), и без него сверять нечего.
+#
+# `shift_accounting` — профиль пожарного, его отсутствия, расчёт периода
+# и сверка с выданным табелем. Читает календарь, календарь о нём не
+# знает.
 app.include_router(
     service_calendar_router, prefix="/api/v1/service-calendar", tags=["ServiceCalendar"]
 )
-# `scheduling` — первый модуль, потребляющий чужие Contracts
-# (`personnel` и `legal_rules`), и поставщик PlannedShift для
-# будущего TimeAccounting.
-app.include_router(scheduling_router, prefix="/api/v1/scheduling", tags=["Scheduling"])
 app.include_router(
-    time_accounting_router, prefix="/api/v1/time-accounting", tags=["TimeAccounting"]
+    shift_accounting_router, prefix="/api/v1/shift-accounting", tags=["ShiftAccounting"]
 )
-app.include_router(compensation_router, prefix="/api/v1/compensation", tags=["Compensation"])
-app.include_router(rest_balance_router, prefix="/api/v1/rest-balance", tags=["RestBalance"])
-app.include_router(leave_management_router, prefix="/api/v1/leave", tags=["LeaveManagement"])
