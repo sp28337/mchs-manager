@@ -16,6 +16,7 @@ import {
   type Absence,
   type AbsenceKind,
   type Calculation,
+  type AccountingPeriodKind,
   type Discrepancy,
   type Profile,
 } from "../schemas";
@@ -48,10 +49,41 @@ function monthBounds(year: number, month: number) {
   };
 }
 
+/**
+ * Границы учётного периода, разрешённого приказом.
+ *
+ * Квартал предлагается только работникам (Приказ № 307 п. 7);
+ * сотруднику Приказ № 308 п. 2 оставляет полугодие или год. Показывать
+ * сотруднику квартал значило бы предлагать период, в котором его
+ * переработку считать нельзя, — а именно по итогу учётного периода она
+ * и определяется.
+ */
+function statutoryBounds(year: number, kind: AccountingPeriodKind, index: number) {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const months = kind === "quarter" ? 3 : kind === "half_year" ? 6 : 12;
+  const startMonth = index * months;
+  const endMonth = startMonth + months;
+  return {
+    periodStart: `${year}-${pad(startMonth + 1)}-01`,
+    periodEnd:
+      endMonth >= 12 ? `${year + 1}-01-01` : `${year}-${pad(endMonth + 1)}-01`,
+  };
+}
+
+type Selection =
+  | { mode: "month"; index: number }
+  | { mode: "statutory"; kind: AccountingPeriodKind; index: number };
+
 export function Workspace({ profile }: { profile: Profile }) {
-  const now = new Date();
-  const [month, setMonth] = useState(now.getUTCMonth());
-  const [wholeYear, setWholeYear] = useState(false);
+  // Умолчание — учётный период целиком: именно по его итогу определяется
+  // переработка (ст. 104 ТК РФ), и открывать экран на месяце значило бы
+  // показывать первым то число, которое ничего не решает.
+  const widest = profile.accountingPeriodKinds.at(-1) ?? "year";
+  const [selection, setSelection] = useState<Selection>({
+    mode: "statutory",
+    kind: widest,
+    index: 0,
+  });
 
   const [calculation, setCalculation] = useState<Calculation | null>(null);
   const [absences, setAbsences] = useState<Absence[]>([]);
@@ -62,12 +94,10 @@ export function Workspace({ profile }: { profile: Profile }) {
   // Границы держатся примитивами, а не объектом: объектный литерал
   // пересоздаётся на каждый рендер, и хук, зависящий от него, перезапускал
   // бы запрос бесконечно.
-  const { periodStart, periodEnd } = wholeYear
-    ? {
-        periodStart: `${profile.accountingYear}-01-01`,
-        periodEnd: `${profile.accountingYear + 1}-01-01`,
-      }
-    : monthBounds(profile.accountingYear, month);
+  const { periodStart, periodEnd } =
+    selection.mode === "month"
+      ? monthBounds(profile.accountingYear, selection.index)
+      : statutoryBounds(profile.accountingYear, selection.kind, selection.index);
 
   const fail = useCallback((cause: unknown) => {
     setError(
@@ -110,42 +140,67 @@ export function Workspace({ profile }: { profile: Profile }) {
     <div className="space-y-10">
       {error ? <ErrorPanel error={error} /> : null}
 
-      <section aria-labelledby="period" className="space-y-3">
+      <section aria-labelledby="period" className="space-y-4">
         <h2 id="period" className="font-display text-xs font-bold uppercase tracking-wide text-ink-muted">
-          Период
+          Учётный период
         </h2>
+
         <div className="flex flex-wrap gap-1">
-          {MONTHS.map((name, index) => (
-            <Button
-              key={name}
-              type="button"
-              size="sm"
-              variant={!wholeYear && month === index ? "default" : "outline"}
-              aria-pressed={!wholeYear && month === index}
-              onClick={() => {
-                setWholeYear(false);
-                setMonth(index);
-              }}
-            >
-              {name}
-            </Button>
-          ))}
-          <Button
-            type="button"
-            size="sm"
-            variant={wholeYear ? "default" : "outline"}
-            aria-pressed={wholeYear}
-            onClick={() => setWholeYear(true)}
-          >
-            весь {profile.accountingYear} год
-          </Button>
+          {profile.accountingPeriodKinds.flatMap((kind) => {
+            const count = kind === "quarter" ? 4 : kind === "half_year" ? 2 : 1;
+            return Array.from({ length: count }, (_, index) => {
+              const active =
+                selection.mode === "statutory" &&
+                selection.kind === kind &&
+                selection.index === index;
+              return (
+                <Button
+                  key={`${kind}-${index}`}
+                  type="button"
+                  size="sm"
+                  variant={active ? "default" : "outline"}
+                  aria-pressed={active}
+                  onClick={() => setSelection({ mode: "statutory", kind, index })}
+                >
+                  {count > 1 ? `${index + 1}-${kind === "quarter" ? "й квартал" : "е полугодие"}` : `${profile.accountingYear} год`}
+                </Button>
+              );
+            });
+          })}
         </div>
+
         <p className="max-w-prose text-xs text-ink-muted">
-          Учётный период при суммированном учёте устанавливает работодатель — до
-          года (ст. 104 ТК РФ). Переработка определяется по его итогу, поэтому
-          спор обычно идёт о годе, а месяц полезен, чтобы найти, где именно
-          разошлось.
+          {profile.employmentKind === "attested"
+            ? "Приказ МЧС России от 24.04.2026 № 308 п. 2: учётный период сотрудника при сменной работе — полугодие или год. Переработка определяется по его итогу."
+            : "Приказ МЧС России от 24.04.2026 № 307 п. 7: учётный период работника при сменной работе — три месяца, полугодие или год. Какой именно — устанавливают правила внутреннего трудового распорядка."}
         </p>
+
+        <div className="space-y-2 border-t border-rule pt-3">
+          <h3 className="font-display text-xs font-bold uppercase tracking-wide text-ink-muted">
+            Помесячно
+          </h3>
+          <div className="flex flex-wrap gap-1">
+            {MONTHS.map((name, index) => {
+              const active = selection.mode === "month" && selection.index === index;
+              return (
+                <Button
+                  key={name}
+                  type="button"
+                  size="sm"
+                  variant={active ? "default" : "outline"}
+                  aria-pressed={active}
+                  onClick={() => setSelection({ mode: "month", index })}
+                >
+                  {name}
+                </Button>
+              );
+            })}
+          </div>
+          <p className="max-w-prose text-xs text-ink-muted">
+            Месяц учётным периодом не является — переработку по нему не считают.
+            Он нужен, чтобы найти, в каком именно месяце разошлось.
+          </p>
+        </div>
       </section>
 
       {calculation ? (

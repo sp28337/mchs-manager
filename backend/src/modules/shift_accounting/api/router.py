@@ -53,6 +53,7 @@ from src.modules.shift_accounting.domain.reconciliation import (
 )
 from src.modules.shift_accounting.domain.value_objects import (
     ABSENCE_KIND_BASIS,
+    ACCOUNTING_PERIODS,
     AbsenceKind,
     EmploymentKind,
     Gender,
@@ -83,7 +84,8 @@ def _profile_response(row) -> ProfileResponse:  # type: ignore[no-untyped-def]
         employment=EmploymentKind(row.employment_kind),
         gender=Gender(row.gender),
         conditions=WorkingConditions(row.working_conditions),
-        rural_locality=row.rural_locality,
+        northern_locality=row.northern_locality,
+        disability_group_i_or_ii=row.disability_i_or_ii,
     )
     return ProfileResponse(
         id=row.id,
@@ -91,8 +93,13 @@ def _profile_response(row) -> ProfileResponse:  # type: ignore[no-untyped-def]
         employment_kind=EmploymentKind(row.employment_kind),
         gender=Gender(row.gender),
         working_conditions=WorkingConditions(row.working_conditions),
-        rural_locality=row.rural_locality,
+        northern_locality=row.northern_locality,
+        disability_i_or_ii=row.disability_i_or_ii,
         guard_number=row.guard_number,
+        accounting_period_kinds=[
+            kind.value
+            for kind in ACCOUNTING_PERIODS[EmploymentKind(row.employment_kind)]
+        ],
         first_shift_date=row.first_shift_date,
         accounting_year=row.accounting_year,
         weekly_norm_hours=weekly.hours,
@@ -120,7 +127,8 @@ async def create_profile(
                 employment_kind=request.employment_kind.value,
                 gender=request.gender.value,
                 working_conditions=request.working_conditions.value,
-                rural_locality=request.rural_locality,
+                northern_locality=request.northern_locality,
+                disability_i_or_ii=request.disability_i_or_ii,
                 guard_number=request.guard_number,
                 first_shift_date=request.first_shift_date,
                 accounting_year=request.first_shift_date.year,
@@ -329,7 +337,8 @@ async def _calculate(
         employment=EmploymentKind(row.employment_kind),
         gender=Gender(row.gender),
         conditions=WorkingConditions(row.working_conditions),
-        rural_locality=row.rural_locality,
+        northern_locality=row.northern_locality,
+        disability_group_i_or_ii=row.disability_i_or_ii,
     )
     calendar, holidays, published = await _calendar_facts(session, period_start, period_end)
 

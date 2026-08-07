@@ -174,7 +174,16 @@ def upgrade() -> None:
             gender              shift_accounting.gender NOT NULL,
             working_conditions  shift_accounting.working_conditions NOT NULL
                                     DEFAULT 'normal',
-            rural_locality      boolean NOT NULL DEFAULT false,
+            -- Районы Крайнего Севера, приравненные к ним и — для
+            -- сотрудников — другие местности с неблагоприятными
+            -- климатическими или экологическими условиями. Круг у
+            -- сотрудников и работников РАЗНЫЙ: Приказ № 308 п. 1 шире
+            -- Приказа № 307 п. 4, и признак хранится один, а толкуется
+            -- по виду занятости.
+            northern_locality   boolean NOT NULL DEFAULT false,
+            -- Приказ № 307 п. 5: инвалидность I или II группы даёт 35
+            -- часов в неделю. У сотрудников такого пункта нет.
+            disability_i_or_ii  boolean NOT NULL DEFAULT false,
             guard_number        smallint NOT NULL,
             first_shift_date    date NOT NULL,
             accounting_year     integer NOT NULL,
@@ -182,6 +191,14 @@ def upgrade() -> None:
             updated_at          timestamptz NOT NULL DEFAULT now(),
 
             CONSTRAINT ck_profile_guard CHECK (guard_number BETWEEN 1 AND 4),
+            -- Службу в ФПС ГПС инвалид I или II группы не проходит, и
+            -- Приказ № 308 такого сокращения не знает. Признак,
+            -- выставленный сотруднику, был бы данными, которые расчёт
+            -- обязан игнорировать, — а такие данные рано или поздно
+            -- начинают учитываться по ошибке.
+            CONSTRAINT ck_profile_disability_is_civilian CHECK (
+                NOT disability_i_or_ii OR employment_kind = 'civilian'
+            ),
             CONSTRAINT ck_profile_year CHECK (accounting_year BETWEEN 2000 AND 2100),
             -- Первая смена караула лежит в первых четырёх сутках года:
             -- цикл «сутки через трое» четырёхдневный, и пятое января —

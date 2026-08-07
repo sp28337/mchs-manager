@@ -19,8 +19,18 @@ export const EMPLOYMENT_LABELS: Record<EmploymentKind, string> = {
 
 /** Чем различие важно — а не просто как называется. */
 export const EMPLOYMENT_HINT: Record<EmploymentKind, string> = {
-  attested: "Служба по ФЗ-141 от 23.05.2016. Норма и компенсации — по нему.",
-  civilian: "Работа по трудовому договору. Норма и компенсации — по ТК РФ.",
+  attested:
+    "Служба по ФЗ-141. Режим сменной службы — Приказ МЧС России от 24.04.2026 № 308.",
+  civilian:
+    "Работа по трудовому договору. Режим сменной работы — Приказ МЧС России от 24.04.2026 № 307.",
+};
+
+export type AccountingPeriodKind = "quarter" | "half_year" | "year";
+
+export const ACCOUNTING_PERIOD_LABELS: Record<AccountingPeriodKind, string> = {
+  quarter: "квартал",
+  half_year: "полугодие",
+  year: "год",
 };
 
 export const GENDER_LABELS: Record<Gender, string> = {
@@ -48,7 +58,9 @@ export interface Profile {
   employmentKind: EmploymentKind;
   gender: Gender;
   workingConditions: WorkingConditions;
-  ruralLocality: boolean;
+  northernLocality: boolean;
+  disabilityGroupIorII: boolean;
+  accountingPeriodKinds: AccountingPeriodKind[];
   guardNumber: number;
   firstShiftDate: string;
   accountingYear: number;
