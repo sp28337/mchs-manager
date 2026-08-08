@@ -12,18 +12,17 @@
   не нужен вовсе). Next.js 16 требует минимум 20.9, но брать стоит LTS.
 * pnpm 11: `corepack enable && corepack prepare pnpm@11 --activate`
 
-Версии закреплены в `frontend/package.json` (`packageManager`, `engines`)
+Версии закреплены в `package.json` (`packageManager`, `engines`)
 и в CI, чтобы сборка у вас и на сервере шла одним и тем же.
 
 ## Сборка
 
 ```bash
-cd frontend
 pnpm install --frozen-lockfile
 NEXT_PUBLIC_SITE_URL=https://ваш-домен pnpm build
 ```
 
-Результат — папка `frontend/out/`: `index.html` (лендинг),
+Результат — папка `out/`: `index.html` (лендинг),
 `calculator.html`, `404.html`, `robots.txt`, `sitemap.xml`, `icon.svg` и
 `_next/` со статикой.
 
@@ -115,7 +114,6 @@ Fonts нет, поэтому `font-src 'self'` достаточно.
 ## Проверки перед выкладкой
 
 ```bash
-cd frontend
 pnpm typecheck   # типы
 pnpm lint        # eslint
 pnpm test        # 69 тестов: нормы приказов 307/308, график караула,
@@ -124,6 +122,56 @@ pnpm build       # сборка
 ```
 
 Всё это же гоняет CI на каждый pull request (`.github/workflows/ci.yml`).
+
+## Автоматическая выкладка на VPS
+
+`.github/workflows/cd.yml` срабатывает на push в `main`: вызывает CI,
+забирает собранный им артефакт и раскладывает его по SSH. Пересборки при
+выкладке нет — в прод уходит ровно то, что прошло проверки.
+
+Что настроить в репозитории (Settings → Secrets and variables → Actions):
+
+| | Имя | Значение |
+|---|---|---|
+| Variable | `SITE_URL` | `https://ваш-домен` — без слэша на конце |
+| Variable | `DEPLOY_ROOT` | `/var/www/kalkulyator` |
+| Variable | `SSH_PORT` | если не 22 |
+| Secret | `SSH_HOST` | адрес сервера |
+| Secret | `SSH_USER` | пользователь, владеющий `DEPLOY_ROOT` |
+| Secret | `SSH_PRIVATE_KEY` | приватный ключ (ed25519), без пароля |
+| Secret | `SSH_KNOWN_HOSTS` | вывод `ssh-keyscan -p ПОРТ хост` |
+
+`SSH_KNOWN_HOSTS` снимается один раз руками и кладётся в секрет намеренно:
+`ssh-keyscan` прямо в workflow доверял бы тому, кто ответил, и от подмены
+сервера не защищал бы.
+
+Подготовка сервера — один раз:
+
+```bash
+sudo mkdir -p /var/www/kalkulyator/releases
+sudo chown -R deploy:deploy /var/www/kalkulyator
+```
+
+В nginx корнем указывается **симлинк** `current`, а не каталог выпуска:
+
+```nginx
+root /var/www/kalkulyator/current;
+```
+
+Каждая выкладка кладёт файлы в новый каталог `releases/ГГГГММДД-ЧЧММСС-хеш`
+и переключает симлинк одной операцией `mv -Tf`. Поэтому человек никогда не
+видит сайт, собранный наполовину из старого и наполовину из нового.
+Хранятся пять последних выпусков, откат — переключение симлинка:
+
+```bash
+ln -sfn /var/www/kalkulyator/releases/НУЖНЫЙ /var/www/kalkulyator/current.new
+mv -Tf /var/www/kalkulyator/current.new /var/www/kalkulyator/current
+```
+
+После выкладки CD сам проверяет, что по адресу отдаётся именно этот сайт:
+на лендинге ищется заголовок, на `/calculator` — название, в `robots.txt`
+— строка `Sitemap` с вашим доменом. Проверять код 200 бессмысленно: его
+отдаёт и страница-заглушка хостера.
 
 После выкладки проверить руками, потому что это ровно те вещи, которые
 ломаются молча:
@@ -141,7 +189,7 @@ pnpm build       # сборка
 
 Единственное, что требует правки в коде раз в год. Постановление
 Правительства о переносе выходных из закона не выводится, поэтому лежит
-таблицей в `frontend/src/features/shift/domain/production-calendar.ts`:
+таблицей в `src/features/shift/domain/production-calendar.ts`:
 
 ```ts
 const DECREE_TRANSFERS: Record<number, readonly IsoDate[]> = {
