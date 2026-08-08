@@ -1,60 +1,48 @@
 name: CI
 
+# Раньше здесь поднимались Postgres и Redis ради бэкенда. Приложение
+# статическое: расчёт и хранение живут в браузере, сервера нет — и
+# проверять, соответственно, нечего, кроме самого фронтенда.
+
 on:
   pull_request:
   push:
-    branches: [main]
+    branches: [main, staging]
 
 jobs:
-  backend-lint-and-test:
+  frontend:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: backend
-    services:
-      postgres:
-        image: postgres:16
-        env:
-          POSTGRES_USER: fps
-          POSTGRES_PASSWORD: fps
-          POSTGRES_DB: fps_timekeeping
-        ports: ["5432:5432"]
-        options: >-
-          --health-cmd "pg_isready -U fps -d fps_timekeeping"
-          --health-interval 5s --health-timeout 3s --health-retries 10
-      redis:
-        image: redis:7
-        ports: ["6379:6379"]
-        options: >-
-          --health-cmd "redis-cli ping"
-          --health-interval 5s --health-timeout 3s --health-retries 10
-    env:
-      FPS_DATABASE_DSN: postgresql+asyncpg://fps:fps@localhost:5432/fps_timekeeping
-      FPS_JWT_PUBLIC_KEY: ci-dummy-key
+        working-directory: frontend
+
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v5
+      - uses: pnpm/action-setup@v4
         with:
-          python-version: "3.12"
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
 
       - name: Install dependencies
-        run: pip install -e ".[dev]"
+        run: pnpm install --frozen-lockfile
 
-      - name: Ruff lint
-        run: ruff check .
+      - name: Types
+        run: pnpm typecheck
 
-      - name: Mypy
-        run: mypy src
+      - name: Lint
+        run: pnpm lint
 
-      - name: Import boundaries (Architecture разд. 4.2, 7)
-        run: lint-imports
+      # Расчёт нормы: нормы приказов 307/308, график караула, разбор дат
+      # и производственный календарь. Числа сверены с прежним расчётом на
+      # Python до последней цифры — здесь они и охраняются.
+      - name: Tests
+        run: pnpm test
 
-      - name: Apply migrations (verifies DDL against real Postgres)
-        run: alembic upgrade head
-
-      - name: Unit tests (no DB/Redis required)
-        run: pytest tests/unit -v
-
-      - name: Integration tests (real Postgres — RE015 etc.)
-        run: pytest tests/integration -v
+      - name: Build
+        run: pnpm build
