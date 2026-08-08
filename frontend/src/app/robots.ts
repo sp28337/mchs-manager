@@ -1,5 +1,9 @@
 import type { MetadataRoute } from "next";
 
+/* Файл собирается один раз на сборке: сайт выгружается в статику, и
+   вычислять его на каждый запрос негде и незачем. */
+export const dynamic = "force-static";
+
 const SITE = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
 
 /**

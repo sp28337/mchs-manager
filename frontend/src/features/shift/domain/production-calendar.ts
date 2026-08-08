@@ -54,6 +54,25 @@ const STATUTORY_HOLIDAYS: readonly (readonly [number, number])[] = [
 
 const NEW_YEAR_BLOCK_DAYS = 8;
 
+/**
+ * Постановление Правительства о переносе выходных дней — по годам.
+ *
+ * Перечислены ДНИ, СТАВШИЕ НЕРАБОЧИМИ: выходные, попавшие внутрь
+ * новогодних каникул, переносятся на них. Из закона это не выводится и
+ * меняется каждый год, поэтому таблица, а не правило.
+ *
+ * 2026 год: субботу 3 и воскресенье 4 января переносят на пятницу
+ * 9 января и четверг 31 декабря. Оба дня становятся выходными, и 31
+ * декабря перестаёт быть предпраздничным — сокращать на час нерабочий
+ * день незачем.
+ *
+ * Год, которого здесь нет, честно считается неполным: `pendingTransfers`
+ * назовёт непокрытые дни, а экран — цену молчания в часах.
+ */
+const DECREE_TRANSFERS: Record<number, readonly IsoDate[]> = {
+  2026: ["2026-01-09", "2026-12-31"],
+};
+
 export function statutoryHolidays(year: number): Set<IsoDate> {
   return new Set(STATUTORY_HOLIDAYS.map(([month, day]) => makeDate(year, month, day)));
 }
@@ -98,7 +117,14 @@ export function statutoryCalendar(year: number): Map<IsoDate, DayType> {
     if (types.get(cursor) === "working") types.set(cursor, "weekend");
   }
 
-  // 4. Ст. 95 — РАБОЧИЙ день непосредственно перед нерабочим праздничным
+  // 4. Постановление о переносе выходных, если год в таблице. Ставится ДО
+  //    предпраздничных: перенесённый выходной не может быть заодно
+  //    предпраздничным рабочим днём.
+  for (const day of DECREE_TRANSFERS[year] ?? []) {
+    if (types.has(day)) types.set(day, "weekend");
+  }
+
+  // 5. Ст. 95 — РАБОЧИЙ день непосредственно перед нерабочим праздничным
   //    короче на час. Считается только от праздников, никогда от
   //    перенесённых выходных; 31 декабря смотрит через границу года.
   const nextNewYear = makeDate(year + 1, 1, 1);
@@ -121,7 +147,12 @@ export function statutoryCalendar(year: number): Map<IsoDate, DayType> {
  * лишней нормы.
  */
 export function pendingTransfers(year: number): IsoDate[] {
-  return [...newYearBlock(year)].filter(isWeekend).sort();
+  // Перенос известен — недостачи нет. Сравнивается количество, а не сами
+  // даты: постановление вправе перенести выходной куда угодно, но число
+  // нерабочих дней в году оно сохраняет.
+  const decreed = DECREE_TRANSFERS[year] ?? [];
+  const inside = [...newYearBlock(year)].filter(isWeekend).sort();
+  return decreed.length >= inside.length ? [] : inside.slice(decreed.length);
 }
 
 /** Откуда взят тип дня. Человек должен различать закон и свою правку. */

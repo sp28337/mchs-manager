@@ -67,8 +67,9 @@ describe("календарь 2026 года", () => {
     // 31 декабря смотрит через границу года на 1 января.
     expect(calendar.get("2026-04-30")).toBe("pre_holiday");
     expect(calendar.get("2026-11-03")).toBe("pre_holiday");
-    expect(calendar.get("2026-12-31")).toBe("pre_holiday");
-    expect(counts(2026).pre_holiday).toBe(5);
+    // 31 декабря 2026 предпраздничным не будет: постановление сделало его
+    // выходным, и проверка этого — в разделе про переносы.
+    expect(counts(2026).pre_holiday).toBe(4);
   });
 
   test("праздник в выходной переносит день отдыха вперёд", () => {
@@ -79,20 +80,28 @@ describe("календарь 2026 года", () => {
     expect(calendar.get("2026-03-09")).toBe("weekend");
   });
 
-  test("из новогодних каникул автоматического переноса нет", () => {
-    // 3 и 4 января 2026 — суббота и воскресенье внутри каникул. Ст. 112
-    // ч. 2 сюда не применяется: перенос задаёт постановление
-    // Правительства, которого приложение не знает.
-    expect(pendingTransfers(2026)).toEqual(["2026-01-03", "2026-01-04"]);
+  test("перенос новогодних выходных на 2026 год учтён", () => {
+    // Постановление переносит субботу 3 и воскресенье 4 января на пятницу
+    // 9 января и четверг 31 декабря. Недостачи больше нет.
+    const calendar = statutoryCalendar(2026);
+    expect(calendar.get("2026-01-09")).toBe("weekend");
+    expect(calendar.get("2026-12-31")).toBe("weekend");
+    expect(pendingTransfers(2026)).toEqual([]);
   });
 
-  test("непроставленный перенос завышает годовую норму на 16 часов", () => {
-    // Цена молчания, названная числом. Официальный календарь 2026 года
-    // даёт 247 рабочих дней, базовый — 249.
+  test("перенесённый выходной не становится предпраздничным", () => {
+    // 31 декабря — нерабочий, и сокращать его на час по ст. 95 незачем.
+    // Порядок шагов в расчёте календаря именно за этим и следит.
+    expect(statutoryCalendar(2026).get("2026-12-31")).not.toBe("pre_holiday");
+    expect(counts(2026).pre_holiday).toBe(4);
+  });
+
+  test("годовая норма 2026 сходится с официальным календарём", () => {
     const facts = calendarFactsFor("2026-01-01", "2027-01-01", new Map());
-    expect(facts.workingDays).toBe(249);
-    expect(facts.preHolidayDays).toBe(5);
-    expect(facts.workingDays - pendingTransfers(2026).length).toBe(247);
+    expect(facts.workingDays).toBe(247);
+    expect(facts.preHolidayDays).toBe(4);
+    // 247 × 8 − 4 = 1972
+    expect(facts.workingDays * 8 - facts.preHolidayDays).toBe(1972);
   });
 });
 
@@ -118,11 +127,13 @@ describe("факты периода", () => {
   });
 
   test("период через границу года берёт календари обоих лет", () => {
-    const facts = calendarFactsFor("2026-12-31", "2027-01-02", new Map());
-    // 31 декабря 2026 — предпраздничный рабочий, 1 января 2027 — праздник.
+    // Взят декабрь 2025: 31 декабря там предпраздничный рабочий день, а
+    // 1 января 2026 — праздник. 2026 год для этой проверки не годится: его
+    // 31 декабря постановление сделало выходным.
+    const facts = calendarFactsFor("2025-12-31", "2026-01-02", new Map());
     expect(facts.workingDays).toBe(1);
     expect(facts.preHolidayDays).toBe(1);
-    expect(facts.holidays.has("2027-01-01")).toBe(true);
+    expect(facts.holidays.has("2026-01-01")).toBe(true);
   });
 });
 
@@ -138,21 +149,14 @@ describe("правки человека", () => {
     expect(days.get("2026-06-10")?.source).toBe("statutory");
   });
 
-  test("два перенесённых выходных дают официальную норму 2026 года", () => {
-    // Ровно то, ради чего календарь редактируемый: человек проставляет
-    // перенос, и годовая норма сходится с официальной — 1971 час.
-    const overrides = new Map<IsoDate, DayType>([
-      ["2026-01-09", "weekend"],
-      ["2026-02-02", "weekend"],
-    ]);
+  test("правка человека сильнее и постановления", () => {
+    // Если в его части календарь всё-таки другой, правка обязана победить.
+    const overrides = new Map<IsoDate, DayType>([["2026-01-09", "working"]]);
     const facts = calendarFactsFor(
       "2026-01-01",
       "2027-01-01",
       new Map([[2026, overrides]]),
     );
-
-    expect(facts.workingDays).toBe(247);
-    // 247 × 8 − 5 = 1971
-    expect(facts.workingDays * 8 - facts.preHolidayDays).toBe(1971);
+    expect(facts.workingDays).toBe(248);
   });
 });

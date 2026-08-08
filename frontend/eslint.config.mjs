@@ -9,9 +9,11 @@ const config = [
   {
     ignores: [
       ".next/**",
+      // Результат статического экспорта: собранные и минифицированные
+      // файлы, которые никто не правит руками.
+      "out/**",
       "node_modules/**",
       "next-env.d.ts",
-      "src/lib/api-client/schema.d.ts",
     ],
   },
   ...compat.extends("next/core-web-vitals", "next/typescript"),
