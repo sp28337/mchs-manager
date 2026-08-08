@@ -1,0 +1,336 @@
+/**
+ * Расчёт нормы и переработки при суммированном учёте.
+ *
+ * --- Что здесь считается и зачем ----------------------------------------
+ *
+ * Ровно то, вокруг чего возникают споры с работодателем. Порядок такой:
+ *
+ * 1. НОРМА УЧЁТНОГО ПЕРИОДА — сколько часов человек должен отработать,
+ *    если бы работал по пятидневке: недельная норма, делённая на пять, на
+ *    число рабочих дней производственного календаря, минус по часу за
+ *    каждый предпраздничный день (ст. 95 ТК РФ).
+ *
+ * 2. ИСКЛЮЧЕНИЕ ОТСУТСТВИЙ — из нормы вычитаются часы ПО ГРАФИКУ,
+ *    пришедшиеся на отпуск, больничный и иное освобождение с сохранением
+ *    места работы (письмо Роструда от 01.03.2010 № 550-6-1).
+ *
+ * 3. ПЕРЕРАБОТКА — то, что отработано сверх уменьшенной нормы.
+ *
+ * --- Ошибка, ради обнаружения которой всё это написано ------------------
+ *
+ * Пункт 2 нарушают двумя способами, и оба дают одинаковый результат — у
+ * человека отнимают часы, которые он не должен:
+ *
+ * * норму оставляют полной, а из ФАКТА вычитают смены, попавшие в отпуск
+ *   («минус 24 часа за смену»). Отпуск превращается в долг;
+ * * норму оставляют полной и просто не отрабатывают отсутствие — тогда
+ *   возникает недоработка, которой нет.
+ *
+ * Обе ошибки видны только тогда, когда норма и факт показаны раздельно и
+ * рядом названа величина исключённых часов. Поэтому результат расчёта
+ * несёт все три числа, а не одну итоговую разницу.
+ *
+ * --- Чего здесь нет -----------------------------------------------------
+ *
+ * Компенсации. Приказ МЧС России № 410 п. 14 прямо говорит: при
+ * суммированном учёте ночные, выходные и праздничные часы В ПРЕДЕЛАХ
+ * нормы дополнительным временем отдыха не компенсируются. Показывать их
+ * как «положено сверху» значило бы обещать то, чего норма не даёт. Ночные
+ * часы считаются и показываются — но как факт, а не как основание для
+ * доплаты.
+ */
+
+import { Dec, ZERO, atLeastZero, type Decimal } from "./decimal";
+import { addDays, type IsoDate } from "./plain-date";
+import {
+  DEFAULT_SHIFT_START,
+  minutesToHours,
+  shiftStartMinute,
+  splitShift,
+} from "./shift-hours";
+import {
+  shiftDates,
+  type AbsenceKind,
+  type GuardCycle,
+  type WeeklyNorm,
+} from "./value-objects";
+
+export const WORKING_DAYS_PER_WEEK = new Dec(5);
+
+/** Ст. 95 ТК РФ: рабочий день накануне праздника короче на час. */
+export const PRE_HOLIDAY_REDUCTION_HOURS = new Dec(1);
+
+/** То, что даёт производственный календарь за период. */
+export interface CalendarFacts {
+  /**
+   * Рабочие дни периода, ВКЛЮЧАЯ предпраздничные.
+   *
+   * Предпраздничный день — рабочий, сокращённый на час (ст. 95 ТК РФ), и
+   * производственный календарь считает его среди рабочих: в апреле 2026
+   * года 22 рабочих дня и 175 часов, то есть 22 × 8 − 1, а не 21 × 8.
+   * Исключить его отсюда значило бы вычесть за него девять часов вместо
+   * одного — по восемь часов нормы за каждый такой день в году.
+   */
+  readonly workingDays: number;
+
+  /** Сколько из `workingDays` сокращены на час. */
+  readonly preHolidayDays: number;
+}
+
+/**
+ * Отсутствие с сохранением места службы или работы.
+ *
+ * Границы ВКЛЮЧИТЕЛЬНЫЕ — так их пишут в приказе об отпуске и в
+ * больничном листе. Полуинтервалы, принятые в остальном коде, здесь были
+ * бы источником ошибки на один день ровно там, где цена ошибки — сутки
+ * чужого отдыха.
+ */
+export interface AbsencePeriod {
+  readonly start: IsoDate;
+  readonly endInclusive: IsoDate;
+  readonly kind: AbsenceKind;
+}
+
+export function absenceCovers(absence: AbsencePeriod, day: IsoDate): boolean {
+  return absence.start <= day && day <= absence.endInclusive;
+}
+
+/** Одна смена в расчёте. Часы — только те, что попали в период. */
+export interface ShiftRecord {
+  readonly startedOn: IsoDate;
+  readonly hours: Decimal;
+  readonly nightHours: Decimal;
+  readonly holidayHours: Decimal;
+  readonly absenceKind: AbsenceKind | null;
+}
+
+/**
+ * Часы, пришедшиеся на одни календарные сутки.
+ *
+ * Смена лежит в двух днях, и месячный итог обязан считаться по СУТКАМ, а
+ * не по дате заступления: иначе смене, заступившей 31 марта, март получал
+ * бы все 24 часа, хотя 8,5 из них отработаны 1 апреля. У человека при
+ * таком счёте расходится с табелем и месячная сумма, и число ночных.
+ */
+export interface DayRecord {
+  readonly day: IsoDate;
+  readonly hours: Decimal;
+  readonly nightHours: Decimal;
+  readonly holidayHours: Decimal;
+  /** Заступление в этих сутках, а не продолжение смены с прошлых. */
+  readonly isShiftStart: boolean;
+  readonly absenceKind: AbsenceKind | null;
+}
+
+/** Итог расчёта за учётный период. */
+export interface PeriodCalculation {
+  readonly periodStart: IsoDate;
+  readonly periodEnd: IsoDate;
+
+  readonly weeklyNorm: WeeklyNorm;
+  readonly calendar: CalendarFacts;
+
+  /** Норма периода без учёта отсутствий. */
+  readonly baseNormHours: Decimal;
+
+  /** Часы по графику, пришедшиеся на отсутствия. Вычитаются из нормы. */
+  readonly excludedHours: Decimal;
+
+  /** Норма к отработке: `baseNormHours − excludedHours`. */
+  readonly normHours: Decimal;
+
+  /** Фактически отработано. */
+  readonly actualHours: Decimal;
+
+  readonly nightHours: Decimal;
+  readonly holidayHours: Decimal;
+
+  readonly scheduledShifts: number;
+  readonly workedShifts: number;
+  readonly absentShifts: number;
+
+  readonly shifts: readonly ShiftRecord[];
+
+  /**
+   * Те же часы, но разложенные по календарным суткам периода.
+   *
+   * Из этого строится график: месячный итог — сумма суток месяца, и он
+   * сходится с тем, что видно в клетках.
+   */
+  readonly days: readonly DayRecord[];
+
+  /** Переработка. Ноль, если её нет, — отрицательной переработки не бывает. */
+  readonly overtimeHours: Decimal;
+
+  /** Недоработка. */
+  readonly undertimeHours: Decimal;
+
+  /**
+   * Недоработка, которая получилась бы при НЕуменьшенной норме.
+   *
+   * Это не наш расчёт, а воспроизведение чужой ошибки: столько «долга»
+   * увидит человек, если отсутствия из нормы не исключили. Величина нужна,
+   * чтобы назвать цену расхождения — не «считают неверно», а «неверно на
+   * столько-то часов».
+   */
+  readonly wrongNormUndertimeHours: Decimal;
+}
+
+/**
+ * Норма периода по производственному календарю.
+ *
+ * `(недельная норма / 5) × рабочие дни − 1 час × предпраздничные дни`.
+ *
+ * Формула — общая для пятидневки и для сменного режима: при суммированном
+ * учёте норма СМЕННИКА равна норме обычной пятидневки за тот же период
+ * (ст. 104 ТК РФ). Это ровно то, что делает график «сутки через трое»
+ * пригодным к проверке: часы в нём другие, а норма та же.
+ */
+export function baseNormHours(weekly: WeeklyNorm, calendar: CalendarFacts): Decimal {
+  const daily = weekly.hours.dividedBy(WORKING_DAYS_PER_WEEK);
+  return daily
+    .times(calendar.workingDays)
+    .minus(PRE_HOLIDAY_REDUCTION_HOURS.times(calendar.preHolidayDays));
+}
+
+export interface CalculatePeriodInput {
+  periodStart: IsoDate;
+  periodEnd: IsoDate;
+  cycle: GuardCycle;
+  weekly: WeeklyNorm;
+  calendar: CalendarFacts;
+  absences: readonly AbsencePeriod[];
+  holidayDays: ReadonlySet<IsoDate>;
+  /**
+   * Время развода караула, «ЧЧ:ММ». По умолчанию 08:30.
+   *
+   * От него зависит, как смена делится между сутками, а значит — месячные
+   * итоги и число ночных на стыке месяцев.
+   */
+  shiftStartTime?: string;
+}
+
+/**
+ * Полный расчёт периода по графику караула.
+ *
+ * `periodEnd` — исключающая граница, как во всём коде. `holidayDays` —
+ * нерабочие праздничные дни календаря: часы, пришедшиеся на них,
+ * считаются и показываются отдельно, хотя при суммированном учёте в
+ * пределах нормы отдельной компенсации не дают (Приказ № 410 п. 14).
+ */
+export function calculatePeriod({
+  periodStart,
+  periodEnd,
+  cycle,
+  weekly,
+  calendar,
+  absences,
+  holidayDays,
+  shiftStartTime = DEFAULT_SHIFT_START,
+}: CalculatePeriodInput): PeriodCalculation {
+  const startMinute = shiftStartMinute(shiftStartTime);
+
+  const shifts: ShiftRecord[] = [];
+  const days: DayRecord[] = [];
+  let excluded = ZERO;
+  let actual = ZERO;
+  let nightTotal = ZERO;
+  let holidayTotal = ZERO;
+
+  // Просмотр начинается на СУТКИ РАНЬШЕ периода: смена, заступившая
+  // накануне, отдаёт периоду свой хвост (с полуночи до развода). Начинать
+  // ровно с `periodStart` значило бы терять его у каждого месяца, чей
+  // первый день — вторые сутки чужой смены.
+  //
+  // Но не раньше первой смены года: цикл объявлен человеком на год, и
+  // достраивать его в прошлый год значило бы выдумать смену, которой в
+  // этом графике нет.
+  const dayBefore = addDays(periodStart, -1);
+  const scanFrom = dayBefore > cycle.firstShiftDate ? dayBefore : cycle.firstShiftDate;
+
+  for (const startedOn of shiftDates(cycle, scanFrom, periodEnd)) {
+    // Отсутствие определяется по дате ЗАСТУПЛЕНИЯ, а не по каждым суткам:
+    // в отпуск человека отпускают со смены, и смена, начавшаяся до
+    // отпуска, дорабатывается целиком.
+    const absence = absences.find((item) => absenceCovers(item, startedOn));
+    const kind = absence ? absence.kind : null;
+
+    const inPeriod = splitShift(startedOn, startMinute).filter(
+      (part) => periodStart <= part.day && part.day < periodEnd,
+    );
+    if (inPeriod.length === 0) continue;
+
+    let shiftHours = ZERO;
+    let shiftNight = ZERO;
+    let shiftHoliday = ZERO;
+
+    for (const part of inPeriod) {
+      const hours = minutesToHours(part.minutes);
+      const night = minutesToHours(part.nightMinutes);
+      // Праздничные — по тому, праздничны ли САМИ эти сутки (ст. 112 ТК
+      // РФ). Смена, заступившая 8 марта и кончившаяся 9-го, даёт
+      // праздничными только свою первую часть.
+      const holiday = holidayDays.has(part.day) ? hours : ZERO;
+
+      days.push({
+        day: part.day,
+        hours,
+        nightHours: night,
+        holidayHours: holiday,
+        isShiftStart: part.isStart,
+        absenceKind: kind,
+      });
+
+      shiftHours = shiftHours.plus(hours);
+      shiftNight = shiftNight.plus(night);
+      shiftHoliday = shiftHoliday.plus(holiday);
+    }
+
+    shifts.push({
+      startedOn,
+      hours: shiftHours,
+      nightHours: shiftNight,
+      holidayHours: shiftHoliday,
+      absenceKind: kind,
+    });
+
+    if (kind === null) {
+      actual = actual.plus(shiftHours);
+      nightTotal = nightTotal.plus(shiftNight);
+      holidayTotal = holidayTotal.plus(shiftHoliday);
+    } else {
+      excluded = excluded.plus(shiftHours);
+    }
+  }
+
+  days.sort((left, right) => left.day.localeCompare(right.day));
+
+  const base = baseNormHours(weekly, calendar);
+  // Норма не уходит в минус: длительное отсутствие может перекрыть период
+  // целиком, и отрицательная норма означала бы, что человек обязан
+  // «недоработать».
+  const norm = atLeastZero(base.minus(excluded));
+
+  const worked = shifts.filter((shift) => shift.absenceKind === null).length;
+
+  return {
+    periodStart,
+    periodEnd,
+    weeklyNorm: weekly,
+    calendar,
+    baseNormHours: base,
+    excludedHours: excluded,
+    normHours: norm,
+    actualHours: actual,
+    nightHours: nightTotal,
+    holidayHours: holidayTotal,
+    scheduledShifts: shifts.length,
+    workedShifts: worked,
+    absentShifts: shifts.length - worked,
+    shifts,
+    days,
+    overtimeHours: atLeastZero(actual.minus(norm)),
+    undertimeHours: atLeastZero(norm.minus(actual)),
+    wrongNormUndertimeHours: atLeastZero(base.minus(actual)),
+  };
+}

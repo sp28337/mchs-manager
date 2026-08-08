@@ -1,36 +1,45 @@
 name: CI
 
-# Раньше здесь поднимались Postgres и Redis ради бэкенда. Приложение
-# статическое: расчёт и хранение живут в браузере, сервера нет — и
-# проверять, соответственно, нечего, кроме самого фронтенда.
+# Приложение статическое: расчёт и хранение живут в браузере, сервера нет.
+# Поэтому CI не поднимает ничего, а собирает — и отдаёт готовый артефакт,
+# который CD выкладывает БЕЗ ПОВТОРНОЙ СБОРКИ. Пересобирать при выкладке
+# значило бы выложить не то, что проверено: та же ветка через час может
+# собраться иначе.
 
 on:
   pull_request:
   push:
     branches: [main, staging]
+  workflow_call:
+    inputs:
+      site-url:
+        description: Адрес сайта — вшивается в sitemap, robots и Open Graph.
+        required: true
+        type: string
+    outputs:
+      artifact:
+        description: Имя артефакта с готовой статикой.
+        value: site
 
 jobs:
-  frontend:
+  build:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: frontend
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
+      # Без `version`: версия берётся из `packageManager` в package.json.
+      # Указанная в обоих местах, она валит запуск с «Multiple versions of
+      # pnpm specified» — и правильно делает: два источника истины рано или
+      # поздно разойдутся.
       - uses: pnpm/action-setup@v4
-        with:
-          version: 10
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
-          node-version: "22"
+          node-version: "24"
           cache: pnpm
-          cache-dependency-path: frontend/pnpm-lock.yaml
 
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+      - run: pnpm install --frozen-lockfile
 
       - name: Types
         run: pnpm typecheck
@@ -38,11 +47,23 @@ jobs:
       - name: Lint
         run: pnpm lint
 
-      # Расчёт нормы: нормы приказов 307/308, график караула, разбор дат
-      # и производственный календарь. Числа сверены с прежним расчётом на
-      # Python до последней цифры — здесь они и охраняются.
+      # Расчёт нормы: приказы 307/308, график караула, раскладка смены по
+      # суткам, производственный календарь, разбор дат.
       - name: Tests
         run: pnpm test
 
       - name: Build
+        env:
+          # На pull request адреса нет — собираем с заглушкой только чтобы
+          # убедиться, что сборка проходит. Артефакт такой сборки в прод не
+          # попадёт: CD вызывает этот же workflow со своим `site-url`.
+          NEXT_PUBLIC_SITE_URL: ${{ inputs.site-url || 'https://example.invalid' }}
         run: pnpm build
+
+      - name: Артефакт
+        uses: actions/upload-artifact@v4
+        with:
+          name: site
+          path: out/
+          retention-days: 14
+          if-no-files-found: error

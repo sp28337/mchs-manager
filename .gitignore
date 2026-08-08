@@ -142,3 +142,18 @@ yarn-error.log*
 next-env.d.ts
 
 tmp/
+# Next.js
+/.next/
+/out/
+
+# Зависимости
+/node_modules/
+
+# Окружение
+.env
+.env*.local
+
+# Прочее
+*.tsbuildinfo
+next-env.d.ts
+.DS_Store
