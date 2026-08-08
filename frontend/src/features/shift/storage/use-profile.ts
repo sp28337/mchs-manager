@@ -53,6 +53,11 @@ export function useProfile(): UseProfile {
   useEffect(() => {
     const result = loadProfile();
     current.current = result.status === "ok" ? result.profile : null;
+    // Правило запрещает синхронный `setState` в эффекте, и обычно верно:
+    // это лишний прогон отрисовки. Здесь он неизбежен и однократен —
+    // `localStorage` на сервере не существует, а прочитать его до
+    // монтирования негде.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setState(result);
   }, []);
 

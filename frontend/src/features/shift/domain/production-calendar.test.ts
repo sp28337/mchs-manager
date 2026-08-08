@@ -54,8 +54,9 @@ describe("календарь 2026 года", () => {
     expect(total).toBe(365);
   });
 
-  test("все четырнадцать праздников ст. 112 размечены", () => {
-    expect(counts(2026).holiday).toBe(14);
+  test("праздники ст. 112 размечены, плюс два перенесённых дня", () => {
+    // Четырнадцать по ст. 112 ч. 1 и два по постановлению о переносе.
+    expect(counts(2026).holiday).toBe(16);
   });
 
   test("предпраздничные дни найдены по ст. 95", () => {
@@ -84,8 +85,8 @@ describe("календарь 2026 года", () => {
     // Постановление переносит субботу 3 и воскресенье 4 января на пятницу
     // 9 января и четверг 31 декабря. Недостачи больше нет.
     const calendar = statutoryCalendar(2026);
-    expect(calendar.get("2026-01-09")).toBe("weekend");
-    expect(calendar.get("2026-12-31")).toBe("weekend");
+    expect(calendar.get("2026-01-09")).toBe("holiday");
+    expect(calendar.get("2026-12-31")).toBe("holiday");
     expect(pendingTransfers(2026)).toEqual([]);
   });
 
@@ -116,8 +117,10 @@ describe("факты периода", () => {
 
   test("праздники периода отдаются отдельным множеством", () => {
     const facts = calendarFactsFor("2026-01-01", "2026-02-01", new Map());
-    expect(facts.holidays.size).toBe(8);
+    // Восемь по ст. 112 ч. 1 плюс 9 января — перенесённый день.
+    expect(facts.holidays.size).toBe(9);
     expect(facts.holidays.has("2026-01-07")).toBe(true);
+    expect(facts.holidays.has("2026-01-09")).toBe(true);
   });
 
   test("граница периода полуоткрытая", () => {

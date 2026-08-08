@@ -8,8 +8,12 @@
 
 ## Что нужно
 
-* Node.js 22 (только для сборки; в проде Node не нужен)
-* pnpm 10 (`corepack enable && corepack prepare pnpm@10 --activate`)
+* Node.js 24 — текущий Active LTS (нужен только для сборки; в проде Node
+  не нужен вовсе). Next.js 16 требует минимум 20.9, но брать стоит LTS.
+* pnpm 11: `corepack enable && corepack prepare pnpm@11 --activate`
+
+Версии закреплены в `frontend/package.json` (`packageManager`, `engines`)
+и в CI, чтобы сборка у вас и на сервере шла одним и тем же.
 
 ## Сборка
 

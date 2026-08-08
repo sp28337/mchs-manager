@@ -1,22 +1,23 @@
-import { FlatCompat } from "@eslint/eslintrc";
+import { defineConfig, globalIgnores } from "eslint/config";
+import nextVitals from "eslint-config-next/core-web-vitals";
+import nextTs from "eslint-config-next/typescript";
 
-const compat = new FlatCompat({ baseDirectory: import.meta.dirname });
-
-/* `next-env.d.ts` и сгенерированные типы не правятся руками, поэтому и
-   не проверяются: замечание, которое нельзя исправить, — шум, а шум
-   учит игнорировать вывод линтера целиком. */
-const config = [
-  {
-    ignores: [
-      ".next/**",
-      // Результат статического экспорта: собранные и минифицированные
-      // файлы, которые никто не правит руками.
-      "out/**",
-      "node_modules/**",
-      "next-env.d.ts",
-    ],
-  },
-  ...compat.extends("next/core-web-vitals", "next/typescript"),
-];
-
-export default config;
+/**
+ * Плоский конфиг ESLint.
+ *
+ * С `eslint-config-next` 16 пресеты экспортируются готовыми плоскими
+ * конфигами, поэтому обёртка `FlatCompat` больше не нужна — и не работает:
+ * старый `compat.extends("next/core-web-vitals")` падал при загрузке.
+ */
+export default defineConfig([
+  ...nextVitals,
+  ...nextTs,
+  globalIgnores([
+    ".next/**",
+    // Результат статического экспорта: собранные и минифицированные
+    // файлы, которые никто не правит руками.
+    "out/**",
+    "node_modules/**",
+    "next-env.d.ts",
+  ]),
+]);

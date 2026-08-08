@@ -33,6 +33,11 @@ export function ThemeToggle() {
   const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
 
+  // Тема известна только в браузере, и узнать об этом можно не раньше
+  // монтирования — другого способа отличить сервер от клиента нет.
+  // Правило запрещает синхронный `setState` в эффекте из-за лишнего
+  // прогона отрисовки; здесь он однократный и оправдан.
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => setMounted(true), []);
 
   return (

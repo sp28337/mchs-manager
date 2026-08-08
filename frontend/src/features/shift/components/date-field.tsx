@@ -182,13 +182,6 @@ function CalendarPopover({
   const anchor = selected ?? clamp(todayIso(), min, max);
   const [view, setView] = useState({ year: yearOf(anchor), month: monthIndex(anchor) + 1 });
 
-  // Открытие всегда показывает месяц выбранной даты. Иначе человек,
-  // закрывший календарь на декабре и вернувшийся к мартовской дате,
-  // увидел бы декабрь и решил бы, что выбор потерялся.
-  useEffect(() => {
-    if (open) setView({ year: yearOf(anchor), month: monthIndex(anchor) + 1 });
-  }, [open, anchor]);
-
   // Закрытие по щелчку мимо и по Escape. Без первого календарь остаётся
   // висеть над формой и перекрывает соседнее поле; без второго с
   // клавиатуры из него не выйти.
@@ -233,7 +226,17 @@ function CalendarPopover({
         aria-label={open ? "Закрыть календарь" : "Выбрать дату в календаре"}
         aria-expanded={open}
         aria-controls={open ? dialogId : undefined}
-        onClick={() => onOpenChange(!open)}
+        onClick={() => {
+          // Открытие всегда показывает месяц выбранной даты. Иначе человек,
+          // закрывший календарь на декабре и вернувшийся к мартовской
+          // дате, увидел бы декабрь и решил бы, что выбор потерялся.
+          //
+          // Сброс здесь, а не в эффекте: эффект, синхронно меняющий
+          // состояние, вызывает лишний прогон отрисовки, и React
+          // справедливо на это ругается.
+          if (!open) setView({ year: yearOf(anchor), month: monthIndex(anchor) + 1 });
+          onOpenChange(!open);
+        }}
         className={cn(
           "flex size-9 items-center justify-center rounded-xs border border-rule-strong bg-paper",
           "hover:border-ink focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-trace",
