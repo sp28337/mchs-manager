@@ -20,7 +20,6 @@ from fastapi import FastAPI
 from src.building_blocks.application.problem_handlers import install_problem_handlers
 from src.composition.di import dispose_infrastructure, init_infrastructure
 from src.modules.service_calendar.api.router import router as service_calendar_router
-from src.modules.shift_accounting.api.router import router as shift_accounting_router
 
 
 class AppState(TypedDict):
@@ -57,18 +56,13 @@ async def health() -> dict[str, str]:
     return {"status": "ok"}
 
 
-# Два модуля, и порядок отражает зависимость.
+# Остался один модуль — производственный календарь.
 #
-# `service_calendar` — производственный календарь: он не справочник, а
-# вход расчёта. Норма периода считается по числу рабочих и
-# предпраздничных дней (ст. 104, 95 ТК РФ), и без него сверять нечего.
-#
-# `shift_accounting` — профиль пожарного, его отсутствия, расчёт периода
-# и сверка с выданным табелем. Читает календарь, календарь о нём не
-# знает.
+# `shift_accounting` (профиль, отсутствия, расчёт, сверка) удалён: он
+# хранил пол, инвалидность I-II группы и даты больничных, то есть
+# специальную категорию персональных данных по ст. 10 ФЗ-152. Всё это
+# переехало в браузер вместе с расчётом, и сервер о людях больше не
+# знает ничего.
 app.include_router(
     service_calendar_router, prefix="/api/v1/service-calendar", tags=["ServiceCalendar"]
-)
-app.include_router(
-    shift_accounting_router, prefix="/api/v1/shift-accounting", tags=["ShiftAccounting"]
 )

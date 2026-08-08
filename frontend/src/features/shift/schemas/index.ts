@@ -1,16 +1,33 @@
-/** Формы данных приложения сверки табеля. */
+/**
+ * Подписи и словарь приложения.
+ *
+ * Типы данных живут в `../domain` — здесь только то, как эти данные
+ * называются по-русски. Формы запросов и ответов исчезли вместе с
+ * сервером: расчёт считается на месте, и передавать наружу нечего.
+ */
 
-export type EmploymentKind = "attested" | "civilian";
-export type Gender = "male" | "female";
-export type WorkingConditions = "normal" | "harmful_or_dangerous";
+export type {
+  AbsenceKind,
+  AccountingPeriodKind,
+  EmploymentKind,
+  Gender,
+  GuardNumber,
+  WeeklyNorm,
+  WorkingConditions,
+} from "../domain/value-objects";
+export type { DayType, CalendarDay } from "../domain/production-calendar";
+export type { PeriodCalculation, ShiftRecord } from "../domain/calculation";
+export type { Discrepancy } from "../domain/reconciliation";
+export { formatHours as hours } from "../domain/decimal";
 
-export type AbsenceKind =
-  | "annual_leave"
-  | "sick_leave"
-  | "study_leave"
-  | "unpaid_leave"
-  | "business_trip"
-  | "other_excused";
+import type {
+  AbsenceKind,
+  AccountingPeriodKind,
+  EmploymentKind,
+  Gender,
+  WorkingConditions,
+} from "../domain/value-objects";
+import type { DayType } from "../domain/production-calendar";
 
 export const EMPLOYMENT_LABELS: Record<EmploymentKind, string> = {
   attested: "Аттестованный сотрудник ФПС ГПС",
@@ -24,8 +41,6 @@ export const EMPLOYMENT_HINT: Record<EmploymentKind, string> = {
   civilian:
     "Работа по трудовому договору. Режим сменной работы — Приказ МЧС России от 24.04.2026 № 307.",
 };
-
-export type AccountingPeriodKind = "quarter" | "half_year" | "year";
 
 export const ACCOUNTING_PERIOD_LABELS: Record<AccountingPeriodKind, string> = {
   quarter: "квартал",
@@ -51,31 +66,6 @@ export const ABSENCE_LABELS: Record<AbsenceKind, string> = {
   business_trip: "Командировка",
   other_excused: "Иное освобождение",
 };
-
-export interface Profile {
-  id: string;
-  displayName: string;
-  employmentKind: EmploymentKind;
-  gender: Gender;
-  workingConditions: WorkingConditions;
-  northernLocality: boolean;
-  disabilityGroupIorII: boolean;
-  accountingPeriodKinds: AccountingPeriodKind[];
-  guardNumber: number;
-  firstShiftDate: string;
-  accountingYear: number;
-  weeklyNormHours: string;
-  weeklyNormBasis: string;
-}
-
-export type DayType = "working" | "weekend" | "holiday" | "pre_holiday";
-
-export interface CalendarDay {
-  day: string;
-  dayType: DayType;
-  /** `override` — правка человека, `calendar` — общий, `default` — по дню недели. */
-  source: "override" | "calendar" | "default";
-}
 
 export const DAY_TYPE_LABELS: Record<DayType, string> = {
   working: "Рабочий",
@@ -110,75 +100,3 @@ export const DAY_TYPE_MARK: Record<DayType, string> = {
   holiday: "П",
   weekend: "В",
 };
-
-export interface Absence {
-  id: string;
-  kind: AbsenceKind;
-  startsOn: string;
-  endsOn: string;
-  note?: string | null;
-  basis: string;
-}
-
-export interface Shift {
-  startedOn: string;
-  hours: string;
-  nightHours: string;
-  holidayHours: string;
-  absenceKind?: AbsenceKind | null;
-}
-
-export interface Calculation {
-  periodStart: string;
-  periodEnd: string;
-  weeklyNormHours: string;
-  weeklyNormBasis: string;
-  workingDays: number;
-  preHolidayDays: number;
-  baseNormHours: string;
-  excludedHours: string;
-  normHours: string;
-  actualHours: string;
-  overtimeHours: string;
-  undertimeHours: string;
-  wrongNormUndertimeHours: string;
-  nightHours: string;
-  holidayHours: string;
-  scheduledShifts: number;
-  workedShifts: number;
-  absentShifts: number;
-  calendarPublished: boolean;
-  shifts: Shift[];
-}
-
-export interface Discrepancy {
-  field: string;
-  label: string;
-  expected: string;
-  reported: string;
-  delta: string;
-  favoursEmployer: boolean;
-  explanation: string;
-  basis: string;
-}
-
-export interface Reconciliation {
-  calculation: Calculation;
-  reported: {
-    periodStart: string;
-    periodEnd: string;
-    normHours?: string | null;
-    actualHours?: string | null;
-    overtimeHours?: string | null;
-  };
-  discrepancies: Discrepancy[];
-}
-
-/** Часы с двумя знаками — как в табеле. */
-export function hours(value: string | number | null | undefined): string {
-  const parsed = Number(value ?? 0);
-  return parsed.toLocaleString("ru-RU", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
-}

@@ -1,6 +1,8 @@
 import { cn } from "@/lib/utils/cn";
 
-import { ABSENCE_LABELS, hours, type Calculation } from "../schemas";
+import { ZERO, formatHours as hours, type Decimal } from "../domain/decimal";
+import type { PeriodCalculation, ShiftRecord } from "../domain/calculation";
+import { ABSENCE_LABELS } from "../schemas";
 
 const WEEKDAYS = ["пн", "вт", "ср", "чт", "пт", "сб", "вс"];
 const MONTH_NAMES = [
@@ -45,11 +47,11 @@ interface MonthGroup {
   /** Пустых клеток перед первым днём — чтобы столбцы совпали с днями недели. */
   offset: number;
   shifts: number;
-  workedHours: number;
+  workedHours: Decimal;
   absentShifts: number;
 }
 
-export function ShiftStrip({ calculation }: { calculation: Calculation }) {
+export function ShiftStrip({ calculation }: { calculation: PeriodCalculation }) {
   const start = new Date(`${calculation.periodStart}T00:00:00Z`);
   const end = new Date(`${calculation.periodEnd}T00:00:00Z`);
 
@@ -68,7 +70,7 @@ export function ShiftStrip({ calculation }: { calculation: Calculation }) {
         days: [],
         offset: (cursor.getUTCDay() + 6) % 7,
         shifts: 0,
-        workedHours: 0,
+        workedHours: ZERO,
         absentShifts: 0,
       };
       groups.push(group);
@@ -81,7 +83,7 @@ export function ShiftStrip({ calculation }: { calculation: Calculation }) {
     if (shift) {
       group.shifts += 1;
       if (shift.absenceKind) group.absentShifts += 1;
-      else group.workedHours += Number(shift.hours);
+      else group.workedHours = group.workedHours.plus(shift.hours);
     }
     cursor.setUTCDate(cursor.getUTCDate() + 1);
   }
@@ -119,7 +121,7 @@ function MonthBlock({
   showYear,
 }: {
   group: MonthGroup;
-  byDay: Map<string, Calculation["shifts"][number]>;
+  byDay: Map<string, ShiftRecord>;
   showYear: boolean;
 }) {
   return (

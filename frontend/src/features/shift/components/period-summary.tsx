@@ -1,6 +1,8 @@
 import { cn } from "@/lib/utils/cn";
 
-import { hours, type Calculation } from "../schemas";
+import { atLeastZero, formatHours as hours } from "../domain/decimal";
+import { pendingTransfers } from "../domain/production-calendar";
+import type { PeriodCalculation } from "../domain/calculation";
 
 /**
  * Итог периода.
@@ -14,18 +16,36 @@ import { hours, type Calculation } from "../schemas";
  * Стрелка от базовой нормы к норме к отработке показана явно: это и есть
  * действие, которое работодатель часто не совершает.
  */
-export function PeriodSummary({ calculation }: { calculation: Calculation }) {
-  const excluded = Number(calculation.excludedHours) > 0;
-  const overtime = Number(calculation.overtimeHours) > 0;
+export function PeriodSummary({
+  calculation,
+  accountingYear,
+}: {
+  calculation: PeriodCalculation;
+  accountingYear: number;
+}) {
+  const excluded = calculation.excludedHours.greaterThan(0);
+  const overtime = calculation.overtimeHours.greaterThan(0);
+  const pending = pendingTransfers(accountingYear).length;
+
+  // Переработка, которая получилась бы при НЕуменьшенной норме. Считается
+  // от базовой нормы напрямую, а не вычитанием исключённых часов из
+  // настоящей переработки: норма к отработке не уходит в минус, и при
+  // длинном отсутствии разность дала бы неверное число.
+  const wrongOvertime = atLeastZero(
+    calculation.actualHours.minus(calculation.baseNormHours),
+  );
 
   return (
     <div className="space-y-5">
-      {!calculation.calendarPublished ? (
+      {pending > 0 ? (
+        // Не «календарь не опубликован» — эта формулировка досталась от
+        // серверной версии и человеку ничего не говорила. Названа
+        // конкретная недостача и её цена в часах.
         <p className="rounded-sm border-l-2 border-signal bg-signal-soft px-4 py-3 text-sm">
-          Производственный календарь этого года ещё не опубликован. Норма
-          посчитана по тому, что в нём есть, и может измениться — прежде чем
-          нести расчёт начальнику, проверьте, что праздники и переносы
-          размечены.
+          Норма может быть завышена на {pending * 8} часов: переносы новогодних
+          выходных на {accountingYear} год ещё не проставлены. Откройте
+          календарь года ниже и отметьте их по своему производственному
+          календарю.
         </p>
       ) : null}
 
@@ -43,7 +63,7 @@ export function PeriodSummary({ calculation }: { calculation: Calculation }) {
           caption="Переработка"
           tone={overtime ? "verify" : undefined}
         />
-        {Number(calculation.undertimeHours) > 0 ? (
+        {calculation.undertimeHours.greaterThan(0) ? (
           <Figure
             value={hours(calculation.undertimeHours)}
             unit="ч"
@@ -58,15 +78,15 @@ export function PeriodSummary({ calculation }: { calculation: Calculation }) {
           Откуда взялась норма
         </h3>
         <p className="max-w-prose text-sm">
-          {calculation.workingDays} рабочих дней по производственному календарю ×{" "}
-          {hours(calculation.weeklyNormHours)} ч ÷ 5
-          {calculation.preHolidayDays > 0
-            ? ` − ${calculation.preHolidayDays} ч за предпраздничные дни (ст. 95 ТК РФ)`
+          {calculation.calendar.workingDays} рабочих дней по производственному
+          календарю × {hours(calculation.weeklyNorm.hours)} ч ÷ 5
+          {calculation.calendar.preHolidayDays > 0
+            ? ` − ${calculation.calendar.preHolidayDays} ч за предпраздничные дни (ст. 95 ТК РФ)`
             : ""}{" "}
           = <span className="font-mono">{hours(calculation.baseNormHours)}</span> ч.
         </p>
         <p className="text-xs text-ink-muted">
-          Недельная норма: {calculation.weeklyNormBasis}. Норма периода —
+          Недельная норма: {calculation.weeklyNorm.basis}. Норма периода —
           ст. 104 ТК РФ.
         </p>
 
@@ -87,13 +107,35 @@ export function PeriodSummary({ calculation }: { calculation: Calculation }) {
       {excluded ? (
         // Цена чужой ошибки, названная числом. Без неё «считают неверно» —
         // это спор; с ней — довод.
+        //
+        // Последствие у ошибки ДВА, и какое наступит — зависит от того,
+        // перекрыл ли факт неуменьшенную норму. Прежняя версия знала
+        // только про недоработку и в самом частом случае — когда человек
+        // всё равно переработал — печатала «недоработка 0,00 ч, которой
+        // нет». Число верное, фраза бессмысленная, а настоящая потеря
+        // (заниженная переработка) при этом не называлась вовсе.
         <p className="max-w-prose rounded-sm border-l-2 border-signal bg-signal-soft px-4 py-3 text-sm">
-          Если в вашем табеле норму НЕ уменьшили на эти часы, у вас покажется
-          недоработка{" "}
-          <span className="font-mono">
-            {hours(calculation.wrongNormUndertimeHours)}
-          </span>{" "}
-          ч, которой на самом деле нет.
+          {calculation.wrongNormUndertimeHours.greaterThan(0) ? (
+            <>
+              Если в вашем табеле норму НЕ уменьшили на эти часы, у вас
+              покажется недоработка{" "}
+              <span className="font-mono">
+                {hours(calculation.wrongNormUndertimeHours)}
+              </span>{" "}
+              ч, которой на самом деле нет.
+            </>
+          ) : (
+            <>
+              Если в вашем табеле норму НЕ уменьшили на эти часы, переработка
+              выйдет на{" "}
+              <span className="font-mono">
+                {hours(calculation.overtimeHours.minus(wrongOvertime))}
+              </span>{" "}
+              ч меньше действительной:{" "}
+              <span className="font-mono">{hours(wrongOvertime)}</span> ч вместо{" "}
+              <span className="font-mono">{hours(calculation.overtimeHours)}</span> ч.
+            </>
+          )}
         </p>
       ) : null}
 
@@ -105,7 +147,7 @@ export function PeriodSummary({ calculation }: { calculation: Calculation }) {
         <Small label="Праздничные часы" value={`${hours(calculation.holidayHours)} ч`} />
       </dl>
 
-      {Number(calculation.holidayHours) > 0 || Number(calculation.nightHours) > 0 ? (
+      {calculation.holidayHours.greaterThan(0) || calculation.nightHours.greaterThan(0) ? (
         <p className="max-w-prose text-xs text-ink-muted">
           Ночные и праздничные часы показаны как факт. При суммированном учёте
           в пределах нормы они дополнительным временем отдыха не компенсируются

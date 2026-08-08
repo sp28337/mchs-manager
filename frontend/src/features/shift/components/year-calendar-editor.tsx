@@ -1,23 +1,21 @@
 "use client";
 
-import { useCallback, useEffect, useId, useState } from "react";
+import { useId, useMemo, useState } from "react";
 
-import { ErrorPanel } from "@/components/shared/error-panel";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ApiError } from "@/lib/api-client/client";
 import { cn } from "@/lib/utils/cn";
 
-import { getCalendar, setCalendar } from "../api";
+import { calendarWithOverrides, pendingTransfers } from "../domain/production-calendar";
+import type { IsoDate } from "../domain/plain-date";
+import type { StoredProfile } from "../storage/profile";
 import {
   DAY_TYPE_EFFECT,
   DAY_TYPE_LABELS,
   DAY_TYPE_MARK,
   DAY_TYPE_TONE,
-  type CalendarDay,
   type DayType,
-  type Profile,
 } from "../schemas";
 
 /**
@@ -25,24 +23,31 @@ import {
  *
  * --- Зачем он человеку --------------------------------------------------
  *
- * Норма периода считается по числу рабочих дней (ст. 104 ТК РФ), и
- * ошибка в одном дне — это 8 часов нормы. Праздники по ст. 112 ТК РФ
- * размечены заранее, но переносы выходных Правительство устанавливает
- * отдельным постановлением на каждый год, и приложение их не знает. Зато
- * их знает человек: производственный календарь у него перед глазами.
+ * Норма периода считается по числу рабочих дней (ст. 104 ТК РФ), и ошибка
+ * в одном дне — это 8 часов нормы. Праздники по ст. 112 ТК РФ размечены
+ * заранее, но переносы выходных Правительство устанавливает отдельным
+ * постановлением на каждый год, и приложение их не знает. Зато их знает
+ * человек: производственный календарь у него перед глазами.
  *
  * --- Что размечено заранее ----------------------------------------------
  *
  * Все четырнадцать нерабочих праздничных дней ст. 112 ТК РФ, выходные по
- * дням недели и предпраздничные дни. Пустой сетки человек бы не осилил —
- * 365 дней вручную никто размечать не станет, а неразмеченный день молча
- * считался бы рабочим.
+ * дням недели, автоматический перенос по ст. 112 ч. 2 и предпраздничные
+ * дни по ст. 95. Пустой сетки человек бы не осилил — 365 дней вручную
+ * никто размечать не станет, а неразмеченный день молча считался бы
+ * рабочим.
  *
  * --- Почему видно, откуда взят день -------------------------------------
  *
  * Правка помечается точкой. Человек должен различать, что он утверждает
- * сам, а что взято из календаря: при разборе с начальником это разные по
- * весу утверждения, и стирать между ними границу нельзя.
+ * сам, а что взято из закона: при разборе с начальником это разные по весу
+ * утверждения, и стирать между ними границу нельзя.
+ *
+ * --- Правки сохраняются сразу -------------------------------------------
+ *
+ * Кнопки «Сохранить» здесь нет и быть не должно: запись идёт в браузер, а
+ * не по сети, и отдельный шаг сохранения означал бы только возможность
+ * потерять правку, закрыв вкладку.
  */
 
 const MONTHS = [
@@ -53,104 +58,58 @@ const MONTHS = [
 const DAY_TYPES: DayType[] = ["working", "pre_holiday", "holiday", "weekend"];
 
 export interface YearCalendarEditorProps {
-  profile: Profile;
-  /**
-   * Пересчитать период после сохранения.
-   *
-   * Без этого правка календаря молча расходилась бы с числами выше:
-   * человек убирает рабочий день, видит «сохранено», а норма на экране
-   * остаётся прежней. Показывать устаревший расчёт рядом с подтверждением
-   * — худший исход, потому что выглядит он как успех.
-   */
-  onSaved?: () => void | Promise<void>;
+  profile: StoredProfile;
+  onChange: (change: (previous: StoredProfile) => StoredProfile) => void;
 }
 
-export function YearCalendarEditor({ profile, onSaved }: YearCalendarEditorProps) {
+export function YearCalendarEditor({ profile, onChange }: YearCalendarEditorProps) {
   const brushId = useId();
   const fromId = useId();
   const toId = useId();
 
-  const [days, setDays] = useState<CalendarDay[]>([]);
   const [brush, setBrush] = useState<DayType>("weekend");
-  const [dirty, setDirty] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<ApiError | null>(null);
   const [open, setOpen] = useState(false);
 
-  const fail = useCallback((cause: unknown) => {
-    setError(
-      cause instanceof ApiError
-        ? cause
-        : new ApiError({
-            type: "about:blank",
-            title: "Сервер недоступен",
-            status: 0,
-            detail: "Не удалось получить календарь.",
-          }),
-    );
-  }, []);
+  const year = profile.accountingYear;
+  const overrides = profile.calendarOverrides;
 
-  useEffect(() => {
-    if (!open) return;
-    let cancelled = false;
-    getCalendar(profile.id)
-      .then((next) => {
-        if (!cancelled) {
-          setDays(next);
-          setDirty(false);
-        }
-      })
-      .catch(fail);
-    return () => {
-      cancelled = true;
-    };
-  }, [open, profile.id, fail]);
+  const days = useMemo(
+    () => calendarWithOverrides(year, new Map(Object.entries(overrides) as [IsoDate, DayType][])),
+    [year, overrides],
+  );
 
-  const paint = useCallback((from: string, to: string, dayType: DayType) => {
+  const overrideCount = Object.keys(overrides).length;
+  const pending = pendingTransfers(year).filter((day) => overrides[day] === undefined);
+
+  function paint(from: IsoDate, to: IsoDate, dayType: DayType) {
     const [start, end] = from <= to ? [from, to] : [to, from];
-    setDays((previous) =>
-      previous.map((item) =>
-        item.day >= start && item.day <= end
-          ? { ...item, dayType, source: "override" }
-          : item,
-      ),
-    );
-    setDirty(true);
-  }, []);
+    onChange((previous) => {
+      const next = { ...previous.calendarOverrides };
+      for (const item of days) {
+        if (item.day >= start && item.day <= end) next[item.day] = dayType;
+      }
+      return { ...previous, calendarOverrides: next };
+    });
+  }
 
-  async function save() {
-    setBusy(true);
-    setError(null);
-    try {
-      // На сервер уходят ТОЛЬКО правки. Отправлять весь год значило бы
-      // заморозить у человека снимок общего календаря: исправление в нём
-      // до такого профиля уже не дошло бы никогда.
-      const overrides = days
-        .filter((item) => item.source === "override")
-        .map((item) => ({ day: item.day, dayType: item.dayType }));
-      const saved = await setCalendar(profile.id, overrides);
-      setDays(saved);
-      setDirty(false);
-      await onSaved?.();
-    } catch (cause) {
-      fail(cause);
-    } finally {
-      setBusy(false);
-    }
+  function resetAll() {
+    onChange((previous) => ({ ...previous, calendarOverrides: {} }));
   }
 
   if (!open) {
     return (
       <section aria-labelledby="calendar" className="space-y-2">
         <h2 id="calendar" className="text-xl">
-          Календарь {profile.accountingYear} года
+          Календарь {year} года
         </h2>
         <p className="max-w-prose text-sm text-ink-muted">
-          Праздники по ст. 112 ТК РФ уже отмечены. Переносы выходных
-          устанавливает Правительство отдельным постановлением на каждый год, и
-          приложение их не знает — если ваш производственный календарь
-          отличается, поправьте здесь. Ошибка в одном дне — это 8 часов нормы.
+          Праздники по ст. 112 ТК РФ и предпраздничные дни по ст. 95 размечены
+          автоматически. Переносы выходных устанавливает Правительство
+          отдельным постановлением на каждый год, и приложение их не знает —
+          если ваш производственный календарь отличается, поправьте здесь.
+          Ошибка в одном дне — это 8 часов нормы.
         </p>
+        {pending.length > 0 ? <PendingNotice pending={pending} /> : null}
         <Button type="button" variant="outline" onClick={() => setOpen(true)}>
           Открыть календарь года
         </Button>
@@ -158,7 +117,7 @@ export function YearCalendarEditor({ profile, onSaved }: YearCalendarEditorProps
     );
   }
 
-  const byMonth = new Map<number, CalendarDay[]>();
+  const byMonth = new Map<number, typeof days>();
   for (const item of days) {
     const month = Number(item.day.slice(5, 7)) - 1;
     const bucket = byMonth.get(month);
@@ -166,20 +125,18 @@ export function YearCalendarEditor({ profile, onSaved }: YearCalendarEditorProps
     else byMonth.set(month, [item]);
   }
 
-  const overrideCount = days.filter((item) => item.source === "override").length;
-
   return (
     <section aria-labelledby="calendar" className="space-y-4">
       <div className="flex flex-wrap items-baseline justify-between gap-3">
         <h2 id="calendar" className="text-xl">
-          Календарь {profile.accountingYear} года
+          Календарь {year} года
         </h2>
         <Button type="button" variant="ghost" size="sm" onClick={() => setOpen(false)}>
           Свернуть
         </Button>
       </div>
 
-      {error ? <ErrorPanel error={error} /> : null}
+      {pending.length > 0 ? <PendingNotice pending={pending} /> : null}
 
       <div className="space-y-4 rounded-sm border border-rule bg-paper-raised p-4">
         <fieldset className="space-y-2">
@@ -222,8 +179,8 @@ export function YearCalendarEditor({ profile, onSaved }: YearCalendarEditorProps
               name="from"
               type="date"
               required
-              min={`${profile.accountingYear}-01-01`}
-              max={`${profile.accountingYear}-12-31`}
+              min={`${year}-01-01`}
+              max={`${year}-12-31`}
               className="w-44"
             />
           </div>
@@ -234,8 +191,8 @@ export function YearCalendarEditor({ profile, onSaved }: YearCalendarEditorProps
               name="to"
               type="date"
               required
-              min={`${profile.accountingYear}-01-01`}
-              max={`${profile.accountingYear}-12-31`}
+              min={`${year}-01-01`}
+              max={`${year}-12-31`}
               className="w-44"
             />
           </div>
@@ -252,12 +209,14 @@ export function YearCalendarEditor({ profile, onSaved }: YearCalendarEditorProps
       <div className="overflow-x-auto" role="region" aria-label="Календарь года" tabIndex={0}>
         <table className="border-collapse">
           <caption className="sr-only">
-            Производственный календарь {profile.accountingYear}: строки —
-            месяцы, столбцы — числа
+            Производственный календарь {year}: строки — месяцы, столбцы — числа
           </caption>
           <thead>
             <tr>
-              <th scope="col" className="px-2 py-1 text-left font-display text-xs font-bold uppercase tracking-wide text-ink-muted">
+              <th
+                scope="col"
+                className="px-2 py-1 text-left font-display text-xs font-bold uppercase tracking-wide text-ink-muted"
+              >
                 Месяц
               </th>
               {Array.from({ length: 31 }, (_, index) => (
@@ -276,7 +235,10 @@ export function YearCalendarEditor({ profile, onSaved }: YearCalendarEditorProps
               const items = byMonth.get(month) ?? [];
               return (
                 <tr key={name}>
-                  <th scope="row" className="whitespace-nowrap py-0.5 pr-3 text-left text-sm font-normal">
+                  <th
+                    scope="row"
+                    className="whitespace-nowrap py-0.5 pr-3 text-left text-sm font-normal"
+                  >
                     {name}
                   </th>
                   {Array.from({ length: 31 }, (_, index) => {
@@ -286,7 +248,9 @@ export function YearCalendarEditor({ profile, onSaved }: YearCalendarEditorProps
                       <td key={index} className="p-px">
                         <button
                           type="button"
-                          aria-label={`${index + 1} ${name} — ${DAY_TYPE_LABELS[item.dayType]}${item.source === "override" ? ", изменено вами" : ""}`}
+                          aria-label={`${index + 1} ${name} — ${DAY_TYPE_LABELS[item.dayType]}${
+                            item.source === "override" ? ", изменено вами" : ""
+                          }`}
                           onClick={() => paint(item.day, item.day, brush)}
                           className={cn(
                             "relative flex size-6 items-center justify-center rounded-xs border font-mono text-[10px]",
@@ -296,9 +260,9 @@ export function YearCalendarEditor({ profile, onSaved }: YearCalendarEditorProps
                         >
                           {DAY_TYPE_MARK[item.dayType]}
                           {item.source === "override" ? (
-                            // Точка, а не цвет: цвет уже занят типом дня,
-                            // и второй смысл на том же канале означал бы,
-                            // что ни один не читается.
+                            // Точка, а не цвет: цвет уже занят типом дня, и
+                            // второй смысл на том же канале означал бы, что
+                            // ни один не читается.
                             <span
                               aria-hidden
                               className="absolute -right-px -top-px size-1.5 rounded-full bg-ink"
@@ -341,15 +305,40 @@ export function YearCalendarEditor({ profile, onSaved }: YearCalendarEditorProps
       </dl>
 
       <div className="flex flex-wrap items-center gap-4 border-t border-rule pt-4">
-        <Button type="button" disabled={!dirty || busy} onClick={save}>
-          {busy ? "Сохранение…" : "Сохранить календарь"}
-        </Button>
         <p className="text-sm text-ink-muted" aria-live="polite">
-          {dirty
-            ? "Есть несохранённые изменения — расчёт их пока не учитывает."
-            : `Ваших правок: ${overrideCount}.`}
+          Ваших правок: {overrideCount}. Расчёт выше уже их учитывает.
         </p>
+        {overrideCount > 0 ? (
+          <button
+            type="button"
+            className="text-xs text-ink-muted underline underline-offset-2 hover:text-signal"
+            onClick={resetAll}
+          >
+            Вернуть календарь по закону
+          </button>
+        ) : null}
       </div>
     </section>
+  );
+}
+
+/**
+ * Названная цена непроставленного переноса.
+ *
+ * Молчать здесь нельзя: приложение считает эти дни рабочими, и норма выше
+ * официальной ровно на восемь часов за каждый. Человек, не знающий об
+ * этом, понесёт начальнику завышенную норму и окажется неправ в споре, где
+ * он прав по существу.
+ */
+function PendingNotice({ pending }: { pending: readonly IsoDate[] }) {
+  return (
+    <p className="max-w-prose rounded-sm border-l-2 border-signal bg-signal-soft px-4 py-3 text-sm">
+      В новогодние каникулы попали выходные ({pending.join(", ")}), которые
+      постановление Правительства переносит на другие даты. Какие это даты,
+      приложение не знает — из закона они не выводятся. Пока перенос не
+      проставлен, норма завышена на{" "}
+      <span className="font-mono">{pending.length * 8}</span> часов: найдите эти
+      дни в своём производственном календаре и отметьте их здесь выходными.
+    </p>
   );
 }

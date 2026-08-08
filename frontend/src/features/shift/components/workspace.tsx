@@ -1,26 +1,28 @@
 "use client";
 
-import { useCallback, useEffect, useId, useState } from "react";
+import { useId, useMemo, useState } from "react";
 
-import { ErrorPanel } from "@/components/shared/error-panel";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ApiError } from "@/lib/api-client/client";
 import { cn } from "@/lib/utils/cn";
 
-import { addAbsence, getCalculation, listAbsences, reconcile, removeAbsence } from "../api";
+import { formatHours, parseHours } from "../domain/decimal";
+import { reconcile, type Discrepancy } from "../domain/reconciliation";
 import {
-  ABSENCE_LABELS,
-  hours,
-  type Absence,
-  type AbsenceKind,
-  type Calculation,
+  accountingPeriodsOf,
+  calculateFor,
+  monthBounds,
+  statutoryBounds,
+} from "../model/derive";
+import {
+  ABSENCE_KIND_BASIS,
   type AccountingPeriodKind,
-  type Discrepancy,
-  type Profile,
-} from "../schemas";
+} from "../domain/value-objects";
+import type { StoredProfile } from "../storage/profile";
+import { ABSENCE_LABELS, type AbsenceKind } from "../schemas";
 import { PeriodSummary } from "./period-summary";
+import { ProfileFooter } from "./profile-footer";
 import { ShiftStrip } from "./shift-strip";
 import { YearCalendarEditor } from "./year-calendar-editor";
 
@@ -28,9 +30,16 @@ import { YearCalendarEditor } from "./year-calendar-editor";
  * Рабочий экран: период, расчёт, график, отсутствия и сверка.
  *
  * Всё на одной странице намеренно. Человек сверяет бумажный табель за
- * один месяц, и разносить норму, график и расхождения по вкладкам
- * значило бы заставить его держать числа в голове, переходя между ними,
- * — ровно в тот момент, когда важна точность.
+ * один месяц, и разносить норму, график и расхождения по вкладкам значило
+ * бы заставить его держать числа в голове, переходя между ними, — ровно в
+ * тот момент, когда важна точность.
+ *
+ * --- Почему нет состояний загрузки --------------------------------------
+ *
+ * Считать больше нечего ждать: расчёт идёт здесь же, за доли миллисекунды,
+ * и ошибок сети у него не бывает. Экран, который раньше умел показывать
+ * «Считаем…» и «Сервер недоступен», теперь просто всегда показывает
+ * результат — и это самое заметное следствие переноса расчёта в браузер.
  */
 
 const MONTHS = [
@@ -40,114 +49,70 @@ const MONTHS = [
 
 const ABSENCE_KINDS = Object.keys(ABSENCE_LABELS) as AbsenceKind[];
 
-function monthBounds(year: number, month: number) {
-  const pad = (n: number) => String(n).padStart(2, "0");
-  const nextYear = month === 11 ? year + 1 : year;
-  const nextMonth = month === 11 ? 0 : month + 1;
-  return {
-    periodStart: `${year}-${pad(month + 1)}-01`,
-    periodEnd: `${nextYear}-${pad(nextMonth + 1)}-01`,
-  };
-}
-
-/**
- * Границы учётного периода, разрешённого приказом.
- *
- * Квартал предлагается только работникам (Приказ № 307 п. 7);
- * сотруднику Приказ № 308 п. 2 оставляет полугодие или год. Показывать
- * сотруднику квартал значило бы предлагать период, в котором его
- * переработку считать нельзя, — а именно по итогу учётного периода она
- * и определяется.
- */
-function statutoryBounds(year: number, kind: AccountingPeriodKind, index: number) {
-  const pad = (n: number) => String(n).padStart(2, "0");
-  const months = kind === "quarter" ? 3 : kind === "half_year" ? 6 : 12;
-  const startMonth = index * months;
-  const endMonth = startMonth + months;
-  return {
-    periodStart: `${year}-${pad(startMonth + 1)}-01`,
-    periodEnd:
-      endMonth >= 12 ? `${year + 1}-01-01` : `${year}-${pad(endMonth + 1)}-01`,
-  };
-}
-
 type Selection =
   | { mode: "month"; index: number }
   | { mode: "statutory"; kind: AccountingPeriodKind; index: number };
 
-export function Workspace({ profile }: { profile: Profile }) {
+export interface WorkspaceProps {
+  profile: StoredProfile;
+  onChange: (change: (previous: StoredProfile) => StoredProfile) => void;
+  onForget: () => void;
+}
+
+export function Workspace({ profile, onChange, onForget }: WorkspaceProps) {
+  const periods = accountingPeriodsOf(profile);
+
   // Умолчание — учётный период целиком: именно по его итогу определяется
   // переработка (ст. 104 ТК РФ), и открывать экран на месяце значило бы
   // показывать первым то число, которое ничего не решает.
-  const widest = profile.accountingPeriodKinds.at(-1) ?? "year";
+  const widest = periods.at(-1) ?? "year";
   const [selection, setSelection] = useState<Selection>({
     mode: "statutory",
     kind: widest,
     index: 0,
   });
 
-  const [calculation, setCalculation] = useState<Calculation | null>(null);
-  const [absences, setAbsences] = useState<Absence[]>([]);
-  const [discrepancies, setDiscrepancies] = useState<Discrepancy[] | null>(null);
-  const [error, setError] = useState<ApiError | null>(null);
-  const [busy, setBusy] = useState(false);
-
-  // Границы держатся примитивами, а не объектом: объектный литерал
-  // пересоздаётся на каждый рендер, и хук, зависящий от него, перезапускал
-  // бы запрос бесконечно.
   const { periodStart, periodEnd } =
     selection.mode === "month"
       ? monthBounds(profile.accountingYear, selection.index)
       : statutoryBounds(profile.accountingYear, selection.kind, selection.index);
 
-  const fail = useCallback((cause: unknown) => {
-    setError(
-      cause instanceof ApiError
-        ? cause
-        : new ApiError({
-            type: "about:blank",
-            title: "Сервер недоступен",
-            status: 0,
-            detail: "Не удалось получить данные. Проверьте соединение.",
-          }),
-    );
-  }, []);
+  const calculation = useMemo(
+    () => calculateFor(profile, periodStart, periodEnd),
+    [profile, periodStart, periodEnd],
+  );
 
-  const reload = useCallback(async () => {
-    setBusy(true);
-    setError(null);
-    try {
-      const [next, list] = await Promise.all([
-        getCalculation(profile.id, { periodStart, periodEnd }),
-        listAbsences(profile.id),
-      ]);
-      setCalculation(next);
-      setAbsences(list);
-      // Расхождения относятся к прежнему периоду и после смены периода
-      // лгали бы: сбрасываются вместе с расчётом.
-      setDiscrepancies(null);
-    } catch (cause) {
-      fail(cause);
-    } finally {
-      setBusy(false);
-    }
-  }, [profile.id, periodStart, periodEnd, fail]);
+  // Расхождения относятся к конкретному периоду и к конкретному состоянию
+  // профиля. Держать их в состоянии значило бы показывать вчерашний ответ
+  // рядом с сегодняшним расчётом, поэтому они пересчитываются из тех же
+  // чисел, что человек ввёл, и исчезают, когда исчезает ввод.
+  const [reportedRaw, setReportedRaw] = useState<{
+    norm: string;
+    actual: string;
+    overtime: string;
+  } | null>(null);
 
-  useEffect(() => {
-    void reload();
-  }, [reload]);
+  const discrepancies: Discrepancy[] | null = useMemo(() => {
+    if (reportedRaw === null) return null;
+    return reconcile(calculation, {
+      normHours: parseHours(reportedRaw.norm),
+      actualHours: parseHours(reportedRaw.actual),
+      overtimeHours: parseHours(reportedRaw.overtime),
+    });
+  }, [calculation, reportedRaw]);
 
   return (
     <div className="space-y-10">
-      {error ? <ErrorPanel error={error} /> : null}
-
       <section aria-labelledby="period" className="space-y-4">
-        <h2 id="period" className="font-display text-xs font-bold uppercase tracking-wide text-ink-muted">
+        <h2
+          id="period"
+          className="font-display text-xs font-bold uppercase tracking-wide text-ink-muted"
+        >
           Учётный период
         </h2>
 
         <div className="flex flex-wrap gap-1">
-          {profile.accountingPeriodKinds.flatMap((kind) => {
+          {periods.flatMap((kind) => {
             const count = kind === "quarter" ? 4 : kind === "half_year" ? 2 : 1;
             return Array.from({ length: count }, (_, index) => {
               const active =
@@ -163,7 +128,9 @@ export function Workspace({ profile }: { profile: Profile }) {
                   aria-pressed={active}
                   onClick={() => setSelection({ mode: "statutory", kind, index })}
                 >
-                  {count > 1 ? `${index + 1}-${kind === "quarter" ? "й квартал" : "е полугодие"}` : `${profile.accountingYear} год`}
+                  {count > 1
+                    ? `${index + 1}-${kind === "quarter" ? "й квартал" : "е полугодие"}`
+                    : `${profile.accountingYear} год`}
                 </Button>
               );
             });
@@ -204,64 +171,48 @@ export function Workspace({ profile }: { profile: Profile }) {
         </div>
       </section>
 
-      {calculation ? (
-        <>
-          <section aria-labelledby="summary" className="space-y-4">
-            <h2 id="summary" className="text-xl">
-              Как должно быть
-            </h2>
-            <PeriodSummary calculation={calculation} />
-          </section>
+      <section aria-labelledby="summary" className="space-y-4">
+        <h2 id="summary" className="text-xl">
+          Как должно быть
+        </h2>
+        <PeriodSummary calculation={calculation} accountingYear={profile.accountingYear} />
+      </section>
 
-          <section aria-labelledby="strip" className="space-y-3">
-            <h2 id="strip" className="text-xl">
-              Ваш график
-            </h2>
-            <ShiftStrip calculation={calculation} />
-          </section>
-        </>
-      ) : (
-        <p className="text-sm text-ink-muted">{busy ? "Считаем…" : "Нет данных."}</p>
-      )}
+      <section aria-labelledby="strip" className="space-y-3">
+        <h2 id="strip" className="text-xl">
+          Ваш график
+        </h2>
+        <ShiftStrip calculation={calculation} />
+      </section>
 
-      <YearCalendarEditor profile={profile} onSaved={reload} />
+      <YearCalendarEditor profile={profile} onChange={onChange} />
 
-      <AbsenceSection
-        profile={profile}
-        absences={absences}
-        onChanged={reload}
-        onError={fail}
+      <AbsenceSection profile={profile} onChange={onChange} />
+
+      <ReconcileSection
+        discrepancies={discrepancies}
+        onSubmit={setReportedRaw}
       />
 
-      {calculation ? (
-        <ReconcileSection
-          profile={profile}
-          period={{ periodStart, periodEnd }}
-          discrepancies={discrepancies}
-          onResult={setDiscrepancies}
-          onError={fail}
-        />
-      ) : null}
+      <ProfileFooter profile={profile} onForget={onForget} />
     </div>
   );
 }
 
 function AbsenceSection({
   profile,
-  absences,
-  onChanged,
-  onError,
+  onChange,
 }: {
-  profile: Profile;
-  absences: Absence[];
-  onChanged: () => Promise<void>;
-  onError: (cause: unknown) => void;
+  profile: StoredProfile;
+  onChange: (change: (previous: StoredProfile) => StoredProfile) => void;
 }) {
   const kindId = useId();
   const fromId = useId();
   const toId = useId();
   const [kind, setKind] = useState<AbsenceKind>("annual_leave");
-  const [pending, setPending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const absences = [...profile.absences].sort((a, b) => a.startsOn.localeCompare(b.startsOn));
 
   return (
     <section aria-labelledby="absences" className="space-y-4">
@@ -274,25 +225,49 @@ function AbsenceSection({
         всего и не делают в табеле.
       </p>
 
+      {error ? (
+        <p className="max-w-prose rounded-sm border-l-2 border-signal bg-signal-soft px-4 py-3 text-sm">
+          {error}
+        </p>
+      ) : null}
+
       <form
         className="flex flex-wrap items-start gap-3 rounded-sm border border-rule bg-paper-raised p-4"
-        onSubmit={async (event) => {
+        onSubmit={(event) => {
           event.preventDefault();
-          const form = new FormData(event.currentTarget);
-          setPending(true);
-          try {
-            await addAbsence(profile.id, {
-              kind,
-              startsOn: String(form.get("startsOn") ?? ""),
-              endsOn: String(form.get("endsOn") ?? ""),
-            });
-            (event.target as HTMLFormElement).reset();
-            await onChanged();
-          } catch (cause) {
-            onError(cause);
-          } finally {
-            setPending(false);
+          const form = event.currentTarget;
+          const data = new FormData(form);
+          const startsOn = String(data.get("startsOn") ?? "");
+          const endsOn = String(data.get("endsOn") ?? "");
+
+          if (endsOn < startsOn) {
+            setError("Дата окончания раньше даты начала.");
+            return;
           }
+          // Пересекающиеся отсутствия запрещены: смена, попавшая и в
+          // отпуск, и в больничный, была бы исключена из нормы дважды — то
+          // есть норма уменьшилась бы на 48 часов за одни сутки.
+          const overlap = profile.absences.find(
+            (item) => item.startsOn <= endsOn && startsOn <= item.endsOn,
+          );
+          if (overlap) {
+            setError(
+              `Этот период пересекается с уже внесённым: ` +
+                `${ABSENCE_LABELS[overlap.kind]} ${overlap.startsOn} — ${overlap.endsOn}. ` +
+                `Смена, попавшая в оба, вычлась бы из нормы дважды.`,
+            );
+            return;
+          }
+
+          setError(null);
+          onChange((previous) => ({
+            ...previous,
+            absences: [
+              ...previous.absences,
+              { id: crypto.randomUUID(), kind, startsOn, endsOn },
+            ],
+          }));
+          form.reset();
         }}
       >
         <div className="space-y-1.5">
@@ -321,8 +296,8 @@ function AbsenceSection({
             Как в приказе об отпуске: последний день входит.
           </p>
         </div>
-        <Button type="submit" variant="outline" className="mt-[1.375rem]" disabled={pending}>
-          {pending ? "Добавление…" : "Добавить"}
+        <Button type="submit" variant="outline" className="mt-[1.375rem]">
+          Добавить
         </Button>
       </form>
 
@@ -334,18 +309,18 @@ function AbsenceSection({
               <span className="font-mono">
                 {absence.startsOn} — {absence.endsOn}
               </span>
-              <span className="text-xs text-ink-muted">{absence.basis}</span>
+              <span className="text-xs text-ink-muted">
+                {ABSENCE_KIND_BASIS[absence.kind]}
+              </span>
               <button
                 type="button"
                 className="ml-auto text-xs text-ink-muted underline underline-offset-2 hover:text-signal"
-                onClick={async () => {
-                  try {
-                    await removeAbsence(profile.id, absence.id);
-                    await onChanged();
-                  } catch (cause) {
-                    onError(cause);
-                  }
-                }}
+                onClick={() =>
+                  onChange((previous) => ({
+                    ...previous,
+                    absences: previous.absences.filter((item) => item.id !== absence.id),
+                  }))
+                }
               >
                 Удалить
               </button>
@@ -360,22 +335,15 @@ function AbsenceSection({
 }
 
 function ReconcileSection({
-  profile,
-  period,
   discrepancies,
-  onResult,
-  onError,
+  onSubmit,
 }: {
-  profile: Profile;
-  period: { periodStart: string; periodEnd: string };
   discrepancies: Discrepancy[] | null;
-  onResult: (next: Discrepancy[]) => void;
-  onError: (cause: unknown) => void;
+  onSubmit: (values: { norm: string; actual: string; overtime: string }) => void;
 }) {
   const normId = useId();
   const actualId = useId();
   const overtimeId = useId();
-  const [pending, setPending] = useState(false);
 
   return (
     <section aria-labelledby="reconcile" className="space-y-4">
@@ -389,34 +357,21 @@ function ReconcileSection({
 
       <form
         className="flex flex-wrap items-start gap-3 rounded-sm border border-rule bg-paper-raised p-4"
-        onSubmit={async (event) => {
+        onSubmit={(event) => {
           event.preventDefault();
-          const form = new FormData(event.currentTarget);
-          const num = (name: string) => {
-            const raw = String(form.get(name) ?? "").trim();
-            return raw === "" ? null : Number(raw.replace(",", "."));
-          };
-          setPending(true);
-          try {
-            const result = await reconcile(profile.id, {
-              ...period,
-              normHours: num("normHours"),
-              actualHours: num("actualHours"),
-              overtimeHours: num("overtimeHours"),
-            });
-            onResult(result.discrepancies);
-          } catch (cause) {
-            onError(cause);
-          } finally {
-            setPending(false);
-          }
+          const data = new FormData(event.currentTarget);
+          onSubmit({
+            norm: String(data.get("normHours") ?? ""),
+            actual: String(data.get("actualHours") ?? ""),
+            overtime: String(data.get("overtimeHours") ?? ""),
+          });
         }}
       >
         <Field id={normId} name="normHours" label="Норма" />
         <Field id={actualId} name="actualHours" label="Отработано" />
         <Field id={overtimeId} name="overtimeHours" label="Переработка" />
-        <Button type="submit" className="mt-[1.375rem]" disabled={pending}>
-          {pending ? "Сверяем…" : "Сверить"}
+        <Button type="submit" className="mt-[1.375rem]">
+          Сверить
         </Button>
       </form>
 
@@ -440,11 +395,11 @@ function ReconcileSection({
               >
                 <p className="font-medium">
                   {item.label}: у вас в табеле{" "}
-                  <span className="font-mono">{hours(item.reported)}</span> ч, по
-                  расчёту <span className="font-mono">{hours(item.expected)}</span> ч
+                  <span className="font-mono">{formatHours(item.reported)}</span> ч, по
+                  расчёту <span className="font-mono">{formatHours(item.expected)}</span> ч
                   <span className="ml-2 font-mono text-sm">
-                    ({Number(item.delta) > 0 ? "+" : ""}
-                    {hours(item.delta)} ч)
+                    ({item.delta.greaterThan(0) ? "+" : ""}
+                    {formatHours(item.delta)} ч)
                   </span>
                 </p>
                 <p className="max-w-prose text-sm">{item.explanation}</p>
