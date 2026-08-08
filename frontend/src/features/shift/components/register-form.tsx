@@ -5,6 +5,7 @@ import { useId, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { cn } from "@/lib/utils/cn";
 
 import { createProfile, importProfile, type StoredProfile } from "../storage/profile";
 import {
@@ -278,6 +279,7 @@ export function RegisterForm({ onCreated }: RegisterFormProps) {
 function ImportBlock({ onImported }: { onImported: (profile: StoredProfile) => void }) {
   const fileId = useId();
   const [error, setError] = useState<string | null>(null);
+  const [fileName, setFileName] = useState<string | null>(null);
 
   return (
     <section aria-labelledby="restore" className="space-y-2 border-t border-rule pt-6">
@@ -293,25 +295,42 @@ function ImportBlock({ onImported }: { onImported: (profile: StoredProfile) => v
           {error}
         </p>
       ) : null}
-      <Label htmlFor={fileId} className="sr-only">
-        Файл профиля
-      </Label>
-      <input
-        id={fileId}
-        type="file"
-        accept="application/json,.json"
-        className="block max-w-md text-sm file:mr-3 file:rounded-xs file:border file:border-rule-strong file:bg-paper file:px-3 file:py-1.5 file:text-sm"
-        onChange={async (event) => {
-          const file = event.target.files?.[0];
-          if (!file) return;
-          setError(null);
-          try {
-            onImported(importProfile(await file.text()));
-          } catch (cause) {
-            setError(cause instanceof Error ? cause.message : "Файл не прочитан.");
-          }
-        }}
-      />
+      {/* Нативная кнопка выбора файла подписана браузером — «Choose File»
+          в русском интерфейсе, и поменять эту надпись со страницы нельзя.
+          Поэтому само поле скрыто (но доступно с клавиатуры и программе
+          чтения), а роль кнопки играет подпись к нему. */}
+      <div className="flex flex-wrap items-center gap-3">
+        <Label
+          htmlFor={fileId}
+          className={cn(
+            "inline-flex h-9 cursor-pointer items-center rounded-xs border border-rule-strong",
+            "bg-paper px-3 text-sm font-normal",
+            "hover:border-ink focus-within:outline-2 focus-within:outline-offset-1 focus-within:outline-trace",
+          )}
+        >
+          Выбрать файл профиля
+        </Label>
+        <input
+          id={fileId}
+          type="file"
+          accept="application/json,.json"
+          className="sr-only"
+          onChange={async (event) => {
+            const file = event.target.files?.[0];
+            if (!file) return;
+            setFileName(file.name);
+            setError(null);
+            try {
+              onImported(importProfile(await file.text()));
+            } catch (cause) {
+              setError(cause instanceof Error ? cause.message : "Файл не прочитан.");
+            }
+          }}
+        />
+        <span className="text-sm text-ink-muted" aria-live="polite">
+          {fileName ?? "Файл не выбран"}
+        </span>
+      </div>
     </section>
   );
 }

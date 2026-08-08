@@ -3,11 +3,13 @@
 import { useId, useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import { DateField } from "@/components/ui/date-field";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils/cn";
 
 import { formatHours, parseHours } from "../domain/decimal";
+import { formatDateRu, formatPeriodRu } from "../domain/format";
 import { reconcile, type Discrepancy } from "../domain/reconciliation";
 import {
   accountingPeriodsOf,
@@ -173,7 +175,13 @@ export function Workspace({ profile, onChange, onForget }: WorkspaceProps) {
 
       <section aria-labelledby="summary" className="space-y-4">
         <h2 id="summary" className="text-xl">
-          Как должно быть
+          Как должно быть{" "}
+          {/* Период назван словами рядом с числами. Кнопка «1-е полугодие»
+              выше уже нажата, но в споре важно, какие именно даты стоят за
+              нормой, а не как называется период. */}
+          <span className="text-ink-muted">
+            за {formatPeriodRu(periodStart, periodEnd)}
+          </span>
         </h2>
         <PeriodSummary calculation={calculation} accountingYear={profile.accountingYear} />
       </section>
@@ -207,8 +215,6 @@ function AbsenceSection({
   onChange: (change: (previous: StoredProfile) => StoredProfile) => void;
 }) {
   const kindId = useId();
-  const fromId = useId();
-  const toId = useId();
   const [kind, setKind] = useState<AbsenceKind>("annual_leave");
   const [error, setError] = useState<string | null>(null);
 
@@ -253,7 +259,8 @@ function AbsenceSection({
           if (overlap) {
             setError(
               `Этот период пересекается с уже внесённым: ` +
-                `${ABSENCE_LABELS[overlap.kind]} ${overlap.startsOn} — ${overlap.endsOn}. ` +
+                `${ABSENCE_LABELS[overlap.kind]} ` +
+                `${formatDateRu(overlap.startsOn)} — ${formatDateRu(overlap.endsOn)}. ` +
                 `Смена, попавшая в оба, вычлась бы из нормы дважды.`,
             );
             return;
@@ -285,17 +292,13 @@ function AbsenceSection({
             ))}
           </select>
         </div>
-        <div className="space-y-1.5">
-          <Label htmlFor={fromId}>С</Label>
-          <Input id={fromId} name="startsOn" type="date" required className="w-44" />
-        </div>
-        <div className="space-y-1.5">
-          <Label htmlFor={toId}>По включительно</Label>
-          <Input id={toId} name="endsOn" type="date" required className="w-44" />
-          <p className="max-w-44 text-xs text-ink-muted">
-            Как в приказе об отпуске: последний день входит.
-          </p>
-        </div>
+        <DateField label="С" name="startsOn" required />
+        <DateField
+          label="По включительно"
+          name="endsOn"
+          required
+          hint="Как в приказе об отпуске: последний день входит."
+        />
         <Button type="submit" variant="outline" className="mt-[1.375rem]">
           Добавить
         </Button>
@@ -307,7 +310,7 @@ function AbsenceSection({
             <li key={absence.id} className="flex flex-wrap items-baseline gap-x-4 py-2 text-sm">
               <span className="font-medium">{ABSENCE_LABELS[absence.kind]}</span>
               <span className="font-mono">
-                {absence.startsOn} — {absence.endsOn}
+                {formatDateRu(absence.startsOn)} — {formatDateRu(absence.endsOn)}
               </span>
               <span className="text-xs text-ink-muted">
                 {ABSENCE_KIND_BASIS[absence.kind]}

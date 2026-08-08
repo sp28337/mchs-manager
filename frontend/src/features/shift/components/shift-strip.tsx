@@ -1,14 +1,18 @@
 import { cn } from "@/lib/utils/cn";
 
-import { ZERO, formatHours as hours, type Decimal } from "../domain/decimal";
 import type { PeriodCalculation, ShiftRecord } from "../domain/calculation";
+import { ZERO, formatHours as hours, type Decimal } from "../domain/decimal";
+import {
+  datesInRange,
+  dayOfMonth,
+  monthIndex,
+  weekday,
+  year as yearOf,
+  type IsoDate,
+} from "../domain/plain-date";
 import { ABSENCE_LABELS } from "../schemas";
-
-const WEEKDAYS = ["пн", "вт", "ср", "чт", "пт", "сб", "вс"];
-const MONTH_NAMES = [
-  "Январь", "Февраль", "Март", "Апрель", "Май", "Июнь",
-  "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь",
-];
+import { MONTH_NAMES } from "./month-names";
+import { MonthGrid, WEEKDAY_LABELS } from "./month-grid";
 
 /**
  * График смен: месяц — блок, неделя — строка.
@@ -22,83 +26,75 @@ const MONTH_NAMES = [
  *
  * --- Почему ровно семь дней в строке ------------------------------------
  *
- * Дни выровнены по дням недели, как в настенном календаре: строка — это
- * неделя, столбец — один и тот же день недели. При графике «сутки через
- * трое» цикл четырёхдневный, а неделя семидневная, поэтому смены идут по
- * столбцам наискось — и сбой в графике виден как разрыв этой диагонали,
- * без пересчёта дат.
- *
- * Лента произвольной ширины такого не даёт: в ней порядковый номер дня
- * ничего не значит, и найти в ней конкретное число можно только счётом.
+ * Дни выровнены по дням недели, как в настенном календаре. При графике
+ * «сутки через трое» цикл четырёхдневный, а неделя семидневная, поэтому
+ * смены идут по столбцам наискось — и сбой в графике виден как разрыв
+ * этой диагонали, без пересчёта дат.
  *
  * --- Почему месяцы в колонках -------------------------------------------
  *
  * Учётный период — полугодие или год (Приказ № 308 п. 2, № 307 п. 7), то
  * есть шесть-двенадцать блоков. В одну колонку они дают полосу в
- * несколько экранов, где соседние месяцы невозможно сравнить глазом. От
- * одной до трёх колонок по ширине окна: узкий экран получает читаемый
- * столбец, широкий — год, видимый целиком.
+ * несколько экранов, где соседние месяцы невозможно сравнить глазом.
  */
 
 interface MonthGroup {
   year: number;
   month: number;
-  days: Date[];
-  /** Пустых клеток перед первым днём — чтобы столбцы совпали с днями недели. */
-  offset: number;
+  days: IsoDate[];
   shifts: number;
   workedHours: Decimal;
   absentShifts: number;
 }
 
 export function ShiftStrip({ calculation }: { calculation: PeriodCalculation }) {
-  const start = new Date(`${calculation.periodStart}T00:00:00Z`);
-  const end = new Date(`${calculation.periodEnd}T00:00:00Z`);
-
   const byDay = new Map(calculation.shifts.map((shift) => [shift.startedOn, shift]));
 
   const groups: MonthGroup[] = [];
-  const cursor = new Date(start);
-  while (cursor < end) {
-    const year = cursor.getUTCFullYear();
-    const month = cursor.getUTCMonth();
+  for (const day of datesInRange(calculation.periodStart, calculation.periodEnd)) {
+    const year = yearOf(day);
+    const month = monthIndex(day);
     let group = groups.at(-1);
     if (!group || group.year !== year || group.month !== month) {
-      group = {
-        year,
-        month,
-        days: [],
-        offset: (cursor.getUTCDay() + 6) % 7,
-        shifts: 0,
-        workedHours: ZERO,
-        absentShifts: 0,
-      };
+      group = { year, month, days: [], shifts: 0, workedHours: ZERO, absentShifts: 0 };
       groups.push(group);
     }
 
-    const iso = cursor.toISOString().slice(0, 10);
-    group.days.push(new Date(cursor));
-
-    const shift = byDay.get(iso);
+    group.days.push(day);
+    const shift = byDay.get(day);
     if (shift) {
       group.shifts += 1;
       if (shift.absenceKind) group.absentShifts += 1;
       else group.workedHours = group.workedHours.plus(shift.hours);
     }
-    cursor.setUTCDate(cursor.getUTCDate() + 1);
   }
 
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-1 gap-x-6 gap-y-5 sm:grid-cols-2 lg:grid-cols-3">
         {groups.map((group, index) => (
-          <MonthBlock
+          <MonthGrid
             key={`${group.year}-${group.month}`}
-            group={group}
-            byDay={byDay}
-            // Год подписывается только там, где он меняется: повторять его
-            // у каждого месяца — шум, а не сведения.
-            showYear={index === 0 || group.year !== groups[index - 1]?.year}
+            title={
+              <>
+                {MONTH_NAMES[group.month]}
+                {/* Год подписывается только там, где он меняется:
+                    повторять его у каждого месяца — шум. */}
+                {index === 0 || group.year !== groups[index - 1]?.year ? (
+                  <span className="text-ink-muted"> {group.year}</span>
+                ) : null}
+              </>
+            }
+            meta={
+              <>
+                {group.shifts} см · {hours(group.workedHours)} ч
+                {group.absentShifts > 0 ? (
+                  <span className="text-signal"> · −{group.absentShifts}</span>
+                ) : null}
+              </>
+            }
+            days={group.days}
+            renderDay={(day) => <ShiftCell day={day} shift={byDay.get(day)} />}
           />
         ))}
       </div>
@@ -115,84 +111,38 @@ export function ShiftStrip({ calculation }: { calculation: PeriodCalculation }) 
   );
 }
 
-function MonthBlock({
-  group,
-  byDay,
-  showYear,
-}: {
-  group: MonthGroup;
-  byDay: Map<string, ShiftRecord>;
-  showYear: boolean;
-}) {
+function ShiftCell({ day, shift }: { day: IsoDate; shift: ShiftRecord | undefined }) {
+  const date = dayOfMonth(day);
+  const month = (MONTH_NAMES[monthIndex(day)] ?? "").toLowerCase();
+  const weekdayName = WEEKDAY_LABELS[weekday(day)] ?? "";
+
+  // День недели ушёл из клетки в шапку столбца, и без подписи незрячий
+  // читатель получил бы голое число: календарная сетка передаёт день
+  // недели положением, а положение он не видит.
+  const label = shift
+    ? shift.absenceKind
+      ? `${date} ${month}, ${weekdayName} — смена по графику, ${ABSENCE_LABELS[shift.absenceKind]}`
+      : `${date} ${month}, ${weekdayName} — смена, ${hours(shift.hours)} ч`
+    : `${date} ${month}, ${weekdayName} — выходной`;
+
   return (
-    <section className="space-y-1.5">
-      <div className="flex flex-wrap items-baseline justify-between gap-x-3 border-b border-rule pb-1">
-        <h3 className="font-display text-sm font-bold uppercase tracking-wide">
-          {MONTH_NAMES[group.month]}
-          {showYear ? <span className="text-ink-muted"> {group.year}</span> : null}
-        </h3>
-        <p className="font-mono text-[11px] text-ink-muted">
-          {group.shifts} см · {hours(group.workedHours)} ч
-          {group.absentShifts > 0 ? (
-            <span className="text-signal"> · −{group.absentShifts}</span>
-          ) : null}
-        </p>
-      </div>
-
-      <div className="grid grid-cols-7 gap-px">
-        {WEEKDAYS.map((name) => (
-          <div
-            key={name}
-            aria-hidden
-            className="pb-0.5 text-center text-[10px] uppercase text-ink-faint"
-          >
-            {name}
-          </div>
-        ))}
-
-        {Array.from({ length: group.offset }, (_, index) => (
-          <div key={`pad-${index}`} aria-hidden />
-        ))}
-
-        {group.days.map((day) => {
-          const iso = day.toISOString().slice(0, 10);
-          const shift = byDay.get(iso);
-          const date = day.getUTCDate();
-          const month = (MONTH_NAMES[group.month] ?? "").toLowerCase();
-          const weekday = WEEKDAYS[(day.getUTCDay() + 6) % 7] ?? "";
-
-          // День недели ушёл из клетки в шапку столбца, и без подписи
-          // незрячий читатель получил бы голое число: календарная сетка
-          // передаёт день недели положением, а положение он не видит.
-          const label = shift
-            ? shift.absenceKind
-              ? `${date} ${month}, ${weekday} — смена по графику, ${ABSENCE_LABELS[shift.absenceKind]}`
-              : `${date} ${month}, ${weekday} — смена, ${hours(shift.hours)} ч`
-            : `${date} ${month}, ${weekday} — выходной`;
-
-          return (
-            <div
-              key={iso}
-              title={label}
-              className={cn(
-                "flex min-w-0 flex-col items-center rounded-xs border py-0.5 leading-tight",
-                !shift && "border-rule text-ink-faint",
-                shift && !shift.absenceKind && "border-verify bg-verify-soft text-verify",
-                shift?.absenceKind && "border-dashed border-signal bg-signal-soft text-signal",
-              )}
-            >
-              <span className="sr-only">{label}</span>
-              <span aria-hidden className="font-mono text-xs">
-                {date}
-              </span>
-              <span aria-hidden className="font-mono text-[9px]">
-                {shift ? (shift.absenceKind ? "—" : hours(shift.hours).split(",")[0]) : "·"}
-              </span>
-            </div>
-          );
-        })}
-      </div>
-    </section>
+    <div
+      title={label}
+      className={cn(
+        "flex min-w-0 flex-col items-center rounded-xs border py-0.5 leading-tight",
+        !shift && "border-rule text-ink-faint",
+        shift && !shift.absenceKind && "border-verify bg-verify-soft text-verify",
+        shift?.absenceKind && "border-dashed border-signal bg-signal-soft text-signal",
+      )}
+    >
+      <span className="sr-only">{label}</span>
+      <span aria-hidden className="font-mono text-xs">
+        {date}
+      </span>
+      <span aria-hidden className="font-mono text-[9px]">
+        {shift ? (shift.absenceKind ? "—" : hours(shift.hours).split(",")[0]) : "·"}
+      </span>
+    </div>
   );
 }
 

@@ -36,7 +36,9 @@ export default function HomePage() {
   if (state.status === "ok") {
     const { profile } = state;
     return (
-      <main className="mx-auto max-w-4xl space-y-10 px-6 py-12">
+      /* Шире на больших экранах: календарь года — двенадцать месячных
+         сеток, и на 4xl они жались в три узких столбца с переносом. */
+      <main className="mx-auto w-full max-w-4xl space-y-10 px-6 pb-12 pt-6 xl:max-w-6xl 2xl:max-w-7xl">
         <header className="space-y-1">
           <p className="font-mono text-xs uppercase tracking-widest text-ink-faint">
             {profile.accountingYear} год · {profile.guardNumber}-й караул · первая
@@ -51,7 +53,7 @@ export default function HomePage() {
   }
 
   return (
-    <main className="mx-auto max-w-3xl space-y-10 px-6 py-12">
+    <main className="mx-auto w-full max-w-3xl space-y-10 px-6 pb-12 pt-6">
       <header className="space-y-3">
         <p className="font-mono text-xs uppercase tracking-widest text-ink-faint">
           Суммированный учёт служебного времени

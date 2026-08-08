@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { IBM_Plex_Mono, IBM_Plex_Sans, PT_Sans_Narrow } from "next/font/google";
 
+import { ThemeToggle } from "@/components/ui/theme-toggle";
+
 import { Providers } from "./providers";
 import "./globals.css";
 
@@ -43,7 +45,16 @@ export default function RootLayout({
       suppressHydrationWarning
     >
       <body className="min-h-dvh bg-paper text-ink">
-        <Providers>{children}</Providers>
+        <Providers>
+          {/* Переключатель темы стоит вне страницы, потому что относится
+              не к расчёту, а к окну. Он же — единственное, что закреплено
+              наверху: панель с чем-то ещё отнимала бы высоту у календаря
+              на весь год. */}
+          <div className="flex justify-end px-6 pt-4">
+            <ThemeToggle />
+          </div>
+          {children}
+        </Providers>
       </body>
     </html>
   );
