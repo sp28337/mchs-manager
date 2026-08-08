@@ -1,6 +1,6 @@
 import { cn } from "@/lib/utils/cn";
 
-import type { PeriodCalculation, ShiftRecord } from "../domain/calculation";
+import type { DayRecord, PeriodCalculation } from "../domain/calculation";
 import { ZERO, formatHours as hours, type Decimal } from "../domain/decimal";
 import {
   datesInRange,
@@ -17,12 +17,17 @@ import { MonthGrid, WEEKDAY_LABELS } from "./month-grid";
 /**
  * График смен: месяц — блок, неделя — строка.
  *
- * --- Почему по месяцам --------------------------------------------------
+ * --- Почему счёт идёт по СУТКАМ, а не по сменам --------------------------
  *
- * Табель выдают помесячно и сверяют помесячно. У каждого месяца свой итог
- * — смен, отработанных часов, пропущенных, — и это ровно те числа, что
- * человек сличает с выданным листом. Считать их в уме, глядя на сплошную
- * ленту, — лишняя работа там, где нужна точность.
+ * Смена длится сутки с развода, поэтому лежит в двух календарных днях. При
+ * разводе в 08:30 смена, заступившая 31 марта, отдаёт марту 15,5 часа, а
+ * 8,5 — апрелю, и ночных в марте у неё два часа, а не шесть.
+ *
+ * Раньше блок брал часы смены целиком и приписывал их месяцу ЗАСТУПЛЕНИЯ.
+ * На периоде в полгода это давало марту все 24 часа: месячная сумма
+ * оказывалась завышена, апрельская — занижена, и обе расходились с
+ * табелем. Поэтому итог месяца — сумма его СУТОК, и она в точности равна
+ * сумме чисел, видимых в клетках.
  *
  * --- Почему ровно семь дней в строке ------------------------------------
  *
@@ -42,13 +47,17 @@ interface MonthGroup {
   year: number;
   month: number;
   days: IsoDate[];
-  shifts: number;
+  /** Заступлений в этом месяце. */
+  starts: number;
+  /** Отработанные часы, пришедшиеся на СУТКИ этого месяца. */
   workedHours: Decimal;
-  absentShifts: number;
+  nightHours: Decimal;
+  /** Пропущенных по уважительной причине заступлений. */
+  absentStarts: number;
 }
 
 export function ShiftStrip({ calculation }: { calculation: PeriodCalculation }) {
-  const byDay = new Map(calculation.shifts.map((shift) => [shift.startedOn, shift]));
+  const byDay = new Map(calculation.days.map((record) => [record.day, record]));
 
   const groups: MonthGroup[] = [];
   for (const day of datesInRange(calculation.periodStart, calculation.periodEnd)) {
@@ -56,16 +65,29 @@ export function ShiftStrip({ calculation }: { calculation: PeriodCalculation }) 
     const month = monthIndex(day);
     let group = groups.at(-1);
     if (!group || group.year !== year || group.month !== month) {
-      group = { year, month, days: [], shifts: 0, workedHours: ZERO, absentShifts: 0 };
+      group = {
+        year,
+        month,
+        days: [],
+        starts: 0,
+        workedHours: ZERO,
+        nightHours: ZERO,
+        absentStarts: 0,
+      };
       groups.push(group);
     }
 
     group.days.push(day);
-    const shift = byDay.get(day);
-    if (shift) {
-      group.shifts += 1;
-      if (shift.absenceKind) group.absentShifts += 1;
-      else group.workedHours = group.workedHours.plus(shift.hours);
+
+    const record = byDay.get(day);
+    if (!record) continue;
+    if (record.isShiftStart) {
+      group.starts += 1;
+      if (record.absenceKind) group.absentStarts += 1;
+    }
+    if (!record.absenceKind) {
+      group.workedHours = group.workedHours.plus(record.hours);
+      group.nightHours = group.nightHours.plus(record.nightHours);
     }
   }
 
@@ -87,31 +109,44 @@ export function ShiftStrip({ calculation }: { calculation: PeriodCalculation }) 
             }
             meta={
               <>
-                {group.shifts} см · {hours(group.workedHours)} ч
-                {group.absentShifts > 0 ? (
-                  <span className="text-signal"> · −{group.absentShifts}</span>
+                {group.starts} см · {hours(group.workedHours)} ч
+                {/* Раньше здесь стояло «· −8», и человек справедливо
+                    прочитал это как «минус 8 часов». Число пропущенных
+                    смен обязано быть подписано словом: приложение
+                    существует ровно для того, чтобы часы не отнимались
+                    молча, и двусмысленность в его собственном итоге —
+                    последнее, что тут допустимо. */}
+                {group.absentStarts > 0 ? (
+                  <span className="text-signal"> · пропущено {group.absentStarts}</span>
+                ) : null}
+                {group.nightHours.greaterThan(0) ? (
+                  <span className="text-ink-faint"> · ноч. {hours(group.nightHours)}</span>
                 ) : null}
               </>
             }
             days={group.days}
-            renderDay={(day) => <ShiftCell day={day} shift={byDay.get(day)} />}
+            renderDay={(day) => <DayCell day={day} record={byDay.get(day)} />}
           />
         ))}
       </div>
 
       <dl className="flex flex-wrap gap-x-6 gap-y-1 text-xs">
-        <Legend className="border-verify bg-verify-soft text-verify" label="Отработанная смена" />
+        <Legend className="border-verify bg-verify-soft text-verify" label="Заступление на смену" />
+        <Legend
+          className="border-verify/50 bg-verify-soft/50 text-verify"
+          label="Продолжение смены, заступившей накануне"
+        />
         <Legend
           className="border-dashed border-signal bg-signal-soft text-signal"
           label="Смена по графику, пропущенная по уважительной причине"
         />
-        <Legend className="border-rule text-ink-faint" label="Выходной" />
+        <Legend className="border-rule text-ink-faint" label="Свободные сутки" />
       </dl>
     </div>
   );
 }
 
-function ShiftCell({ day, shift }: { day: IsoDate; shift: ShiftRecord | undefined }) {
+function DayCell({ day, record }: { day: IsoDate; record: DayRecord | undefined }) {
   const date = dayOfMonth(day);
   const month = (MONTH_NAMES[monthIndex(day)] ?? "").toLowerCase();
   const weekdayName = WEEKDAY_LABELS[weekday(day)] ?? "";
@@ -119,25 +154,33 @@ function ShiftCell({ day, shift }: { day: IsoDate; shift: ShiftRecord | undefine
   // День недели ушёл из клетки в шапку столбца, и без подписи незрячий
   // читатель получил бы голое число: календарная сетка передаёт день
   // недели положением, а положение он не видит.
-  const label = shift
-    ? shift.absenceKind
-      ? `${date} ${month}, ${weekdayName} — смена по графику, ${ABSENCE_LABELS[shift.absenceKind]}`
-      : `${date} ${month}, ${weekdayName} — смена, ${hours(shift.hours)} ч`
-    : `${date} ${month}, ${weekdayName} — выходной`;
+  //
+  // Подпись называет и то, чего в клетке не видно: сколько из этих часов
+  // ночные. Именно они чаще всего расходятся с табелем.
+  const label = !record
+    ? `${date} ${month}, ${weekdayName} — свободные сутки`
+    : record.absenceKind
+      ? `${date} ${month}, ${weekdayName} — ${record.isShiftStart ? "смена по графику" : "продолжение смены"}, ${ABSENCE_LABELS[record.absenceKind]}`
+      : `${date} ${month}, ${weekdayName} — ${
+          record.isShiftStart ? "заступление" : "продолжение смены"
+        }, ${hours(record.hours)} ч` +
+        (record.nightHours.greaterThan(0) ? `, из них ночных ${hours(record.nightHours)}` : "");
+
+  const worked = record !== undefined && record.absenceKind === null;
 
   return (
     <div
       title={label}
       className={cn(
-        // Квадрат на больших экранах: клетка по высоте содержимого делает
-        // из недели приплюснутую полосу, не похожую ни на настенный
-        // календарь, ни на табель. На узких экранах квадрат, наоборот,
-        // растянул бы месяц на два экрана.
         "flex min-w-0 flex-col items-center justify-center rounded-xs border py-0.5 leading-tight",
         "lg:aspect-square lg:py-0",
-        !shift && "border-rule text-ink-faint",
-        shift && !shift.absenceKind && "border-verify bg-verify-soft text-verify",
-        shift?.absenceKind && "border-dashed border-signal bg-signal-soft text-signal",
+        !record && "border-rule text-ink-faint",
+        // Хвост смены отличается от заступления бледностью, а не другим
+        // цветом: это те же отработанные часы, и разный цвет читался бы как
+        // разный род времени.
+        worked && record.isShiftStart && "border-verify bg-verify-soft text-verify",
+        worked && !record.isShiftStart && "border-verify/50 bg-verify-soft/50 text-verify",
+        record?.absenceKind && "border-dashed border-signal bg-signal-soft text-signal",
       )}
     >
       <span className="sr-only">{label}</span>
@@ -145,7 +188,7 @@ function ShiftCell({ day, shift }: { day: IsoDate; shift: ShiftRecord | undefine
         {date}
       </span>
       <span aria-hidden className="font-mono text-[9px]">
-        {shift ? (shift.absenceKind ? "—" : hours(shift.hours).split(",")[0]) : "·"}
+        {!record ? "·" : record.absenceKind ? "—" : hours(record.hours).replace(",00", "")}
       </span>
     </div>
   );

@@ -43,9 +43,12 @@
 import { Dec, ZERO, atLeastZero, type Decimal } from "./decimal";
 import { addDays, type IsoDate } from "./plain-date";
 import {
-  NIGHT_HOURS_PER_SHIFT,
-  SHIFT_DURATION_HOURS,
-  SHIFT_START_HOUR,
+  DEFAULT_SHIFT_START,
+  minutesToHours,
+  shiftStartMinute,
+  splitShift,
+} from "./shift-hours";
+import {
   shiftDates,
   type AbsenceKind,
   type GuardCycle,
@@ -92,12 +95,30 @@ export function absenceCovers(absence: AbsencePeriod, day: IsoDate): boolean {
   return absence.start <= day && day <= absence.endInclusive;
 }
 
-/** Одна смена в расчёте. */
+/** Одна смена в расчёте. Часы — только те, что попали в период. */
 export interface ShiftRecord {
   readonly startedOn: IsoDate;
   readonly hours: Decimal;
   readonly nightHours: Decimal;
   readonly holidayHours: Decimal;
+  readonly absenceKind: AbsenceKind | null;
+}
+
+/**
+ * Часы, пришедшиеся на одни календарные сутки.
+ *
+ * Смена лежит в двух днях, и месячный итог обязан считаться по СУТКАМ, а
+ * не по дате заступления: иначе смене, заступившей 31 марта, март получал
+ * бы все 24 часа, хотя 8,5 из них отработаны 1 апреля. У человека при
+ * таком счёте расходится с табелем и месячная сумма, и число ночных.
+ */
+export interface DayRecord {
+  readonly day: IsoDate;
+  readonly hours: Decimal;
+  readonly nightHours: Decimal;
+  readonly holidayHours: Decimal;
+  /** Заступление в этих сутках, а не продолжение смены с прошлых. */
+  readonly isShiftStart: boolean;
   readonly absenceKind: AbsenceKind | null;
 }
 
@@ -129,6 +150,14 @@ export interface PeriodCalculation {
   readonly absentShifts: number;
 
   readonly shifts: readonly ShiftRecord[];
+
+  /**
+   * Те же часы, но разложенные по календарным суткам периода.
+   *
+   * Из этого строится график: месячный итог — сумма суток месяца, и он
+   * сходится с тем, что видно в клетках.
+   */
+  readonly days: readonly DayRecord[];
 
   /** Переработка. Ноль, если её нет, — отрицательной переработки не бывает. */
   readonly overtimeHours: Decimal;
@@ -164,34 +193,6 @@ export function baseNormHours(weekly: WeeklyNorm, calendar: CalendarFacts): Deci
     .minus(PRE_HOLIDAY_REDUCTION_HOURS.times(calendar.preHolidayDays));
 }
 
-/**
- * Часы смены, попадающие в полуинтервал `[periodStart, periodEnd)`.
- *
- * Смена начинается в 08:00 и идёт сутки, поэтому 16 её часов лежат в
- * сутках заступления, а 8 — в следующих. На границе месяца это
- * существенно: смена, заступившая 31 марта, даёт марту 16 часов, а апрелю
- * 8. Списывать все 24 на день заступления удобно, но неверно — и
- * расхождение с табелем работодателя возникло бы на ровном месте.
- */
-function hoursInPeriod(
-  startedOn: IsoDate,
-  periodStart: IsoDate,
-  periodEnd: IsoDate,
-): Decimal {
-  const firstDayHours = new Dec(24 - SHIFT_START_HOUR); // 08:00 -> 24:00
-  const secondDayHours = SHIFT_DURATION_HOURS.minus(firstDayHours); // 00:00 -> 08:00
-
-  let total = ZERO;
-  if (periodStart <= startedOn && startedOn < periodEnd) {
-    total = total.plus(firstDayHours);
-  }
-  const nextDay = addDays(startedOn, 1);
-  if (periodStart <= nextDay && nextDay < periodEnd) {
-    total = total.plus(secondDayHours);
-  }
-  return total;
-}
-
 export interface CalculatePeriodInput {
   periodStart: IsoDate;
   periodEnd: IsoDate;
@@ -200,6 +201,13 @@ export interface CalculatePeriodInput {
   calendar: CalendarFacts;
   absences: readonly AbsencePeriod[];
   holidayDays: ReadonlySet<IsoDate>;
+  /**
+   * Время развода караула, «ЧЧ:ММ». По умолчанию 08:30.
+   *
+   * От него зависит, как смена делится между сутками, а значит — месячные
+   * итоги и число ночных на стыке месяцев.
+   */
+  shiftStartTime?: string;
 }
 
 /**
@@ -218,17 +226,21 @@ export function calculatePeriod({
   calendar,
   absences,
   holidayDays,
+  shiftStartTime = DEFAULT_SHIFT_START,
 }: CalculatePeriodInput): PeriodCalculation {
+  const startMinute = shiftStartMinute(shiftStartTime);
+
   const shifts: ShiftRecord[] = [];
+  const days: DayRecord[] = [];
   let excluded = ZERO;
   let actual = ZERO;
   let nightTotal = ZERO;
   let holidayTotal = ZERO;
 
   // Просмотр начинается на СУТКИ РАНЬШЕ периода: смена, заступившая
-  // накануне, отдаёт периоду свои последние 8 часов (с 00:00 до 08:00).
-  // Начинать ровно с `periodStart` значило бы терять их у каждого месяца,
-  // чей первый день — второй день чужой смены.
+  // накануне, отдаёт периоду свой хвост (с полуночи до развода). Начинать
+  // ровно с `periodStart` значило бы терять его у каждого месяца, чей
+  // первый день — вторые сутки чужой смены.
   //
   // Но не раньше первой смены года: цикл объявлен человеком на год, и
   // достраивать его в прошлый год значило бы выдумать смену, которой в
@@ -237,42 +249,61 @@ export function calculatePeriod({
   const scanFrom = dayBefore > cycle.firstShiftDate ? dayBefore : cycle.firstShiftDate;
 
   for (const startedOn of shiftDates(cycle, scanFrom, periodEnd)) {
-    const hours = hoursInPeriod(startedOn, periodStart, periodEnd);
-    if (hours.isZero()) continue;
-
+    // Отсутствие определяется по дате ЗАСТУПЛЕНИЯ, а не по каждым суткам:
+    // в отпуск человека отпускают со смены, и смена, начавшаяся до
+    // отпуска, дорабатывается целиком.
     const absence = absences.find((item) => absenceCovers(item, startedOn));
+    const kind = absence ? absence.kind : null;
 
-    // Ночные и праздничные часы считаются пропорционально той части
-    // смены, что попала в период: иначе смена на стыке месяцев дала бы 8
-    // ночных часов дважды.
-    const share = hours.dividedBy(SHIFT_DURATION_HOURS);
-    const night = NIGHT_HOURS_PER_SHIFT.times(share);
+    const inPeriod = splitShift(startedOn, startMinute).filter(
+      (part) => periodStart <= part.day && part.day < periodEnd,
+    );
+    if (inPeriod.length === 0) continue;
 
-    const nextDay = addDays(startedOn, 1);
-    let holiday = ZERO;
-    if (holidayDays.has(startedOn)) {
-      holiday = holiday.plus(24 - SHIFT_START_HOUR);
-    }
-    if (holidayDays.has(nextDay)) {
-      holiday = holiday.plus(SHIFT_DURATION_HOURS.minus(24 - SHIFT_START_HOUR));
+    let shiftHours = ZERO;
+    let shiftNight = ZERO;
+    let shiftHoliday = ZERO;
+
+    for (const part of inPeriod) {
+      const hours = minutesToHours(part.minutes);
+      const night = minutesToHours(part.nightMinutes);
+      // Праздничные — по тому, праздничны ли САМИ эти сутки (ст. 112 ТК
+      // РФ). Смена, заступившая 8 марта и кончившаяся 9-го, даёт
+      // праздничными только свою первую часть.
+      const holiday = holidayDays.has(part.day) ? hours : ZERO;
+
+      days.push({
+        day: part.day,
+        hours,
+        nightHours: night,
+        holidayHours: holiday,
+        isShiftStart: part.isStart,
+        absenceKind: kind,
+      });
+
+      shiftHours = shiftHours.plus(hours);
+      shiftNight = shiftNight.plus(night);
+      shiftHoliday = shiftHoliday.plus(holiday);
     }
 
     shifts.push({
       startedOn,
-      hours,
-      nightHours: night,
-      holidayHours: holiday,
-      absenceKind: absence ? absence.kind : null,
+      hours: shiftHours,
+      nightHours: shiftNight,
+      holidayHours: shiftHoliday,
+      absenceKind: kind,
     });
 
-    if (absence === undefined) {
-      actual = actual.plus(hours);
-      nightTotal = nightTotal.plus(night);
-      holidayTotal = holidayTotal.plus(holiday);
+    if (kind === null) {
+      actual = actual.plus(shiftHours);
+      nightTotal = nightTotal.plus(shiftNight);
+      holidayTotal = holidayTotal.plus(shiftHoliday);
     } else {
-      excluded = excluded.plus(hours);
+      excluded = excluded.plus(shiftHours);
     }
   }
+
+  days.sort((left, right) => left.day.localeCompare(right.day));
 
   const base = baseNormHours(weekly, calendar);
   // Норма не уходит в минус: длительное отсутствие может перекрыть период
@@ -297,6 +328,7 @@ export function calculatePeriod({
     workedShifts: worked,
     absentShifts: shifts.length - worked,
     shifts,
+    days,
     overtimeHours: atLeastZero(actual.minus(norm)),
     undertimeHours: atLeastZero(norm.minus(actual)),
     wrongNormUndertimeHours: atLeastZero(base.minus(actual)),

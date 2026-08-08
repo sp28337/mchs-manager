@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils/cn";
 
+import { DEFAULT_SHIFT_START, parseTimeOfDay } from "../domain/shift-hours";
 import { createProfile, importProfile, type StoredProfile } from "../storage/profile";
 import {
   CONDITIONS_LABELS,
@@ -67,10 +68,12 @@ export function RegisterForm({ onCreated }: RegisterFormProps) {
   const [disability, setDisability] = useState(false);
   const [guard, setGuard] = useState(1);
   const [firstShiftDay, setFirstShiftDay] = useState(1);
+  const [startTime, setStartTime] = useState(DEFAULT_SHIFT_START);
   const [error, setError] = useState<string | null>(null);
 
   const nameId = useId();
   const yearId = useId();
+  const startId = useId();
 
   // Северное сокращение спрашивается только у женщин: оба приказа
   // (№ 308 п. 1 и № 307 п. 4) говорят именно о них. Задать вопрос
@@ -87,6 +90,11 @@ export function RegisterForm({ onCreated }: RegisterFormProps) {
     const form = new FormData(event.currentTarget);
     const year = Number(form.get("year") ?? CURRENT_YEAR);
 
+    if (parseTimeOfDay(startTime) === null) {
+      setError("Время развода — в формате ЧЧ:ММ, например 08:30.");
+      return;
+    }
+
     setError(null);
     try {
       onCreated(
@@ -99,6 +107,7 @@ export function RegisterForm({ onCreated }: RegisterFormProps) {
           disabilityGroupIorII: disabilityApplies && disability,
           guardNumber: guard,
           firstShiftDate: `${year}-01-0${firstShiftDay}`,
+          shiftStartTime: startTime,
         }),
       );
     } catch (cause) {
@@ -245,6 +254,25 @@ export function RegisterForm({ onCreated }: RegisterFormProps) {
             Пятое января — это уже вторая смена какого-то из караулов.
           </p>
         </fieldset>
+
+        <div className="space-y-1.5">
+          <Label htmlFor={startId}>Время развода караула</Label>
+          <Input
+            id={startId}
+            type="time"
+            value={startTime}
+            onChange={(event) => setStartTime(event.target.value)}
+            className="w-32 font-mono"
+            aria-describedby={`${startId}-hint`}
+          />
+          <p id={`${startId}-hint`} className="max-w-md text-xs text-ink-muted">
+            Отсюда считается, как смена делится между сутками. При разводе в
+            08:30 сутки заступления получают 15,5 часа, а следующие — 8,5, из
+            которых 6 ночные. Ошибка здесь сдвигает месячные итоги и число
+            ночных на стыке месяцев. Продолжительность смены — 24 часа, не
+            включая время смены караулов (Приказ № 308 п. 3, № 307 п. 8).
+          </p>
+        </div>
 
         <div className="space-y-1.5">
           <Label htmlFor={yearId}>Учётный год</Label>

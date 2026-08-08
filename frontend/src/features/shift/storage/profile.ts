@@ -30,6 +30,7 @@
 
 import { z } from "zod";
 
+import { DEFAULT_SHIFT_START } from "../domain/shift-hours";
 import type { DayType } from "../domain/production-calendar";
 import type { IsoDate } from "../domain/plain-date";
 
@@ -79,6 +80,18 @@ export const storedProfileSchema = z.object({
   disabilityGroupIorII: z.boolean(),
   guardNumber: z.number().int().min(1).max(4),
   firstShiftDate: isoDate,
+  /**
+   * Время развода караула, «ЧЧ:ММ».
+   *
+   * Необязательное с умолчанием, а не новая версия формата: профили,
+   * сохранённые до появления поля, обязаны читаться как есть. Заставить
+   * человека заводить год отпусков заново из-за нового поля — цена, ничем
+   * не оправданная.
+   */
+  shiftStartTime: z
+    .string()
+    .regex(/^([01]\d|2[0-3]):[0-5]\d$/, "время в формате ЧЧ:ММ")
+    .default(DEFAULT_SHIFT_START),
   accountingYear: z.number().int().min(2000).max(2100),
   absences: z.array(absenceSchema).max(200),
   /** Правки производственного календаря: дата → тип дня. */
@@ -100,6 +113,7 @@ export interface NewProfileInput {
   disabilityGroupIorII: boolean;
   guardNumber: number;
   firstShiftDate: IsoDate;
+  shiftStartTime: string;
 }
 
 export function createProfile(input: NewProfileInput): StoredProfile {

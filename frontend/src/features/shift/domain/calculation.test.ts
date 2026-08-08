@@ -10,6 +10,8 @@
 
 import { describe, expect, test } from "vitest";
 
+import { Dec } from "./decimal";
+
 import {
   baseNormHours,
   calculatePeriod,
@@ -265,30 +267,73 @@ describe("полный расчёт", () => {
     expect(result.wrongNormUndertimeHours.toString()).toBe("168");
   });
 
-  test("смена через границу месяца делит свои часы", () => {
-    // Смена с 31 марта отдаёт марту 16 часов, апрелю — 8.
+  test("смена через границу суток делит свои часы", () => {
+    // При разводе в 08:30 смена с 30 марта отдаёт 30-му 15,5 часа, а 31-му
+    // 8,5.
     const firstDay = march([], { periodStart: "2026-03-30", periodEnd: "2026-03-31" });
     const secondDay = march([], { periodStart: "2026-03-31", periodEnd: "2026-04-01" });
 
     expect(firstDay.shifts.at(-1)?.startedOn).toBe("2026-03-30");
-    expect(firstDay.actualHours.toString()).toBe("16"); // с 08:00 до полуночи
+    expect(firstDay.actualHours.toString()).toBe("15.5"); // с 08:30 до полуночи
 
     // Смена заступила накануне периода — и всё же отдаёт ему свой хвост.
-    // Без просмотра на сутки назад эти 8 часов терялись бы у каждого
+    // Без просмотра на сутки назад эти 8,5 часа терялись бы у каждого
     // месяца, начинающегося со вторых суток чужой смены.
     expect(secondDay.shifts[0]?.startedOn).toBe("2026-03-30");
-    expect(secondDay.actualHours.toString()).toBe("8"); // с полуночи до 08:00
+    expect(secondDay.actualHours.toString()).toBe("8.5"); // с полуночи до 08:30
   });
 
-  test("ночные часы делятся вместе со сменой", () => {
-    // Иначе смена на стыке дала бы 8 ночных часов дважды.
+  test("ночные считаются по часам, а не пропорцией", () => {
+    // Пропорция от длины куска дала бы 8 × 15,5/24 = 5,17 в первых сутках
+    // — числа, которого на часах не существует. С 08:30 до полуночи ночных
+    // ровно два часа (22:00-24:00), а шесть остальных лежат в следующих
+    // сутках (00:00-06:00).
     const firstDay = march([], { periodStart: "2026-03-30", periodEnd: "2026-03-31" });
     const secondDay = march([], { periodStart: "2026-03-31", periodEnd: "2026-04-01" });
 
-    const total = firstDay.shifts
-      .at(-1)!
-      .nightHours.plus(secondDay.shifts[0]!.nightHours);
-    expect(total.toString()).toBe("8");
+    expect(firstDay.shifts.at(-1)!.nightHours.toString()).toBe("2");
+    expect(secondDay.shifts[0]!.nightHours.toString()).toBe("6");
+    // И вместе — восемь: одна смена не даёт восьми ночных дважды.
+    expect(
+      firstDay.shifts.at(-1)!.nightHours.plus(secondDay.shifts[0]!.nightHours).toString(),
+    ).toBe("8");
+  });
+
+  test("месячные итоги считаются по суткам, а не по дате заступления", () => {
+    // Дефект, найденный на живом профиле: на периоде в полгода смене,
+    // заступившей 31 марта, март получал все 24 часа. Месячная сумма
+    // оказывалась завышена, апрельская занижена, и обе расходились с
+    // табелем.
+    // Цикл взят с живого профиля: 4-й караул, первая смена 2 января. При
+    // нём заступление приходится ровно на 31 марта.
+    const halfYear = calculatePeriod({
+      periodStart: "2026-01-01",
+      periodEnd: "2026-07-01",
+      cycle: { guard: 4, firstShiftDate: "2026-01-02" },
+      weekly: norm(),
+      calendar: { workingDays: 118, preHolidayDays: 2 },
+      absences: [],
+      holidayDays: NO_HOLIDAYS,
+    });
+
+    const march31 = halfYear.days.filter((day) => day.day === "2026-03-31");
+    const april1 = halfYear.days.filter((day) => day.day === "2026-04-01");
+
+    expect(march31).toHaveLength(1);
+    expect(march31[0]!.hours.toString()).toBe("15.5");
+    expect(march31[0]!.nightHours.toString()).toBe("2");
+    expect(march31[0]!.isShiftStart).toBe(true);
+
+    // Хвост той же смены — в апреле, и он помечен как продолжение.
+    expect(april1).toHaveLength(1);
+    expect(april1[0]!.hours.toString()).toBe("8.5");
+    expect(april1[0]!.nightHours.toString()).toBe("6");
+    expect(april1[0]!.isShiftStart).toBe(false);
+
+    // Сумма суток равна сумме смен: разложение ничего не потеряло.
+    const fromDays = halfYear.days.reduce((sum, day) => sum.plus(day.hours), new Dec(0));
+    const fromShifts = halfYear.shifts.reduce((sum, s) => sum.plus(s.hours), new Dec(0));
+    expect(fromDays.toString()).toBe(fromShifts.toString());
   });
 
   test("норма никогда не уходит в минус", () => {
