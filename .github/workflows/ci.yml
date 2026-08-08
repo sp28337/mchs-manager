@@ -28,9 +28,11 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
+      # Без `version`: версия берётся из `packageManager` в package.json.
+      # Указанная в обоих местах, она валит запуск с «Multiple versions of
+      # pnpm specified» — и правильно делает: два источника истины рано или
+      # поздно разойдутся.
       - uses: pnpm/action-setup@v4
-        with:
-          version: 11
 
       - uses: actions/setup-node@v5
         with:
