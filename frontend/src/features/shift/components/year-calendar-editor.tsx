@@ -2,7 +2,6 @@
 
 import { useMemo, useState } from "react";
 
-import { DateField } from "@/components/ui/date-field";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils/cn";
 
@@ -21,6 +20,7 @@ import {
   DAY_TYPE_TONE,
   type DayType,
 } from "../schemas";
+import { DateField } from "./date-field";
 import { MONTH_NAMES } from "./month-names";
 import { MonthGrid, WEEKDAY_LABELS } from "./month-grid";
 
@@ -288,7 +288,8 @@ function DayButton({ item, onPaint }: { item: CalendarDay; onPaint: () => void }
       aria-label={label}
       onClick={onPaint}
       className={cn(
-        "relative flex w-full min-w-0 flex-col items-center rounded-xs border py-0.5 leading-tight",
+        "relative flex w-full min-w-0 flex-col items-center justify-center rounded-xs border py-0.5 leading-tight",
+        "lg:aspect-square lg:py-0",
         "hover:border-ink focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-trace",
         DAY_TYPE_TONE[item.dayType],
       )}

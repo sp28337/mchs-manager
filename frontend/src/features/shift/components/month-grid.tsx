@@ -23,7 +23,12 @@ import { weekday, type IsoDate } from "../domain/plain-date";
 export const WEEKDAY_LABELS = ["пн", "вт", "ср", "чт", "пт", "сб", "вс"];
 
 export interface MonthGridProps {
-  title: ReactNode;
+  /**
+   * Заголовок месяца. Необязателен: во всплывающем календаре месяц уже
+   * назван в его собственной шапке со стрелками, и вторая подпись под ней
+   * была бы повтором.
+   */
+  title?: ReactNode;
   /** Итог месяца справа от названия: смены, часы, число правок. */
   meta?: ReactNode;
   /** Подряд идущие дни ОДНОГО месяца. */
@@ -37,10 +42,12 @@ export function MonthGrid({ title, meta, days, renderDay }: MonthGridProps) {
 
   return (
     <section className="space-y-1.5">
-      <div className="flex flex-wrap items-baseline justify-between gap-x-3 border-b border-rule pb-1">
-        <h3 className="font-display text-sm font-bold uppercase tracking-wide">{title}</h3>
-        {meta ? <p className="font-mono text-[11px] text-ink-muted">{meta}</p> : null}
-      </div>
+      {title ? (
+        <div className="flex flex-wrap items-baseline justify-between gap-x-3 border-b border-rule pb-1">
+          <h3 className="font-display text-sm font-bold uppercase tracking-wide">{title}</h3>
+          {meta ? <p className="font-mono text-[11px] text-ink-muted">{meta}</p> : null}
+        </div>
+      ) : null}
 
       <div className="grid grid-cols-7 gap-px">
         {WEEKDAY_LABELS.map((name) => (

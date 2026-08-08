@@ -91,6 +91,14 @@ export function datesOfYear(y: number): IsoDate[] {
   return Array.from({ length: daysInYear(y) }, (_, index) => fromEpochDay(start + index));
 }
 
+/** Все даты месяца по порядку. `month1` — от 1 до 12. */
+export function datesOfMonth(y: number, month1: number): IsoDate[] {
+  const start = toEpochDay(makeDate(y, month1, 1));
+  const next =
+    month1 === 12 ? toEpochDay(makeDate(y + 1, 1, 1)) : toEpochDay(makeDate(y, month1 + 1, 1));
+  return Array.from({ length: next - start }, (_, index) => fromEpochDay(start + index));
+}
+
 /** Даты полуинтервала `[start, end)`. */
 export function datesInRange(start: IsoDate, end: IsoDate): IsoDate[] {
   const first = toEpochDay(start);

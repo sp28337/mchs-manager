@@ -3,7 +3,6 @@
 import { useId, useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
-import { DateField } from "@/components/ui/date-field";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils/cn";
@@ -23,6 +22,7 @@ import {
 } from "../domain/value-objects";
 import type { StoredProfile } from "../storage/profile";
 import { ABSENCE_LABELS, type AbsenceKind } from "../schemas";
+import { DateField } from "./date-field";
 import { PeriodSummary } from "./period-summary";
 import { ProfileFooter } from "./profile-footer";
 import { ShiftStrip } from "./shift-strip";

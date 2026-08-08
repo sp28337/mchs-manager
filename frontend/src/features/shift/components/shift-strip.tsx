@@ -129,7 +129,12 @@ function ShiftCell({ day, shift }: { day: IsoDate; shift: ShiftRecord | undefine
     <div
       title={label}
       className={cn(
-        "flex min-w-0 flex-col items-center rounded-xs border py-0.5 leading-tight",
+        // Квадрат на больших экранах: клетка по высоте содержимого делает
+        // из недели приплюснутую полосу, не похожую ни на настенный
+        // календарь, ни на табель. На узких экранах квадрат, наоборот,
+        // растянул бы месяц на два экрана.
+        "flex min-w-0 flex-col items-center justify-center rounded-xs border py-0.5 leading-tight",
+        "lg:aspect-square lg:py-0",
         !shift && "border-rule text-ink-faint",
         shift && !shift.absenceKind && "border-verify bg-verify-soft text-verify",
         shift?.absenceKind && "border-dashed border-signal bg-signal-soft text-signal",

@@ -1,8 +1,6 @@
 import type { Metadata } from "next";
 import { IBM_Plex_Mono, IBM_Plex_Sans, PT_Sans_Narrow } from "next/font/google";
 
-import { ThemeToggle } from "@/components/ui/theme-toggle";
-
 import { Providers } from "./providers";
 import "./globals.css";
 
@@ -30,9 +28,20 @@ const mono = IBM_Plex_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Учёт служебного времени ФПС ГПС",
+  // Шаблон, а не готовая строка: каждая страница подставляет своё, и
+  // название приложения не приходится повторять руками.
+  title: {
+    default: "Калькулятор переработки для пожарных",
+    template: "%s — калькулятор переработки для пожарных",
+  },
   description:
-    "Учёт служебного времени, компенсаций и отпусков сотрудников федеральной противопожарной службы",
+    "Проверка табеля суммированного учёта при графике сутки через трое: " +
+    "норма по производственному календарю, исключение отпусков и больничных, " +
+    "сверка с выданным табелем.",
+  applicationName: "Калькулятор переработки для пожарных",
+  // Ссылки в разметке страниц относительные; без базы Open Graph получил
+  // бы неполный адрес и не открылся бы при пересылке.
+  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000"),
 };
 
 export default function RootLayout({
@@ -45,16 +54,10 @@ export default function RootLayout({
       suppressHydrationWarning
     >
       <body className="min-h-dvh bg-paper text-ink">
-        <Providers>
-          {/* Переключатель темы стоит вне страницы, потому что относится
-              не к расчёту, а к окну. Он же — единственное, что закреплено
-              наверху: панель с чем-то ещё отнимала бы высоту у календаря
-              на весь год. */}
-          <div className="flex justify-end px-6 pt-4">
-            <ThemeToggle />
-          </div>
-          {children}
-        </Providers>
+        {/* Шапка рисуется страницами, а не здесь: у лендинга и калькулятора
+            в ней разное главное действие, и общая шапка на оба означала бы
+            либо пустое место, либо кнопку не к месту. */}
+        <Providers>{children}</Providers>
       </body>
     </html>
   );
