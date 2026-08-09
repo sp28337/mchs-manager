@@ -41,7 +41,7 @@ export interface SiteHeaderProps {
 
 export function SiteHeader({ tagline, action, className }: SiteHeaderProps) {
   return (
-    <header className={cn("border-b border-rule fixed w-full backdrop-blur-xs backdrop-grayscale bg-paper/80", className)}>
+    <header className={cn("border-b border-rule fixed w-full backdrop-blur-xs backdrop-grayscale bg-paper/80 z-100", className)}>
       <div className="mx-auto flex w-full max-w-6xl flex-wrap items-center gap-x-6 gap-y-3 px-6 py-3 xl:max-w-7xl 2xl:max-w-375">
         <Link
           href="/"
