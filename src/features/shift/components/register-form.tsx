@@ -18,6 +18,7 @@ import {
   type Gender,
   type WorkingConditions,
 } from "../schemas";
+import { ThemeToggle } from "@/components/ui/theme-toggle";
 
 /**
  * Регистрация.
@@ -116,183 +117,188 @@ export function RegisterForm({ onCreated }: RegisterFormProps) {
   }
 
   return (
-    <div className="space-y-8">
-      <form className="space-y-7" onSubmit={submit}>
-        {error ? (
-          <p className="rounded-sm border-l-2 border-signal bg-signal-soft px-4 py-3 text-sm">
-            {error}
-          </p>
-        ) : null}
+    <>
+      <div className="space-y-8">
+        <form className="space-y-7" onSubmit={submit}>
+          {error ? (
+            <p className="rounded-sm border-l-2 border-signal bg-signal-soft px-4 py-3 text-sm">
+              {error}
+            </p>
+          ) : null}
 
-        <div className="space-y-1.5">
-          <Label htmlFor={nameId}>Как к вам обращаться</Label>
-          <Input
-            id={nameId}
-            name="displayName"
-            maxLength={200}
-            placeholder="Например: Сергей Генадьевич"
-            className="max-w-md"
-            aria-describedby={`${nameId}-hint`}
-          />
-          <p id={`${nameId}-hint`} className="max-w-md text-xs text-ink-muted">
-            Только для обращения. Фамилия, табельный номер и подразделение не
-            нужны — расчёт от них не зависит, и мы их не спрашиваем.
-          </p>
-        </div>
-
-        <Choice
-          legend="Кто вы"
-          value={employment}
-          options={["attested", "civilian"] as const}
-          labels={EMPLOYMENT_LABELS}
-          hints={EMPLOYMENT_HINT}
-          onChange={setEmployment}
-        />
-
-        <Choice
-          legend="Пол"
-          value={gender}
-          options={["male", "female"] as const}
-          labels={GENDER_LABELS}
-          onChange={setGender}
-          hint="Влияет в одном случае: женщинам на Крайнем Севере и в приравненных местностях положена 36-часовая неделя (Приказ № 308 п. 1, Приказ № 307 п. 4)."
-        />
-
-        <Choice
-          legend="Условия службы или труда"
-          value={conditions}
-          options={["normal", "harmful_or_dangerous"] as const}
-          labels={CONDITIONS_LABELS}
-          onChange={setConditions}
-          hint="По результатам специальной оценки. Вредные 3-4 степени или опасные дают 36 часов в неделю вместо 40 (Приказ № 308 п. 1, Приказ № 307 п. 6)."
-        />
-
-        {northernApplies ? (
-          <label className="flex max-w-md items-start gap-2 text-sm cursor-pointer">
-            <input
-              type="checkbox"
-              checked={northern}
-              onChange={(event) => setNorthern(event.target.checked)}
-              className="mt-1"
+          <div className="space-y-1.5">
+            <Label htmlFor={nameId}>Как к вам обращаться</Label>
+            <Input
+              id={nameId}
+              name="displayName"
+              maxLength={200}
+              placeholder="Например: Сергей Генадьевич"
+              className="max-w-md"
+              aria-describedby={`${nameId}-hint`}
             />
-            <span>
-              {employment === "attested"
-                ? "Служу в районе Крайнего Севера, приравненной или иной местности с неблагоприятными условиями"
-                : "Работаю в районе Крайнего Севера или приравненной местности"}
-              <span className="block text-xs text-ink-muted">
+            <p id={`${nameId}-hint`} className="max-w-md text-xs text-ink-muted">
+              Только для обращения. Фамилия, табельный номер и подразделение не
+              нужны — расчёт от них не зависит, и мы их не спрашиваем.
+            </p>
+          </div>
+
+          <Choice
+            legend="Кто вы"
+            value={employment}
+            options={["attested", "civilian"] as const}
+            labels={EMPLOYMENT_LABELS}
+            hints={EMPLOYMENT_HINT}
+            onChange={setEmployment}
+          />
+
+          <Choice
+            legend="Пол"
+            value={gender}
+            options={["male", "female"] as const}
+            labels={GENDER_LABELS}
+            onChange={setGender}
+            hint="Влияет в одном случае: женщинам на Крайнем Севере и в приравненных местностях положена 36-часовая неделя (Приказ № 308 п. 1, Приказ № 307 п. 4)."
+          />
+
+          <Choice
+            legend="Условия службы или труда"
+            value={conditions}
+            options={["normal", "harmful_or_dangerous"] as const}
+            labels={CONDITIONS_LABELS}
+            onChange={setConditions}
+            hint="По результатам специальной оценки. Вредные 3-4 степени или опасные дают 36 часов в неделю вместо 40 (Приказ № 308 п. 1, Приказ № 307 п. 6)."
+          />
+
+          {northernApplies ? (
+            <label className="flex max-w-md items-start gap-2 text-sm cursor-pointer">
+              <input
+                type="checkbox"
+                checked={northern}
+                onChange={(event) => setNorthern(event.target.checked)}
+                className="mt-1"
+              />
+              <span>
                 {employment === "attested"
-                  ? "Приказ МЧС России № 308 п. 1 (ч. 4 ст. 54 ФЗ-141): 36 часов в неделю. Круг местностей шире, чем в Трудовом кодексе, — в него входят и отдалённые."
-                  : "Приказ МЧС России № 307 п. 4 (ст. 320 ТК РФ): 36 часов в неделю."}
+                  ? "Служу в районе Крайнего Севера, приравненной или иной местности с неблагоприятными условиями"
+                  : "Работаю в районе Крайнего Севера или приравненной местности"}
+                <span className="block text-xs text-ink-muted">
+                  {employment === "attested"
+                    ? "Приказ МЧС России № 308 п. 1 (ч. 4 ст. 54 ФЗ-141): 36 часов в неделю. Круг местностей шире, чем в Трудовом кодексе, — в него входят и отдалённые."
+                    : "Приказ МЧС России № 307 п. 4 (ст. 320 ТК РФ): 36 часов в неделю."}
+                </span>
               </span>
-            </span>
-          </label>
-        ) : null}
+            </label>
+          ) : null}
 
-        {disabilityApplies ? (
-          <label className="flex max-w-md items-start gap-2 text-sm cursor-pointer">
-            <input
-              type="checkbox"
-              checked={disability}
-              onChange={(event) => setDisability(event.target.checked)}
-              className="mt-1"
+          {disabilityApplies ? (
+            <label className="flex max-w-md items-start gap-2 text-sm cursor-pointer">
+              <input
+                type="checkbox"
+                checked={disability}
+                onChange={(event) => setDisability(event.target.checked)}
+                className="mt-1"
+              />
+              <span>
+                Инвалидность I или II группы
+                <span className="block text-xs text-ink-muted">
+                  Приказ МЧС России № 307 п. 5 (абз. 4 ч. 1 ст. 92 ТК РФ): 35 часов
+                  в неделю — самая короткая из возможных норм.
+                </span>
+              </span>
+            </label>
+          ) : null}
+
+          <fieldset className="space-y-2">
+            <legend className="font-display text-xs font-bold uppercase tracking-wide text-ink-muted">
+              Ваш караул
+            </legend>
+            <div className="flex flex-wrap gap-2">
+              {[1, 2, 3, 4].map((number) => (
+                <Button
+                  key={number}
+                  type="button"
+                  variant={guard === number ? "default" : "outline"}
+                  aria-pressed={guard === number}
+                  onClick={() => {
+                    setGuard(number);
+                    // Чаще всего номер караула и есть день его первой смены,
+                    // поэтому подставляется он — но остаётся изменяемым: в
+                    // части нумерация может быть другой.
+                    setFirstShiftDay(number);
+                  }}
+                >
+                  {number}-й
+                </Button>
+              ))}
+            </div>
+          </fieldset>
+
+          <fieldset className="space-y-2">
+            <legend className="font-display text-xs font-bold uppercase tracking-wide text-ink-muted">
+              Первая смена караула в году
+            </legend>
+            <div className="flex flex-wrap gap-2">
+              {[1, 2, 3, 4].map((day) => (
+                <Button
+                  key={day}
+                  type="button"
+                  variant={firstShiftDay === day ? "default" : "outline"}
+                  aria-pressed={firstShiftDay === day}
+                  onClick={() => setFirstShiftDay(day)}
+                >
+                  {day} января
+                </Button>
+              ))}
+            </div>
+            <p className="max-w-md text-xs text-ink-muted">
+              Цикл «сутки через трое» четырёхдневный, поэтому первая смена
+              обязательно приходится на одни из первых четырёх суток года.
+              Пятое января — это уже вторая смена какого-то из караулов.
+            </p>
+          </fieldset>
+
+          <div className="space-y-1.5">
+            <Label htmlFor={startId}>Время смены караулов</Label>
+            <Input
+              id={startId}
+              type="time"
+              value={startTime}
+              onChange={(event) => setStartTime(event.target.value)}
+              className="w-32 font-mono"
+              aria-describedby={`${startId}-hint`}
             />
-            <span>
-              Инвалидность I или II группы
-              <span className="block text-xs text-ink-muted">
-                Приказ МЧС России № 307 п. 5 (абз. 4 ч. 1 ст. 92 ТК РФ): 35 часов
-                в неделю — самая короткая из возможных норм.
-              </span>
-            </span>
-          </label>
-        ) : null}
-
-        <fieldset className="space-y-2">
-          <legend className="font-display text-xs font-bold uppercase tracking-wide text-ink-muted">
-            Ваш караул
-          </legend>
-          <div className="flex flex-wrap gap-2">
-            {[1, 2, 3, 4].map((number) => (
-              <Button
-                key={number}
-                type="button"
-                variant={guard === number ? "default" : "outline"}
-                aria-pressed={guard === number}
-                onClick={() => {
-                  setGuard(number);
-                  // Чаще всего номер караула и есть день его первой смены,
-                  // поэтому подставляется он — но остаётся изменяемым: в
-                  // части нумерация может быть другой.
-                  setFirstShiftDay(number);
-                }}
-              >
-                {number}-й
-              </Button>
-            ))}
+            <p id={`${startId}-hint`} className="max-w-md text-xs text-ink-muted">
+              Отсюда считается, как смена делится между сутками. При смене караулов в 
+              08:30 сутки заступления получают 15,5 часа (из них 2 ночныe), а следующие — 8,5 (из них 6 ночные). Ошибка здесь сдвигает месячные итоги и число
+              ночных на стыке месяцев. Продолжительность смены — 24 часа, не
+              включая время смены караулов (Приказ № 308 п. 3, № 307 п. 8).
+            </p>
           </div>
-        </fieldset>
 
-        <fieldset className="space-y-2">
-          <legend className="font-display text-xs font-bold uppercase tracking-wide text-ink-muted">
-            Первая смена караула в году
-          </legend>
-          <div className="flex flex-wrap gap-2">
-            {[1, 2, 3, 4].map((day) => (
-              <Button
-                key={day}
-                type="button"
-                variant={firstShiftDay === day ? "default" : "outline"}
-                aria-pressed={firstShiftDay === day}
-                onClick={() => setFirstShiftDay(day)}
-              >
-                {day} января
-              </Button>
-            ))}
+          <div className="space-y-1.5">
+            <Label htmlFor={yearId}>Учётный год</Label>
+            <Input
+              id={yearId}
+              name="year"
+              type="number"
+              min={2000}
+              max={2100}
+              defaultValue={CURRENT_YEAR}
+              className="w-32"
+            />
           </div>
-          <p className="max-w-md text-xs text-ink-muted">
-            Цикл «сутки через трое» четырёхдневный, поэтому первая смена
-            обязательно приходится на одни из первых четырёх суток года.
-            Пятое января — это уже вторая смена какого-то из караулов.
-          </p>
-        </fieldset>
 
-        <div className="space-y-1.5">
-          <Label htmlFor={startId}>Время смены караулов</Label>
-          <Input
-            id={startId}
-            type="time"
-            value={startTime}
-            onChange={(event) => setStartTime(event.target.value)}
-            className="w-32 font-mono"
-            aria-describedby={`${startId}-hint`}
-          />
-          <p id={`${startId}-hint`} className="max-w-md text-xs text-ink-muted">
-            Отсюда считается, как смена делится между сутками. При смене караулов в 
-            08:30 сутки заступления получают 15,5 часа (из них 2 ночныe), а следующие — 8,5 (из них 6 ночные). Ошибка здесь сдвигает месячные итоги и число
-            ночных на стыке месяцев. Продолжительность смены — 24 часа, не
-            включая время смены караулов (Приказ № 308 п. 3, № 307 п. 8).
-          </p>
-        </div>
+          <Button type="submit" className="w-full max-w-md">
+            Построить мой график
+          </Button>
+        </form>
 
-        <div className="space-y-1.5">
-          <Label htmlFor={yearId}>Учётный год</Label>
-          <Input
-            id={yearId}
-            name="year"
-            type="number"
-            min={2000}
-            max={2100}
-            defaultValue={CURRENT_YEAR}
-            className="w-32"
-          />
-        </div>
-
-        <Button type="submit" className="w-full max-w-md">
-          Построить мой график
-        </Button>
-      </form>
-
-      <ImportBlock onImported={onCreated} />
-    </div>
+        <ImportBlock onImported={onCreated} />
+      </div>
+      <footer className="flex justify-center pt-8 pb-8 md:ml-auto md:pb-2">
+        <ThemeToggle/>
+      </footer>
+    </>
   );
 }
 

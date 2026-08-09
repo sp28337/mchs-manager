@@ -164,7 +164,7 @@ export default function LandingPage() {
         {/* ------------------------------------------------------ первый экран */}
         <section className="space-y-6 border-b border-rule py-14">
           <p className="font-mono text-xs uppercase tracking-widest text-ink-faint">
-            Для аттестованных и вольнонаёмных · бесплатно · без регистрации
+            Для аттестованных и вольнонаёмных
           </p>
           <h1 className="max-w-3xl text-4xl leading-[1.15] sm:text-5xl">
             Проверьте, не потеряли ли вы часы
