@@ -32,7 +32,7 @@ jobs:
 
     steps:
       - name: Download release artifact
-        uses: actions/download-artifact@v6
+        uses: actions/download-artifact@v8
         with:
           name: site
           path: site
@@ -67,12 +67,20 @@ jobs:
           EOF
 
       - name: Check result
+        env:
+          URL: ${{ vars.SITE_URL }}
         run: |
           set -euo pipefail
-          URL="${{ vars.SITE_URL }}"
-          # Не «запрос прошёл», а «пришло то, что нужно»: 200 отдаёт и
-          # страница-заглушка хостера.
+
+          echo "Проверяем: $URL"
+
+          echo "→ Главная"
           curl -fsS "$URL/" | grep -q "Проверьте, не потеряли ли вы часы"
+
+          echo "→ Калькулятор"
           curl -fsS "$URL/calculator" | grep -q "Калькулятор переработки"
+
+          echo "→ robots.txt"
           curl -fsS "$URL/robots.txt" | grep -q "^Sitemap: $URL/sitemap.xml$"
-          echo "Выложено: $URL"
+
+          echo "✓ Выложено: $URL"
