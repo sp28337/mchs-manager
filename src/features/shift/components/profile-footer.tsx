@@ -92,19 +92,21 @@ export function ProfileFooter({ profile, onForget }: ProfileFooterProps) {
             Удалить профиль с этого устройства
           </button>
         )}
-        <div className="ml-auto">
+      </div>
+      <div className="flex flex-col md:flex-row-reverse justify-between items-center">
+        <div className="flex justify-center pt-8 pb-12 md:ml-auto md:pb-2">
           <ThemeToggle/>
         </div>
-      </div>
 
-      <p className="max-w-prose text-xs text-ink-muted">
-        Последнее изменение:{" "}
-        {new Date(profile.savedAt).toLocaleString("ru-RU", {
-          dateStyle: "long",
-          timeStyle: "short",
-        })}
-        .
-      </p>
+        <p className="max-w-prose text-xs text-ink-muted text-center">
+          Последнее изменение:{" "}
+          {new Date(profile.savedAt).toLocaleString("ru-RU", {
+            dateStyle: "long",
+            timeStyle: "short",
+          })}
+          .
+        </p>
+      </div>
     </footer>
   );
 }
