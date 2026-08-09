@@ -57,7 +57,7 @@ export function CalculatorScreen() {
           <Workspace profile={profile} onChange={update} onForget={forget} />
         </main>
       ) : (
-        <main className="mx-auto w-full max-w-3xl space-y-10 px-6 pb-12 pt-8">
+        <main className="mx-auto w-full max-w-3xl space-y-10 px-6 pb-12 pt-22">
           <header className="space-y-3">
             <h1 className="text-3xl leading-tight">Расскажите о себе</h1>
             <p className="max-w-prose text-ink-muted">
