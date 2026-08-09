@@ -8,8 +8,13 @@ name: CI
 
 on:
   pull_request:
-  push:
-    branches: [main, staging]
+    branches: 
+      - main
+      - staging
+  # push:
+  #   branches: 
+  #     - main
+  #     - staging
   workflow_call:
     inputs:
       site-url:
@@ -21,25 +26,33 @@ on:
         description: Имя артефакта с готовой статикой.
         value: site
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
-      - uses: actions/checkout@v5
+      - name: Checkout repository
+        uses: actions/checkout@v5
+      
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v5
 
-      # Без `version`: версия берётся из `packageManager` в package.json.
-      # Указанная в обоих местах, она валит запуск с «Multiple versions of
-      # pnpm specified» — и правильно делает: два источника истины рано или
-      # поздно разойдутся.
-      - uses: pnpm/action-setup@v5
-
-      - uses: actions/setup-node@v5
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
         with:
-          node-version: "24"
+          node-version: 24
           cache: pnpm
 
-      - run: pnpm install --frozen-lockfile
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
 
       - name: Types
         run: pnpm typecheck
@@ -47,8 +60,6 @@ jobs:
       - name: Lint
         run: pnpm lint
 
-      # Расчёт нормы: приказы 307/308, график караула, раскладка смены по
-      # суткам, производственный календарь, разбор дат.
       - name: Tests
         run: pnpm test
 
@@ -60,10 +71,10 @@ jobs:
           NEXT_PUBLIC_SITE_URL: ${{ inputs.site-url || 'https://example.invalid' }}
         run: pnpm build
 
-      - name: Артефакт
+      - name: Upload release artifact
         uses: actions/upload-artifact@v6
         with:
           name: site
           path: out/
-          retention-days: 14
+          retention-days: 7
           if-no-files-found: error
