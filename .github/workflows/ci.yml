@@ -32,7 +32,7 @@ jobs:
       # Указанная в обоих местах, она валит запуск с «Multiple versions of
       # pnpm specified» — и правильно делает: два источника истины рано или
       # поздно разойдутся.
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v5
 
       - uses: actions/setup-node@v5
         with:
@@ -61,7 +61,7 @@ jobs:
         run: pnpm build
 
       - name: Артефакт
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: site
           path: out/
