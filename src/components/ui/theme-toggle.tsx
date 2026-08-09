@@ -42,7 +42,7 @@ export function ThemeToggle() {
 
   return (
     <fieldset
-      className="flex items-center gap-0.5 rounded-xs border border-rule p-0.5"
+      className="flex items-center gap-0.5 rounded-xl border border-rule p-0.5"
       aria-label="Тема оформления"
     >
       {OPTIONS.map(({ value, label, Icon }) => {
@@ -55,7 +55,7 @@ export function ThemeToggle() {
             title={label}
             aria-pressed={mounted ? active : undefined}
             className={cn(
-              "flex size-7 items-center justify-center rounded-xs",
+              "flex size-7 items-center justify-center rounded-xl",
               "focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-trace",
               active ? "bg-ink text-paper" : "text-ink-muted hover:text-ink",
             )}

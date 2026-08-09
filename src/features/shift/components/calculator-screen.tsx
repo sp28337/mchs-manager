@@ -2,7 +2,7 @@
 
 import { Button } from "@/components/ui/button";
 import { SiteHeader } from "@/components/shared/site-header";
-
+import { Save } from "lucide-react";
 import { RegisterForm } from "./register-form";
 import { Workspace } from "./workspace";
 import { exportProfile, type StoredProfile } from "../storage/profile";
@@ -35,17 +35,17 @@ export function CalculatorScreen() {
         tagline={
           profile
             ? `${profile.accountingYear} год · ${profile.guardNumber}-й караул`
-            : "Норма по производственному календарю, факт по графику караула"
+            : ""
         }
         action={profile ? <SaveToFile profile={profile} /> : null}
       />
 
       {state.status === "loading" ? (
-        <main className="mx-auto w-full max-w-4xl px-6 pb-12 pt-8 xl:max-w-6xl 2xl:max-w-7xl">
+        <main className="mx-auto w-full max-w-4xl px-6 pb-12 pt-26 xl:max-w-6xl 2xl:max-w-7xl">
           <p className="text-sm text-ink-muted">Открываем ваш профиль…</p>
         </main>
       ) : profile ? (
-        <main className="mx-auto w-full max-w-4xl space-y-10 px-6 pb-12 pt-8 xl:max-w-6xl 2xl:max-w-7xl">
+        <main className="mx-auto w-full max-w-4xl space-y-10 px-6 pb-12 pt-26 xl:max-w-6xl 2xl:max-w-7xl">
           <header className="space-y-1">
             <p className="font-mono text-xs uppercase tracking-widest text-ink-faint">
               {profile.accountingYear} год · {profile.guardNumber}-й караул · первая
@@ -90,6 +90,7 @@ function SaveToFile({ profile }: { profile: StoredProfile }) {
     <Button
       type="button"
       variant="outline"
+      className="rounded-xl"
       size="sm"
       onClick={() => {
         const blob = new Blob([exportProfile(profile)], { type: "application/json" });
@@ -101,7 +102,12 @@ function SaveToFile({ profile }: { profile: StoredProfile }) {
         URL.revokeObjectURL(url);
       }}
     >
-      Сохранить в файл
+      <div className="hidden xxs:block">
+        Сохранить в файл
+      </div>
+      <div className="xxs:hidden xs:block">
+        <Save className="size-5"/>
+      </div>
     </Button>
   );
 }

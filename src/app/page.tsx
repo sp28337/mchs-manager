@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-
+import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { SiteHeader } from "@/components/shared/site-header";
 import { Logo } from "@/components/ui/logo";
+import { Calculator, ChevronDown } from "lucide-react";
 
 /**
  * Посадочная страница.
@@ -147,14 +148,19 @@ export default function LandingPage() {
         action={
           <Link
             href="/calculator"
-            className="inline-flex h-8 items-center rounded-xs bg-ink px-3 text-sm text-paper hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-trace"
+            className="font-semibold inline-flex gap-2 h-9 items-center rounded-xl bg-ink px-4 text-sm text-paper hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-trace no-underline"
           >
-            Открыть калькулятор
+            <div className="hidden xxs:block">
+              Калькулятор
+            </div>
+            <div className="xxs:hidden xs:block">
+              <Calculator className="size-5"/>
+            </div>
           </Link>
         }
       />
 
-      <main className="mx-auto w-full max-w-4xl px-6 pb-16 xl:max-w-5xl">
+      <main className="mx-auto w-full max-w-4xl px-6 pb-16 pt-12 xl:max-w-6xl 2xl:max-w-7xl">
         {/* ------------------------------------------------------ первый экран */}
         <section className="space-y-6 border-b border-rule py-14">
           <p className="font-mono text-xs uppercase tracking-widest text-ink-faint">
@@ -172,7 +178,7 @@ export default function LandingPage() {
           <div className="flex flex-wrap items-center gap-4 pt-2">
             <Link
               href="/calculator"
-              className="inline-flex h-11 items-center rounded-xs bg-ink px-6 text-base text-paper hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-trace"
+              className="inline-flex h-11 items-center font-bold rounded-xl bg-ink px-6 text-base text-paper hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-trace"
             >
               Открыть калькулятор
             </Link>
@@ -210,7 +216,7 @@ export default function LandingPage() {
             </p>
           </div>
 
-          <div className="mt-2 grid gap-px overflow-hidden rounded-sm border border-rule bg-rule sm:grid-cols-2">
+          <div className="mt-2 grid gap-px overflow-hidden rounded-xl border border-rule bg-rule sm:grid-cols-2">
             <div className="space-y-1 bg-signal-soft p-4">
               <p className="font-display text-xs font-bold uppercase tracking-wide text-signal">
                 Как считают неправильно
@@ -261,7 +267,7 @@ export default function LandingPage() {
             учётного периода до расчёта нормы и исключения часов за отпуск или больничный.
           </p>
           <h3 className="text-xl">
-            Основные документы
+            Основные документы:
           </h3>
           <dl className="grid gap-x-8 gap-y-4 sm:grid-cols-2">
             {[
@@ -334,18 +340,34 @@ export default function LandingPage() {
         </section>
 
         {/* ---------------------------------------------------------------- вопросы */}
-        <section aria-labelledby="faq" className="space-y-4 border-b border-rule py-12">
+        <section
+          aria-labelledby="faq"
+          className="space-y-4 border-rule py-12"
+        >
           <h2 id="faq" className="text-2xl">
             Частые вопросы
           </h2>
-          <dl className="divide-y divide-rule border-y border-rule">
+
+          <div className="divide-y divide-rule border-y border-rule">
             {FAQ.map((item) => (
-              <div key={item.question} className="space-y-1.5 py-4">
-                <dt className="font-medium">{item.question}</dt>
-                <dd className="max-w-prose text-sm text-ink-muted">{item.answer}</dd>
-              </div>
+              <details key={item.question} className="group">
+                <summary className="flex cursor-pointer list-none items-center justify-between gap-6 py-4 font-medium marker:hidden">
+                  <span>{item.question}</span>
+
+                  <ChevronDown
+                    aria-hidden="true"
+                    className="size-5 shrink-0 text-ink-muted transition-transform duration-200 group-open:rotate-180"
+                  />
+                </summary>
+
+                <div className="pb-4 pr-11">
+                  <p className="text-sm leading-6 text-ink-muted">
+                    {item.answer}
+                  </p>
+                </div>
+              </details>
             ))}
-          </dl>
+          </div>
         </section>
 
         {/* ------------------------------------------------------------- ещё раз CTA */}
@@ -359,7 +381,7 @@ export default function LandingPage() {
           </p>
           <Link
             href="/calculator"
-            className="inline-flex h-11 items-center rounded-xs bg-ink px-6 text-base text-paper hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-trace"
+            className="inline-flex h-11 items-center rounded-xl bg-ink px-6 text-base text-paper hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-trace"
           >
             Открыть калькулятор
           </Link>
@@ -367,16 +389,21 @@ export default function LandingPage() {
       </main>
 
       <footer className="border-t border-rule">
-        <div className="mx-auto w-full max-w-4xl space-y-2 px-6 py-8 text-xs text-ink-muted xl:max-w-5xl">
-          <p className="max-w-prose">
-            Калькулятор не является официальным сервисом МЧС России и не заменяет табель или иные документы работодателя.
-            Он предназначен для самостоятельной проверки: показывает, как рассчитывается норма рабочего времени и 
-            переработка на основании указанных нормативных актов, чтобы вы могли сопоставить результат с выданным вам табелем.
-          </p>
-          <p>
-            Точность результата зависит от введённых данных. Перед использованием расчёта убедитесь, 
-            что правильно указали статус, караул, дату первой смены и периоды отсутствия.
-          </p>
+        <div className="flex flex-col gap-10 md:flex-row items-end px-6 py-8 ">
+          <div className="mx-auto w-full max-w-4xl space-y-2 text-xs text-ink-muted xl:max-w-5xl">
+            <p className="max-w-prose">
+              Калькулятор не является официальным сервисом МЧС России и не заменяет табель или иные документы работодателя.
+              Он предназначен для самостоятельной проверки: показывает, как рассчитывается норма рабочего времени и 
+              переработка на основании указанных нормативных актов, чтобы вы могли сопоставить результат с выданным вам табелем.
+            </p>
+            <p className="max-w-prose">
+              Точность результата зависит от введённых данных. Перед использованием расчёта убедитесь, 
+              что правильно указали статус, караул, дату первой смены и периоды отсутствия.
+            </p>
+          </div>
+          <div className="mx-auto">
+            <ThemeToggle/>
+          </div>
         </div>
       </footer>
 
@@ -387,7 +414,7 @@ export default function LandingPage() {
         type="application/ld+json"
         dangerouslySetInnerHTML={{
           __html: JSON.stringify({
-            "@context": "https://schema.org",
+            "@context": "https://pererabotal.ru",
             "@graph": [
               {
                 "@type": "WebApplication",

@@ -62,7 +62,7 @@ jobs:
           # На pull request адреса нет — собираем с заглушкой только чтобы
           # убедиться, что сборка проходит. Артефакт такой сборки в прод не
           # попадёт: CD вызывает этот же workflow со своим `site-url`.
-          NEXT_PUBLIC_SITE_URL: ${{ vars.site-url || 'https://pererabotal.ru' }}
+          NEXT_PUBLIC_SITE_URL: 'https://pererabotal.ru'
         run: pnpm build
 
       - name: Upload release artifact

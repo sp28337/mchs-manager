@@ -3,7 +3,7 @@
 import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
-
+import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { exportProfile, type StoredProfile } from "../storage/profile";
 
 /**
@@ -45,7 +45,7 @@ export function ProfileFooter({ profile, onForget }: ProfileFooterProps) {
   return (
     <footer className="space-y-4 border-t border-rule pt-6 text-sm">
       <div className="max-w-prose space-y-2">
-        <h2 className="font-display text-xs font-bold uppercase tracking-wide text-ink-muted">
+        <h2 className="font-display text-xl font-bold uppercase tracking-wide text-ink-muted">
           Где лежат ваши данные
         </h2>
         <p>
@@ -62,7 +62,7 @@ export function ProfileFooter({ profile, onForget }: ProfileFooterProps) {
       </div>
 
       <div className="flex flex-wrap items-center gap-3">
-        <Button type="button" variant="outline" size="sm" onClick={download}>
+        <Button type="button" variant="outline" size="sm" onClick={download} className="rounded-xl">
           Сохранить профиль в файл
         </Button>
 
@@ -92,6 +92,9 @@ export function ProfileFooter({ profile, onForget }: ProfileFooterProps) {
             Удалить профиль с этого устройства
           </button>
         )}
+        <div className="ml-auto">
+          <ThemeToggle/>
+        </div>
       </div>
 
       <p className="max-w-prose text-xs text-ink-muted">

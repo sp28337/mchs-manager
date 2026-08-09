@@ -330,7 +330,7 @@ function ImportBlock({ onImported }: { onImported: (profile: StoredProfile) => v
         <Label
           htmlFor={fileId}
           className={cn(
-            "inline-flex h-9 cursor-pointer items-center rounded-xs border border-rule-strong",
+            "inline-flex h-9 cursor-pointer items-center rounded-xl border border-rule-strong",
             "bg-paper px-3 text-sm font-normal",
             "hover:border-ink focus-within:outline-2 focus-within:outline-offset-1 focus-within:outline-trace",
           )}

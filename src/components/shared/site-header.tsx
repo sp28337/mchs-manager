@@ -2,7 +2,6 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 
 import { Logo } from "@/components/ui/logo";
-import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { cn } from "@/lib/utils/cn";
 
 /**
@@ -42,8 +41,8 @@ export interface SiteHeaderProps {
 
 export function SiteHeader({ tagline, action, className }: SiteHeaderProps) {
   return (
-    <header className={cn("border-b border-rule", className)}>
-      <div className="mx-auto flex w-full max-w-4xl flex-wrap items-center gap-x-6 gap-y-3 px-6 py-3 xl:max-w-6xl 2xl:max-w-7xl">
+    <header className={cn("border-b border-rule fixed w-full backdrop-blur-xs backdrop-grayscale bg-paper/80", className)}>
+      <div className="mx-auto flex w-full max-w-6xl flex-wrap items-center gap-x-6 gap-y-3 px-6 py-3 xl:max-w-7xl 2xl:max-w-375">
         <Link
           href="/"
           className="group flex items-center gap-2.5 rounded-xs focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-trace"
@@ -68,7 +67,6 @@ export function SiteHeader({ tagline, action, className }: SiteHeaderProps) {
 
         <div className="ml-auto flex items-center gap-3">
           {action}
-          <ThemeToggle />
         </div>
       </div>
     </header>

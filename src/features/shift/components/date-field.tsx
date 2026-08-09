@@ -311,7 +311,7 @@ function Arrow({
       type="button"
       aria-label={label}
       onClick={onClick}
-      className="flex size-7 items-center justify-center rounded-xs text-ink-muted hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-trace"
+      className="flex size-7 items-center justify-center rounded-xl text-ink-muted hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-trace"
     >
       {children}
     </button>

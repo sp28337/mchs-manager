@@ -4,6 +4,7 @@
    `next-themes` — дать человеку выбор, а не угадать его (Tailwind v4,
    разд. Dark mode: «override the dark variant to apply when the `dark`
    class is present»). */
+@custom-variant hover (&:hover);
 @custom-variant dark (&:where(.dark, .dark *));
 
 /* ==========================================================================
@@ -72,7 +73,7 @@
   --fps-rule: #2c3038;
   --fps-rule-strong: #444a53;
 
-  --fps-signal: #ff8a5c;
+  --fps-signal: #db0e17;
   --fps-signal-soft: #2a1710;
   --fps-verify: #4fcfbd;
   --fps-verify-soft: #0c211f;
@@ -120,6 +121,9 @@
   --radius-xs: 2px;
   --radius-sm: 3px;
   --radius-md: 4px;
+
+  --breakpoint-xxs: 400px;
+  --breakpoint-xs: 28rem;
 }
 
 @layer base {

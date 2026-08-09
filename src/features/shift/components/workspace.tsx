@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils/cn";
-
+import { ChevronDown } from "lucide-react";
 import { formatHours, parseHours } from "../domain/decimal";
 import { formatDateRu, formatPeriodRu } from "../domain/format";
 import { reconcile, type Discrepancy } from "../domain/reconciliation";
@@ -283,7 +283,7 @@ function AbsenceSection({
             id={kindId}
             value={kind}
             onChange={(event) => setKind(event.target.value as AbsenceKind)}
-            className="block h-9 w-56 rounded-xs border border-rule-strong bg-paper px-2 text-sm"
+            className="block h-9 w-56 rounded-sm border border-rule-strong bg-paper px-2 text-sm"
           >
             {ABSENCE_KINDS.map((option) => (
               <option key={option} value={option}>
@@ -422,9 +422,9 @@ function ReconcileSection({
       {discrepancies !== null && discrepancies.length > 0 ? (
         <p className="max-w-prose text-xs text-ink-muted">
           Расчёт построен на вашем графике и производственном календаре.
-          Прежде чем идти с ним к руководителю, проверьте, что караул, дата
-          первой смены и периоды отсутствия внесены верно: ошибка в них даст
-          расхождение там, где его нет.
+          Внимательно, проверьте, что караул, дата
+          первой смены, периоды отсутствия и производственный календарь заполнены корректно: 
+          ошибка в них даст расхождение там, где его нет.
         </p>
       ) : null}
     </section>
