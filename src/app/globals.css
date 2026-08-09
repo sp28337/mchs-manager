@@ -139,8 +139,6 @@
     background-color: var(--fps-paper);
     color: var(--fps-ink);
     font-family: var(--font-sans);
-    /* Числа в таблицах должны стоять столбцом: колонка часов, где 1 уже
-       8, нечитаема. */
     font-variant-numeric: tabular-nums;
     -webkit-font-smoothing: antialiased;
   }
@@ -151,6 +149,23 @@
     font-family: var(--font-display);
     font-weight: 700;
     letter-spacing: 0.005em;
+  }
+
+  a {
+    color: -webkit-link;
+    cursor: pointer;
+  }
+
+  a:visited {
+    color: -webkit-link;
+  }
+
+  a:active {
+    color: -webkit-link;
+  }
+
+  a:hover {
+    text-decoration: underline;
   }
 
   /* Видимый фокус — не украшение, а требование WCAG 2.2 (2.4.11 Focus Not

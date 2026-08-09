@@ -89,7 +89,7 @@ jobs:
           URL="${{ vars.SITE_URL }}"
           # Не «запрос прошёл», а «пришло то, что нужно»: 200 отдаёт и
           # страница-заглушка хостера.
-          curl -fsS "$URL/" | grep -q "Проверьте, не отняли ли у вас часы"
+          curl -fsS "$URL/" | grep -q "Проверьте, не потеряли ли вы часы"
           curl -fsS "$URL/calculator" | grep -q "Калькулятор переработки"
           curl -fsS "$URL/robots.txt" | grep -q "^Sitemap: $URL/sitemap.xml$"
           echo "Выложено: $URL"

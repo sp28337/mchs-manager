@@ -13,7 +13,7 @@ on:
   workflow_call:
     inputs:
       site-url:
-        description: Адрес сайта — вшивается в sitemap, robots и Open Graph.
+        description: https://pererabotal.ru
         required: true
         type: string
     outputs:

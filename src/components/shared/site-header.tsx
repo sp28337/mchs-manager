@@ -50,7 +50,7 @@ export function SiteHeader({ tagline, action, className }: SiteHeaderProps) {
         >
           <Logo className="size-7 text-signal" />
           <span className="leading-none">
-            <span className="block font-display text-sm font-bold uppercase leading-tight tracking-wide group-hover:underline group-hover:underline-offset-2">
+            <span className="block font-display text-black/80 dark:text-ink text-sm font-bold uppercase leading-tight tracking-wide group-hover:underline">
               {/* Пробел перед второй строкой намеренный: `block` делит
                   строки визуально, но в тексте они склеиваются, и
                   программа чтения произносит «переработкидля». */}

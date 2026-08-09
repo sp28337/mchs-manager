@@ -17,7 +17,7 @@ export function Input({
         // `aria-invalid` вместо собственного пропа `error`: состояние поля
         // обязано быть объявлено средствам доступности, а не только
         // покрашено (WCAG 2.2, 3.3.1 Error Identification).
-        "aria-[invalid=true]:border-signal",
+        "aria-invalid:border-signal",
         className,
       )}
       {...props}

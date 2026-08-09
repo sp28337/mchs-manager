@@ -130,7 +130,7 @@ export function RegisterForm({ onCreated }: RegisterFormProps) {
             id={nameId}
             name="displayName"
             maxLength={200}
-            placeholder="Например: Сергей, 2-й караул"
+            placeholder="Например: Сергей Генадьевич"
             className="max-w-md"
             aria-describedby={`${nameId}-hint`}
           />
@@ -168,7 +168,7 @@ export function RegisterForm({ onCreated }: RegisterFormProps) {
         />
 
         {northernApplies ? (
-          <label className="flex max-w-md items-start gap-2 text-sm">
+          <label className="flex max-w-md items-start gap-2 text-sm cursor-pointer">
             <input
               type="checkbox"
               checked={northern}
@@ -189,7 +189,7 @@ export function RegisterForm({ onCreated }: RegisterFormProps) {
         ) : null}
 
         {disabilityApplies ? (
-          <label className="flex max-w-md items-start gap-2 text-sm">
+          <label className="flex max-w-md items-start gap-2 text-sm cursor-pointer">
             <input
               type="checkbox"
               checked={disability}
@@ -256,7 +256,7 @@ export function RegisterForm({ onCreated }: RegisterFormProps) {
         </fieldset>
 
         <div className="space-y-1.5">
-          <Label htmlFor={startId}>Время развода караула</Label>
+          <Label htmlFor={startId}>Время смены караулов</Label>
           <Input
             id={startId}
             type="time"
@@ -266,9 +266,8 @@ export function RegisterForm({ onCreated }: RegisterFormProps) {
             aria-describedby={`${startId}-hint`}
           />
           <p id={`${startId}-hint`} className="max-w-md text-xs text-ink-muted">
-            Отсюда считается, как смена делится между сутками. При разводе в
-            08:30 сутки заступления получают 15,5 часа, а следующие — 8,5, из
-            которых 6 ночные. Ошибка здесь сдвигает месячные итоги и число
+            Отсюда считается, как смена делится между сутками. При смене караулов в 
+            08:30 сутки заступления получают 15,5 часа (из них 2 ночныe), а следующие — 8,5 (из них 6 ночные). Ошибка здесь сдвигает месячные итоги и число
             ночных на стыке месяцев. Продолжительность смены — 24 часа, не
             включая время смены караулов (Приказ № 308 п. 3, № 307 п. 8).
           </p>
@@ -387,7 +386,7 @@ function Choice<T extends string>({
       </legend>
       <div className="space-y-2">
         {options.map((option) => (
-          <label key={option} className="flex max-w-md items-start gap-2 text-sm">
+          <label key={option} className="flex max-w-md items-start gap-2 text-sm cursor-pointer">
             <input
               type="radio"
               name={legend}
