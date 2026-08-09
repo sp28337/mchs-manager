@@ -105,7 +105,7 @@ export function YearCalendarEditor({ profile, onChange }: YearCalendarEditorProp
     return (
       <section aria-labelledby="calendar" className="space-y-2">
         <h2 id="calendar" className="text-xl">
-          Календарь {year} года
+          Производственный календарь {year} года
         </h2>
         <p className="max-w-prose text-sm text-ink-muted">
           Праздники по ст. 112 ТК РФ и предпраздничные дни по ст. 95 размечены
@@ -115,8 +115,8 @@ export function YearCalendarEditor({ profile, onChange }: YearCalendarEditorProp
           Ошибка в одном дне — это 8 часов нормы.
         </p>
         {pending.length > 0 ? <PendingNotice pending={pending} /> : null}
-        <Button type="button" variant="outline" onClick={() => setOpen(true)}>
-          Открыть календарь года
+        <Button type="button" variant="outline" onClick={() => setOpen(true)} className="rounded-xl">
+          Открыть календарь
         </Button>
       </section>
     );
@@ -134,7 +134,7 @@ export function YearCalendarEditor({ profile, onChange }: YearCalendarEditorProp
     <section aria-labelledby="calendar" className="space-y-4">
       <div className="flex flex-wrap items-baseline justify-between gap-3">
         <h2 id="calendar" className="text-xl">
-          Календарь {year} года
+          Производственный календарь {year} года
         </h2>
         <Button type="button" variant="ghost" size="sm" onClick={() => setOpen(false)}>
           Свернуть
@@ -196,10 +196,10 @@ export function YearCalendarEditor({ profile, onChange }: YearCalendarEditorProp
             className="mt-[1.375rem]"
             disabled={!range.from || !range.to}
           >
-            Назначить диапазону
+            Назначить диапазон
           </Button>
           <p className="mt-[1.375rem] max-w-xs text-xs text-ink-muted">
-            Диапазон удобнее для каникул; отдельный день быстрее отметить
+            Диапазон удобнее для длительного перерыва; отдельный день быстрее отметить
             щелчком.
           </p>
         </form>
@@ -288,7 +288,7 @@ function DayButton({ item, onPaint }: { item: CalendarDay; onPaint: () => void }
       aria-label={label}
       onClick={onPaint}
       className={cn(
-        "relative flex w-full min-w-0 flex-col items-center justify-center rounded-xs border py-0.5 leading-tight",
+        "relative flex w-full min-w-0 cursor-pointer flex-col items-center justify-center rounded-xs border py-0.5 leading-tight",
         "lg:aspect-square lg:py-0",
         "hover:border-ink focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-trace",
         DAY_TYPE_TONE[item.dayType],

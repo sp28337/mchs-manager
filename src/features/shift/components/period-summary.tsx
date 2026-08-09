@@ -73,7 +73,7 @@ export function PeriodSummary({
         ) : null}
       </dl>
 
-      <div className="space-y-2 rounded-sm border border-rule bg-paper-raised p-4">
+      <div className="space-y-2 rounded-xl border border-rule bg-paper-raised p-4">
         <h3 className="font-display text-xs font-bold uppercase tracking-wide text-ink-muted">
           Откуда взялась норма
         </h3>
@@ -114,7 +114,7 @@ export function PeriodSummary({
         // всё равно переработал — печатала «недоработка 0,00 ч, которой
         // нет». Число верное, фраза бессмысленная, а настоящая потеря
         // (заниженная переработка) при этом не называлась вовсе.
-        <p className="max-w-prose rounded-sm border-l-2 border-signal bg-signal-soft px-4 py-3 text-sm">
+        <p className="max-w-prose rounded-r-xl rounded-l-sm border-l-2 border-signal bg-signal-soft px-4 py-3 text-sm">
           {calculation.wrongNormUndertimeHours.greaterThan(0) ? (
             <>
               Если в вашем табеле норму НЕ уменьшили на эти часы, у вас

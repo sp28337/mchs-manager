@@ -32,7 +32,7 @@ export function Logo({ className }: { className?: string }) {
         width="8.5"
         height="8.5"
         rx="1.75"
-        stroke="currentColor"
+        stroke="#8a8578"
         strokeWidth="1.5"
         opacity="0.45"
       />
@@ -42,7 +42,7 @@ export function Logo({ className }: { className?: string }) {
         width="8.5"
         height="8.5"
         rx="1.75"
-        stroke="currentColor"
+        stroke="#8a8578"
         strokeWidth="1.5"
         opacity="0.45"
       />
@@ -52,7 +52,7 @@ export function Logo({ className }: { className?: string }) {
         width="8.5"
         height="8.5"
         rx="1.75"
-        stroke="currentColor"
+        stroke="#8a8578"
         strokeWidth="1.5"
         opacity="0.45"
       />
