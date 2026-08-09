@@ -1,0 +1,95 @@
+name: CD
+
+# Выкладка на VPS.
+#
+# --- Почему сборка не здесь ---------------------------------------------
+#
+# CD берёт артефакт, собранный CI, и не собирает сам. Выкладывается ровно
+# то, что прошло типы, линтер, 69 тестов и сборку, — а не «та же ветка,
+# собранная ещё раз». Между двумя сборками успевает измениться что угодно:
+# зеркало реестра, версия транзитивной зависимости, дата в кеше.
+#
+# --- Почему rsync, а не git pull на сервере ------------------------------
+#
+# На сервере нет ни Node, ни исходников: там раздаются файлы. Меньше того,
+# что установлено на машине, смотрящей в интернет, — меньше того, что
+# придётся обновлять по бюллетеням безопасности.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  # Две выкладки одновременно оставили бы на диске половину одной и
+  # половину другой. Текущую не отменяем: прерванный rsync — это как раз
+  # тот полусостав, которого мы избегаем.
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  build:
+    uses: ./.github/workflows/ci.yml
+    with:
+      site-url: ${{ vars.SITE_URL }}
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+      url: ${{ vars.SITE_URL }}
+
+    steps:
+      - name: Забрать проверенный артефакт
+        uses: actions/download-artifact@v4
+        with:
+          name: site
+          path: site
+
+      - name: Ключ и отпечаток сервера
+        run: |
+          install -m 700 -d ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          # Отпечаток берётся из секрета, а не через `ssh-keyscan`: keyscan
+          # доверяет тому, кто ответил, и от подмены сервера не защищает.
+          echo "${{ secrets.SSH_KNOWN_HOSTS }}" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Выложить
+        env:
+          HOST: ${{ secrets.SSH_HOST }}
+          USER: ${{ secrets.SSH_USER }}
+          # Каталог, ИЗ КОТОРОГО раздаёт nginx, — здесь это симлинк.
+          ROOT: ${{ vars.DEPLOY_ROOT }}
+        run: |
+          set -euo pipefail
+          RELEASE="$ROOT/releases/$(date -u +%Y%m%d-%H%M%S)-${GITHUB_SHA::7}"
+
+          # Каждая выкладка — отдельный каталог, и переключение на неё
+          # атомарно: симлинк меняется одной операцией, поэтому человек
+          # никогда не видит сайт, собранный наполовину из старого и
+          # наполовину из нового.
+          ssh -p "${{ vars.SSH_PORT || 22 }}" "$USER@$HOST" "mkdir -p '$RELEASE'"
+          rsync -az --delete -e "ssh -p ${{ vars.SSH_PORT || 22 }}" \
+            site/ "$USER@$HOST:$RELEASE/"
+
+          ssh -p "${{ vars.SSH_PORT || 22 }}" "$USER@$HOST" bash -euo pipefail -s <<EOF
+            ln -sfn '$RELEASE' '$ROOT/current.new'
+            mv -Tf '$ROOT/current.new' '$ROOT/current'
+            # Держим пять последних: откат — это ln на предыдущий каталог,
+            # и без запаса откатываться будет некуда.
+            ls -1dt '$ROOT'/releases/*/ | tail -n +6 | xargs -r rm -rf
+          EOF
+
+      - name: Проверить, что выложилось
+        run: |
+          set -euo pipefail
+          URL="${{ vars.SITE_URL }}"
+          # Не «запрос прошёл», а «пришло то, что нужно»: 200 отдаёт и
+          # страница-заглушка хостера.
+          curl -fsS "$URL/" | grep -q "Проверьте, не потеряли ли вы часы"
+          curl -fsS "$URL/calculator" | grep -q "Калькулятор переработки"
+          curl -fsS "$URL/robots.txt" | grep -q "^Sitemap: $URL/sitemap.xml$"
+          echo "Выложено: $URL"

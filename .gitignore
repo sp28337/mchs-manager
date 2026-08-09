@@ -3,21 +3,33 @@ __pycache__/
 *.py[codz]
 *$py.class
 
-# Distribution / packaging
-.Python
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-share/python-wheels/
+# Distribution / packaging (Python).
+#
+# ПРИВЯЗАНО К `backend/`, и это не косметика. Шаблон .gitignore для
+# Python перечисляет здесь каталоги без ведущего пути, а такой шаблон
+# git применяет НА ЛЮБОЙ ГЛУБИНЕ. Строка `lib/` тем самым исключала
+# `frontend/src/features/*/lib/` — обычные каталоги исходников, — и
+# файлы уходили в коммит невидимыми: `git add -A` их молча пропускал,
+# сборка у автора работала (файлы-то на диске), а у всех остальных
+# падала на неразрешённом импорте.
+#
+# Восстановить такой файл негативным правилом нельзя: git не заходит
+# внутрь исключённого КАТАЛОГА, и `!frontend/**` его не вернёт. Поэтому
+# исключение сужено до каталога, для которого оно писалось.
+backend/.Python
+backend/build/
+backend/develop-eggs/
+backend/dist/
+backend/downloads/
+backend/eggs/
+backend/.eggs/
+backend/lib/
+backend/lib64/
+backend/parts/
+backend/sdist/
+backend/var/
+backend/wheels/
+backend/share/python-wheels/
 *.egg-info/
 .installed.cfg
 *.egg
@@ -130,3 +142,18 @@ yarn-error.log*
 next-env.d.ts
 
 tmp/
+# Next.js
+/.next/
+/out/
+
+# Зависимости
+/node_modules/
+
+# Окружение
+.env
+.env*.local
+
+# Прочее
+*.tsbuildinfo
+next-env.d.ts
+.DS_Store

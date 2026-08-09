@@ -1,0 +1,69 @@
+name: CI
+
+# Приложение статическое: расчёт и хранение живут в браузере, сервера нет.
+# Поэтому CI не поднимает ничего, а собирает — и отдаёт готовый артефакт,
+# который CD выкладывает БЕЗ ПОВТОРНОЙ СБОРКИ. Пересобирать при выкладке
+# значило бы выложить не то, что проверено: та же ветка через час может
+# собраться иначе.
+
+on:
+  pull_request:
+  push:
+    branches: [main, staging]
+  workflow_call:
+    inputs:
+      site-url:
+        description: https://pererabotal.ru
+        required: true
+        type: string
+    outputs:
+      artifact:
+        description: Имя артефакта с готовой статикой.
+        value: site
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v5
+
+      # Без `version`: версия берётся из `packageManager` в package.json.
+      # Указанная в обоих местах, она валит запуск с «Multiple versions of
+      # pnpm specified» — и правильно делает: два источника истины рано или
+      # поздно разойдутся.
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "24"
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Types
+        run: pnpm typecheck
+
+      - name: Lint
+        run: pnpm lint
+
+      # Расчёт нормы: приказы 307/308, график караула, раскладка смены по
+      # суткам, производственный календарь, разбор дат.
+      - name: Tests
+        run: pnpm test
+
+      - name: Build
+        env:
+          # На pull request адреса нет — собираем с заглушкой только чтобы
+          # убедиться, что сборка проходит. Артефакт такой сборки в прод не
+          # попадёт: CD вызывает этот же workflow со своим `site-url`.
+          NEXT_PUBLIC_SITE_URL: ${{ inputs.site-url || 'https://example.invalid' }}
+        run: pnpm build
+
+      - name: Артефакт
+        uses: actions/upload-artifact@v4
+        with:
+          name: site
+          path: out/
+          retention-days: 14
+          if-no-files-found: error
