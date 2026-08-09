@@ -21,7 +21,8 @@ jobs:
 
   deploy:
     if: >
-      github.event.workflow_run.conclusion == 'success'
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push'
     # needs: build
     runs-on: ubuntu-24.04
 
@@ -31,10 +32,12 @@ jobs:
 
     steps:
       - name: Download release artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v6
         with:
           name: site
           path: site
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Key and server's firgenprint
         run: |
