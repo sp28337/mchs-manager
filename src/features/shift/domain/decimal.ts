@@ -50,6 +50,16 @@ export function formatHours(value: Decimal | number | string): string {
   return new Dec(value).toFixed(2).replace(".", ",");
 }
 
+export function formatDays(hours: Decimal): string {
+  return hours
+    .dividedBy(24)
+    .toDecimalPlaces(1)
+    .toNumber()
+    .toLocaleString("ru-RU", {
+      maximumFractionDigits: 1,
+    });
+}
+
 /** Разбор числа, введённого человеком: и «168,5», и «168.5». */
 export function parseHours(input: string): Decimal | null {
   const normalised = input.trim().replace(",", ".");
