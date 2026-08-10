@@ -1,6 +1,6 @@
 import { cn } from "@/lib/utils/cn";
 
-import { atLeastZero, formatHours as hours } from "../domain/decimal";
+import { atLeastZero, formatHours as hours, formatDays as days } from "../domain/decimal";
 import { pendingTransfers } from "../domain/production-calendar";
 import type { PeriodCalculation } from "../domain/calculation";
 
@@ -57,20 +57,38 @@ export function PeriodSummary({
           emphatic
         />
         <Figure value={hours(calculation.actualHours)} unit="ч" caption="Отработано" />
-        <Figure
-          value={hours(calculation.overtimeHours)}
-          unit="ч"
-          caption="Переработка"
-          tone={overtime ? "verify" : undefined}
-        />
-        {calculation.undertimeHours.greaterThan(0) ? (
+        <div className="flex gap-6">
           <Figure
-            value={hours(calculation.undertimeHours)}
+            value={hours(calculation.overtimeHours)}
             unit="ч"
-            caption="Недоработка"
-            tone="signal"
+            caption="Переработка"
+            tone={overtime ? "verify" : undefined}
           />
-        ) : null}
+          {overtime ? (
+            <>
+              <div className="flex items-center text-2xl">
+                ≈ 
+              </div>
+              {/* <span className="font-mono text-2xl text-verify">
+                {days(calculation.overtimeHours)} суток
+              </span> */}
+              <Figure
+                value={days(calculation.overtimeHours)}
+                unit="суток"
+                caption="В сутках"
+                tone={overtime ? "verify" : undefined}
+              />
+            </>
+          ) : null}
+          {calculation.undertimeHours.greaterThan(0) ? (
+            <Figure
+              value={hours(calculation.undertimeHours)}
+              unit="ч"
+              caption="Недоработка"
+              tone="signal"
+            />
+          ) : null}
+        </div>
       </dl>
 
       <div className="space-y-2 rounded-xl border border-rule bg-paper-raised p-4">
@@ -179,7 +197,7 @@ function Figure({
           "font-mono leading-none",
           emphatic ? "text-3xl" : "text-2xl",
           tone === "signal" && "text-signal",
-          tone === "verify" && "text-verify",
+          tone === "verify" && "text-verify  font-medium",
         )}
       >
         {value}
