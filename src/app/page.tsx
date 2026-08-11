@@ -160,9 +160,9 @@ export default function LandingPage() {
         }
       />
 
-      <main className="mx-auto w-full max-w-4xl px-6 pb-16 pt-12 xl:max-w-6xl 2xl:max-w-7xl">
+      <main className="mx-auto w-full max-w-4xl px-6 pb-16 xl:max-w-6xl 2xl:max-w-7xl">
         {/* ------------------------------------------------------ первый экран */}
-        <section className="space-y-6 border-b border-rule py-14 h-96 flex flex-col justify-center">
+        <section className="space-y-6 border-b border-rule pt-[60px] h-lvh md:h-[90lvh] flex flex-col justify-center">
           <p className="font-mono text-xs uppercase tracking-widest text-ink-faint">
             Для аттестованных и вольнонаёмных
           </p>
