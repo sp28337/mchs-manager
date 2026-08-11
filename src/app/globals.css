@@ -221,3 +221,68 @@
     scroll-behavior: auto !important;
   }
 }
+
+
+/**
+ * Анимация «чертежа» табеля.
+ *
+ * Всё сделано на чистом CSS: анимация запускается автоматически при
+ * загрузке — JS не участвует и не нужен ни для reduced-motion, ни для
+ * мобильной обрезки (это делают медиазапросы в самом компоненте).
+ *
+ * pathLength="1" на каждом <line>/<rect> (задаётся в TSX) — приём,
+ * который позволяет использовать один и тот же stroke-dasharray: 1 для
+ * линий любой реальной длины, без ручного расчёта périmeter'а.
+ */
+
+.stroke {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+
+.draw {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: ts-draw 650ms cubic-bezier(0.4, 0, 0.2, 1) forwards;
+  animation-delay: var(--d, 0ms);
+}
+
+.label {
+  fill: currentColor;
+  opacity: 0;
+  transform: translateY(3px);
+  animation: ts-label 480ms ease-out forwards;
+  animation-delay: var(--d, 0ms);
+}
+
+@keyframes ts-draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes ts-label {
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Полный покой после отрисовки: анимации одноразовые (forwards),
+   зацикливания нет по определению — ничего дополнительно выключать не
+   нужно. */
+
+@media (prefers-reduced-motion: reduce) {
+  .draw {
+    animation: none;
+    stroke-dashoffset: 0;
+  }
+
+  .label {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
+}

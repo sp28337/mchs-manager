@@ -127,10 +127,10 @@ const STEPS = [
       "и на каких условиях вы проходите службу. Эти данные нужны, чтобы определить вашу норму рабочего времени.",
   },
   {
-    title: "График караула на год",
+    title: "Производственный календарь",
     text:
-      "По дате первой смены калькулятор автоматически строит годовой график «сутки через трое». " +
-      "Так определяется, какие часы по графику приходятся на работу, выходные, праздники и периоды освобождения от службы.",
+      "Сверьте корректность производственного календаря. При необходимсоти " +
+      "вы можете самостоятельно указать праздничные, предпраздничные и выходные дни за необходимый период",
   },
   {
     title: "Сравнение расчёта с табелем",
@@ -162,7 +162,7 @@ export default function LandingPage() {
 
       <main className="mx-auto w-full max-w-4xl px-6 pb-16 xl:max-w-6xl 2xl:max-w-7xl">
         {/* ------------------------------------------------------ первый экран */}
-        <section className="space-y-6 border-b border-rule pt-[60px] h-lvh md:h-[90lvh] flex flex-col justify-center">
+        <section className="space-y-6 border-b border-rule pt-15 h-lvh md:h-[90lvh] flex flex-col justify-center">
           <p className="font-mono text-xs uppercase tracking-widest text-ink-faint">
             Для аттестованных и вольнонаёмных
           </p>
@@ -183,7 +183,7 @@ export default function LandingPage() {
               Открыть калькулятор
             </Link>
             <p className="text-sm text-ink-muted">
-              Бесплатно · без регистрации · данные не покидают ваш браузер
+              Бесплатно · без регистрации
             </p>
           </div>
         </section>
@@ -191,25 +191,18 @@ export default function LandingPage() {
         {/* ------------------------------------------------------- сама проблема */}
         <section aria-labelledby="problem" className="space-y-4 border-b border-rule py-12">
           <h2 id="problem" className="text-2xl">
-            «Минус 24 часа за смену в отпуске»
+            «Отпуск уменьшает норму, а не отработанные часы»
           </h2>
           <div className="grid gap-6 md:grid-cols-2">
             <p className="max-w-prose">
-              При суммированном учёте рабочего времени часы, которые по графику пришлись на период отпуска, 
-              больничного или иного освобождения от работы с сохранением места службы, 
-              <strong> исключаются из нормы</strong>, а не вычитаются из
-              фактически отработанного времени.
+              При суммированном учёте время отпуска, больничного или другого освобождения от 
+              работы с сохранением места работы <strong> исключается из нормы</strong> рабочего времени.
+              При этом норма уменьшается на нормативные часы, приходящиеся на период отсутствия, 
+              а фактически отработанные часы остаются без изменений.
             </p>
             <p className="max-w-prose text-ink-muted">
-              Это принципиальная разница.
-              Если вычесть смену из факта, отпуск искусственно создаст недоработку, 
-              а размер переработки окажется меньше действительного. Основание —{" "}
-              <a href="https://base.garant.ru/12182312/" target="_blank" className="whitespace-nowrap">
-                письмо Роструда от 01.03.2010 № 550-6-1
-              </a>{" и "}
-              <a href="https://base.garant.ru/12125268/f0919a1a5b9327ff53d0b0cd9f3489ec/" target="_blank">
-                ст. 104 ТК РФ.
-              </a>
+              Это важно для расчёта переработки: отпуск не уменьшает фактически отработанное время. 
+              Он уменьшает количество часов, которые сотрудник или работник должен был отработать за учётный период. 
             </p>
             <p className="max-w-prose text-ink-muted">
               
@@ -221,15 +214,17 @@ export default function LandingPage() {
               <p className="font-display text-xs font-bold uppercase tracking-wide text-signal">
                 Как считают неправильно
               </p>
-              <p className="font-mono text-sm">норма 168 ч · факт 192 − 24 = 168 ч</p>
-              <p className="text-sm">Переработки нет.</p>
+              <p className="font-mono text-sm">норма за отпуск 168 ч</p>
+              <p className="font-mono text-sm">факт за отпуск 0 ч − 168 ч = -168 ч</p>
+              <p className="text-sm font-semibold">Появилась задолженность</p>
             </div>
             <div className="space-y-1 bg-verify-soft p-4">
               <p className="font-display text-xs font-bold uppercase tracking-wide text-verify">
                 Как должно быть
               </p>
-              <p className="font-mono text-sm">норма 168 − 24 = 144 ч · факт 192 ч</p>
-              <p className="text-sm">Переработка 48 часов.</p>
+              <p className="font-mono text-sm">норма за отпуск 168 ч − 168 ч = 0 ч</p>
+              <p className="font-mono text-sm">фактически за отпуск 0 ч</p>
+              <p className="text-sm font-semibold">Задолженности нет</p>
             </div>
           </div>
         </section>
