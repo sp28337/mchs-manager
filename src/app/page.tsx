@@ -162,7 +162,7 @@ export default function LandingPage() {
 
       <main className="mx-auto w-full max-w-4xl px-6 pb-16 pt-12 xl:max-w-6xl 2xl:max-w-7xl">
         {/* ------------------------------------------------------ первый экран */}
-        <section className="space-y-6 border-b border-rule py-14">
+        <section className="space-y-6 border-b border-rule py-14 h-96 flex flex-col justify-center">
           <p className="font-mono text-xs uppercase tracking-widest text-ink-faint">
             Для аттестованных и вольнонаёмных
           </p>
@@ -279,7 +279,7 @@ export default function LandingPage() {
               [
                 "Приказ МЧС России № 307 от 24.04.2026",
                 "Правила рабочего времени работников без специальных званий: недельная норма 40, 36 или 35 часов и продолжительность учётного периода.",
-                "/documents/prikaz-mchs-307-24-04-2026",
+                "https://base.garant.ru/414325735/",
               ],
               [
                 "Приказ МЧС России № 410 от 24.09.2018",
@@ -301,20 +301,49 @@ export default function LandingPage() {
                 "Разъясняет, как уменьшать норму учётного периода на часы, которые сотрудник не должен был отрабатывать по уважительной причине.",
                 "https://base.garant.ru/12182312/",
               ],
-            ].map(([source, what, href]) => (
-              <div key={source} className="space-y-0.5 group cursor-pointer">
-                <dt className="text-sm font-medium">
-                  <a
-                    href={href}
-                    target="_blank"
-                    className="text-ink group-hover:underline"
-                  >
-                    {source}
-                  </a>
-                </dt>
-                <dd className="text-sm text-ink-muted">{what}</dd>
-              </div>
-            ))}
+              [
+                "Приказ Минздравсоцразвития РФ от 13.08.2009 N 588н",
+                "Определяет порядок исчисления нормы рабочего времени на определенные календарные периоды времени (месяц, квартал, год)",
+                "https://normativ.kontur.ru/document?moduleId=1&documentId=143110",
+              ],
+              [
+                "Письмо Минздравсоцразвития N 22-2/377333-782 от 13.10.2011",
+                "О случаях уменьшения нормы рабочего времени работником.",
+                "https://base.garant.ru/55172417/",
+              ],
+            ].map(([source, what, href]) => {
+              return (
+                <div key={source} className="space-y-0.5 group cursor-pointer">
+                  <dt className="text-sm font-medium">
+                    <a
+                      href={href}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 text-ink group-hover:underline"
+                    >
+                      {source}
+                      <svg
+                        aria-hidden="true"
+                        viewBox="0 0 24 24"
+                        width="12"
+                        height="12"
+                        className="shrink-0 text-ink-muted"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+                        <polyline points="15 3 21 3 21 9" />
+                        <line x1="10" y1="14" x2="21" y2="3" />
+                      </svg>
+                    </a>
+                  </dt>
+                  <dd className="text-sm text-ink-muted">{what}</dd>
+                </div>
+              );
+            })}
           </dl>
         </section>
 
