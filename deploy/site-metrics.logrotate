@@ -1,0 +1,26 @@
+# Кладётся в /etc/logrotate.d/site-metrics
+#
+# Смысл ротации здесь не в экономии места, а в сроке жизни: сырой лог
+# существует сутки, сворачивается в агрегаты и удаляется. `rotate 0` — это
+# и есть «копий не хранить».
+
+/var/log/nginx/metrics.log {
+    daily
+    rotate 0
+    missingok
+    notifempty
+    create 0640 www-data adm
+    dateext
+
+    postrotate
+        # nginx держит файл открытым по дескриптору и после переименования
+        # продолжил бы писать в старый. USR1 заставляет его открыть новый.
+        [ -f /run/nginx.pid ] && kill -USR1 "$(cat /run/nginx.pid)"
+
+        for f in /var/log/nginx/metrics.log-*; do
+            [ -s "$f" ] || continue
+            /usr/local/bin/site-metrics "$f"
+            rm -f "$f"
+        done
+    endscript
+}
