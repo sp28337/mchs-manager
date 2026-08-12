@@ -2,6 +2,10 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { SiteHeader } from "@/components/shared/site-header";
+import {
+  TabelBackdrop,
+  TabelBackdropSeenScript,
+} from "@/components/shared/tabel-backdrop";
 import { Logo } from "@/components/ui/logo";
 import { Calculator, ChevronDown } from "lucide-react";
 
@@ -143,6 +147,11 @@ const STEPS = [
 export default function LandingPage() {
   return (
     <>
+      {/* До разметки намеренно: признак «этот табель уже чертился» обязан
+          быть выставлен раньше первого кадра, иначе человек увидит начало
+          анимации, которую мы решили не проигрывать. */}
+      <TabelBackdropSeenScript />
+
       <SiteHeader
         tagline="Суммированный учёт служебного времени при графике сутки через трое"
         action={
@@ -162,29 +171,37 @@ export default function LandingPage() {
 
       <main className="mx-auto w-full max-w-4xl px-6 pb-16 xl:max-w-6xl 2xl:max-w-7xl">
         {/* ------------------------------------------------------ первый экран */}
-        <section className="space-y-6 border-b border-rule pt-15 h-lvh md:h-[90lvh] flex flex-col justify-center">
-          <p className="font-mono text-xs uppercase tracking-widest text-ink-faint">
-            Для аттестованных и вольнонаёмных
-          </p>
-          <h1 className="max-w-3xl text-4xl leading-[1.15] sm:text-5xl">
-            Проверьте, не потеряли ли вы часы
-          </h1>
-          <p className="max-w-prose text-lg text-ink-muted">
-            При графике «сутки через трое» ошибка в табеле может стоить десятков часов переработки.
+        {/* `isolate` — чтобы `z-index` слоёв не спорил ни с шапкой, ни с
+            остальной страницей; `overflow-hidden` обрезает табель границами
+            экрана: документ уходит за край, и от этого читается как лежащий
+            глубже, а не наклеенный. */}
+        <section className="relative isolate flex h-lvh flex-col justify-center overflow-hidden border-b border-rule pt-15 md:h-[90lvh]">
+          <TabelBackdrop />
 
-            Этот калькулятор самостоятельно восстанавливает ваш график караула, определяет норму рабочего времени за учётный период и сравнивает её с данными табеля.
-          </p>
-
-          <div className="flex flex-wrap items-center gap-4 pt-2">
-            <Link
-              href="/calculator"
-              className="inline-flex h-11 items-center font-bold rounded-xl bg-ink px-6 text-base text-paper hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-trace"
-            >
-              Открыть калькулятор
-            </Link>
-            <p className="text-sm text-ink-muted">
-              Бесплатно · без регистрации
+          <div className="relative z-10 space-y-6">
+            <p className="font-mono text-xs uppercase tracking-widest text-ink-faint">
+              Для аттестованных и вольнонаёмных
             </p>
+            <h1 className="max-w-3xl text-4xl leading-[1.15] sm:text-5xl">
+              Проверьте, не потеряли ли вы часы
+            </h1>
+            <p className="max-w-prose text-lg text-ink-muted">
+              При графике «сутки через трое» ошибка в табеле может стоить десятков часов переработки.
+
+              Этот калькулятор самостоятельно восстанавливает ваш график караула, определяет норму рабочего времени за учётный период и сравнивает её с данными табеля.
+            </p>
+
+            <div className="flex flex-wrap items-center gap-4 pt-2">
+              <Link
+                href="/calculator"
+                className="inline-flex h-11 items-center font-bold rounded-xl bg-ink px-6 text-base text-paper hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-trace"
+              >
+                Открыть калькулятор
+              </Link>
+              <p className="text-sm text-ink-muted">
+                Бесплатно · без регистрации
+              </p>
+            </div>
           </div>
         </section>
 
