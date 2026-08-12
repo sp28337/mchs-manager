@@ -192,6 +192,10 @@ export interface CalendarFactsForPeriod {
   readonly workingDays: number;
   readonly preHolidayDays: number;
   readonly holidays: Set<IsoDate>;
+  /** Сами рабочие дни, а не только их число: по ним считается, сколько
+   *  нормы приходится на отпуск. */
+  readonly workingDaySet: Set<IsoDate>;
+  readonly preHolidayDaySet: Set<IsoDate>;
 }
 
 /**
@@ -215,6 +219,8 @@ export function calendarFactsFor(
   let workingDays = 0;
   let preHolidayDays = 0;
   const holidays = new Set<IsoDate>();
+  const workingDaySet = new Set<IsoDate>();
+  const preHolidayDaySet = new Set<IsoDate>();
 
   const firstYear = Number(periodStart.slice(0, 4));
   // `periodEnd` исключающая: период, кончающийся 1 января, последнего года
@@ -225,11 +231,17 @@ export function calendarFactsFor(
     const overrides = overridesByYear.get(year) ?? new Map<IsoDate, DayType>();
     for (const { day, dayType } of calendarWithOverrides(year, overrides)) {
       if (day < periodStart || day >= periodEnd) continue;
-      if (dayType === "working" || dayType === "pre_holiday") workingDays += 1;
-      if (dayType === "pre_holiday") preHolidayDays += 1;
+      if (dayType === "working" || dayType === "pre_holiday") {
+        workingDays += 1;
+        workingDaySet.add(day);
+      }
+      if (dayType === "pre_holiday") {
+        preHolidayDays += 1;
+        preHolidayDaySet.add(day);
+      }
       if (dayType === "holiday") holidays.add(day);
     }
   }
 
-  return { workingDays, preHolidayDays, holidays };
+  return { workingDays, preHolidayDays, holidays, workingDaySet, preHolidayDaySet };
 }
