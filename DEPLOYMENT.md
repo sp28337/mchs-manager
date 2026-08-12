@@ -60,49 +60,54 @@ aws s3 sync out/ s3://ваш-бакет/ --delete \
 
 ### Свой nginx
 
-```nginx
-server {
-    listen 443 ssl http2;
-    server_name example.ru;
+Готовая конфигурация лежит в репозитории, переписывать её из документации
+не нужно:
 
-    root /var/www/kalkulyator/out;
-    index index.html;
-
-    # По умолчанию не пишем в лог ничего: формат по умолчанию содержит IP.
-    # Что и как считается вместо этого — раздел «Статистика посещаемости».
-    access_log off;
-
-    # Ошибки формату не поддаются и содержат IP всегда. `crit` оставляет
-    # только настоящие аварии, а не каждый 404.
-    error_log /var/log/nginx/error.log crit;
-
-    location / {
-        access_log /var/log/nginx/metrics.log metrics;
-
-        # Экспорт кладёт страницы как `calculator.html`. Без этой строки
-        # адрес `/calculator` вернёт 404, хотя файл на месте.
-        try_files $uri $uri.html $uri/index.html /404.html;
-    }
-
-    # Файлы в `_next/` содержат хеш в имени и никогда не меняются под тем
-    # же адресом — их можно кешировать навсегда. В счёт посещаемости они
-    # не идут: сорок запросов к статике ничего о ней не говорят.
-    location /_next/static/ {
-        access_log off;
-        expires 1y;
-        add_header Cache-Control "public, immutable";
-    }
-
-    # HTML кешировать нельзя: иначе после выкладки человек неделю видит
-    # прежний расчёт.
-    location ~* \.html$ {
-        add_header Cache-Control "no-cache";
-    }
-
-    gzip on;
-    gzip_types text/css application/javascript image/svg+xml application/json;
-}
+```bash
+sudo install -m 644 deploy/nginx-security-headers.conf /etc/nginx/snippets/security-headers.conf
+sudo install -m 644 deploy/nginx-metrics.conf          /etc/nginx/conf.d/metrics.conf
+sudo install -m 644 deploy/nginx-site.conf             /etc/nginx/sites-available/pererabotal.ru
+sudo ln -sfn /etc/nginx/sites-available/pererabotal.ru /etc/nginx/sites-enabled/
+sudo nginx -t && sudo systemctl reload nginx
 ```
+
+В `nginx-site.conf` поправьте `server_name`, `root` и пути к сертификатам.
+
+#### Три места, где очевидный вариант молча не работает
+
+Всё проверено запуском nginx 1.24, а не вычитано из документации.
+
+**Страница ошибки под кодом 200.** Написать `try_files $uri $uri.html
+/404.html` напрашивается, но последний аргумент-URI делает внутренний
+редирект и отдаёт страницу ошибки **с кодом 200**. Для сайта, живущего с
+поиска, это худший из вариантов: любой несуществующий адрес выглядит для
+поисковика рабочей страницей. Настоящий 404 даёт `=404` в конце `try_files`
+плюс `error_page 404 /404.html;`.
+
+**Пропадающие защитные заголовки.** `add_header` не наследуется вниз: если
+на текущем уровне есть хоть один `add_header`, все унаследованные
+отбрасываются, и `always` на это не влияет. Достаточно одной строки про
+кеширование в `location` — и оттуда исчезают CSP, HSTS и остальные. При
+объявлении заголовков один раз выше по дереву `_next/static/*` и страница
+ошибки уходят клиенту вообще без них. Поэтому заголовки вынесены в
+`snippets/security-headers.conf` и подключаются `include` в каждый
+`location`.
+
+**Правило «HTML не кешировать», которое не срабатывает.** `location ~*
+\.html$` ловит только прямой запрос `/calculator.html`, а люди ходят на
+`/calculator`. Внутренний редирект `try_files` до регулярного location не
+доходит, и заголовок `no-cache` не выставляется — после выкладки браузер
+ещё сутки показывает прежнюю сборку. Правило перенесено в `location /`,
+который обрабатывает настоящие запросы.
+
+Что отдаётся в итоге:
+
+| Адрес | Код | Защитные заголовки | Кеширование |
+|---|---|---|---|
+| `/`, `/calculator` | 200 | есть | `no-cache` |
+| несуществующий адрес | **404** | есть | `no-cache` |
+| `/_next/static/*` | 200 | есть | `immutable`, год |
+| `/icon.svg`, `/robots.txt` | 200 | есть | `no-cache` |
 
 ## Заголовки безопасности
 
@@ -110,17 +115,17 @@ server {
 задать жёстко — и это стоит сделать: она превращает обещание «данные не
 уходят» в проверяемое браузером правило.
 
-```nginx
-add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'" always;
-add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
-add_header X-Content-Type-Options "nosniff" always;
-add_header Referrer-Policy "strict-origin-when-cross-origin" always;
-add_header X-Frame-Options "DENY" always;
-```
+Сами заголовки — в `deploy/nginx-security-headers.conf`. Держать их в
+отдельном файле обязательно, а не для красоты: `add_header` не наследуется
+вниз по дереву, поэтому подключать их приходится `include`'ом в каждый
+`location`, где есть свой `add_header`. Подробнее — выше, «Свой nginx».
 
 `'unsafe-inline'` в `script-src` нужен Next.js для встроенного
 загрузочного скрипта; `connect-src 'self'` — то самое правило, из-за
 которого утечка данных наружу стала бы видна как ошибка в консоли.
+`form-action 'self'` и `object-src 'none'` добавлены к исходному набору:
+форм, отправляющих данные куда-либо, в приложении нет, и запретить это
+дешевле, чем однажды не заметить.
 
 Шрифты `next/font` собираются в `_next/static`, внешних запросов к Google
 Fonts нет, поэтому `font-src 'self'` достаточно.
@@ -154,23 +159,37 @@ User-Agent, солят, хешируют и получают идентифик�
 
 ### Что настроить
 
-Три файла лежат в `deploy/`:
+Файлы лежат в `deploy/`:
 
 | Файл | Куда | Что делает |
 |---|---|---|
-| `nginx-metrics.conf` | `/etc/nginx/conf.d/` | формат лога без IP, домен реферера, класс устройства |
+| `nginx-metrics.conf` | `/etc/nginx/conf.d/` | формат лога без IP, домен реферера, класс устройства, исходный путь |
+| `nginx-site.conf` | `/etc/nginx/sites-available/` | конфигурация сайта: где сбор включается |
+| `nginx-security-headers.conf` | `/etc/nginx/snippets/` | защитные заголовки |
 | `site-metrics` | `/usr/local/bin/` (`chmod +x`) | сворачивает суточный лог в агрегаты |
 | `site-metrics.logrotate` | `/etc/logrotate.d/site-metrics` | вызывает свёртку раз в сутки и удаляет сырой лог |
 
-Строки `access_log` в `server` — в примере конфигурации выше.
+В логе пишется путь, который человек запросил, а не тот, которым запрос
+кончил: `$uri` к моменту записи уже переписан, и битая ссылка попала бы
+в статистику как обращение к `/404.html`. Поэтому в формате `$req_path`.
+
+Конфигурация nginx раскладывается командами из раздела «Свой nginx»;
+свёртка добавляется к ней:
 
 ```bash
-sudo install -m 644 deploy/nginx-metrics.conf   /etc/nginx/conf.d/metrics.conf
-sudo install -m 755 deploy/site-metrics         /usr/local/bin/site-metrics
+sudo install -m 755 deploy/site-metrics           /usr/local/bin/site-metrics
 sudo install -m 644 deploy/site-metrics.logrotate /etc/logrotate.d/site-metrics
 sudo mkdir -p /var/lib/site-metrics
-sudo nginx -t && sudo systemctl reload nginx
 sudo logrotate -d /etc/logrotate.d/site-metrics   # проверка вхолостую
+```
+
+Проверить, что в логе нет IP, — единственная проверка здесь, у которой
+есть правовые последствия, поэтому глазами:
+
+```bash
+curl -s -o /dev/null https://ваш-домен/
+sudo tail -1 /var/log/nginx/metrics.log
+# 2026-08-12T09:14:02+00:00	GET	/	200	-	desktop
 ```
 
 ### Что получается
