@@ -32,21 +32,18 @@
  * --- Почему это не мешает ------------------------------------------------
  *
  * Слой абсолютный, не влияет на поток и обрезается правым краем окна (за
- * это отвечает `overflow-x: clip` на `body`), поэтому не сдвигает ничего и
- * не создаёт горизонтальной прокрутки. `aria-hidden` и `pointer-events:
- * none` — он декоративен и не должен ни попадать в озвучку, ни ловить
- * щелчки. Прозрачность держится в переменных темы: на тёмном фоне тонкая
- * линия при той же альфе читается слабее, и значения там другие.
+ * это отвечает `overflow-x: clip` в разметке страницы), поэтому не сдвигает
+ * ничего и не создаёт горизонтальной прокрутки. `aria-hidden` и
+ * `pointer-events: none` — он декоративен и не должен ни попадать в
+ * озвучку, ни ловить щелчки. Прозрачность держится в переменных темы: на
+ * тёмном фоне тонкая линия при той же альфе читается слабее, и значения
+ * там другие.
  */
 
 /* Геометрия. Числа — координаты в системе `viewBox`, а не пиксели экрана:
-   слой масштабируется целиком, и подгонять их под ширину окна не нужно.
-
-   Правая граница таблицы совпадает с краем `viewBox`: слой доводится до
-   края окна, и документ должен упираться в него, а не заканчиваться
-   раньше с пустым полем справа. */
-const VIEW = { w: 980, h: 620 };
-const TABLE = { x0: 40, x1: 979, y0: 120, y1: 560 };
+   слой масштабируется целиком, и подгонять их под ширину окна не нужно. */
+const VIEW = { w: 1200, h: 505 };
+const TABLE = { x0: 40, x1: 1199, y0: 120, y1: 476 };
 
 /** Низ первой полосы шапки и низ шапки целиком. */
 const HEAD = { band: 176, bottom: 224 };
@@ -58,12 +55,12 @@ const HEAD = { band: 176, bottom: 224 };
  * Он же — порядок спора: разговор всегда упирается в предпоследний столбец.
  */
 const COLS = {
-  num: 92,
-  name: 300,
-  days: 620,
-  split: 700,
-  total: 780,
-  over: 880,
+  num: 96,
+  name: 320,
+  days: 880,
+  split: 950,
+  total: 1020,
+  over: 1120,
 };
 
 /** Вертикали во всю высоту таблицы. */
@@ -75,17 +72,8 @@ const VERTICALS: readonly number[] = [
   COLS.over,
 ];
 
-/** Строки под записи. */
-const HORIZONTALS: readonly number[] = [
-  HEAD.bottom,
-  266,
-  308,
-  350,
-  392,
-  434,
-  476,
-  518,
-];
+/** Строки под записи: четыре караула и две свободные. */
+const HORIZONTALS: readonly number[] = [HEAD.bottom, 266, 308, 350, 392, 434];
 
 /**
  * Разделитель полос шапки — отрезками, а не сплошной линией.
@@ -102,13 +90,13 @@ const BANDS: readonly { x0: number; x1: number }[] = [
 ];
 
 /**
- * Узкие столбцы под числа месяца.
+ * Узкие столбцы под числа месяца — весь месяц, все 28 суток.
  *
- * Именно они делают табель табелем: гребёнка из полутора десятков клеток в
+ * Именно они делают табель табелем: гребёнка из трёх десятков клеток в
  * строку не встречается больше нигде в делопроизводстве.
  */
-const DAY_COLUMN = 20;
-const DAY_COUNT = 16;
+const DAY_COUNT = 28;
+const DAY_COLUMN = (COLS.days - COLS.name) / DAY_COUNT;
 const DAY_TICKS: readonly number[] = Array.from(
   { length: DAY_COUNT - 1 },
   (_, index) => COLS.name + (index + 1) * DAY_COLUMN,
@@ -119,9 +107,9 @@ const dayCenter = (day: number) => COLS.name + (day - 1) * DAY_COLUMN + DAY_COLU
 
 /** Подписи полей над таблицей: «Подразделение ____ Месяц ____ Год ____». */
 const FIELDS: readonly { label: string; x: number; lineFrom: number; lineTo: number }[] = [
-  { label: "Подразделение", x: 40, lineFrom: 136, lineTo: 330 },
-  { label: "Месяц", x: 360, lineFrom: 402, lineTo: 520 },
-  { label: "Год", x: 560, lineFrom: 590, lineTo: 700 },
+  { label: "Подразделение", x: 40, lineFrom: 136, lineTo: 380 },
+  { label: "Месяц", x: 420, lineFrom: 462, lineTo: 620 },
+  { label: "Год", x: 660, lineFrom: 690, lineTo: 830 },
 ];
 
 /**
@@ -132,13 +120,13 @@ const FIELDS: readonly { label: string; x: number; lineFrom: number; lineTo: num
  * нижнего яруса — по центру своей полосы (`y` 204).
  */
 const CAPTIONS: readonly { text: string; x: number; y: number; size: number }[] = [
-  { text: "№", x: 66, y: 177, size: 13 },
-  { text: "Ф.И.О., звание, должность", x: 196, y: 177, size: 13 },
-  { text: "Числа месяца", x: 460, y: 153, size: 12 },
-  { text: "Отработано, ч", x: 700, y: 153, size: 12 },
-  { text: "всего", x: 660, y: 204, size: 10 },
-  { text: "ночных", x: 740, y: 204, size: 10 },
-  { text: "Сверх нормы", x: 830, y: 177, size: 11 },
+  { text: "№", x: (TABLE.x0 + COLS.num) / 2, y: 177, size: 13 },
+  { text: "Ф.И.О., звание, должность", x: (COLS.num + COLS.name) / 2, y: 177, size: 13 },
+  { text: "Числа месяца", x: (COLS.name + COLS.days) / 2, y: 153, size: 12 },
+  { text: "Отработано, ч", x: (COLS.days + COLS.total) / 2, y: 153, size: 12 },
+  { text: "всего", x: (COLS.days + COLS.split) / 2, y: 204, size: 10 },
+  { text: "ночных", x: (COLS.split + COLS.total) / 2, y: 204, size: 10 },
+  { text: "Сверх нормы", x: (COLS.total + COLS.over) / 2, y: 177, size: 11 },
   { text: "Подпись", x: (COLS.over + TABLE.x1) / 2, y: 177, size: 11 },
 ];
 
@@ -148,44 +136,57 @@ const DAY_MARKS: readonly number[] = Array.from({ length: DAY_COUNT }, (_, i) =>
 /** Середины строк с записями. */
 const ROWS: readonly number[] = [245, 287, 329, 371];
 
-/**
- * Записи в табеле.
- *
- * Четыре караула, сутки через трое: у первого смены 1, 5, 9, 13-го, у
- * второго — 2, 6, 10, 14-го и так далее. Отсюда и остальные числа, а не
- * из головы: четыре суточных смены — это 96 часов, и в каждой ровно 8
- * ночных (окно 22:00—06:00 целиком внутри суток), значит 32.
- *
- * Столбец «Сверх нормы» пуст намеренно. Он и есть предмет разговора: в
- * выданном табеле там чаще всего либо пусто, либо не то. Заполнять его
- * здесь — значит ответить за человека на вопрос, ради которого он пришёл.
- *
- * Фамилии — общепринятые для образцов бланков. Ничьих настоящих данных на
- * фоне сайта, который обещает не собирать данные, быть не может.
- */
-const GUARDS: readonly { name: string; firstShift: number }[] = [
-  { name: "Иванов А. А., ком. отделения", firstShift: 1 },
-  { name: "Петров С. В., пожарный", firstShift: 2 },
-  { name: "Сидоров Н. П., водитель", firstShift: 3 },
-  { name: "Кузнецов Д. И., пожарный", firstShift: 4 },
-];
-
 const SHIFT_HOURS = 24;
 /** Окно 22:00—06:00 целиком помещается внутри суточной смены. */
 const NIGHT_HOURS_PER_SHIFT = 8;
 const CYCLE = 4;
 
-/** Смены караула в пределах показанных суток. */
-const shiftsOf = (firstShift: number) =>
-  Array.from({ length: DAY_COUNT / CYCLE }, (_, index) => firstShift + index * CYCLE).filter(
-    (day) => day <= DAY_COUNT,
-  );
+/** Условные обозначения — те же буквы, что и в настоящем табеле. */
+const MARK = { day_off: "В", vacation: "О" };
+
+/**
+ * Записи в табеле.
+ *
+ * Четыре караула, сутки через трое: у первого смены 1, 5, 9-го и так
+ * далее, у второго — 2, 6, 10-го. В сутках между сменами стоит «В», как и
+ * положено. Третья строка — человек в отпуске весь месяц: сплошное «О»,
+ * ноль отработанных часов. Это ровно тот случай, ради которого сделан
+ * калькулятор, и он должен быть виден прямо в бланке.
+ *
+ * Числа не выдуманы: семь суточных смен за 28 дней — это 168 часов, и в
+ * каждой смене ровно 8 ночных, значит 56.
+ *
+ * Столбец «Сверх нормы» пуст намеренно. Он и есть предмет разговора: в
+ * выданном табеле там чаще всего либо пусто, либо не то. Заполнить его
+ * здесь — значит ответить за человека на вопрос, ради которого он пришёл.
+ *
+ * Фамилии — общепринятые для образцов бланков. Ничьих настоящих данных на
+ * фоне сайта, который обещает не собирать данные, быть не может.
+ */
+const GUARDS: readonly { name: string; firstShift: number | null }[] = [
+  { name: "Иванов А. А., ком. отделения", firstShift: 1 },
+  { name: "Петров С. В., пожарный", firstShift: 2 },
+  { name: "Сидоров Н. П., водитель", firstShift: null },
+  { name: "Кузнецов Д. И., пожарный", firstShift: 4 },
+];
+
+/** Отметки строки по суткам: часы смены, «В» или «О» на весь месяц. */
+const marksOf = (firstShift: number | null): readonly string[] =>
+  DAY_MARKS.map((day) => {
+    if (firstShift === null) return MARK.vacation;
+    return (day - firstShift) % CYCLE === 0 && day >= firstShift
+      ? String(SHIFT_HOURS)
+      : MARK.day_off;
+  });
+
+const shiftCount = (marks: readonly string[]) =>
+  marks.filter((mark) => mark === String(SHIFT_HOURS)).length;
 
 /** Шаг между соседними элементами одной фазы, в секундах. */
-const STEP = { line: 0.06, row: 0.05, tick: 0.022, text: 0.06, day: 0.015 };
+const STEP = { line: 0.06, row: 0.05, tick: 0.015, text: 0.06, day: 0.011 };
 
 /** Заполнение: строка за строкой, внутри строки — слева направо. */
-const FILL = { row: 0.22, cell: 0.03 };
+const FILL = { row: 0.18, cell: 0.011 };
 
 /** Начало фаз. Они намеренно перекрываются: рисунок должен собираться, а
  *  не распадаться на отдельные вспышки. Заполнение — единственная фаза,
@@ -197,7 +198,7 @@ const PHASE = {
   rows: 1.05,
   ticks: 1.25,
   text: 1.5,
-  fill: 2.6,
+  fill: 2.5,
 };
 
 const delay = (seconds: number) => ({ "--d": `${seconds.toFixed(3)}s` }) as React.CSSProperties;
@@ -214,16 +215,24 @@ export function TabelBackdrop() {
       // места, где документ не мешал бы его читать, а портить главное ради
       // фона нельзя.
       //
-      // `right: calc(50% - 51vw)` — правый край окна и ещё немного за него.
-      // Секция центрирована, поэтому её середина совпадает с серединой
-      // окна, и отсчёт от 50% выводит слой из колонки `main` наружу.
-      // Лишнее срезает `overflow-x: clip` на `body`: документ уходит за
-      // край экрана, а полосы прокрутки от этого не появляется.
-      className="tabel-backdrop pointer-events-none absolute inset-y-0 right-[calc(50%-51vw)] z-0 hidden w-[92vw] select-none text-ink sm:block lg:w-[74vw]"
+      // Сверху слой начинается ниже шапки: она `fixed` и перекрыла бы
+      // заголовок бланка. Снизу — отступ, чтобы документ не упирался в
+      // линию, отделяющую первый экран.
+      //
+      // По горизонтали: секция центрирована, её середина совпадает с
+      // серединой окна, поэтому отсчёт от 50% выводит слой из колонки
+      // `main` наружу. Правый край заходит за край окна примерно на
+      // десятую часть ширины документа — бланк, обрезанный ровно по краю
+      // экрана, читается как ошибка вёрстки, а уходящий за край — как
+      // лежащий глубже. Лишнее срезает `overflow-x: clip` в разметке
+      // страницы.
+      className="tabel-backdrop pointer-events-none absolute top-24 bottom-14 right-[calc(50%-60vw)] z-0 hidden w-[96vw] select-none text-ink sm:block lg:right-[calc(50%-58vw)] lg:w-[76vw]"
     >
       <svg
         viewBox={`0 0 ${VIEW.w} ${VIEW.h}`}
-        preserveAspectRatio="xMidYMid meet"
+        // Прижат к правому краю слоя: на низком окне документ становится
+        // уже своего слоя, и центрирование оторвало бы его от края экрана.
+        preserveAspectRatio="xMaxYMid meet"
         focusable="false"
         className="size-full"
         fill="none"
@@ -281,7 +290,7 @@ export function TabelBackdrop() {
             d={`M${COLS.split} ${HEAD.band} V${TABLE.y1}`}
           />
 
-          {/* Гребёнка дней идёт быстрым росчерком: пятнадцать отдельных
+          {/* Гребёнка дней идёт быстрым росчерком: два с лишним десятка
               линий с обычным шагом растянули бы фазу вдвое. */}
           {DAY_TICKS.map((x, index) => (
             <path
@@ -370,7 +379,8 @@ export function TabelBackdrop() {
         <g className="tabel-data" fill="currentColor">
           {GUARDS.map((guard, row) => {
             const y = ROWS[row] ?? 0;
-            const shifts = shiftsOf(guard.firstShift);
+            const marks = marksOf(guard.firstShift);
+            const shifts = shiftCount(marks);
 
             return (
               <g key={guard.name}>
@@ -395,17 +405,17 @@ export function TabelBackdrop() {
                   {guard.name}
                 </text>
 
-                {shifts.map((day, index) => (
+                {marks.map((mark, index) => (
                   <text
-                    key={day}
-                    x={dayCenter(day)}
+                    key={DAY_MARKS[index]}
+                    x={dayCenter(index + 1)}
                     y={y + 3}
                     textAnchor="middle"
                     fontSize={9}
                     style={fillDelay(row, 2 + index)}
                     className="tabel-fade"
                   >
-                    {SHIFT_HOURS}
+                    {mark}
                   </text>
                 ))}
 
@@ -414,10 +424,10 @@ export function TabelBackdrop() {
                   y={y + 4}
                   textAnchor="middle"
                   fontSize={11}
-                  style={fillDelay(row, 2 + shifts.length)}
+                  style={fillDelay(row, 2 + DAY_COUNT)}
                   className="tabel-fade"
                 >
-                  {shifts.length * SHIFT_HOURS}
+                  {shifts * SHIFT_HOURS}
                 </text>
 
                 <text
@@ -425,36 +435,12 @@ export function TabelBackdrop() {
                   y={y + 4}
                   textAnchor="middle"
                   fontSize={11}
-                  style={fillDelay(row, 3 + shifts.length)}
+                  style={fillDelay(row, 3 + DAY_COUNT)}
                   className="tabel-fade"
                 >
-                  {shifts.length * NIGHT_HOURS_PER_SHIFT}
+                  {shifts * NIGHT_HOURS_PER_SHIFT}
                 </text>
               </g>
-            );
-          })}
-        </g>
-
-        {/* Подписи от руки — единственное, что в заполненном табеле не
-            печатают. Поэтому они не проступают, а дописываются штрихом. */}
-        <g
-          className="tabel-data"
-          stroke="currentColor"
-          strokeWidth={1.4}
-          strokeLinecap="round"
-          fill="none"
-        >
-          {GUARDS.map((guard, row) => {
-            const y = ROWS[row] ?? 0;
-
-            return (
-              <path
-                key={guard.name}
-                pathLength={1}
-                style={fillDelay(row, 6 + DAY_COUNT / CYCLE)}
-                className="tabel-draw"
-                d={`M${COLS.over + 16} ${y + 5} c5 -11 9 6 14 -4 s7 -8 12 1 s7 5 12 -3`}
-              />
             );
           })}
         </g>
