@@ -3,10 +3,10 @@
 import { useId, useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import { CollapsibleSection } from "@/components/shared/collapsible-section";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils/cn";
-import { ChevronDown } from "lucide-react";
 import { formatHours, parseHours } from "../domain/decimal";
 import { formatDateRu, formatPeriodRu } from "../domain/format";
 import { reconcile, type Discrepancy } from "../domain/reconciliation";
@@ -186,21 +186,53 @@ export function Workspace({ profile, onChange, onForget }: WorkspaceProps) {
         <PeriodSummary calculation={calculation} accountingYear={profile.accountingYear} />
       </section>
 
-      <section aria-labelledby="strip" className="space-y-3">
-        <h2 id="strip" className="text-xl">
-          Ваш график
-        </h2>
+      {/* Разделы сворачиваются, и открыт по умолчанию только график: за
+          ним приходят чаще всего. Иначе экран — пять экранов подряд, и до
+          сверки, ради которой всё написано, нужно пролистать двенадцать
+          календарных сеток. Подпись у свёрнутого раздела говорит, что
+          внутри, чтобы не открывать наугад. */}
+      <CollapsibleSection
+        title="Ваш график"
+        summary={`смен за период: ${calculation.scheduledShifts}`}
+        defaultOpen
+      >
         <ShiftStrip calculation={calculation} />
-      </section>
+      </CollapsibleSection>
 
-      <YearCalendarEditor profile={profile} onChange={onChange} />
+      <CollapsibleSection
+        title={`Календарь ${profile.accountingYear} года`}
+        summary={
+          Object.keys(profile.calendarOverrides).length > 0
+            ? `ваших правок: ${Object.keys(profile.calendarOverrides).length}`
+            : "праздники и переносы размечены"
+        }
+      >
+        <YearCalendarEditor profile={profile} onChange={onChange} />
+      </CollapsibleSection>
 
-      <AbsenceSection profile={profile} onChange={onChange} />
+      <CollapsibleSection
+        title="Отпуска и больничные"
+        summary={
+          profile.absences.length > 0
+            ? `внесено периодов: ${profile.absences.length}`
+            : "не внесено"
+        }
+      >
+        <AbsenceSection profile={profile} onChange={onChange} />
+      </CollapsibleSection>
 
-      <ReconcileSection
-        discrepancies={discrepancies}
-        onSubmit={setReportedRaw}
-      />
+      <CollapsibleSection
+        title="Что написано в вашем табеле"
+        summary={
+          discrepancies === null
+            ? "сверка не проводилась"
+            : discrepancies.length === 0
+              ? "расхождений нет"
+              : `расхождений: ${discrepancies.length}`
+        }
+      >
+        <ReconcileSection discrepancies={discrepancies} onSubmit={setReportedRaw} />
+      </CollapsibleSection>
 
       <ProfileFooter profile={profile} onForget={onForget} />
     </div>

@@ -91,6 +91,8 @@ export function calculateFor(
     calendar: { workingDays: facts.workingDays, preHolidayDays: facts.preHolidayDays },
     absences: absencePeriodsOf(profile),
     holidayDays: facts.holidays,
+    workingDays: facts.workingDaySet,
+    preHolidayDays: facts.preHolidayDaySet,
     shiftStartTime: profile.shiftStartTime,
   });
 }

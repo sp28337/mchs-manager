@@ -202,6 +202,14 @@ export interface CalculatePeriodInput {
   absences: readonly AbsencePeriod[];
   holidayDays: ReadonlySet<IsoDate>;
   /**
+   * Рабочие дни производственного календаря в периоде, включая
+   * предпраздничные. По ним считается, сколько НОРМЫ приходится на
+   * отсутствие.
+   */
+  workingDays: ReadonlySet<IsoDate>;
+  /** Из них сокращённые на час (ст. 95 ТК РФ). */
+  preHolidayDays: ReadonlySet<IsoDate>;
+  /**
    * Время развода караула, «ЧЧ:ММ». По умолчанию 08:30.
    *
    * От него зависит, как смена делится между сутками, а значит — месячные
@@ -226,6 +234,8 @@ export function calculatePeriod({
   calendar,
   absences,
   holidayDays,
+  workingDays,
+  preHolidayDays,
   shiftStartTime = DEFAULT_SHIFT_START,
 }: CalculatePeriodInput): PeriodCalculation {
   const startMinute = shiftStartMinute(shiftStartTime);
@@ -298,9 +308,28 @@ export function calculatePeriod({
       actual = actual.plus(shiftHours);
       nightTotal = nightTotal.plus(shiftNight);
       holidayTotal = holidayTotal.plus(shiftHoliday);
-    } else {
-      excluded = excluded.plus(shiftHours);
     }
+  }
+
+  // Из нормы вычитаются часы ПО НОРМЕ, пришедшиеся на отсутствие, а не
+  // часы по графику караула (письмо Роструда от 01.03.2010 № 550-6-1).
+  //
+  // Разница не тонкость. Норма считается по пятидневке (ст. 104 ТК РФ),
+  // поэтому за каждый рабочий день отпуска из неё уходит 8 часов при
+  // сорокачасовой неделе — независимо от того, была ли в этот день смена и
+  // сколько она длилась. Вычитать по 24 часа за каждую попавшую в отпуск
+  // смену значило бы снимать больше, чем в норме за эти дни было: на две
+  // недели отпуска у сменщика приходится 3-4 смены (72-96 часов), а нормы
+  // за те же дни — 10 рабочих дней по 8, то есть 80.
+  //
+  // Ошибка в эту сторону занижает норму, а заниженная норма выдумывает
+  // переработку так же охотно, как завышенная её прячет.
+  const dailyNorm = weekly.hours.dividedBy(WORKING_DAYS_PER_WEEK);
+  for (const day of workingDays) {
+    if (day < periodStart || day >= periodEnd) continue;
+    if (!absences.some((item) => absenceCovers(item, day))) continue;
+    excluded = excluded.plus(dailyNorm);
+    if (preHolidayDays.has(day)) excluded = excluded.minus(PRE_HOLIDAY_REDUCTION_HOURS);
   }
 
   days.sort((left, right) => left.day.localeCompare(right.day));
