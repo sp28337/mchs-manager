@@ -27,9 +27,16 @@ import {
   type WeeklyNorm,
   type WeeklyNormInput,
 } from "./value-objects";
-import { addDays, daysBetween, type IsoDate } from "./plain-date";
+import { addDays, daysBetween, weekday, type IsoDate } from "./plain-date";
 
 const NO_HOLIDAYS: ReadonlySet<IsoDate> = new Set<IsoDate>();
+
+/** Рабочие дни марта 2026 по производственному календарю: будни, 21 день. */
+const MARCH_WORKING: ReadonlySet<IsoDate> = new Set(
+  Array.from({ length: 31 }, (_, index) => addDays("2026-03-01", index)).filter(
+    (day) => weekday(day) < 5,
+  ),
+);
 
 function norm(overrides: Partial<WeeklyNormInput> = {}): WeeklyNorm {
   return deriveWeeklyNorm({
@@ -208,6 +215,8 @@ function march(
     calendar: { workingDays: 21, preHolidayDays: 0 },
     absences,
     holidayDays: NO_HOLIDAYS,
+    workingDays: MARCH_WORKING,
+    preHolidayDays: NO_HOLIDAYS,
     ...overrides,
   });
 }
@@ -238,9 +247,10 @@ describe("полный расчёт", () => {
 
     // За 1-14 марта у первого караула четыре заступления: 2, 6, 10, 14.
     expect(withLeave.absentShifts).toBe(4);
-    expect(withLeave.excludedHours.toString()).toBe("96");
+    // 1-14 марта — десять рабочих дней по календарю, по 8 часов нормы.
+    expect(withLeave.excludedHours.toString()).toBe("80");
     expect(withLeave.normHours.toString()).toBe(
-      clean.baseNormHours.minus(96).toString(),
+      clean.baseNormHours.minus(80).toString(),
     );
 
     // Факт уменьшился ровно на неотработанные часы — и ни на час больше.
@@ -248,8 +258,16 @@ describe("полный расчёт", () => {
       clean.actualHours.minus(96).toString(),
     );
 
-    // А переработка при этом НЕ ИЗМЕНИЛАСЬ: отпуск не создаёт долга.
-    expect(withLeave.overtimeHours.toString()).toBe(clean.overtimeHours.toString());
+    // Недоработки нет: отпуск не создаёт долга — это главное.
+    expect(withLeave.undertimeHours.toString()).toBe("0");
+
+    // Переработка при этом уменьшается, и так и должно быть. Из нормы
+    // ушло 80 часов (десять рабочих дней), а из факта — 96 (четыре смены
+    // по 24). Разница в 16 часов — не потеря, а следствие того, что
+    // сменщик за две недели отпуска пропускает больше часов, чем норма за
+    // те же дни содержит.
+    expect(clean.overtimeHours.toString()).toBe("24");
+    expect(withLeave.overtimeHours.toString()).toBe("8");
   });
 
   test("неверная норма показывает выдуманный долг", () => {
@@ -261,6 +279,9 @@ describe("полный расчёт", () => {
     ]);
 
     expect(result.actualHours.toString()).toBe("0");
+    // 22 рабочих дня марта × 8 = 176 — больше нормы месяца в фикстуре,
+    // поэтому норма обнуляется, а не уходит в минус.
+    expect(result.excludedHours.toString()).toBe("176");
     expect(result.normHours.toString()).toBe("0");
     expect(result.undertimeHours.toString()).toBe("0");
     // А вот столько «долга» покажет табель, в котором норму не тронули.
@@ -314,6 +335,8 @@ describe("полный расчёт", () => {
       calendar: { workingDays: 118, preHolidayDays: 2 },
       absences: [],
       holidayDays: NO_HOLIDAYS,
+      workingDays: NO_HOLIDAYS,
+      preHolidayDays: NO_HOLIDAYS,
     });
 
     const march31 = halfYear.days.filter((day) => day.day === "2026-03-31");
@@ -378,9 +401,126 @@ describe("полный расчёт", () => {
       calendar: { workingDays: 247, preHolidayDays: 6 },
       absences: [],
       holidayDays: NO_HOLIDAYS,
+      workingDays: NO_HOLIDAYS,
+      preHolidayDays: NO_HOLIDAYS,
     });
 
     expect(result.baseNormHours.toString()).toBe("1970"); // (40/5) × 247 − 6
     expect([91, 92]).toContain(result.scheduledShifts);
+  });
+});
+
+// ------------------------------------------------ отгул и вызовы
+
+describe("отгул", () => {
+  test("норму не уменьшает, а гасит переработку", () => {
+    // Отгул даётся ЗА УЖЕ ОТРАБОТАННОЕ сверх нормы (ст. 55 ФЗ-141,
+    // ст. 152 ТК РФ). Уменьшить за него ещё и норму значило бы заплатить
+    // дважды: снять часы с нормы и не зачесть их в переработку.
+    const clean = march([]);
+    const withTimeOff = march([
+      { start: "2026-03-01", endInclusive: "2026-03-14", kind: "time_off_in_lieu" },
+    ]);
+
+    // Норма — ровно та же, что без отгула.
+    expect(withTimeOff.normHours.toString()).toBe(clean.normHours.toString());
+    expect(withTimeOff.excludedHours.toString()).toBe("0");
+
+    // А переработка уменьшилась на часы пропущенных смен: четыре смены по
+    // 24 часа — это и есть погашенные 96.
+    expect(clean.actualHours.minus(withTimeOff.actualHours).toString()).toBe("96");
+    expect(clean.overtimeHours.minus(withTimeOff.overtimeHours).toString()).toBe("24");
+  });
+
+  test("отличается от отпуска тем же периодом", () => {
+    // Один и тот же период, разный вид — и разный ответ. Ради этого
+    // различия вид и заведён.
+    const leave = march([
+      { start: "2026-03-01", endInclusive: "2026-03-14", kind: "annual_leave" },
+    ]);
+    const timeOff = march([
+      { start: "2026-03-01", endInclusive: "2026-03-14", kind: "time_off_in_lieu" },
+    ]);
+
+    expect(leave.excludedHours.toString()).toBe("80");
+    expect(timeOff.excludedHours.toString()).toBe("0");
+    expect(leave.actualHours.toString()).toBe(timeOff.actualHours.toString());
+    expect(leave.overtimeHours.toString()).toBe("8");
+    expect(timeOff.overtimeHours.toString()).toBe("0");
+  });
+});
+
+describe("вызовы помимо графика", () => {
+  const call = (overrides: Partial<CalculatePeriodInput> = {}) =>
+    march([], {
+      callouts: [
+        {
+          start: "2026-03-03",
+          endInclusive: "2026-03-05",
+          kind: "competition",
+          hoursPerDay: new Dec(8),
+        },
+      ],
+      ...overrides,
+    });
+
+  test("часы прибавляются к отработанному, норма не меняется", () => {
+    const clean = march([]);
+    const withCallout = call();
+
+    // Три дня по 8 часов.
+    expect(withCallout.actualHours.minus(clean.actualHours).toString()).toBe("24");
+    expect(withCallout.normHours.toString()).toBe(clean.normHours.toString());
+    expect(withCallout.overtimeHours.minus(clean.overtimeHours).toString()).toBe("24");
+  });
+
+  test("сутки вызова попадают в разбивку и помечены видом", () => {
+    const days = call().days.filter((day) => day.calloutKind != null);
+    expect(days.map((day) => day.day)).toEqual([
+      "2026-03-03",
+      "2026-03-04",
+      "2026-03-05",
+    ]);
+    expect(days[0]!.calloutKind).toBe("competition");
+    // Ночные по вызову не считаются: распоряжение задаёт число часов, а не
+    // время суток, и раскладывать их по часам было бы выдумкой.
+    expect(days[0]!.nightHours.toString()).toBe("0");
+  });
+
+  test("вызов может совпасть со сменой, и оба остаются в расчёте", () => {
+    // 2 марта у первого караула заступление (цикл с 1 января); вызов в тот
+    // же день не отменяет смену и не отменяется ею.
+    const both = march([], {
+      callouts: [
+        {
+          start: "2026-03-02",
+          endInclusive: "2026-03-02",
+          kind: "elections",
+          hoursPerDay: new Dec(12),
+        },
+      ],
+    });
+    const sameDay = both.days.filter((day) => day.day === "2026-03-02");
+    expect(sameDay).toHaveLength(2);
+    expect(sameDay.some((day) => day.isShiftStart)).toBe(true);
+    expect(sameDay.some((day) => day.calloutKind === "elections")).toBe(true);
+    // Часы складываются: 15,5 от смены плюс 12 по вызову.
+    expect(both.actualHours.minus(march([]).actualHours).toString()).toBe("12");
+  });
+
+  test("часть вызова вне периода в него не попадает", () => {
+    const spanning = march([], {
+      callouts: [
+        {
+          start: "2026-02-27",
+          endInclusive: "2026-03-02",
+          kind: "reserve",
+          hoursPerDay: new Dec(24),
+        },
+      ],
+    });
+    // В марте только 1 и 2 число: границы периода полуоткрыты и здесь.
+    const days = spanning.days.filter((day) => day.calloutKind != null);
+    expect(days.map((day) => day.day)).toEqual(["2026-03-01", "2026-03-02"]);
   });
 });

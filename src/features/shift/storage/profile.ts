@@ -56,10 +56,33 @@ const absenceSchema = z.object({
     "unpaid_leave",
     "business_trip",
     "other_excused",
+    "time_off_in_lieu",
   ]),
   startsOn: isoDate,
   endsOn: isoDate,
   note: z.string().max(500).nullish(),
+});
+
+/**
+ * Вызов помимо графика: соревнования, сбор, резерв, мероприятие, выборы.
+ *
+ * Часы хранятся строкой, как и остальные величины: число с плавающей
+ * точкой в JSON превратило бы 7,5 в 7.499999999999999 при первом же
+ * круге записи и чтения.
+ */
+const calloutSchema = z.object({
+  id: z.string().min(1),
+  kind: z.enum([
+    "competition",
+    "training_camp",
+    "reserve",
+    "public_event",
+    "elections",
+    "other_callout",
+  ]),
+  startsOn: isoDate,
+  endsOn: isoDate,
+  hoursPerDay: z.string().min(1),
 });
 
 const reportedSchema = z.object({
@@ -94,6 +117,9 @@ export const storedProfileSchema = z.object({
     .default(DEFAULT_SHIFT_START),
   accountingYear: z.number().int().min(2000).max(2100),
   absences: z.array(absenceSchema).max(200),
+  /** Необязательное с умолчанием: профили, сохранённые до появления
+   *  вызовов, обязаны читаться как есть. */
+  callouts: z.array(calloutSchema).max(200).default([]),
   /** Правки производственного календаря: дата → тип дня. */
   calendarOverrides: z.record(isoDate, dayType),
   reported: reportedSchema.nullable(),
@@ -102,6 +128,7 @@ export const storedProfileSchema = z.object({
 
 export type StoredProfile = z.infer<typeof storedProfileSchema>;
 export type StoredAbsence = z.infer<typeof absenceSchema>;
+export type StoredCallout = z.infer<typeof calloutSchema>;
 export type ReportedFigures = z.infer<typeof reportedSchema>;
 
 export interface NewProfileInput {
@@ -126,6 +153,7 @@ export function createProfile(input: NewProfileInput): StoredProfile {
     // возможность их рассогласовать.
     accountingYear: Number(input.firstShiftDate.slice(0, 4)),
     absences: [],
+    callouts: [],
     calendarOverrides: {},
     reported: null,
     savedAt: new Date().toISOString(),

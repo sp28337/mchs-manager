@@ -7,9 +7,11 @@
  * порядок вывода нормы.
  */
 
+import { Dec } from "../domain/decimal";
 import {
   calculatePeriod,
   type AbsencePeriod,
+  type CalloutPeriod,
   type PeriodCalculation,
 } from "../domain/calculation";
 import { calendarFactsFor, type DayType } from "../domain/production-calendar";
@@ -45,6 +47,15 @@ export function accountingPeriodsOf(
   profile: StoredProfile,
 ): readonly AccountingPeriodKind[] {
   return ACCOUNTING_PERIODS[profile.employmentKind];
+}
+
+export function calloutPeriodsOf(profile: StoredProfile): CalloutPeriod[] {
+  return profile.callouts.map((callout) => ({
+    start: callout.startsOn,
+    endInclusive: callout.endsOn,
+    kind: callout.kind,
+    hoursPerDay: new Dec(callout.hoursPerDay),
+  }));
 }
 
 export function absencePeriodsOf(profile: StoredProfile): AbsencePeriod[] {
@@ -90,7 +101,10 @@ export function calculateFor(
     weekly: weeklyNormOf(profile),
     calendar: { workingDays: facts.workingDays, preHolidayDays: facts.preHolidayDays },
     absences: absencePeriodsOf(profile),
+    callouts: calloutPeriodsOf(profile),
     holidayDays: facts.holidays,
+    workingDays: facts.workingDaySet,
+    preHolidayDays: facts.preHolidayDaySet,
     shiftStartTime: profile.shiftStartTime,
   });
 }

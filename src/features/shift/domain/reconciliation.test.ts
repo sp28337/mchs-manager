@@ -12,7 +12,7 @@ import { Dec } from "./decimal";
 import { calculatePeriod, type AbsencePeriod } from "./calculation";
 import { reconcile, type EmployerFigures } from "./reconciliation";
 import { deriveWeeklyNorm } from "./value-objects";
-import type { IsoDate } from "./plain-date";
+import { addDays, weekday, type IsoDate } from "./plain-date";
 
 const WEEKLY = deriveWeeklyNorm({
   employment: "attested",
@@ -30,6 +30,14 @@ function march(absences: AbsencePeriod[] = []) {
     calendar: { workingDays: 21, preHolidayDays: 0 },
     absences,
     holidayDays: new Set<IsoDate>(),
+    // Рабочие дни марта 2026 — будни; по ним считается, сколько нормы
+    // приходится на отпуск.
+    workingDays: new Set(
+      Array.from({ length: 31 }, (_, i) => addDays("2026-03-01", i)).filter(
+        (d) => weekday(d) < 5,
+      ),
+    ),
+    preHolidayDays: new Set<IsoDate>(),
   });
 }
 
@@ -71,16 +79,16 @@ test("неуменьшенная норма названа вместе с пр�
   // обязана не просто заметить разницу, а сказать, ОТКУДА она взялась и
   // какой нормой опровергается.
   const calculation = march([ANNUAL_LEAVE_FIRST_HALF]);
-  expect(calculation.normHours.toString()).toBe("72");
+  expect(calculation.normHours.toString()).toBe("88");
 
   const found = reconcile(calculation, figures({ norm: "168" }));
   expect(found).toHaveLength(1);
 
   const [discrepancy] = found;
   expect(discrepancy!.field).toBe("norm_hours");
-  expect(discrepancy!.delta.toString()).toBe("96");
+  expect(discrepancy!.delta.toString()).toBe("80");
   expect(discrepancy!.favoursEmployer).toBe(true);
-  expect(discrepancy!.explanation).toContain("96");
+  expect(discrepancy!.explanation).toContain("80");
   expect(discrepancy!.basis).toContain("550-6-1");
 });
 

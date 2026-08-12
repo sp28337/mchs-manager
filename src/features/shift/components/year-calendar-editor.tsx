@@ -104,9 +104,6 @@ export function YearCalendarEditor({ profile, onChange }: YearCalendarEditorProp
   if (!open) {
     return (
       <section aria-labelledby="calendar" className="space-y-2">
-        <h2 id="calendar" className="text-xl">
-          Производственный календарь {year} года
-        </h2>
         <p className="max-w-prose text-sm text-ink-muted">
           Праздники по ст. 112 ТК РФ и предпраздничные дни по ст. 95 размечены
           автоматически. Переносы выходных устанавливает Правительство
