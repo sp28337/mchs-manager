@@ -2,10 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { SiteHeader } from "@/components/shared/site-header";
-import {
-  TabelBackdrop,
-  TabelBackdropSeenScript,
-} from "@/components/shared/tabel-backdrop";
+import { TabelBackdrop } from "@/components/shared/tabel-backdrop";
 import { Logo } from "@/components/ui/logo";
 import { Calculator, ChevronDown } from "lucide-react";
 
@@ -147,11 +144,6 @@ const STEPS = [
 export default function LandingPage() {
   return (
     <>
-      {/* До разметки намеренно: признак «этот табель уже чертился» обязан
-          быть выставлен раньше первого кадра, иначе человек увидит начало
-          анимации, которую мы решили не проигрывать. */}
-      <TabelBackdropSeenScript />
-
       <SiteHeader
         tagline="Суммированный учёт служебного времени при графике сутки через трое"
         action={
@@ -172,10 +164,10 @@ export default function LandingPage() {
       <main className="mx-auto w-full max-w-4xl px-6 pb-16 xl:max-w-6xl 2xl:max-w-7xl">
         {/* ------------------------------------------------------ первый экран */}
         {/* `isolate` — чтобы `z-index` слоёв не спорил ни с шапкой, ни с
-            остальной страницей; `overflow-hidden` обрезает табель границами
-            экрана: документ уходит за край, и от этого читается как лежащий
-            глубже, а не наклеенный. */}
-        <section className="relative isolate flex h-lvh flex-col justify-center overflow-hidden border-b border-rule pt-15 md:h-[90lvh]">
+            остальной страницей. Обрезки здесь нет намеренно: табель шире
+            колонки `main` и должен доходить до края окна, а срезает его
+            `overflow-x: clip` на `body`. */}
+        <section className="relative isolate flex h-lvh flex-col justify-center border-b border-rule pt-15 md:h-[90lvh]">
           <TabelBackdrop />
 
           <div className="relative z-10 space-y-6">
