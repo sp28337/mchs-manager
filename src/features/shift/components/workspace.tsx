@@ -18,10 +18,17 @@ import {
 } from "../model/derive";
 import {
   ABSENCE_KIND_BASIS,
+  CALLOUT_KIND_BASIS,
   type AccountingPeriodKind,
 } from "../domain/value-objects";
 import type { StoredProfile } from "../storage/profile";
-import { ABSENCE_LABELS, type AbsenceKind } from "../schemas";
+import {
+  ABSENCE_EFFECT,
+  ABSENCE_LABELS,
+  CALLOUT_LABELS,
+  type AbsenceKind,
+  type CalloutKind,
+} from "../schemas";
 import { DateField } from "./date-field";
 import { PeriodSummary } from "./period-summary";
 import { ProfileFooter } from "./profile-footer";
@@ -50,6 +57,7 @@ const MONTHS = [
 ];
 
 const ABSENCE_KINDS = Object.keys(ABSENCE_LABELS) as AbsenceKind[];
+const CALLOUT_KINDS = Object.keys(CALLOUT_LABELS) as CalloutKind[];
 
 type Selection =
   | { mode: "month"; index: number }
@@ -222,6 +230,17 @@ export function Workspace({ profile, onChange, onForget }: WorkspaceProps) {
       </CollapsibleSection>
 
       <CollapsibleSection
+        title="Вызовы помимо графика"
+        summary={
+          profile.callouts.length > 0
+            ? `внесено: ${profile.callouts.length}`
+            : "не внесено"
+        }
+      >
+        <CalloutSection profile={profile} onChange={onChange} />
+      </CollapsibleSection>
+
+      <CollapsibleSection
         title="Что написано в вашем табеле"
         summary={
           discrepancies === null
@@ -254,9 +273,6 @@ function AbsenceSection({
 
   return (
     <section aria-labelledby="absences" className="space-y-4">
-      <h2 id="absences" className="text-xl">
-        Отпуска и больничные
-      </h2>
       <p className="max-w-prose text-sm text-ink-muted">
         Внесите периоды, когда вы были освобождены от службы с сохранением
         места. Смены, попавшие в них, вычтутся из НОРМЫ — именно этого чаще
@@ -323,6 +339,11 @@ function AbsenceSection({
               </option>
             ))}
           </select>
+          {/* Отгул работает не так, как остальные виды, и человек обязан
+              это увидеть до того, как внесёт период. */}
+          <p className="max-w-56 text-xs text-ink-muted" aria-live="polite">
+            {ABSENCE_EFFECT[kind]}
+          </p>
         </div>
         <DateField label="С" name="startsOn" required />
         <DateField
@@ -369,6 +390,165 @@ function AbsenceSection({
   );
 }
 
+/**
+ * Вызовы помимо своей смены.
+ *
+ * --- Почему отдельно от отпусков ----------------------------------------
+ *
+ * Отсутствия уменьшают норму, вызовы увеличивают отработанное — это
+ * противоположные действия, и складывать их в один список значило бы
+ * предлагать человеку выбрать из перечня, где половина пунктов работает
+ * ему в минус, а половина в плюс, и различить их можно только по названию.
+ *
+ * --- Почему часы вводятся, а не берутся из смены -------------------------
+ *
+ * Вызов не смена: на соревнования могут снять на четыре часа, а в резерв
+ * поставить на сутки. Число часов человек берёт из распоряжения, и
+ * подставлять за него 8 или 24 значило бы вписать в расчёт цифру, которой
+ * он не видел.
+ */
+function CalloutSection({
+  profile,
+  onChange,
+}: {
+  profile: StoredProfile;
+  onChange: (change: (previous: StoredProfile) => StoredProfile) => void;
+}) {
+  const kindId = useId();
+  const hoursId = useId();
+  const [kind, setKind] = useState<CalloutKind>("competition");
+  const [error, setError] = useState<string | null>(null);
+
+  const callouts = [...profile.callouts].sort((a, b) => a.startsOn.localeCompare(b.startsOn));
+
+  return (
+    <section className="space-y-4">
+      <p className="max-w-prose text-sm text-ink-muted">
+        Соревнования, сборы, резерв, праздничные мероприятия, выборы. Это
+        исполнение обязанностей, то есть служебное время (ч. 1 ст. 54 ФЗ-141,
+        ст. 91 ТК РФ): часы прибавляются к отработанному и норму не трогают.
+        На графике такие сутки помечены отдельно — видно, куда именно вызывали.
+      </p>
+
+      {error ? (
+        <p className="max-w-prose rounded-sm border-l-2 border-signal bg-signal-soft px-4 py-3 text-sm">
+          {error}
+        </p>
+      ) : null}
+
+      <form
+        className="flex flex-wrap items-start gap-3 rounded-sm border border-rule bg-paper-raised p-4"
+        onSubmit={(event) => {
+          event.preventDefault();
+          const form = event.currentTarget;
+          const data = new FormData(form);
+          const startsOn = String(data.get("startsOn") ?? "");
+          const endsOn = String(data.get("endsOn") ?? "");
+          const raw = String(data.get("hoursPerDay") ?? "").trim();
+          const parsed = parseHours(raw);
+
+          if (!startsOn || !endsOn) {
+            setError("Укажите обе даты.");
+            return;
+          }
+          if (endsOn < startsOn) {
+            setError("Дата окончания раньше даты начала.");
+            return;
+          }
+          // Больше суток в сутках не бывает, и ноль часов — это не вызов.
+          if (parsed === null || parsed.lessThanOrEqualTo(0) || parsed.greaterThan(24)) {
+            setError("Часы в сутки — число от 0 до 24, например 8 или 4,5.");
+            return;
+          }
+
+          setError(null);
+          onChange((previous) => ({
+            ...previous,
+            callouts: [
+              ...previous.callouts,
+              {
+                id: crypto.randomUUID(),
+                kind,
+                startsOn,
+                endsOn,
+                hoursPerDay: parsed.toString(),
+              },
+            ],
+          }));
+          form.reset();
+        }}
+      >
+        <div className="space-y-1.5">
+          <Label htmlFor={kindId}>Куда вызывали</Label>
+          <select
+            id={kindId}
+            value={kind}
+            onChange={(event) => setKind(event.target.value as CalloutKind)}
+            className="block h-9 w-56 rounded-xs border border-rule-strong bg-paper px-2 text-sm"
+          >
+            {CALLOUT_KINDS.map((option) => (
+              <option key={option} value={option}>
+                {CALLOUT_LABELS[option]}
+              </option>
+            ))}
+          </select>
+        </div>
+        <DateField label="С" name="startsOn" required />
+        <DateField
+          label="По включительно"
+          name="endsOn"
+          required
+          hint="Однодневный вызов — одна и та же дата."
+        />
+        <div className="space-y-1.5">
+          <Label htmlFor={hoursId}>Часов в сутки</Label>
+          <Input
+            id={hoursId}
+            name="hoursPerDay"
+            inputMode="decimal"
+            defaultValue="8"
+            className="w-28 font-mono"
+          />
+        </div>
+        <Button type="submit" variant="outline" className="mt-[1.375rem]">
+          Добавить
+        </Button>
+      </form>
+
+      {callouts.length > 0 ? (
+        <ul className="divide-y divide-rule border-y border-rule">
+          {callouts.map((callout) => (
+            <li key={callout.id} className="flex flex-wrap items-baseline gap-x-4 py-2 text-sm">
+              <span className="font-medium">{CALLOUT_LABELS[callout.kind]}</span>
+              <span className="font-mono">
+                {formatDateRu(callout.startsOn)} — {formatDateRu(callout.endsOn)}
+              </span>
+              <span className="font-mono text-trace">
+                {formatHours(callout.hoursPerDay)} ч/сут
+              </span>
+              <span className="text-xs text-ink-muted">{CALLOUT_KIND_BASIS[callout.kind]}</span>
+              <button
+                type="button"
+                className="ml-auto text-xs text-ink-muted underline underline-offset-2 hover:text-signal"
+                onClick={() =>
+                  onChange((previous) => ({
+                    ...previous,
+                    callouts: previous.callouts.filter((item) => item.id !== callout.id),
+                  }))
+                }
+              >
+                Удалить
+              </button>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="text-sm text-ink-muted">Вызовов не внесено.</p>
+      )}
+    </section>
+  );
+}
+
 function ReconcileSection({
   discrepancies,
   onSubmit,
@@ -382,9 +562,6 @@ function ReconcileSection({
 
   return (
     <section aria-labelledby="reconcile" className="space-y-4">
-      <h2 id="reconcile" className="text-xl">
-        Что написано в вашем табеле
-      </h2>
       <p className="max-w-prose text-sm text-ink-muted">
         Впишите числа из выданного табеля. Пустое поле не сравнивается — если
         какого-то числа в табеле нет, оставьте его пустым.

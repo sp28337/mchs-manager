@@ -49,8 +49,10 @@ import {
   splitShift,
 } from "./shift-hours";
 import {
+  ABSENCE_REDUCES_NORM,
   shiftDates,
   type AbsenceKind,
+  type CalloutKind,
   type GuardCycle,
   type WeeklyNorm,
 } from "./value-objects";
@@ -95,6 +97,22 @@ export function absenceCovers(absence: AbsencePeriod, day: IsoDate): boolean {
   return absence.start <= day && day <= absence.endInclusive;
 }
 
+/**
+ * Вызов помимо своей смены: соревнования, сбор, резерв, мероприятие,
+ * выборы.
+ *
+ * Часы задаются на сутки, а не на весь период: вызов на трёхдневный сбор —
+ * это три раза по столько-то часов, и человек знает эту цифру из
+ * распоряжения. Просить его перемножить в уме значило бы получить в
+ * расчёте округление вместо факта.
+ */
+export interface CalloutPeriod {
+  readonly start: IsoDate;
+  readonly endInclusive: IsoDate;
+  readonly kind: CalloutKind;
+  readonly hoursPerDay: Decimal;
+}
+
 /** Одна смена в расчёте. Часы — только те, что попали в период. */
 export interface ShiftRecord {
   readonly startedOn: IsoDate;
@@ -120,6 +138,8 @@ export interface DayRecord {
   /** Заступление в этих сутках, а не продолжение смены с прошлых. */
   readonly isShiftStart: boolean;
   readonly absenceKind: AbsenceKind | null;
+  /** Куда вызывали в эти сутки помимо своей смены. */
+  readonly calloutKind?: CalloutKind | null;
 }
 
 /** Итог расчёта за учётный период. */
@@ -200,6 +220,8 @@ export interface CalculatePeriodInput {
   weekly: WeeklyNorm;
   calendar: CalendarFacts;
   absences: readonly AbsencePeriod[];
+  /** Вызовы помимо графика. Их часы прибавляются к отработанному. */
+  callouts?: readonly CalloutPeriod[];
   holidayDays: ReadonlySet<IsoDate>;
   /**
    * Рабочие дни производственного календаря в периоде, включая
@@ -233,6 +255,7 @@ export function calculatePeriod({
   weekly,
   calendar,
   absences,
+  callouts = [],
   holidayDays,
   workingDays,
   preHolidayDays,
@@ -327,9 +350,37 @@ export function calculatePeriod({
   const dailyNorm = weekly.hours.dividedBy(WORKING_DAYS_PER_WEEK);
   for (const day of workingDays) {
     if (day < periodStart || day >= periodEnd) continue;
-    if (!absences.some((item) => absenceCovers(item, day))) continue;
+    // Отгул норму не уменьшает: он расплачивается уже накопленной
+    // переработкой, а не освобождает от неё.
+    const covering = absences.find((item) => absenceCovers(item, day));
+    if (!covering || !ABSENCE_REDUCES_NORM[covering.kind]) continue;
     excluded = excluded.plus(dailyNorm);
     if (preHolidayDays.has(day)) excluded = excluded.minus(PRE_HOLIDAY_REDUCTION_HOURS);
+  }
+
+  // Вызовы. Это исполнение обязанностей, то есть служебное время
+  // (ст. 54 ФЗ-141, ст. 91 ТК РФ): часы идут в ОТРАБОТАННОЕ и норму не
+  // трогают. Ночные по ним не считаются — распоряжение о вызове задаёт
+  // число часов, а не время суток, и раскладывать их по часам было бы
+  // выдумкой.
+  for (const callout of callouts) {
+    let cursor = callout.start > periodStart ? callout.start : periodStart;
+    while (cursor <= callout.endInclusive && cursor < periodEnd) {
+      actual = actual.plus(callout.hoursPerDay);
+      days.push({
+        day: cursor,
+        hours: callout.hoursPerDay,
+        nightHours: ZERO,
+        holidayHours: holidayDays.has(cursor) ? callout.hoursPerDay : ZERO,
+        isShiftStart: false,
+        absenceKind: null,
+        calloutKind: callout.kind,
+      });
+      if (holidayDays.has(cursor)) {
+        holidayTotal = holidayTotal.plus(callout.hoursPerDay);
+      }
+      cursor = addDays(cursor, 1);
+    }
   }
 
   days.sort((left, right) => left.day.localeCompare(right.day));

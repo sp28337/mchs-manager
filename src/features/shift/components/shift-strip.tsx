@@ -10,7 +10,24 @@ import {
   year as yearOf,
   type IsoDate,
 } from "../domain/plain-date";
-import { ABSENCE_LABELS } from "../schemas";
+import { ABSENCE_LABELS, CALLOUT_LABELS } from "../schemas";
+import type { CalloutKind } from "../domain/value-objects";
+
+/**
+ * Короткий код вызова в клетке.
+ *
+ * Три буквы, а не цвет: видов вызова шесть, и шесть оттенков одного
+ * значения человек не различит — а «РЕЗ» и «ВЫБ» прочитает сразу.
+ * Полное название стоит в подписи клетки и в легенде.
+ */
+const CALLOUT_MARK: Record<CalloutKind, string> = {
+  competition: "СОР",
+  training_camp: "СБР",
+  reserve: "РЕЗ",
+  public_event: "МЕР",
+  elections: "ВЫБ",
+  other_callout: "ВЫЗ",
+};
 import { MONTH_NAMES } from "./month-names";
 import { MonthGrid, WEEKDAY_LABELS } from "./month-grid";
 
@@ -52,12 +69,22 @@ interface MonthGroup {
   /** Отработанные часы, пришедшиеся на СУТКИ этого месяца. */
   workedHours: Decimal;
   nightHours: Decimal;
+  /** Часы вызовов помимо графика — они уже входят в `workedHours`. */
+  calloutHours: Decimal;
   /** Пропущенных по уважительной причине заступлений. */
   absentStarts: number;
 }
 
 export function ShiftStrip({ calculation }: { calculation: PeriodCalculation }) {
-  const byDay = new Map(calculation.days.map((record) => [record.day, record]));
+  // На одни сутки может прийтись и смена, и вызов: человека вызвали на
+  // соревнования в свой выходной или сняли со смены на выборы. Карта
+  // «день → одна запись» такой день теряла бы молча.
+  const byDay = new Map<IsoDate, DayRecord[]>();
+  for (const record of calculation.days) {
+    const bucket = byDay.get(record.day);
+    if (bucket) bucket.push(record);
+    else byDay.set(record.day, [record]);
+  }
 
   const groups: MonthGroup[] = [];
   for (const day of datesInRange(calculation.periodStart, calculation.periodEnd)) {
@@ -72,6 +99,7 @@ export function ShiftStrip({ calculation }: { calculation: PeriodCalculation }) 
         starts: 0,
         workedHours: ZERO,
         nightHours: ZERO,
+        calloutHours: ZERO,
         absentStarts: 0,
       };
       groups.push(group);
@@ -79,15 +107,16 @@ export function ShiftStrip({ calculation }: { calculation: PeriodCalculation }) 
 
     group.days.push(day);
 
-    const record = byDay.get(day);
-    if (!record) continue;
-    if (record.isShiftStart) {
-      group.starts += 1;
-      if (record.absenceKind) group.absentStarts += 1;
-    }
-    if (!record.absenceKind) {
-      group.workedHours = group.workedHours.plus(record.hours);
-      group.nightHours = group.nightHours.plus(record.nightHours);
+    for (const record of byDay.get(day) ?? []) {
+      if (record.isShiftStart) {
+        group.starts += 1;
+        if (record.absenceKind) group.absentStarts += 1;
+      }
+      if (record.calloutKind) group.calloutHours = group.calloutHours.plus(record.hours);
+      if (!record.absenceKind) {
+        group.workedHours = group.workedHours.plus(record.hours);
+        group.nightHours = group.nightHours.plus(record.nightHours);
+      }
     }
   }
 
@@ -119,13 +148,16 @@ export function ShiftStrip({ calculation }: { calculation: PeriodCalculation }) 
                 {group.absentStarts > 0 ? (
                   <span className="text-signal"> · пропущено {group.absentStarts}</span>
                 ) : null}
+                {group.calloutHours.greaterThan(0) ? (
+                  <span className="text-trace"> · вызовы {hours(group.calloutHours)}</span>
+                ) : null}
                 {group.nightHours.greaterThan(0) ? (
                   <span className="text-ink-faint"> · ноч. {hours(group.nightHours)}</span>
                 ) : null}
               </>
             }
             days={group.days}
-            renderDay={(day) => <DayCell day={day} record={byDay.get(day)} />}
+            renderDay={(day) => <DayCell day={day} records={byDay.get(day) ?? []} />}
           />
         ))}
       </div>
@@ -140,33 +172,59 @@ export function ShiftStrip({ calculation }: { calculation: PeriodCalculation }) 
           className="border-dashed border-signal bg-signal-soft text-signal"
           label="Смена по графику, пропущенная по уважительной причине"
         />
+        <Legend className="border-trace bg-trace-soft text-trace" label="Вызов помимо графика" />
         <Legend className="border-rule text-ink-faint" label="Свободные сутки" />
+      </dl>
+
+      {/* Виды вызова перечислены отдельно: код в клетке нужно уметь
+          прочитать, а держать шесть сокращений в голове человек не обязан. */}
+      <dl className="flex flex-wrap gap-x-6 gap-y-1 text-xs">
+        {(Object.keys(CALLOUT_MARK) as CalloutKind[]).map((kind) => (
+          <div key={kind} className="flex items-center gap-2">
+            <dt className="font-mono text-[10px] text-trace">{CALLOUT_MARK[kind]}</dt>
+            <dd className="text-ink-muted">{CALLOUT_LABELS[kind]}</dd>
+          </div>
+        ))}
       </dl>
     </div>
   );
 }
 
-function DayCell({ day, record }: { day: IsoDate; record: DayRecord | undefined }) {
+function DayCell({ day, records }: { day: IsoDate; records: readonly DayRecord[] }) {
   const date = dayOfMonth(day);
   const month = (MONTH_NAMES[monthIndex(day)] ?? "").toLowerCase();
   const weekdayName = WEEKDAY_LABELS[weekday(day)] ?? "";
+  const where = `${date} ${month}, ${weekdayName}`;
+
+  const shift = records.find((record) => record.calloutKind == null);
+  const callout = records.find((record) => record.calloutKind != null);
+  const workedHours = records
+    .filter((record) => record.absenceKind === null)
+    .reduce((sum, record) => sum.plus(record.hours), ZERO);
 
   // День недели ушёл из клетки в шапку столбца, и без подписи незрячий
   // читатель получил бы голое число: календарная сетка передаёт день
   // недели положением, а положение он не видит.
   //
-  // Подпись называет и то, чего в клетке не видно: сколько из этих часов
-  // ночные. Именно они чаще всего расходятся с табелем.
-  const label = !record
-    ? `${date} ${month}, ${weekdayName} — свободные сутки`
-    : record.absenceKind
-      ? `${date} ${month}, ${weekdayName} — ${record.isShiftStart ? "смена по графику" : "продолжение смены"}, ${ABSENCE_LABELS[record.absenceKind]}`
-      : `${date} ${month}, ${weekdayName} — ${
-          record.isShiftStart ? "заступление" : "продолжение смены"
-        }, ${hours(record.hours)} ч` +
-        (record.nightHours.greaterThan(0) ? `, из них ночных ${hours(record.nightHours)}` : "");
+  // Подпись называет и то, чего в клетке не видно: ночные часы и куда
+  // именно вызывали. Именно эти две вещи чаще всего расходятся с табелем.
+  const parts: string[] = [];
+  if (shift) {
+    parts.push(
+      shift.absenceKind
+        ? `${shift.isShiftStart ? "смена по графику" : "продолжение смены"}, ${ABSENCE_LABELS[shift.absenceKind]}`
+        : `${shift.isShiftStart ? "заступление" : "продолжение смены"}, ${hours(shift.hours)} ч` +
+            (shift.nightHours.greaterThan(0)
+              ? `, из них ночных ${hours(shift.nightHours)}`
+              : ""),
+    );
+  }
+  if (callout?.calloutKind) {
+    parts.push(`${CALLOUT_LABELS[callout.calloutKind]}, ${hours(callout.hours)} ч`);
+  }
+  const label = `${where} — ${parts.length > 0 ? parts.join("; ") : "свободные сутки"}`;
 
-  const worked = record !== undefined && record.absenceKind === null;
+  const worked = shift !== undefined && shift.absenceKind === null;
 
   return (
     <div
@@ -174,13 +232,17 @@ function DayCell({ day, record }: { day: IsoDate; record: DayRecord | undefined 
       className={cn(
         "flex min-w-0 flex-col items-center justify-center rounded-xs border py-0.5 leading-tight",
         "lg:aspect-square lg:py-0",
-        !record && "border-rule text-ink-faint",
+        records.length === 0 && "border-rule text-ink-faint",
         // Хвост смены отличается от заступления бледностью, а не другим
         // цветом: это те же отработанные часы, и разный цвет читался бы как
         // разный род времени.
-        worked && record.isShiftStart && "border-verify bg-verify-soft text-verify",
-        worked && !record.isShiftStart && "border-verify/50 bg-verify-soft/50 text-verify",
-        record?.absenceKind && "border-dashed border-signal bg-signal-soft text-signal",
+        worked && shift.isShiftStart && "border-verify bg-verify-soft text-verify",
+        worked && !shift.isShiftStart && "border-verify/50 bg-verify-soft/50 text-verify",
+        shift?.absenceKind && "border-dashed border-signal bg-signal-soft text-signal",
+        // Вызов перебивает вид смены: он редок, и человек ищет глазами
+        // именно его. Часы при этом не теряются — они в подписи и в итоге
+        // месяца.
+        callout && "border-trace bg-trace-soft text-trace",
       )}
     >
       <span className="sr-only">{label}</span>
@@ -188,7 +250,13 @@ function DayCell({ day, record }: { day: IsoDate; record: DayRecord | undefined 
         {date}
       </span>
       <span aria-hidden className="font-mono text-[9px]">
-        {!record ? "·" : record.absenceKind ? "—" : hours(record.hours).replace(",00", "")}
+        {callout?.calloutKind
+          ? CALLOUT_MARK[callout.calloutKind]
+          : records.length === 0
+            ? "·"
+            : shift?.absenceKind
+              ? "—"
+              : hours(workedHours).replace(",00", "")}
       </span>
     </div>
   );

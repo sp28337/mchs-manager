@@ -8,6 +8,7 @@
 
 export type {
   AbsenceKind,
+  CalloutKind,
   AccountingPeriodKind,
   EmploymentKind,
   Gender,
@@ -22,6 +23,7 @@ export { formatHours as hours } from "../domain/decimal";
 
 import type {
   AbsenceKind,
+  CalloutKind,
   AccountingPeriodKind,
   EmploymentKind,
   Gender,
@@ -65,6 +67,28 @@ export const ABSENCE_LABELS: Record<AbsenceKind, string> = {
   unpaid_leave: "Отпуск без сохранения",
   business_trip: "Командировка",
   other_excused: "Иное освобождение",
+  time_off_in_lieu: "Отгул за переработку",
+};
+
+export const CALLOUT_LABELS: Record<CalloutKind, string> = {
+  competition: "Соревнования",
+  training_camp: "Сбор",
+  reserve: "Резерв",
+  public_event: "Праздничное мероприятие",
+  elections: "Выборы",
+  other_callout: "Иной вызов",
+};
+
+/** Что вид отсутствия или вызова ДЕЛАЕТ с расчётом. */
+export const ABSENCE_EFFECT: Record<AbsenceKind, string> = {
+  annual_leave: "часы по норме за эти дни исключаются из нормы",
+  sick_leave: "часы по норме за эти дни исключаются из нормы",
+  study_leave: "часы по норме за эти дни исключаются из нормы",
+  unpaid_leave: "часы по норме за эти дни исключаются из нормы",
+  business_trip: "часы по норме за эти дни исключаются из нормы",
+  other_excused: "часы по норме за эти дни исключаются из нормы",
+  time_off_in_lieu:
+    "норма не меняется, а пропущенная смена уменьшает переработку — отгул и есть её погашение",
 };
 
 export const DAY_TYPE_LABELS: Record<DayType, string> = {
