@@ -163,11 +163,18 @@ export default function LandingPage() {
 
       <main className="mx-auto w-full max-w-4xl px-6 pb-16 xl:max-w-6xl 2xl:max-w-7xl">
         {/* ------------------------------------------------------ первый экран */}
-        {/* `isolate` — чтобы `z-index` слоёв не спорил ни с шапкой, ни с
-            остальной страницей. Обрезки здесь нет намеренно: табель шире
-            колонки `main` и должен доходить до края окна, а срезает его
-            `overflow-x: clip` на `body`. */}
-        <section className="relative isolate flex h-lvh flex-col justify-center border-b border-rule pt-15 md:h-[90lvh]">
+        {/* `hero-band` (в `globals.css`) выводит первый экран за колонку
+            `main` — ровно настолько, насколько это не съедает поле у края
+            окна. Вместе с полосой выходят все три вещи, которые обязаны
+            стоять по одной вертикали: заголовок, линия под экраном и правый
+            край фонового табеля. Ниже `xl` запаса нет, и полоса совпадает
+            с колонкой.
+
+            `isolate` — чтобы `z-index` слоёв не спорил ни с шапкой, ни с
+            остальной страницей. Обрезки здесь нет намеренно: ниже `xl`
+            табель уходит за край окна, а срезает его `overflow-x: clip` в
+            корневой разметке. */}
+        <section className="hero-band relative isolate flex h-lvh flex-col justify-center border-b border-rule pt-15 md:h-[90lvh]">
           <TabelBackdrop />
 
           <div className="relative z-10 space-y-6">
