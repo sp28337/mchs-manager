@@ -11,7 +11,7 @@ import {
   type IsoDate,
 } from "../domain/plain-date";
 import { ABSENCE_LABELS, CALLOUT_LABELS } from "../schemas";
-import type { CalloutKind } from "../domain/value-objects";
+import type { AbsenceKind, CalloutKind } from "../domain/value-objects";
 
 /**
  * Короткий код вызова в клетке.
@@ -28,6 +28,56 @@ const CALLOUT_MARK: Record<CalloutKind, string> = {
   elections: "ВЫБ",
   other_callout: "ВЫЗ",
 };
+
+/**
+ * Буква вместо прочерка в клетке пропущенной смены.
+ *
+ * Раньше все семь видов отсутствия выглядели одинаково: «—» на сигнальном
+ * фоне. Но человек, глядя на год, ищет не «отсутствие вообще» — он ищет
+ * конкретный случай, из-за которого спорит: где стоял больничный, где
+ * отпуск, где отгул. Прочерк на этот вопрос не отвечал, и приходилось
+ * наводить курсор на каждую клетку.
+ *
+ * Обозначения взяты из табеля Т-13, а не выдуманы: их узнает и тот, кто
+ * заполняет табель по ту сторону спора.
+ */
+const ABSENCE_MARK: Record<AbsenceKind, string> = {
+  annual_leave: "О",
+  sick_leave: "Б",
+  time_off_in_lieu: "В",
+  study_leave: "У",
+  unpaid_leave: "ДО",
+  business_trip: "К",
+  other_excused: "ОСВ",
+};
+
+/**
+ * Цвет клетки по виду отсутствия.
+ *
+ * Свой цвет получили только те три, что человек ищет чаще всего.
+ * Остальные остаются сигнальными: семь цветов в одной сетке никто не
+ * различит, а различает здесь буква — цвет только помогает найти её
+ * быстрее.
+ *
+ * Пунктирная рамка общая у всех: она означает «смена по графику была, но
+ * не состоялась», и это свойство у семи видов одно на всех.
+ */
+const ABSENCE_TONE: Record<AbsenceKind, string> = {
+  sick_leave: "border-dashed border-sick bg-sick-soft text-sick",
+  time_off_in_lieu: "border-dashed border-rest bg-rest-soft text-rest",
+  annual_leave: "border-dashed border-signal bg-signal-soft text-signal",
+  study_leave: "border-dashed border-signal bg-signal-soft text-signal",
+  unpaid_leave: "border-dashed border-signal bg-signal-soft text-signal",
+  business_trip: "border-dashed border-signal bg-signal-soft text-signal",
+  other_excused: "border-dashed border-signal bg-signal-soft text-signal",
+};
+
+/** Виды, у которых свой цвет: только они попадают в легенду отдельной строкой. */
+const TONED_ABSENCES: readonly AbsenceKind[] = [
+  "annual_leave",
+  "sick_leave",
+  "time_off_in_lieu",
+];
 import { MONTH_NAMES } from "./month-names";
 import { MonthGrid, WEEKDAY_LABELS } from "./month-grid";
 
@@ -176,6 +226,31 @@ export function ShiftStrip({ calculation }: { calculation: PeriodCalculation }) 
         <Legend className="border-rule text-ink-faint" label="Свободные сутки" />
       </dl>
 
+      {/* Виды отсутствия. Три первых различаются и цветом, остальные —
+          только буквой: цвет здесь помощник, а не язык. */}
+      <dl className="flex flex-wrap gap-x-6 gap-y-1 text-xs">
+        {(Object.keys(ABSENCE_MARK) as AbsenceKind[]).map((kind) => (
+          <div key={kind} className="flex items-center gap-2">
+            <dt
+              aria-hidden
+              className={cn(
+                // Ширина по содержимому, а не квадрат: «ДО» и «ОСВ» в
+                // шестнадцати пикселях сминаются в кашу.
+                "inline-flex h-4 min-w-4 shrink-0 items-center justify-center rounded-xs border px-1",
+                "font-mono text-[9px] leading-none",
+                ABSENCE_TONE[kind],
+                // Цветные попадают в глаз сами; у бесцветных подсказка
+                // только в букве, и подписать их надо тем же способом.
+                !TONED_ABSENCES.includes(kind) && "opacity-70",
+              )}
+            >
+              {ABSENCE_MARK[kind]}
+            </dt>
+            <dd className="text-ink-muted">{ABSENCE_LABELS[kind]}</dd>
+          </div>
+        ))}
+      </dl>
+
       {/* Виды вызова перечислены отдельно: код в клетке нужно уметь
           прочитать, а держать шесть сокращений в голове человек не обязан. */}
       <dl className="flex flex-wrap gap-x-6 gap-y-1 text-xs">
@@ -238,7 +313,7 @@ function DayCell({ day, records }: { day: IsoDate; records: readonly DayRecord[]
         // разный род времени.
         worked && shift.isShiftStart && "border-verify bg-verify-soft text-verify",
         worked && !shift.isShiftStart && "border-verify/50 bg-verify-soft/50 text-verify",
-        shift?.absenceKind && "border-dashed border-signal bg-signal-soft text-signal",
+        shift?.absenceKind && ABSENCE_TONE[shift.absenceKind],
         // Вызов перебивает вид смены: он редок, и человек ищет глазами
         // именно его. Часы при этом не теряются — они в подписи и в итоге
         // месяца.
@@ -255,7 +330,7 @@ function DayCell({ day, records }: { day: IsoDate; records: readonly DayRecord[]
           : records.length === 0
             ? "·"
             : shift?.absenceKind
-              ? "—"
+              ? ABSENCE_MARK[shift.absenceKind]
               : hours(workedHours).replace(",00", "")}
       </span>
     </div>
