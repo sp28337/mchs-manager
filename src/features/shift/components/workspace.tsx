@@ -9,11 +9,13 @@ import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils/cn";
 import { formatHours, parseHours } from "../domain/decimal";
 import { formatDateRu, formatPeriodRu } from "../domain/format";
+import { formatMoney } from "../domain/overtime-pay";
 import { reconcile, type Discrepancy } from "../domain/reconciliation";
 import {
   accountingPeriodsOf,
   calculateFor,
   monthBounds,
+  overtimePayFor,
   statutoryBounds,
 } from "../model/derive";
 import {
@@ -30,6 +32,7 @@ import {
   type CalloutKind,
 } from "../schemas";
 import { DateField } from "./date-field";
+import { OvertimePayCard } from "./overtime-pay-card";
 import { PeriodSummary } from "./period-summary";
 import { ProfileFooter } from "./profile-footer";
 import { ShiftStrip } from "./shift-strip";
@@ -91,6 +94,8 @@ export function Workspace({ profile, onChange, onForget }: WorkspaceProps) {
     () => calculateFor(profile, periodStart, periodEnd),
     [profile, periodStart, periodEnd],
   );
+
+  const pay = useMemo(() => overtimePayFor(profile, calculation), [profile, calculation]);
 
   // Расхождения относятся к конкретному периоду и к конкретному состоянию
   // профиля. Держать их в состоянии значило бы показывать вчерашний ответ
@@ -191,8 +196,31 @@ export function Workspace({ profile, onChange, onForget }: WorkspaceProps) {
             за {formatPeriodRu(periodStart, periodEnd)}
           </span>
         </h2>
-        <PeriodSummary calculation={calculation} accountingYear={profile.accountingYear} />
+        <PeriodSummary
+          calculation={calculation}
+          accountingYear={profile.accountingYear}
+          payTotal={pay?.primary.total ?? null}
+        />
       </section>
+
+      {/* Деньги — отдельным разделом и свёрнутым: сумма нужна не всем и не
+          сразу, а поле оклада в основной сводке смотрелось бы как
+          обязательное к заполнению. */}
+      <CollapsibleSection
+        title="Сколько это в деньгах"
+        summary={
+          pay
+            ? `${formatMoney(pay.primary.total)} за ${formatHours(calculation.overtimeHours)} ч`
+            : "укажите оклад — посчитаем по приказу"
+        }
+      >
+        <OvertimePayCard
+          profile={profile}
+          calculation={calculation}
+          pay={pay}
+          onChange={onChange}
+        />
+      </CollapsibleSection>
 
       {/* Разделы сворачиваются, и открыт по умолчанию только график: за
           ним приходят чаще всего. Иначе экран — пять экранов подряд, и до
