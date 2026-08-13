@@ -144,9 +144,14 @@ function Derivation({
   return (
     <div className="space-y-3">
       <div className="space-y-0.5">
-        <p className="font-mono text-3xl leading-none text-verify">
-          {formatMoney(pay.total)}
-        </p>
+        <div className="flex items-center gap-2">
+          <div className="text-2xl">
+            ≈ 
+          </div>
+          <p className="font-mono text-3xl leading-none text-verify">
+            {formatMoney(pay.total)}
+          </p>
+        </div>
         <p className="font-display text-xs font-bold uppercase tracking-wide text-ink-muted">
           За {hours(calculation.overtimeHours)} ч переработки
         </p>

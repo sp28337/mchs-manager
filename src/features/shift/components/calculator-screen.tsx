@@ -48,8 +48,7 @@ export function CalculatorScreen() {
         <main className="mx-auto w-full max-w-4xl space-y-10 px-6 pb-12 pt-26 xl:max-w-6xl 2xl:max-w-7xl">
           <header className="space-y-1">
             <p className="font-mono text-xs uppercase tracking-widest text-ink-faint">
-              {profile.accountingYear} год · {profile.guardNumber}-й караул · первая
-              смена {Number(profile.firstShiftDate.slice(8, 10))} января
+              {profile.accountingYear} год · {profile.guardNumber}-й караул
             </p>
             <h1 className="text-3xl leading-tight">{profile.displayName}</h1>
           </header>

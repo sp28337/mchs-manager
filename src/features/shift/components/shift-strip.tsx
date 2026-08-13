@@ -222,7 +222,7 @@ export function ShiftStrip({ calculation }: { calculation: PeriodCalculation }) 
             className="border-verify/50 bg-verify-soft/50 text-verify"
             label="Продолжение смены, заступившей накануне"
           />
-          <Legend className="border-rule text-ink-faint" mark="·" label="Свободные сутки" />
+          <Legend className="border-rule text-ink-faint" mark="В" label="Выходной день" />
         </LegendGroup>
 
         <LegendGroup title="Смены по графику, пропущенные по уважительной причине">
@@ -314,7 +314,7 @@ function DayCell({ day, records }: { day: IsoDate; records: readonly DayRecord[]
         {callout?.calloutKind
           ? CALLOUT_MARK[callout.calloutKind]
           : records.length === 0
-            ? "·"
+            ? "В"
             : shift?.absenceKind
               ? ABSENCE_MARK[shift.absenceKind]
               : hours(workedHours).replace(",00", "")}

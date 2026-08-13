@@ -63,7 +63,7 @@ export function PeriodSummary({
           emphatic
         />
         <Figure value={hours(calculation.actualHours)} unit="ч" caption="Отработано" />
-        <div className="flex gap-6">
+        <div className="flex gap-6 flex-wrap">
           <Figure
             value={hours(calculation.overtimeHours)}
             unit="ч"
@@ -85,12 +85,17 @@ export function PeriodSummary({
                 tone={overtime ? "verify" : undefined}
               />
               {payTotal ? (
-                <Figure
-                  value={formatMoneyAmount(payTotal)}
-                  unit="₽"
-                  caption="Начислено, до НДФЛ"
-                  tone="verify"
-                />
+                <div className="flex gap-6">
+                  <span className="flex items-center font-semibold">
+                    или
+                  </span>
+                  <Figure
+                    value={formatMoneyAmount(payTotal)}
+                    unit="₽"
+                    caption="Выплата (до НДФЛ)"
+                    tone="verify"
+                  />
+                </div>
               ) : null}
             </>
           ) : null}

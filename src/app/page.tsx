@@ -322,6 +322,11 @@ export default function LandingPage() {
                 "О случаях уменьшения нормы рабочего времени работника.",
                 "https://base.garant.ru/55172417/",
               ],
+              [
+                "Производственные календари",
+                "Информация о количестве рабочих, выходных, праздничных и сокращенных предпраздничных дней, о переносе праздничных дней.",
+                "https://www.consultant.ru/law/ref/calendar/",
+              ],
             ].map(([source, what, href]) => {
               return (
                 <div key={source} className="space-y-0.5 group cursor-pointer">
