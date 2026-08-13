@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils/cn";
 import { formatHours, parseHours } from "../domain/decimal";
 import { formatDateRu, formatPeriodRu } from "../domain/format";
 import { formatMoney } from "../domain/overtime-pay";
+import { pendingTransfers } from "../domain/production-calendar";
 import { reconcile, type Discrepancy } from "../domain/reconciliation";
 import {
   accountingPeriodsOf,
@@ -240,7 +241,9 @@ export function Workspace({ profile, onChange, onForget }: WorkspaceProps) {
         summary={
           Object.keys(profile.calendarOverrides).length > 0
             ? `ваших правок: ${Object.keys(profile.calendarOverrides).length}`
-            : "праздники и переносы размечены"
+            : pendingTransfers(profile.accountingYear).length > 0
+              ? "переносы выходных не размечены"
+              : "праздники и переносы размечены"
         }
       >
         <YearCalendarEditor profile={profile} onChange={onChange} />
