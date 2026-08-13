@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { Dec } from "./decimal";
-import { calculateOvertimePay, formatMoney, parseMoney } from "./overtime-pay";
+import { PAY_BASIS, calculateOvertimePay, formatMoney, parseMoney } from "./overtime-pay";
 import { calendarFactsFor } from "./production-calendar";
 import { baseNormHours } from "./calculation";
 
@@ -234,5 +234,21 @@ describe("ввод и вывод сумм", () => {
     expect(parseMoney("-100")).toBeNull();
     expect(parseMoney("")).toBeNull();
     expect(parseMoney("   ")).toBeNull();
+  });
+});
+
+describe("реквизиты основания", () => {
+  // Реквизиты протухают молча: приказ отменяют, расчёт остаётся верным, а
+  // ссылка под ним превращается в ссылку на недействующий акт — и человек
+  // приходит с ней к начальнику. Приказ № 195 отменён приказом № 539
+  // (приложение 2 п. 1), и вернуться он не должен.
+  it("сотруднику — действующий приказ № 539, а не отменённый № 195", () => {
+    expect(PAY_BASIS.attested).toContain("539");
+    expect(PAY_BASIS.attested).not.toContain("195");
+    expect(PAY_BASIS.attested).toContain("27.06.2024");
+  });
+
+  it("работнику — приказ № 747", () => {
+    expect(PAY_BASIS.civilian).toContain("747");
   });
 });
