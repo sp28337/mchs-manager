@@ -106,10 +106,21 @@ export function YearCalendarEditor({ profile, onChange }: YearCalendarEditorProp
       <section aria-labelledby="calendar" className="space-y-2">
         <p className="max-w-prose text-sm text-ink-muted">
           Праздники по ст. 112 ТК РФ и предпраздничные дни по ст. 95 размечены
-          автоматически. Переносы выходных устанавливает Правительство
-          отдельным постановлением на каждый год, и приложение их не знает —
-          если ваш производственный календарь отличается, поправьте здесь.
-          Ошибка в одном дне — это 8 часов нормы.
+          автоматически.{" "}
+          {pending.length > 0 ? (
+            <>
+              Переносы выходных устанавливает Правительство отдельным
+              постановлением на каждый год, и на {year} год приложение его ещё
+              не знает.
+            </>
+          ) : (
+            <>
+              Перенос выходных дней на {year} год внесён по постановлению
+              Правительства — календарь должен совпасть с выданным вам.
+            </>
+          )}{" "}
+          Если ваш производственный календарь всё-таки отличается, поправьте
+          здесь: ошибка в одном дне — это 8 часов нормы.
         </p>
         {pending.length > 0 ? <PendingNotice pending={pending} /> : null}
         <Button type="button" variant="outline" onClick={() => setOpen(true)} className="rounded-xl">
@@ -130,9 +141,6 @@ export function YearCalendarEditor({ profile, onChange }: YearCalendarEditorProp
   return (
     <section aria-labelledby="calendar" className="space-y-4">
       <div className="flex flex-wrap items-baseline justify-between gap-3">
-        <h2 id="calendar" className="text-xl">
-          Производственный календарь {year} года
-        </h2>
         <Button type="button" variant="ghost" size="sm" onClick={() => setOpen(false)}>
           Свернуть
         </Button>

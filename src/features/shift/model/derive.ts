@@ -9,11 +9,17 @@
 
 import { Dec } from "../domain/decimal";
 import {
+  baseNormHours,
   calculatePeriod,
   type AbsencePeriod,
   type CalloutPeriod,
   type PeriodCalculation,
 } from "../domain/calculation";
+import {
+  calculateOvertimePay,
+  parseMoney,
+  type OvertimePayEstimate,
+} from "../domain/overtime-pay";
 import { calendarFactsFor, type DayType } from "../domain/production-calendar";
 import type { IsoDate } from "../domain/plain-date";
 import {
@@ -106,6 +112,44 @@ export function calculateFor(
     workingDays: facts.workingDaySet,
     preHolidayDays: facts.preHolidayDaySet,
     shiftStartTime: profile.shiftStartTime,
+  });
+}
+
+/**
+ * Деньги за переработку периода, если человек указал базу.
+ *
+ * Норма берётся ГОДОВАЯ, а не за период: часовая ставка по п. 105 приказа
+ * № 539 считается «по производственному календарю на данный календарный
+ * год». При полугодовом учётном периоде подстановка нормы периода удвоила
+ * бы ставку — и сумму вместе с ней.
+ *
+ * Правки календаря, внесённые человеком, в годовую норму попадают: если
+ * он проставил перенос выходных, ставка обязана считаться по тому же
+ * календарю, что и всё остальное.
+ */
+export function overtimePayFor(
+  profile: StoredProfile,
+  calculation: PeriodCalculation,
+): OvertimePayEstimate | null {
+  const base = parseMoney(profile.monthlyPayBase);
+  if (base === null) return null;
+
+  const year = profile.accountingYear;
+  const yearFacts = calendarFactsFor(
+    `${year}-01-01` as IsoDate,
+    `${year + 1}-01-01` as IsoDate,
+    overridesByYear(profile),
+  );
+
+  return calculateOvertimePay({
+    employment: profile.employmentKind,
+    base: { amount: base },
+    annualNormHours: baseNormHours(weeklyNormOf(profile), {
+      workingDays: yearFacts.workingDays,
+      preHolidayDays: yearFacts.preHolidayDays,
+    }),
+    workingDaysInPeriod: calculation.calendar.workingDays,
+    overtimeHours: calculation.overtimeHours,
   });
 }
 

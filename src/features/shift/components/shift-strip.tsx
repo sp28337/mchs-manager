@@ -1,3 +1,5 @@
+import type { ReactNode } from "react";
+
 import { cn } from "@/lib/utils/cn";
 
 import type { DayRecord, PeriodCalculation } from "../domain/calculation";
@@ -11,7 +13,7 @@ import {
   type IsoDate,
 } from "../domain/plain-date";
 import { ABSENCE_LABELS, CALLOUT_LABELS } from "../schemas";
-import type { CalloutKind } from "../domain/value-objects";
+import type { AbsenceKind, CalloutKind } from "../domain/value-objects";
 
 /**
  * Короткий код вызова в клетке.
@@ -27,6 +29,49 @@ const CALLOUT_MARK: Record<CalloutKind, string> = {
   public_event: "МЕР",
   elections: "ВЫБ",
   other_callout: "ВЫЗ",
+};
+
+/**
+ * Буква вместо прочерка в клетке пропущенной смены.
+ *
+ * Раньше все семь видов отсутствия выглядели одинаково: «—» на сигнальном
+ * фоне. Но человек, глядя на год, ищет не «отсутствие вообще» — он ищет
+ * конкретный случай, из-за которого спорит: где стоял больничный, где
+ * отпуск, где отгул. Прочерк на этот вопрос не отвечал, и приходилось
+ * наводить курсор на каждую клетку.
+ *
+ * Обозначения взяты из табеля Т-13, а не выдуманы: их узнает и тот, кто
+ * заполняет табель по ту сторону спора.
+ */
+const ABSENCE_MARK: Record<AbsenceKind, string> = {
+  annual_leave: "О",
+  sick_leave: "Б",
+  time_off_in_lieu: "В",
+  study_leave: "У",
+  unpaid_leave: "ДО",
+  business_trip: "К",
+  other_excused: "ОСВ",
+};
+
+/**
+ * Цвет клетки по виду отсутствия.
+ *
+ * Свой цвет у каждого вида, кроме отпуска: он остаётся сигнальным, каким
+ * был. Тона разведены не на глаз — между насыщенными цветами интерфейса
+ * не меньше 26° по кругу, значения и расчёт в `globals.css`.
+ *
+ * Пунктирная рамка общая у всех: она означает «смена по графику была, но
+ * не состоялась», и это свойство у семи видов одно на всех. Цвет отвечает
+ * на следующий вопрос — почему именно не состоялась.
+ */
+const ABSENCE_TONE: Record<AbsenceKind, string> = {
+  annual_leave: "border-dashed border-signal bg-signal-soft text-signal",
+  sick_leave: "border-dashed border-sick bg-sick-soft text-sick",
+  time_off_in_lieu: "border-dashed border-rest bg-rest-soft text-rest",
+  study_leave: "border-dashed border-study bg-study-soft text-study",
+  unpaid_leave: "border-dashed border-unpaid bg-unpaid-soft text-unpaid",
+  business_trip: "border-dashed border-trip bg-trip-soft text-trip",
+  other_excused: "border-dashed border-excused bg-excused-soft text-excused",
 };
 import { MONTH_NAMES } from "./month-names";
 import { MonthGrid, WEEKDAY_LABELS } from "./month-grid";
@@ -162,30 +207,46 @@ export function ShiftStrip({ calculation }: { calculation: PeriodCalculation }) 
         ))}
       </div>
 
-      <dl className="flex flex-wrap gap-x-6 gap-y-1 text-xs">
-        <Legend className="border-verify bg-verify-soft text-verify" label="Заступление на смену" />
-        <Legend
-          className="border-verify/50 bg-verify-soft/50 text-verify"
-          label="Продолжение смены, заступившей накануне"
-        />
-        <Legend
-          className="border-dashed border-signal bg-signal-soft text-signal"
-          label="Смена по графику, пропущенная по уважительной причине"
-        />
-        <Legend className="border-trace bg-trace-soft text-trace" label="Вызов помимо графика" />
-        <Legend className="border-rule text-ink-faint" label="Свободные сутки" />
-      </dl>
+      {/* Легенда разложена на три группы с заголовками, а не в одну
+          полосу из восемнадцати значков. Группа отвечает на вопрос «что
+          вообще бывает в клетке»: смена, пропуск, вызов, — и внутри
+          группы человек уже ищет свой случай. Прежняя сплошная строка
+          заставляла перебирать всё подряд. */}
+      <div className="space-y-4 border-t border-rule pt-4">
+        <LegendGroup title="Смены по графику">
+          <Legend
+            className="border-verify bg-verify-soft text-verify"
+            label="Заступление на смену"
+          />
+          <Legend
+            className="border-verify/50 bg-verify-soft/50 text-verify"
+            label="Продолжение смены, заступившей накануне"
+          />
+          <Legend className="border-rule text-ink-faint" mark="В" label="Выходной день" />
+        </LegendGroup>
 
-      {/* Виды вызова перечислены отдельно: код в клетке нужно уметь
-          прочитать, а держать шесть сокращений в голове человек не обязан. */}
-      <dl className="flex flex-wrap gap-x-6 gap-y-1 text-xs">
-        {(Object.keys(CALLOUT_MARK) as CalloutKind[]).map((kind) => (
-          <div key={kind} className="flex items-center gap-2">
-            <dt className="font-mono text-[10px] text-trace">{CALLOUT_MARK[kind]}</dt>
-            <dd className="text-ink-muted">{CALLOUT_LABELS[kind]}</dd>
-          </div>
-        ))}
-      </dl>
+        <LegendGroup title="Смены по графику, пропущенные по уважительной причине">
+          {(Object.keys(ABSENCE_MARK) as AbsenceKind[]).map((kind) => (
+            <Legend
+              key={kind}
+              className={ABSENCE_TONE[kind]}
+              mark={ABSENCE_MARK[kind]}
+              label={ABSENCE_LABELS[kind]}
+            />
+          ))}
+        </LegendGroup>
+
+        <LegendGroup title="Вызовы помимо графика">
+          {(Object.keys(CALLOUT_MARK) as CalloutKind[]).map((kind) => (
+            <Legend
+              key={kind}
+              className="border-trace bg-trace-soft text-trace"
+              mark={CALLOUT_MARK[kind]}
+              label={CALLOUT_LABELS[kind]}
+            />
+          ))}
+        </LegendGroup>
+      </div>
     </div>
   );
 }
@@ -238,7 +299,7 @@ function DayCell({ day, records }: { day: IsoDate; records: readonly DayRecord[]
         // разный род времени.
         worked && shift.isShiftStart && "border-verify bg-verify-soft text-verify",
         worked && !shift.isShiftStart && "border-verify/50 bg-verify-soft/50 text-verify",
-        shift?.absenceKind && "border-dashed border-signal bg-signal-soft text-signal",
+        shift?.absenceKind && ABSENCE_TONE[shift.absenceKind],
         // Вызов перебивает вид смены: он редок, и человек ищет глазами
         // именно его. Часы при этом не теряются — они в подписи и в итоге
         // месяца.
@@ -253,19 +314,64 @@ function DayCell({ day, records }: { day: IsoDate; records: readonly DayRecord[]
         {callout?.calloutKind
           ? CALLOUT_MARK[callout.calloutKind]
           : records.length === 0
-            ? "·"
+            ? "В"
             : shift?.absenceKind
-              ? "—"
+              ? ABSENCE_MARK[shift.absenceKind]
               : hours(workedHours).replace(",00", "")}
       </span>
     </div>
   );
 }
 
-function Legend({ className, label }: { className: string; label: string }) {
+/**
+ * Заголовок группы и её значки.
+ *
+ * Заголовок вынесен над рядом, а не повторён в каждой строке: раньше
+ * «Смена по графику, пропущенная по уважительной причине» стояло
+ * подписью к одному значку и занимало полстроки, хотя относится ко всем
+ * семи сразу.
+ */
+function LegendGroup({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <div className="space-y-1.5">
+      <p className="font-display text-[11px] font-bold uppercase tracking-wide text-ink-muted">
+        {title}
+      </p>
+      <dl className="flex flex-wrap gap-x-5 gap-y-1.5 text-xs">{children}</dl>
+    </div>
+  );
+}
+
+/**
+ * Значок легенды: та же клетка, что в сетке, с тем же знаком внутри.
+ *
+ * Знак внутри образца, а не рядом с ним, — чтобы образец совпадал с тем,
+ * что человек видит в календаре, вплоть до буквы. Легенда, в которой
+ * цвет отдельно, а буква отдельно, требует складывать их в уме.
+ */
+function Legend({
+  className,
+  label,
+  mark,
+}: {
+  className: string;
+  label: string;
+  mark?: string;
+}) {
   return (
     <div className="flex items-center gap-2">
-      <dt className={cn("size-4 shrink-0 rounded-xs border", className)} aria-hidden />
+      <dt
+        aria-hidden
+        className={cn(
+          // Ширина по содержимому, а не квадрат: «ДО» и «ОСВ» в
+          // шестнадцати пикселях сминаются в кашу.
+          "inline-flex h-4 min-w-4 shrink-0 items-center justify-center rounded-xs border px-1",
+          "font-mono text-[9px] leading-none",
+          className,
+        )}
+      >
+        {mark}
+      </dt>
       <dd className="text-ink-muted">{label}</dd>
     </div>
   );
