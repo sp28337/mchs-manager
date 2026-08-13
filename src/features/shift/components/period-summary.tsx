@@ -1,6 +1,7 @@
 import { cn } from "@/lib/utils/cn";
 
-import { atLeastZero, formatHours as hours, formatDays as days } from "../domain/decimal";
+import { atLeastZero, formatHours as hours, formatDays as days, type Decimal } from "../domain/decimal";
+import { formatMoneyAmount } from "../domain/overtime-pay";
 import { pendingTransfers } from "../domain/production-calendar";
 import type { PeriodCalculation } from "../domain/calculation";
 
@@ -19,9 +20,14 @@ import type { PeriodCalculation } from "../domain/calculation";
 export function PeriodSummary({
   calculation,
   accountingYear,
+  payTotal,
 }: {
   calculation: PeriodCalculation;
   accountingYear: number;
+  /** Деньги за переработку, если человек указал оклад. Разбор суммы — в
+   *  отдельном разделе; здесь она стоит рядом с часами, потому что это
+   *  тот же факт, названный второй раз. */
+  payTotal?: Decimal | null;
 }) {
   const excluded = calculation.excludedHours.greaterThan(0);
   const overtime = calculation.overtimeHours.greaterThan(0);
@@ -78,6 +84,14 @@ export function PeriodSummary({
                 caption="В сутках"
                 tone={overtime ? "verify" : undefined}
               />
+              {payTotal ? (
+                <Figure
+                  value={formatMoneyAmount(payTotal)}
+                  unit="₽"
+                  caption="Начислено, до НДФЛ"
+                  tone="verify"
+                />
+              ) : null}
             </>
           ) : null}
           {calculation.undertimeHours.greaterThan(0) ? (
