@@ -141,9 +141,6 @@ export function YearCalendarEditor({ profile, onChange }: YearCalendarEditorProp
   return (
     <section aria-labelledby="calendar" className="space-y-4">
       <div className="flex flex-wrap items-baseline justify-between gap-3">
-        <h2 id="calendar" className="text-xl">
-          Производственный календарь {year} года
-        </h2>
         <Button type="button" variant="ghost" size="sm" onClick={() => setOpen(false)}>
           Свернуть
         </Button>
