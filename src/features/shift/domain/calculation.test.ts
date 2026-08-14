@@ -508,6 +508,64 @@ describe("вызовы помимо графика", () => {
     expect(both.actualHours.minus(march([]).actualHours).toString()).toBe("12");
   });
 
+  test("несколько вызовов в одни сутки считаются все", () => {
+    // Настоящий день: 2 марта заступление, после смены соревнования, а
+    // следом вызвали в резерв. Три записи об одних сутках, и ни одна не
+    // отменяет остальные.
+    const stacked = march([], {
+      callouts: [
+        {
+          start: "2026-03-02",
+          endInclusive: "2026-03-02",
+          kind: "competition",
+          hoursPerDay: new Dec(6),
+        },
+        {
+          start: "2026-03-02",
+          endInclusive: "2026-03-02",
+          kind: "reserve",
+          hoursPerDay: new Dec(4),
+        },
+      ],
+    });
+
+    const sameDay = stacked.days.filter((day) => day.day === "2026-03-02");
+    expect(sameDay).toHaveLength(3);
+    expect(sameDay.flatMap((day) => (day.calloutKind ? [day.calloutKind] : []))).toEqual([
+      "competition",
+      "reserve",
+    ]);
+    // Шесть часов и четыре, а не только первые шесть.
+    expect(stacked.actualHours.minus(march([]).actualHours).toString()).toBe("10");
+  });
+
+  test("два вызова одного вида в одни сутки не схлопываются в один", () => {
+    // Резерв утром и резерв вечером — это два распоряжения и два раза по
+    // столько-то часов. Совпадение вида не повод считать их одним.
+    const twice = march([], {
+      callouts: [
+        {
+          start: "2026-03-07",
+          endInclusive: "2026-03-07",
+          kind: "reserve",
+          hoursPerDay: new Dec(3),
+        },
+        {
+          start: "2026-03-07",
+          endInclusive: "2026-03-07",
+          kind: "reserve",
+          hoursPerDay: new Dec(5),
+        },
+      ],
+    });
+
+    const sameDay = twice.days.filter(
+      (day) => day.day === "2026-03-07" && day.calloutKind != null,
+    );
+    expect(sameDay.map((day) => day.hours.toString())).toEqual(["3", "5"]);
+    expect(twice.actualHours.minus(march([]).actualHours).toString()).toBe("8");
+  });
+
   test("часть вызова вне периода в него не попадает", () => {
     const spanning = march([], {
       callouts: [
