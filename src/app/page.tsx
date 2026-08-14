@@ -210,7 +210,7 @@ export default function LandingPage() {
             расчёта, не придётся привыкать ко второму языку вёрстки. */}
         <BentoGrid className="py-10">
         {/* ------------------------------------------------------- сама проблема */}
-        <BentoCard span={4} title="«Отпуск уменьшает норму, а не отработанные часы»">
+        <BentoCard index={1} span={8} title="«Отпуск уменьшает норму, а не отработанные часы»">
           <div className="grid gap-6 md:grid-cols-2">
             <p className="max-w-prose">
               При суммированном учёте время отпуска, больничного или другого освобождения от 
@@ -229,7 +229,7 @@ export default function LandingPage() {
 
         </BentoCard>
 
-        <BentoCard span={2} title="На числах" summary="месяц отпуска">
+        <BentoCard index={2} span={4} title="На числах" summary="месяц отпуска">
           <div className="grid gap-px overflow-hidden rounded-lg border border-rule bg-rule">
             <div className="space-y-1 bg-signal-soft p-4">
               <p className="font-display text-xs font-bold uppercase tracking-wide text-signal">
@@ -256,15 +256,10 @@ export default function LandingPage() {
         {STEPS.map((step, index) => (
           <BentoCard
             key={step.title}
-            span={2}
-            title={
-              <span className="flex items-baseline gap-3">
-                <span className="font-mono text-2xl leading-none text-ink-faint">
-                  {index + 1}
-                </span>
-                {step.title}
-              </span>
-            }
+            index={3 + index}
+            span={4}
+            title={step.title}
+            summary={`шаг ${index + 1} из 3`}
           >
             <p className="text-sm text-ink-muted">{step.text}</p>
           </BentoCard>
@@ -274,8 +269,8 @@ export default function LandingPage() {
         {/* Левая колонка из двух плиток: перечень документов высокий, и
             одна короткая плитка рядом с ним оставила бы полстолбца
             пустым. */}
-        <div className="flex min-w-0 flex-col gap-3 sm:gap-4 lg:col-span-2">
-        <BentoCard span={6} className="lg:col-span-6" title="Расчёт, который можно проверить">
+        <div className="flex min-w-0 flex-col gap-3 sm:gap-4 lg:col-span-4">
+        <BentoCard index={6} span={12} className="lg:col-span-12" title="Расчёт, который можно проверить">
           <div className="space-y-3">
             <p className="text-ink-muted">Калькулятор не берёт цифры «из воздуха».</p>
             <p className="text-ink-muted">
@@ -287,7 +282,7 @@ export default function LandingPage() {
         </BentoCard>
 
         {/* ------------------------------------------------------------ приватность */}
-        <BentoCard span={6} className="lg:col-span-6" title="Ваши данные остаются у вас">
+        <BentoCard index={7} span={12} className="lg:col-span-12" title="Ваши данные остаются у вас">
           <div className="space-y-4">
             <p className="max-w-prose">
               Для расчёта могут понадобиться сведения о больничных, а для вольнонаёмных сотрудников — об инвалидности. 
@@ -302,7 +297,7 @@ export default function LandingPage() {
         </BentoCard>
         </div>
 
-        <BentoCard span={4} title="Основные документы">
+        <BentoCard index={8} span={8} title="Основные документы">
           <dl className="grid gap-x-8 gap-y-4 sm:grid-cols-2">
             {[
               [
@@ -397,7 +392,7 @@ export default function LandingPage() {
         </BentoCard>
 
         {/* ---------------------------------------------------------------- вопросы */}
-        <BentoCard span={6} title="Частые вопросы">
+        <BentoCard index={9} span={12} title="Частые вопросы">
           <div className="divide-y divide-rule">
             {FAQ.map((item) => (
               <details key={item.question} className="group">
@@ -422,10 +417,9 @@ export default function LandingPage() {
 
         {/* ------------------------------------------------------------- ещё раз CTA */}
         <BentoCard
-          span={6}
+          span={12}
           title="Проверьте свой табель"
-          className="items-center text-center"
-          bodyClassName="flex flex-col items-center gap-4"
+          bodyClassName="flex flex-col items-center gap-4 py-8 text-center"
         >
           <Logo className="size-10 text-signal" />
           <p className="mx-auto max-w-prose text-ink-muted">

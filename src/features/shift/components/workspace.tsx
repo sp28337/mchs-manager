@@ -3,7 +3,7 @@
 import { useId, useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
-import { BentoCard, BentoGrid } from "@/components/shared/bento";
+import { BentoCard, BentoGrid, Segmented, SegmentedItem } from "@/components/shared/bento";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils/cn";
@@ -119,91 +119,79 @@ export function Workspace({ profile, onChange, onForget }: WorkspaceProps) {
 
   return (
     <BentoGrid>
-      {/* Выбор периода — первой плиткой и во всю ширину: он задаёт числа
-          во всех остальных, и прятать его в колонку значило бы поставить
-          причину ниже следствия. Плитка низкая, из одних кнопок, поэтому
-          полная ширина её не растягивает. */}
+      {/* Панель управления периодом — первой и во всю ширину: она задаёт
+          числа во всех остальных, и прятать её в колонку значило бы
+          поставить причину ниже следствия. Высота при этом минимальная:
+          это полоса управления, а не раздел. */}
       <BentoCard
-        span={6}
+        index={1}
+        span={12}
         title="Учётный период"
         summary={formatPeriodRu(periodStart, periodEnd)}
+        bodyClassName="p-3"
       >
-        {/* Две группы кнопок рядом, а не одна под другой: плитка во всю
-            ширину, и столбец кнопок в её левом краю оставил бы две трети
-            пустыми. */}
-        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)] lg:gap-8">
-          <div className="space-y-2">
-            <h3 className="font-display text-xs font-bold uppercase tracking-wide text-ink-muted">
-              Целиком
-            </h3>
-            <div className="flex flex-wrap gap-1.5">
+        <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
+          {/* Один переключатель с перегородками вместо россыпи кнопок:
+              выбор здесь ровно один, и вид обязан об этом говорить. */}
+          <Segmented>
             {periods.flatMap((kind) => {
               const count = kind === "quarter" ? 4 : kind === "half_year" ? 2 : 1;
-              return Array.from({ length: count }, (_, index) => {
-                const active =
-                  selection.mode === "statutory" &&
-                  selection.kind === kind &&
-                  selection.index === index;
-                return (
-                  <Button
-                    key={`${kind}-${index}`}
-                    type="button"
-                    size="sm"
-                    variant={active ? "default" : "outline"}
-                    aria-pressed={active}
-                    className="rounded-lg"
-                    onClick={() => setSelection({ mode: "statutory", kind, index })}
-                  >
-                    {count > 1
-                      ? `${index + 1}-${kind === "quarter" ? "й квартал" : "е полугодие"}`
-                      : `${profile.accountingYear} год`}
-                  </Button>
-                );
-              });
+              return Array.from({ length: count }, (_, index) => (
+                <SegmentedItem
+                  key={`${kind}-${index}`}
+                  active={
+                    selection.mode === "statutory" &&
+                    selection.kind === kind &&
+                    selection.index === index
+                  }
+                  onClick={() => setSelection({ mode: "statutory", kind, index })}
+                >
+                  {count > 1
+                    ? `${index + 1}-${kind === "quarter" ? "й кв." : "е полуг."}`
+                    : `${profile.accountingYear}`}
+                </SegmentedItem>
+              ));
             })}
-            </div>
-            <p className="text-xs text-ink-muted">
-              {profile.employmentKind === "attested"
-                ? "Приказ МЧС России от 24.04.2026 № 308 п. 2: учётный период сотрудника при сменной работе — полугодие или год. Переработка определяется по его итогу."
-                : "Приказ МЧС России от 24.04.2026 № 307 п. 7: учётный период работника при сменной работе — три месяца, полугодие или год. Какой именно — устанавливают правила внутреннего трудового распорядка."}
-            </p>
-          </div>
+          </Segmented>
 
-          <div className="space-y-2 border-t border-rule pt-3 lg:border-l lg:border-t-0 lg:pl-8 lg:pt-0">
-            <h3 className="font-display text-xs font-bold uppercase tracking-wide text-ink-muted">
-              Помесячно
-            </h3>
-            <div className="flex flex-wrap gap-1.5">
-              {MONTHS.map((name, index) => {
-                const active = selection.mode === "month" && selection.index === index;
-                return (
-                  <Button
-                    key={name}
-                    type="button"
-                    size="sm"
-                    variant={active ? "default" : "outline"}
-                    aria-pressed={active}
-                    className="rounded-lg"
-                    onClick={() => setSelection({ mode: "month", index })}
-                  >
-                    {name}
-                  </Button>
-                );
-              })}
-            </div>
-            <p className="max-w-prose text-xs text-ink-muted">
-              Месяц учётным периодом не является — переработку по нему не считают.
-              Он нужен, чтобы найти, в каком именно месяце разошлось.
-            </p>
+          {/* На телефоне двенадцать клеток в строку не помещаются, и полоса
+              прокручивается вбок. Отрицательные поля выводят её под края
+              панели: обрезанная клетка у самого края видна как «дальше есть
+              ещё», а клетка, упирающаяся во внутренний отступ, — нет. */}
+          <div className="-mx-3 flex min-w-0 max-w-full items-center gap-2 overflow-x-auto px-3 lg:mx-0 lg:px-0">
+            <span className="shrink-0 font-display text-[10px] font-bold uppercase tracking-[0.1em] text-ink-faint">
+              Месяц
+            </span>
+            {/* Двенадцать клеток по три буквы — полоса, а не двенадцать
+                пилюль: месяцы это шкала, и выглядеть она должна шкалой. */}
+            <Segmented className="shrink-0">
+              {MONTHS.map((name, index) => (
+                <SegmentedItem
+                  key={name}
+                  active={selection.mode === "month" && selection.index === index}
+                  onClick={() => setSelection({ mode: "month", index })}
+                  className="px-2 font-mono uppercase"
+                >
+                  {name.slice(0, 3)}
+                </SegmentedItem>
+              ))}
+            </Segmented>
           </div>
         </div>
+
+        <p className="mt-3 text-xs text-ink-faint">
+          {profile.employmentKind === "attested"
+            ? "Переработка определяется по итогу учётного периода: полугодие или год (Приказ МЧС России от 24.04.2026 № 308 п. 2). Месяц учётным периодом не является — он нужен, чтобы найти, где разошлось."
+            : "Переработка определяется по итогу учётного периода: три месяца, полугодие или год (Приказ МЧС России от 24.04.2026 № 307 п. 7). Месяц учётным периодом не является — он нужен, чтобы найти, где разошлось."}
+        </p>
       </BentoCard>
 
       {/* Итог и сверка — в одном ряду и рядом. Это две половины одного
           вопроса: «как должно быть» и «что написано у них», — и держать их
           на разных экранах значило бы заставить сравнивать по памяти. */}
       <BentoCard
-        span={4}
+        index={2}
+        span={8}
         title="Как должно быть"
         summary={`за ${formatPeriodRu(periodStart, periodEnd)}`}
       >
@@ -218,10 +206,11 @@ export function Workspace({ profile, onChange, onForget }: WorkspaceProps) {
           на три поля, и растянутая на высоту сводки она выглядела бы
           заброшенной. Ниже неё встают деньги, и колонка сходится по
           высоте с соседкой. */}
-      <div className="flex min-w-0 flex-col gap-3 sm:gap-4 lg:col-span-2">
+      <div className="flex min-w-0 flex-col gap-3 sm:gap-4 lg:col-span-4">
       <BentoCard
-        span={6}
-        className="lg:col-span-6"
+        index={3}
+        span={12}
+        className="lg:col-span-12"
         title="Что в вашем табеле"
         tone={discrepancies && discrepancies.length > 0 ? "signal" : "default"}
         summary={
@@ -236,8 +225,9 @@ export function Workspace({ profile, onChange, onForget }: WorkspaceProps) {
       </BentoCard>
 
       <BentoCard
-        span={6}
-        className="lg:col-span-6"
+        index={4}
+        span={12}
+        className="lg:col-span-12"
         collapsible
         defaultOpen={false}
         title="Сколько это в деньгах"
@@ -261,7 +251,8 @@ export function Workspace({ profile, onChange, onForget }: WorkspaceProps) {
           сравниваются глазом. Он же и открыт по умолчанию: за ним приходят
           чаще всего. */}
       <BentoCard
-        span={6}
+        index={5}
+        span={12}
         collapsible
         defaultOpen
         title="Ваш график"
@@ -271,7 +262,8 @@ export function Workspace({ profile, onChange, onForget }: WorkspaceProps) {
       </BentoCard>
 
       <BentoCard
-        span={2}
+        span={4}
+        index={6}
         collapsible
         defaultOpen={false}
         title="Отпуска и больничные"
@@ -285,7 +277,8 @@ export function Workspace({ profile, onChange, onForget }: WorkspaceProps) {
       </BentoCard>
 
       <BentoCard
-        span={2}
+        span={4}
+        index={7}
         collapsible
         defaultOpen={false}
         title="Вызовы помимо графика"
@@ -299,7 +292,8 @@ export function Workspace({ profile, onChange, onForget }: WorkspaceProps) {
       </BentoCard>
 
       <BentoCard
-        span={2}
+        span={4}
+        index={8}
         collapsible
         defaultOpen={false}
         tone={pendingTransfers(profile.accountingYear).length > 0 ? "signal" : "default"}
@@ -315,7 +309,7 @@ export function Workspace({ profile, onChange, onForget }: WorkspaceProps) {
         <YearCalendarEditor profile={profile} onChange={onChange} />
       </BentoCard>
 
-      <BentoCard span={6} title="Ваши данные" summary="лежат только в этом браузере">
+      <BentoCard index={9} span={12} title="Ваши данные" summary="только в этом браузере">
         <ProfileFooter profile={profile} onForget={onForget} />
       </BentoCard>
     </BentoGrid>
