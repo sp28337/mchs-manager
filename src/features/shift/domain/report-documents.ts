@@ -37,12 +37,28 @@ import { formatMoneyAmount } from "./overtime-pay";
 import { addDays, type IsoDate } from "./plain-date";
 import type { EmploymentKind } from "./value-objects";
 
-/** Что человек просит за переработку. */
-export type ReportRequest = "rest" | "payment";
+/**
+ * О чём бумага.
+ *
+ * Первые два — про то, что человеку положено за переработку. Вторые два —
+ * про то, что переработку сначала надо заставить появиться в табеле:
+ *
+ * * `correction` — учёт ведут неверно. Самое частое: норму не уменьшают на
+ *   часы отсутствия, а вместо этого вычитают их из ОТРАБОТАННОГО. Ошибка
+ *   бьёт дважды, и требовать компенсацию, не исправив её, бессмысленно —
+ *   считать будут от неверных чисел.
+ * * `callout_record` — привлекали помимо графика, но приказа никто не
+ *   издавал и рапорта не подавал. Часов в табеле нет, и доказывать их
+ *   человеку нечем. Его собственный рапорт — единственный способ завести
+ *   бумагу там, где её не завели.
+ */
+export type ReportRequest = "rest" | "payment" | "correction" | "callout_record";
 
 export const REPORT_REQUEST_LABELS: Record<ReportRequest, string> = {
   rest: "Дополнительное время отдыха",
   payment: "Денежная компенсация",
+  correction: "Исправить учёт",
+  callout_record: "Зафиксировать вызовы",
 };
 
 /**
@@ -78,6 +94,35 @@ export interface ReportMoney {
   readonly atDoubleHours: Decimal;
 }
 
+/**
+ * Числа для рапорта об исправлении учёта.
+ *
+ * Из табеля берётся то, что человек в него прочитал; из расчёта — то, что
+ * должно стоять. Обе тройки в бумаге называются рядом: требование
+ * «исправьте» без двух колонок чисел проверить нельзя, а с ними — можно на
+ * месте.
+ */
+export interface ReportCorrection {
+  readonly reportedNormHours: Decimal | null;
+  readonly reportedActualHours: Decimal | null;
+  readonly reportedOvertimeHours: Decimal | null;
+  readonly normHours: Decimal;
+  readonly actualHours: Decimal;
+  /** Часы по НОРМЕ, приходящиеся на отсутствие, — то, что вычитается. */
+  readonly excludedHours: Decimal;
+  readonly absentShifts: number;
+}
+
+/** Один вызов помимо графика, как он попадёт в перечень рапорта. */
+export interface ReportCallout {
+  readonly start: IsoDate;
+  readonly endInclusive: IsoDate;
+  /** Название вида: «Соревнования», «Резерв». */
+  readonly kindLabel: string;
+  readonly hoursPerDay: Decimal;
+  readonly totalHours: Decimal;
+}
+
 export interface ReportInput {
   readonly employment: EmploymentKind;
   readonly request: ReportRequest;
@@ -88,6 +133,10 @@ export interface ReportInput {
   readonly overtimeHours: Decimal;
   /** Деньги — только если человек указал базу расчёта. */
   readonly money?: ReportMoney | null;
+  /** Числа табеля — только если человек их внёс в сверку. */
+  readonly correction?: ReportCorrection | null;
+  /** Вызовы периода — для рапорта об их фиксации. */
+  readonly callouts?: readonly ReportCallout[];
 }
 
 /**
@@ -141,7 +190,223 @@ export const REPORT_BASIS = {
     "часть 1 статьи 152 Трудового кодекса Российской Федерации; статья 104 Трудового кодекса Российской Федерации",
   paymentCivilian:
     "часть 1 статьи 152 Трудового кодекса Российской Федерации; пункты 8 и 10 приложения 2 к приказу МЧС России от 14.12.2019 № 747",
+  // Про обязанность вести учёт сказано без номера части: формулировка
+  // ст. 91 ТК РФ переезжала между частями при поправках, и точный номер в
+  // бумаге устареет раньше, чем сама норма.
+  correctionAttested:
+    "статья 54 Федерального закона от 23.05.2016 № 141-ФЗ; статьи 91 и 104 Трудового кодекса Российской Федерации; письмо Роструда от 01.03.2010 № 550-6-1",
+  correctionCivilian:
+    "статьи 91 и 104 Трудового кодекса Российской Федерации; письмо Роструда от 01.03.2010 № 550-6-1",
+  calloutAttested:
+    "часть 1 статьи 54 Федерального закона от 23.05.2016 № 141-ФЗ; Порядок, утверждённый приказом МЧС России от 24.09.2018 № 410",
+  calloutCivilian:
+    "статьи 91, 99 и 153 Трудового кодекса Российской Федерации",
 } as const;
+
+/**
+ * Чему посвящена бумага — для заголовка на экране.
+ *
+ * Названия разные не ради разнообразия: «о выплате денежной компенсации за
+ * сверхурочную работу» — формулировка приказа № 539, «об оплате
+ * сверхурочной работы» — Трудового кодекса. Человек несёт бумагу тому, кто
+ * эти слова и ищет.
+ */
+const SUBJECT: Record<ReportRequest, Record<EmploymentKind, string>> = {
+  rest: {
+    attested: "о предоставлении дополнительного времени отдыха",
+    civilian: "о предоставлении дополнительного времени отдыха",
+  },
+  payment: {
+    attested: "о выплате денежной компенсации за сверхурочную работу",
+    civilian: "об оплате сверхурочной работы",
+  },
+  correction: {
+    attested: "о приведении учёта служебного времени в соответствие",
+    civilian: "о приведении учёта рабочего времени в соответствие",
+  },
+  callout_record: {
+    attested: "о привлечении к службе помимо графика сменности",
+    civilian: "о привлечении к работе помимо графика сменности",
+  },
+};
+
+/**
+ * «1 смена», «2 смены», «5 смен».
+ *
+ * Бумагу читает делопроизводитель, и «4 смен(ы)» в ней выглядит как
+ * машинная заготовка, которую не потрудились вычитать. Это ровно то
+ * впечатление, с которого начинается разговор о том, что и посчитано
+ * небрежно.
+ */
+function shiftsWord(count: number): string {
+  const tail = count % 100;
+  if (tail >= 11 && tail <= 14) return "смен";
+  const last = count % 10;
+  if (last === 1) return "смена";
+  if (last >= 2 && last <= 4) return "смены";
+  return "смен";
+}
+
+/** Факт, с которого начинается бумага о компенсации. */
+function factParagraph(attested: boolean, period: string, hours: string): string {
+  return attested
+    ? `По итогам учётного периода ${period} мною выполнено ${hours} службы сверх установленной нормальной продолжительности служебного времени.`
+    : `По итогам учётного периода ${period} мною отработано сверхурочно ${hours}.`;
+}
+
+/**
+ * Рапорт об исправлении учёта.
+ *
+ * --- Почему это отдельный документ, а не абзац в рапорте о выплате ------
+ *
+ * Пока в табеле стоят неверные числа, требовать по ним компенсацию
+ * бессмысленно: считать будут от того, что в табеле. Сначала числа, потом
+ * деньги — и это два разных требования к двум разным действиям.
+ *
+ * --- Почему названа именно эта ошибка -----------------------------------
+ *
+ * Норму учётного периода уменьшают на часы, приходящиеся на время, когда
+ * человек был освобождён от обязанностей с сохранением места службы. В
+ * подразделениях эти часы нередко вычитают не из НОРМЫ, а из
+ * ОТРАБОТАННОГО, и тогда ошибка бьёт дважды: норма осталась полной, а факт
+ * ещё и уменьшили. Разница между верным и неверным счётом — двойная
+ * величина исключаемых часов, и в бумаге она названа числом.
+ */
+function correctionBody(
+  input: ReportInput,
+  attested: boolean,
+  period: string,
+): string[] {
+  const timeNoun = attested ? "служебного" : "рабочего";
+  const out: string[] = [];
+  const c = input.correction;
+
+  if (!c) {
+    // Числа табеля не внесены — выдумывать их нельзя. Бумага честно
+    // остаётся с прочерками, а экран рядом говорит, что заполнить.
+    out.push(
+      `В табеле учёта ${timeNoun} времени за учётный период ${period} указаны: ` +
+        `норма к отработке — ${BLANK} ч, фактически отработано — ${BLANK} ч, ` +
+        `${attested ? "служба сверх нормальной продолжительности" : "сверхурочная работа"} — ${BLANK} ч.`,
+    );
+  } else {
+    const said = [
+      c.reportedNormHours ? `норма к отработке — ${formatHours(c.reportedNormHours)} ч` : null,
+      c.reportedActualHours
+        ? `фактически отработано — ${formatHours(c.reportedActualHours)} ч`
+        : null,
+      c.reportedOvertimeHours
+        ? `${attested ? "служба сверх нормальной продолжительности" : "сверхурочная работа"} — ${formatHours(c.reportedOvertimeHours)} ч`
+        : null,
+    ].filter((part): part is string => part !== null);
+
+    out.push(
+      `В табеле учёта ${timeNoun} времени за учётный период ${period} указаны: ` +
+        `${said.join(", ")}.`,
+    );
+    out.push(
+      `По производственному календарю и графику сменности за тот же период ` +
+        `норма к отработке составляет ${formatHours(c.normHours)} ч, ` +
+        `фактически отработано ${formatHours(c.actualHours)} ч, ` +
+        `${attested ? "службы сверх нормальной продолжительности" : "сверхурочной работы"} — ` +
+        `${formatHours(input.overtimeHours)} ч.`,
+    );
+  }
+
+  // Существо требования. Формулировка нарочно длинная: она обязана
+  // одновременно назвать верный порядок и прямо отвергнуть неверный.
+  const excluded = c && c.excludedHours.greaterThan(0)
+    ? ` За указанный период это ${formatHours(c.excludedHours)} ч нормы: на такие ` +
+      `периоды пришлось ${c.absentShifts} ${shiftsWord(c.absentShifts)} по графику сменности.`
+    : "";
+  out.push(
+    `Норма учётного периода подлежит уменьшению на количество часов, ` +
+      `приходящихся по норме на время, когда я был освобождён от выполнения ` +
+      `${attested ? "служебных" : "трудовых"} обязанностей с сохранением места ` +
+      `${attested ? "службы" : "работы"} (отпуск, временная нетрудоспособность и иные ` +
+      `подобные периоды).${excluded}`,
+  );
+  out.push(
+    `Уменьшение на эти часы ФАКТИЧЕСКИ ОТРАБОТАННОГО времени нормативными ` +
+      `правовыми актами не предусмотрено: фактически отработанным является ` +
+      `время, в течение которого я исполнял ${attested ? "служебные" : "трудовые"} ` +
+      `обязанности, и часы отсутствия в него не входят изначально — ` +
+      `вычитать их оттуда значит уменьшать отработанное дважды.`,
+  );
+  out.push(
+    `Прошу привести учёт ${timeNoun} времени за указанный учётный период в ` +
+      `соответствие с производственным календарём и графиком сменности и ` +
+      `ознакомить меня с исправленным табелем.`,
+  );
+  out.push(
+    `Основание: ${attested ? REPORT_BASIS.correctionAttested : REPORT_BASIS.correctionCivilian}.`,
+  );
+  return out;
+}
+
+/**
+ * Рапорт о привлечении, которое никто не оформил.
+ *
+ * Порядок, утверждённый приказом № 410, допускает привлечение и в устной
+ * форме — но тогда прямой руководитель обязан в течение двух рабочих дней
+ * доложить о нём рапортом, указав основания привлечения и его
+ * продолжительность. Если этого не сделано, нарушение на стороне
+ * подразделения, а не человека; его собственный рапорт заводит бумагу там,
+ * где её не завели, и с этого момента часы существуют документально.
+ */
+function calloutBody(
+  input: ReportInput,
+  attested: boolean,
+  period: string,
+): string[] {
+  const out: string[] = [];
+  const callouts = input.callouts ?? [];
+
+  out.push(
+    `Докладываю, что в период ${period} я привлекался к выполнению ` +
+      `${attested ? "служебных" : "трудовых"} обязанностей помимо графика сменности:`,
+  );
+
+  if (callouts.length === 0) {
+    out.push(`${BLANK} — ${BLANK} — ${BLANK} ч.`);
+  } else {
+    for (const callout of callouts) {
+      const when =
+        callout.start === callout.endInclusive
+          ? formatDateRu(callout.start)
+          : `${formatDateRu(callout.start)} — ${formatDateRu(callout.endInclusive)}`;
+      out.push(
+        `${when} — ${callout.kindLabel.toLowerCase()} — ${formatHours(callout.hoursPerDay)} ч в сутки, ` +
+          `всего ${formatHours(callout.totalHours)} ч.`,
+      );
+    }
+    const total = callouts.reduce(
+      (sum, callout) => sum.plus(callout.totalHours),
+      callouts[0]!.totalHours.times(0),
+    );
+    out.push(`Всего за период — ${formatHours(total)} ч.`);
+  }
+
+  out.push(
+    attested
+      ? "Приказы о привлечении меня к выполнению служебных обязанностей помимо графика сменности до моего сведения не доводились, с рапортами прямых руководителей о привлечении я не ознакомлен."
+      : "Приказы (распоряжения) о привлечении меня к работе помимо графика сменности до моего сведения не доводились.",
+  );
+  out.push(
+    attested
+      ? `Прошу учесть указанное время в табеле учёта служебного времени, ` +
+          `оформить привлечение в соответствии с Порядком, утверждённым приказом ` +
+          `МЧС России от 24.09.2018 № 410, и ознакомить меня с приказами о ` +
+          `привлечении либо выдать их копии.`
+      : `Прошу учесть указанное время в табеле учёта рабочего времени, ` +
+          `оформить привлечение приказом (распоряжением) и ознакомить меня с ним ` +
+          `либо выдать копию.`,
+  );
+  out.push(
+    `Основание: ${attested ? REPORT_BASIS.calloutAttested : REPORT_BASIS.calloutCivilian}.`,
+  );
+  return out;
+}
 
 export function buildReport(input: ReportInput): ReportDocument {
   const { employment, request, identity } = input;
@@ -156,15 +421,14 @@ export function buildReport(input: ReportInput): ReportDocument {
 
   const body: string[] = [];
 
-  // Первый абзац — факт: сколько часов и за какой период. Он один и тот же
-  // в обоих документах, потому что спор идёт именно о нём.
-  body.push(
-    attested
-      ? `По итогам учётного периода ${period} мною выполнено ${hours} службы сверх установленной нормальной продолжительности служебного времени.`
-      : `По итогам учётного периода ${period} мною отработано сверхурочно ${hours}.`,
-  );
-
-  if (request === "rest") {
+  if (request === "correction") {
+    body.push(...correctionBody(input, attested, period));
+  } else if (request === "callout_record") {
+    body.push(...calloutBody(input, attested, period));
+  } else if (request === "rest") {
+    // Первый абзац — факт: сколько часов и за какой период. Он один и тот
+    // же в обоих документах о компенсации, потому что спор идёт о нём.
+    body.push(factParagraph(attested, period, hours));
     body.push(
       attested
         ? `Прошу предоставить мне за указанное время компенсацию в виде дополнительного времени отдыха соответствующей продолжительности — ${hours}.`
@@ -174,6 +438,7 @@ export function buildReport(input: ReportInput): ReportDocument {
       `Основание: ${attested ? REPORT_BASIS.restAttested : REPORT_BASIS.restCivilian}.`,
     );
   } else {
+    body.push(factParagraph(attested, period, hours));
     // Про непредоставление отдыха сказано прямо: пункт 103 приказа № 539
     // связывает выплату именно с этим обстоятельством, и умолчание о нём
     // оставляет бухгалтерии повод отложить рапорт.
@@ -234,9 +499,13 @@ export function buildReport(input: ReportInput): ReportDocument {
     }
   }
 
-  body.push(
-    `Приложение: расчёт ${attested ? "служебного" : "рабочего"} времени за учётный период на ___ л.`,
-  );
+  // Приложение — только там, где к бумаге правда что-то прикладывают.
+  // В рапорте о фиксации вызовов прилагать нечего: перечень уже в теле.
+  if (request !== "callout_record") {
+    body.push(
+      `Приложение: расчёт ${attested ? "служебного" : "рабочего"} времени за учётный период на ___ л.`,
+    );
+  }
 
   const signatureLines = [
     ...(attested ? [filled(identity.rank)] : []),
@@ -252,13 +521,7 @@ export function buildReport(input: ReportInput): ReportDocument {
   if (filled(identity.fullName, "") === "") blanks.push("фамилию, имя и отчество");
 
   return {
-    title: `${attested ? "Рапорт" : "Заявление"} ${
-      request === "rest"
-        ? "о предоставлении дополнительного времени отдыха"
-        : attested
-          ? "о выплате денежной компенсации за сверхурочную работу"
-          : "об оплате сверхурочной работы"
-    }`,
+    title: `${attested ? "Рапорт" : "Заявление"} ${SUBJECT[request][employment]}`,
     heading: attested ? "РАПОРТ" : "ЗАЯВЛЕНИЕ",
     addressLines,
     bodyParagraphs: body,
@@ -362,6 +625,11 @@ export function reportFileName(
   periodStart: IsoDate,
 ): string {
   const kind = employment === "attested" ? "raport" : "zayavlenie";
-  const what = request === "rest" ? "otdyh" : "vyplata";
+  const what = {
+    rest: "otdyh",
+    payment: "vyplata",
+    correction: "ispravit-uchet",
+    callout_record: "vyzovy",
+  }[request];
   return `${kind}-${what}-${periodStart.slice(0, 4)}.rtf`;
 }

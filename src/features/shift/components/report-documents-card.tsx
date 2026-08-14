@@ -9,7 +9,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils/cn";
 
 import type { PeriodCalculation } from "../domain/calculation";
+import { Dec, parseHours } from "../domain/decimal";
 import type { OvertimePayEstimate } from "../domain/overtime-pay";
+import { CALLOUT_LABELS } from "../schemas";
 import {
   REPORT_REQUEST_LABELS,
   buildReport,
@@ -42,11 +44,14 @@ export function ReportDocumentsCard({
   profile,
   calculation,
   pay,
+  reported,
   onChange,
 }: {
   profile: StoredProfile;
   calculation: PeriodCalculation;
   pay: OvertimePayEstimate | null;
+  /** Числа, которые человек прочитал в выданном табеле. */
+  reported: { norm: string; actual: string; overtime: string } | null;
   onChange: (change: (previous: StoredProfile) => StoredProfile) => void;
 }) {
   const [request, setRequest] = useState<ReportRequest>("payment");
@@ -77,8 +82,20 @@ export function ReportDocumentsCard({
                 atDoubleHours: pay.primary.atDouble.hours,
               }
             : null,
+        correction: reported
+          ? {
+              reportedNormHours: parseHours(reported.norm),
+              reportedActualHours: parseHours(reported.actual),
+              reportedOvertimeHours: parseHours(reported.overtime),
+              normHours: calculation.normHours,
+              actualHours: calculation.actualHours,
+              excludedHours: calculation.excludedHours,
+              absentShifts: calculation.absentShifts,
+            }
+          : null,
+        callouts: calloutsInPeriod(profile, calculation),
       }),
-    [profile, request, calculation, pay],
+    [profile, request, calculation, pay, reported],
   );
 
   function download() {
@@ -110,7 +127,7 @@ export function ReportDocumentsCard({
         порядок подачи.
       </p>
 
-      {calculation.overtimeHours.isZero() ? (
+      {calculation.overtimeHours.isZero() && (request === "rest" || request === "payment") ? (
         <p className="max-w-prose rounded-sm border-l-2 border-signal bg-signal-soft px-4 py-3 text-sm">
           Переработки за выбранный период расчёт не показывает, и требовать за
           неё нечего. Образец ниже всё равно собран — посмотреть его можно, но
@@ -120,7 +137,7 @@ export function ReportDocumentsCard({
 
       <fieldset className="space-y-2">
         <legend className="font-display text-xs font-bold uppercase tracking-wide text-ink-muted">
-          Что просить за переработку
+          О чём бумага
         </legend>
         <div className="flex flex-wrap gap-2">
           {(Object.keys(REPORT_REQUEST_LABELS) as ReportRequest[]).map((option) => (
@@ -141,11 +158,33 @@ export function ReportDocumentsCard({
             нельзя, и человек должен узнать об этом до того, как подаст
             бумагу, а не из отказа. */}
         <p className="max-w-prose text-xs text-ink-muted">
-          {attested
-            ? "Одно или другое, но не оба за одни часы: время, за которое предоставлен отдых, в оплату не включается (п. 109 приказа № 539)."
-            : "Одно или другое, но не оба за одни часы: часть 1 статьи 152 ТК РФ даёт отдых ВМЕСТО повышенной оплаты."}
+          {request === "correction"
+            ? "Пока в табеле стоят неверные числа, требовать по ним компенсацию бессмысленно: считать будут от того, что в табеле. Сначала числа, потом деньги."
+            : request === "callout_record"
+              ? "Часов, которых нет в табеле, для расчёта не существует. Этот рапорт заводит бумагу там, где её не завели."
+              : attested
+                ? "Одно или другое, но не оба за одни часы: время, за которое предоставлен отдых, в оплату не включается (п. 109 приказа № 539)."
+                : "Одно или другое, но не оба за одни часы: часть 1 статьи 152 ТК РФ даёт отдых ВМЕСТО повышенной оплаты."}
         </p>
       </fieldset>
+
+      {/* Оба новых документа опираются на данные из ДРУГИХ разделов, и без
+          них выходят с прочерками. Сказать об этом надо здесь: иначе
+          человек скачает пустой бланк и решит, что так и задумано. */}
+      {request === "correction" && reported === null ? (
+        <p className="max-w-prose rounded-sm border-l-2 border-signal bg-signal-soft px-4 py-3 text-sm">
+          Внесите числа из выданного табеля в разделе «Что написано в вашем
+          табеле» — тогда в рапорте встанут две колонки: что указано у них и
+          что должно быть. Без них требование нечем проверить.
+        </p>
+      ) : null}
+      {request === "callout_record" && calloutsInPeriod(profile, calculation).length === 0 ? (
+        <p className="max-w-prose rounded-sm border-l-2 border-signal bg-signal-soft px-4 py-3 text-sm">
+          Вызовов за выбранный период не внесено. Добавьте их в разделе «Вызовы
+          помимо графика» — даты, куда вызывали и сколько часов, — и они встанут
+          в рапорт перечнем.
+        </p>
+      ) : null}
 
       <IdentityFields profile={profile} onChange={onChange} attested={attested} />
 
@@ -177,6 +216,48 @@ export function ReportDocumentsCard({
       <Guidance attested={attested} request={request} />
     </div>
   );
+}
+
+/**
+ * Вызовы, попавшие в выбранный период.
+ *
+ * Часы считаются по СУТКАМ внутри периода, а не по всей длине вызова:
+ * трёхдневный сбор на стыке полугодий принадлежит обоим периодам частями,
+ * и записать его целиком в один значило бы потребовать чужие часы.
+ */
+function calloutsInPeriod(profile: StoredProfile, calculation: PeriodCalculation) {
+  const out = [];
+  for (const callout of profile.callouts) {
+    const start =
+      callout.startsOn > calculation.periodStart ? callout.startsOn : calculation.periodStart;
+    const lastDay = lastIncludedDay(calculation.periodEnd);
+    const end = callout.endsOn < lastDay ? callout.endsOn : lastDay;
+    if (end < start) continue;
+    const days = dayCount(start, end);
+    const hoursPerDay = new Dec(callout.hoursPerDay);
+    out.push({
+      start,
+      endInclusive: end,
+      kindLabel: CALLOUT_LABELS[callout.kind],
+      hoursPerDay,
+      totalHours: hoursPerDay.times(days),
+    });
+  }
+  return out.sort((left, right) => left.start.localeCompare(right.start));
+}
+
+function lastIncludedDay(periodEnd: string) {
+  const time = Date.UTC(
+    Number(periodEnd.slice(0, 4)),
+    Number(periodEnd.slice(5, 7)) - 1,
+    Number(periodEnd.slice(8, 10)) - 1,
+  );
+  return new Date(time).toISOString().slice(0, 10) as typeof periodEnd;
+}
+
+function dayCount(from: string, to: string) {
+  const day = 86_400_000;
+  return Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / day) + 1;
 }
 
 /**
@@ -369,7 +450,76 @@ function Guidance({
         Как и когда подавать
       </h4>
 
+      {request === "correction" ? (
+        <Step title="Почему это подают первым">
+          <p>
+            Норму учётного периода уменьшают на часы, приходящиеся на время,
+            когда вас освободили от обязанностей с сохранением места{" "}
+            {attested ? "службы" : "работы"} (письмо Роструда от 01.03.2010
+            № 550-6-1). Если вместо этого их вычитают из{" "}
+            <strong>фактически отработанного</strong>, ошибка бьёт дважды: норма
+            осталась полной, а факт ещё и уменьшили. Потерянные часы — двойная
+            величина исключаемых.
+          </p>
+          <p>
+            Отработанным считается время, когда вы исполняли обязанности. Часы
+            отпуска и больничного в него не входят изначально — вычитать их
+            оттуда нечего. Требовать компенсацию, не исправив этого, смысла нет:
+            считать будут от чисел табеля.
+          </p>
+          <p>
+            Просите не только исправить, но и{" "}
+            <strong>ознакомить вас с исправленным табелем</strong>. Иначе
+            «исправили» останется словами.
+          </p>
+        </Step>
+      ) : null}
+
+      {request === "callout_record" ? (
+        <Step title="Вызвали, но ничего не оформили">
+          <p>
+            {attested ? (
+              <>
+                Устно вызвать могут — Порядок, утверждённый приказом МЧС России
+                от 24.09.2018 № 410, это допускает. Но тогда{" "}
+                <strong>прямой руководитель обязан в течение двух рабочих
+                дней</strong> доложить о привлечении рапортом, указав основания
+                и продолжительность. Не сделали — нарушение на их стороне, не на
+                вашей.
+              </>
+            ) : (
+              <>
+                Привлечение к работе помимо графика оформляется приказом
+                (распоряжением), а отработанное время работодатель обязан
+                учитывать (ст. 91 ТК РФ). Не оформили — нарушение на их стороне,
+                не на вашей.
+              </>
+            )}
+          </p>
+          <p>
+            Но доказывать часы придётся вам, поэтому <strong>ведите свою
+            запись сразу</strong>: дата, время начала и окончания, кто вызвал,
+            куда и что делали. Годятся и косвенные следы — путевые листы,
+            журнал выездов, приказ о соревнованиях, переписка, скриншоты
+            вызова.
+          </p>
+          <p>
+            Этот {noun} и есть способ завести бумагу там, где её не завели: с
+            отметкой о принятии у вас появляется документ, в котором часы
+            названы и который подразделение получило.
+          </p>
+        </Step>
+      ) : null}
+
       <Step title="Когда">
+        {request === "callout_record" ? (
+          <p>
+            Как можно скорее после вызова, а не по итогу года: чем свежее
+            бумага, тем труднее сказать, что вызова не было. Ждать закрытия
+            учётного периода здесь не нужно — речь не о переработке, а о том,
+            чтобы часы вообще попали в табель.
+          </p>
+        ) : null}
         <p>
           Переработка определяется по ИТОГУ учётного периода (ст. 104 ТК РФ;{" "}
           {attested
@@ -454,7 +604,42 @@ function Guidance({
       </Step>
 
       <Step title="Чего ждать">
-        {request === "payment" ? (
+        {request === "correction" ? (
+          <ul className="ml-4 list-disc space-y-1.5">
+            <li>
+              Исправленный табель и ознакомление с ним. Сверьте числа заново —
+              «исправили» без вашей подписи об ознакомлении ничего не значит.
+            </li>
+            <li>
+              Отказ, скорее всего, будет со ссылкой на «так считает программа»
+              или «так велели». Ни то, ни другое нормой не является: попросите
+              назвать акт, который позволяет вычитать часы отсутствия из
+              отработанного. Такого акта нет.
+            </li>
+            <li>
+              Исправленный учёт — основание требовать компенсацию. Подавайте
+              следующую бумагу только после того, как числа сойдутся.
+            </li>
+          </ul>
+        ) : request === "callout_record" ? (
+          <ul className="ml-4 list-disc space-y-1.5">
+            <li>
+              Внесение часов в табель и{" "}
+              {attested
+                ? "оформление привлечения приказом (Порядок № 410)"
+                : "приказ (распоряжение) о привлечении"}
+              . Просите копию или ознакомление под подпись.
+            </li>
+            <li>
+              Ответ «вызовов не было» — повод показать свою запись и косвенные
+              следы. Именно поэтому её и ведут сразу, а не по итогу года.
+            </li>
+            <li>
+              Часы попали в табель — дальше они считаются как обычная
+              переработка, и за них полагается отдых или деньги.
+            </li>
+          </ul>
+        ) : request === "payment" ? (
           <ul className="ml-4 list-disc space-y-1.5">
             {attested ? (
               <>

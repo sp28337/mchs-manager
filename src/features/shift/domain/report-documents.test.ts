@@ -124,6 +124,115 @@ describe("о чём просят", () => {
   });
 });
 
+describe("рапорт об исправлении учёта", () => {
+  const CORRECTION = {
+    reportedNormHours: new Dec(1972),
+    reportedActualHours: new Dec(2020),
+    reportedOvertimeHours: new Dec(48),
+    normHours: new Dec(1892),
+    actualHours: new Dec(2100),
+    excludedHours: new Dec(80),
+    absentShifts: 4,
+  };
+  const body = (overrides: Partial<ReportInput> = {}) =>
+    text({ request: "correction", correction: CORRECTION, overtimeHours: new Dec(208), ...overrides });
+
+  test("названы обе тройки чисел: их и наша", () => {
+    // Требование «исправьте» без двух колонок проверить нельзя.
+    const out = body();
+    expect(out).toContain("1972,00 ч");
+    expect(out).toContain("2020,00 ч");
+    expect(out).toContain("48,00 ч");
+    expect(out).toContain("1892,00 ч");
+    expect(out).toContain("2100,00 ч");
+    expect(out).toContain("208,00 ч");
+  });
+
+  test("названа сама ошибка, а не только расхождение", () => {
+    // Это и есть суть бумаги: вычитать часы отсутствия из отработанного
+    // нельзя, их вычитают из НОРМЫ. Без этой формулировки рапорт
+    // превращается в «у вас другие числа».
+    const out = body();
+    expect(out).toContain("Норма учётного периода подлежит уменьшению");
+    expect(out).toContain("80,00 ч");
+    expect(out).toContain("ФАКТИЧЕСКИ ОТРАБОТАННОГО");
+    expect(out).toContain("не предусмотрено");
+    expect(out).toContain("ознакомить меня с исправленным табелем");
+  });
+
+  test("без чисел табеля бумага остаётся с прочерками, а не выдумывает их", () => {
+    const out = body({ correction: null });
+    expect(out).toContain("____");
+    expect(out).not.toContain("1972,00");
+  });
+
+  test("основание — учёт времени и письмо Роструда, а не приказ о довольствии", () => {
+    expect(body()).toContain(REPORT_BASIS.correctionAttested);
+    expect(REPORT_BASIS.correctionAttested).toContain("550-6-1");
+    expect(REPORT_BASIS.correctionCivilian).toContain("550-6-1");
+    expect(body()).not.toContain("539");
+  });
+
+  test("работнику — про трудовые обязанности и место работы", () => {
+    const out = body({ employment: "civilian" });
+    expect(out).toContain("трудовых");
+    expect(out).toContain("рабочего времени");
+    expect(out).not.toContain("служебных обязанностей");
+  });
+});
+
+describe("рапорт о вызовах, которые не оформили", () => {
+  const CALLOUTS = [
+    {
+      start: "2026-03-02" as const,
+      endInclusive: "2026-03-02" as const,
+      kindLabel: "Соревнования",
+      hoursPerDay: new Dec(8),
+      totalHours: new Dec(8),
+    },
+    {
+      start: "2026-05-11" as const,
+      endInclusive: "2026-05-13" as const,
+      kindLabel: "Сбор",
+      hoursPerDay: new Dec(6),
+      totalHours: new Dec(18),
+    },
+  ];
+  const body = (overrides: Partial<ReportInput> = {}) =>
+    text({ request: "callout_record", callouts: CALLOUTS, ...overrides });
+
+  test("перечень вызовов с датами, часами и итогом", () => {
+    const out = body();
+    expect(out).toContain("02.03.2026 — соревнования — 8,00 ч в сутки, всего 8,00 ч.");
+    expect(out).toContain("11.05.2026 — 13.05.2026 — сбор — 6,00 ч в сутки, всего 18,00 ч.");
+    expect(out).toContain("Всего за период — 26,00 ч.");
+  });
+
+  test("сказано, что приказов не доводили — это существо рапорта", () => {
+    expect(body()).toContain("до моего сведения не доводились");
+    expect(body()).toContain("Прошу учесть указанное время в табеле");
+  });
+
+  test("сотрудник ссылается на приказ № 410, работник — на кодекс", () => {
+    expect(body()).toContain(REPORT_BASIS.calloutAttested);
+    expect(REPORT_BASIS.calloutAttested).toContain("410");
+    expect(body({ employment: "civilian" })).toContain(REPORT_BASIS.calloutCivilian);
+    expect(body({ employment: "civilian" })).not.toContain("410");
+  });
+
+  test("без вызовов остаётся пустая строка перечня, а не молчание", () => {
+    const out = body({ callouts: [] });
+    expect(out).toContain("привлекался к выполнению");
+    expect(out).toContain("____");
+  });
+
+  test("приложения нет: перечень уже в теле", () => {
+    expect(body()).not.toContain("Приложение:");
+    // А в рапорте о выплате приложение есть — расчёт прикладывают.
+    expect(text()).toContain("Приложение:");
+  });
+});
+
 describe("реквизиты оснований", () => {
   // Та же причина, что у `PAY_BASIS`: приказ отменяют молча, а человек
   // приходит к начальнику с бумагой, где написан недействующий акт.

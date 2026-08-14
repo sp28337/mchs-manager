@@ -236,6 +236,7 @@ export function Workspace({ profile, onChange, onForget }: WorkspaceProps) {
           profile={profile}
           calculation={calculation}
           pay={pay}
+          reported={reportedRaw}
           onChange={onChange}
         />
       </CollapsibleSection>
