@@ -2,11 +2,26 @@
 
 import { Button } from "@/components/ui/button";
 import { SiteHeader } from "@/components/shared/site-header";
+import { cn } from "@/lib/utils/cn";
 import { Save } from "lucide-react";
 import { RegisterForm } from "./register-form";
 import { Workspace } from "./workspace";
 import { exportProfile, type StoredProfile } from "../storage/profile";
 import { useProfile } from "../storage/use-profile";
+
+/**
+ * Ширина рабочей области.
+ *
+ * Раскладка плиточная, и узкая колонка ей противопоказана: на широком
+ * экране двенадцать календарных сеток и сводка помещаются рядом, а
+ * колонка в 1152 px заставляла бы листать их одну за другой.
+ *
+ * Верхний предел всё же есть. Без него на мониторе в 3440 px плитки
+ * растянулись бы в ленты, а строка текста внутри — за пределы читаемой
+ * длины. 120rem — примерно та ширина, на которой шесть колонок ещё
+ * держатся как сетка, а не как таблица.
+ */
+const SHELL = "mx-auto w-full max-w-[120rem] px-3 pb-12 pt-24 sm:px-5 sm:pt-26";
 
 /**
  * Экран калькулятора: либо анкета, либо расчёт.
@@ -41,12 +56,12 @@ export function CalculatorScreen() {
       />
 
       {state.status === "loading" ? (
-        <main className="mx-auto w-full max-w-4xl px-6 pb-12 pt-26 xl:max-w-6xl 2xl:max-w-7xl">
+        <main className={SHELL}>
           <p className="text-sm text-ink-muted">Открываем ваш профиль…</p>
         </main>
       ) : profile ? (
-        <main className="mx-auto w-full max-w-4xl space-y-10 px-6 pb-12 pt-26 xl:max-w-6xl 2xl:max-w-7xl">
-          <header className="space-y-1">
+        <main className={cn(SHELL, "space-y-4 sm:space-y-5")}>
+          <header className="space-y-1 px-1">
             <p className="font-mono text-xs uppercase tracking-widest text-ink-faint">
               {profile.accountingYear} год · {profile.guardNumber}-й караул
             </p>

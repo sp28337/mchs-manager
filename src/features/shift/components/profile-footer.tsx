@@ -43,11 +43,8 @@ export function ProfileFooter({ profile, onForget }: ProfileFooterProps) {
   }
 
   return (
-    <footer className="space-y-4 border-t border-rule pt-6 text-sm">
+    <div className="space-y-4 text-sm">
       <div className="max-w-prose space-y-2">
-        <h2 className="font-display text-xl font-bold uppercase tracking-wide text-ink-muted">
-          Где лежат ваши данные
-        </h2>
         <p>
           <strong>Только в этом браузере.</strong> Сервера у приложения нет:
           график, отпуска, больничные и правки календаря никуда не
@@ -93,12 +90,8 @@ export function ProfileFooter({ profile, onForget }: ProfileFooterProps) {
           </button>
         )}
       </div>
-      <div className="flex flex-col md:flex-row-reverse justify-between items-center">
-        <div className="flex justify-center pt-8 pb-12 md:ml-auto md:pb-2">
-          <ThemeToggle/>
-        </div>
-
-        <p className="max-w-prose text-xs text-ink-muted text-center">
+      <div className="flex flex-wrap items-center justify-between gap-4 border-t border-rule pt-4">
+        <p className="text-xs text-ink-muted">
           Последнее изменение:{" "}
           {new Date(profile.savedAt).toLocaleString("ru-RU", {
             dateStyle: "long",
@@ -106,7 +99,8 @@ export function ProfileFooter({ profile, onForget }: ProfileFooterProps) {
           })}
           .
         </p>
+        <ThemeToggle />
       </div>
-    </footer>
+    </div>
   );
 }

@@ -3,6 +3,7 @@ import Link from "next/link";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { SiteHeader } from "@/components/shared/site-header";
 import { TabelBackdrop } from "@/components/shared/tabel-backdrop";
+import { BentoCard, BentoGrid } from "@/components/shared/bento";
 import { Logo } from "@/components/ui/logo";
 import { Calculator, ChevronDown } from "lucide-react";
 
@@ -204,11 +205,12 @@ export default function LandingPage() {
           </div>
         </section>
 
+        {/* Ниже первого экрана страница разложена плитками — той же
+            раскладкой, что и калькулятор. Читателю, который дойдёт до
+            расчёта, не придётся привыкать ко второму языку вёрстки. */}
+        <BentoGrid className="py-10">
         {/* ------------------------------------------------------- сама проблема */}
-        <section aria-labelledby="problem" className="space-y-4 border-b border-rule py-12">
-          <h2 id="problem" className="text-2xl">
-            «Отпуск уменьшает норму, а не отработанные часы»
-          </h2>
+        <BentoCard span={4} title="«Отпуск уменьшает норму, а не отработанные часы»">
           <div className="grid gap-6 md:grid-cols-2">
             <p className="max-w-prose">
               При суммированном учёте время отпуска, больничного или другого освобождения от 
@@ -225,7 +227,10 @@ export default function LandingPage() {
             </p>
           </div>
 
-          <div className="mt-2 grid gap-px overflow-hidden rounded-xl border border-rule bg-rule sm:grid-cols-2">
+        </BentoCard>
+
+        <BentoCard span={2} title="На числах" summary="месяц отпуска">
+          <div className="grid gap-px overflow-hidden rounded-lg border border-rule bg-rule">
             <div className="space-y-1 bg-signal-soft p-4">
               <p className="font-display text-xs font-bold uppercase tracking-wide text-signal">
                 Как считают неправильно
@@ -243,43 +248,61 @@ export default function LandingPage() {
               <p className="text-sm font-semibold">Задолженности нет</p>
             </div>
           </div>
-        </section>
+        </BentoCard>
 
         {/* --------------------------------------------------------- как работает */}
-        <section aria-labelledby="how" className="space-y-6 border-b border-rule py-12">
-          <h2 id="how" className="text-2xl">
-            Как это работает
-          </h2>
-          <ol className="grid gap-6 md:grid-cols-3">
-            {STEPS.map((step, index) => (
-              <li key={step.title} className="space-y-2">
-                <p className="font-mono text-3xl leading-none text-ink-faint">
+        {/* Каждый шаг — своя плитка: три шага в ряд читаются как три шага,
+            а не как три абзаца подряд. */}
+        {STEPS.map((step, index) => (
+          <BentoCard
+            key={step.title}
+            span={2}
+            title={
+              <span className="flex items-baseline gap-3">
+                <span className="font-mono text-2xl leading-none text-ink-faint">
                   {index + 1}
-                </p>
-                <h3 className="font-display text-base font-bold uppercase tracking-wide">
-                  {step.title}
-                </h3>
-                <p className="text-sm text-ink-muted">{step.text}</p>
-              </li>
-            ))}
-          </ol>
-        </section>
+                </span>
+                {step.title}
+              </span>
+            }
+          >
+            <p className="text-sm text-ink-muted">{step.text}</p>
+          </BentoCard>
+        ))}
 
         {/* --------------------------------------------------------------- нормы */}
-        <section aria-labelledby="law" className="space-y-4 border-b border-rule py-12">
-          <h2 id="law" className="text-2xl">
-            Расчёт, который можно проверить
-          </h2>
-          <p className="max-w-prose text-ink-muted">
-            Калькулятор не берёт цифры «из воздуха».
-          </p>
-          <p className="max-w-prose text-ink-muted">
-            Для каждого этапа расчёта есть правовое основание: от продолжительности службы и 
-            учётного периода до расчёта нормы и исключения часов за отпуск или больничный.
-          </p>
-          <h3 className="text-xl">
-            Основные документы:
-          </h3>
+        {/* Левая колонка из двух плиток: перечень документов высокий, и
+            одна короткая плитка рядом с ним оставила бы полстолбца
+            пустым. */}
+        <div className="flex min-w-0 flex-col gap-3 sm:gap-4 lg:col-span-2">
+        <BentoCard span={6} className="lg:col-span-6" title="Расчёт, который можно проверить">
+          <div className="space-y-3">
+            <p className="text-ink-muted">Калькулятор не берёт цифры «из воздуха».</p>
+            <p className="text-ink-muted">
+              Для каждого этапа расчёта есть правовое основание: от
+              продолжительности службы и учётного периода до расчёта нормы и
+              исключения часов за отпуск или больничный.
+            </p>
+          </div>
+        </BentoCard>
+
+        {/* ------------------------------------------------------------ приватность */}
+        <BentoCard span={6} className="lg:col-span-6" title="Ваши данные остаются у вас">
+          <div className="space-y-4">
+            <p className="max-w-prose">
+              Для расчёта могут понадобиться сведения о больничных, а для вольнонаёмных сотрудников — об инвалидности. 
+              Это чувствительная информация, и ей не нужно покидать ваше устройство.
+            </p>
+            <p className="max-w-prose text-ink-muted">
+              Поэтому расчёт выполняется не на нашем сервере, а непосредственно в вашем браузере.
+              Ваш профиль хранится только на устройстве. 
+              При необходимости его можно сохранить в файл и использовать позже.
+            </p>
+          </div>
+        </BentoCard>
+        </div>
+
+        <BentoCard span={4} title="Основные документы">
           <dl className="grid gap-x-8 gap-y-4 sm:grid-cols-2">
             {[
               [
@@ -371,39 +394,11 @@ export default function LandingPage() {
               );
             })}
           </dl>
-        </section>
-
-        {/* ------------------------------------------------------------ приватность */}
-        <section
-          aria-labelledby="privacy"
-          className="space-y-3 border-b border-rule py-12"
-        >
-          <h2 id="privacy" className="text-2xl">
-            Ваши данные остаются у вас
-          </h2>
-          <div className="grid gap-6 md:grid-cols-2">
-            <p className="max-w-prose">
-              Для расчёта могут понадобиться сведения о больничных, а для вольнонаёмных сотрудников — об инвалидности. 
-              Это чувствительная информация, и ей не нужно покидать ваше устройство.
-            </p>
-            <p className="max-w-prose text-ink-muted">
-              Поэтому расчёт выполняется не на нашем сервере, а непосредственно в вашем браузере.
-              Ваш профиль хранится только на устройстве. 
-              При необходимости его можно сохранить в файл и использовать позже.
-            </p>
-          </div>
-        </section>
+        </BentoCard>
 
         {/* ---------------------------------------------------------------- вопросы */}
-        <section
-          aria-labelledby="faq"
-          className="space-y-4 border-rule py-12"
-        >
-          <h2 id="faq" className="text-2xl">
-            Частые вопросы
-          </h2>
-
-          <div className="divide-y divide-rule border-y border-rule">
+        <BentoCard span={6} title="Частые вопросы">
+          <div className="divide-y divide-rule">
             {FAQ.map((item) => (
               <details key={item.question} className="group">
                 <summary className="flex cursor-pointer list-none items-center justify-between gap-6 py-4 font-medium marker:hidden">
@@ -423,12 +418,16 @@ export default function LandingPage() {
               </details>
             ))}
           </div>
-        </section>
+        </BentoCard>
 
         {/* ------------------------------------------------------------- ещё раз CTA */}
-        <section className="space-y-4 py-14 text-center">
-          <Logo className="mx-auto size-10 text-signal" />
-          <h2 className="text-2xl">Проверьте свой табель</h2>
+        <BentoCard
+          span={6}
+          title="Проверьте свой табель"
+          className="items-center text-center"
+          bodyClassName="flex flex-col items-center gap-4"
+        >
+          <Logo className="size-10 text-signal" />
           <p className="mx-auto max-w-prose text-ink-muted">
             Это займёт около минуты. Введите свои данные, укажите периоды отсутствия и перенесите часы из табеля.
             Если всё сходится — вы это тоже увидите.
@@ -440,7 +439,8 @@ export default function LandingPage() {
           >
             Открыть калькулятор
           </Link>
-        </section>
+        </BentoCard>
+        </BentoGrid>
       </main>
 
       <footer className="border-t border-rule">

@@ -110,7 +110,7 @@ export function PeriodSummary({
         </div>
       </dl>
 
-      <div className="space-y-2 rounded-xl border border-rule bg-paper-raised p-4">
+      <div className="space-y-2 rounded-lg border border-rule bg-paper p-4">
         <h3 className="font-display text-xs font-bold uppercase tracking-wide text-ink-muted">
           Откуда взялась норма
         </h3>

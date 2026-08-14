@@ -148,7 +148,7 @@ export function YearCalendarEditor({ profile, onChange }: YearCalendarEditorProp
 
       {pending.length > 0 ? <PendingNotice pending={pending} /> : null}
 
-      <div className="space-y-4 rounded-sm border border-rule bg-paper-raised p-4">
+      <div className="space-y-4 rounded-lg border border-rule bg-paper p-4">
         <fieldset className="space-y-2">
           <legend className="font-display text-xs font-bold uppercase tracking-wide text-ink-muted">
             Чем помечать

@@ -18,10 +18,14 @@ import { cn } from "@/lib/utils/cn";
  *
  * Основное действие — `default`: чернила на бумаге. Спокойное, но
  * единственное залитое пятно в форме, и потому заметное.
+ *
+ * Скругление крупное — то же, что у плиток. Кнопка живёт внутри плитки и
+ * повторяет её геометрию; острый угол в 3 px рядом с углом в 18 px читался
+ * бы как недоделка.
  */
 const buttonVariants = cva(
   cn(
-    "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-sm",
+    "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg",
     "text-sm font-medium transition-colors",
     "disabled:pointer-events-none disabled:opacity-50",
     "[&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",

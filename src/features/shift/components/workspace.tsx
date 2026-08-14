@@ -3,7 +3,7 @@
 import { useId, useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
-import { CollapsibleSection } from "@/components/shared/collapsible-section";
+import { BentoCard, BentoGrid } from "@/components/shared/bento";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils/cn";
@@ -118,101 +118,133 @@ export function Workspace({ profile, onChange, onForget }: WorkspaceProps) {
   }, [calculation, reportedRaw]);
 
   return (
-    <div className="space-y-10">
-      <section aria-labelledby="period" className="space-y-4">
-        <h2
-          id="period"
-          className="font-display text-xs font-bold uppercase tracking-wide text-ink-muted"
-        >
-          Учётный период
-        </h2>
-
-        <div className="flex flex-wrap gap-1">
-          {periods.flatMap((kind) => {
-            const count = kind === "quarter" ? 4 : kind === "half_year" ? 2 : 1;
-            return Array.from({ length: count }, (_, index) => {
-              const active =
-                selection.mode === "statutory" &&
-                selection.kind === kind &&
-                selection.index === index;
-              return (
-                <Button
-                  key={`${kind}-${index}`}
-                  type="button"
-                  size="sm"
-                  variant={active ? "default" : "outline"}
-                  aria-pressed={active}
-                  onClick={() => setSelection({ mode: "statutory", kind, index })}
-                >
-                  {count > 1
-                    ? `${index + 1}-${kind === "quarter" ? "й квартал" : "е полугодие"}`
-                    : `${profile.accountingYear} год`}
-                </Button>
-              );
-            });
-          })}
-        </div>
-
-        <p className="max-w-prose text-xs text-ink-muted">
-          {profile.employmentKind === "attested"
-            ? "Приказ МЧС России от 24.04.2026 № 308 п. 2: учётный период сотрудника при сменной работе — полугодие или год. Переработка определяется по его итогу."
-            : "Приказ МЧС России от 24.04.2026 № 307 п. 7: учётный период работника при сменной работе — три месяца, полугодие или год. Какой именно — устанавливают правила внутреннего трудового распорядка."}
-        </p>
-
-        <div className="space-y-2 border-t border-rule pt-3">
-          <h3 className="font-display text-xs font-bold uppercase tracking-wide text-ink-muted">
-            Помесячно
-          </h3>
-          <div className="flex flex-wrap gap-1">
-            {MONTHS.map((name, index) => {
-              const active = selection.mode === "month" && selection.index === index;
-              return (
-                <Button
-                  key={name}
-                  type="button"
-                  size="sm"
-                  variant={active ? "default" : "outline"}
-                  aria-pressed={active}
-                  onClick={() => setSelection({ mode: "month", index })}
-                >
-                  {name}
-                </Button>
-              );
+    <BentoGrid>
+      {/* Выбор периода — первой плиткой и во всю ширину: он задаёт числа
+          во всех остальных, и прятать его в колонку значило бы поставить
+          причину ниже следствия. Плитка низкая, из одних кнопок, поэтому
+          полная ширина её не растягивает. */}
+      <BentoCard
+        span={6}
+        title="Учётный период"
+        summary={formatPeriodRu(periodStart, periodEnd)}
+      >
+        {/* Две группы кнопок рядом, а не одна под другой: плитка во всю
+            ширину, и столбец кнопок в её левом краю оставил бы две трети
+            пустыми. */}
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)] lg:gap-8">
+          <div className="space-y-2">
+            <h3 className="font-display text-xs font-bold uppercase tracking-wide text-ink-muted">
+              Целиком
+            </h3>
+            <div className="flex flex-wrap gap-1.5">
+            {periods.flatMap((kind) => {
+              const count = kind === "quarter" ? 4 : kind === "half_year" ? 2 : 1;
+              return Array.from({ length: count }, (_, index) => {
+                const active =
+                  selection.mode === "statutory" &&
+                  selection.kind === kind &&
+                  selection.index === index;
+                return (
+                  <Button
+                    key={`${kind}-${index}`}
+                    type="button"
+                    size="sm"
+                    variant={active ? "default" : "outline"}
+                    aria-pressed={active}
+                    className="rounded-lg"
+                    onClick={() => setSelection({ mode: "statutory", kind, index })}
+                  >
+                    {count > 1
+                      ? `${index + 1}-${kind === "quarter" ? "й квартал" : "е полугодие"}`
+                      : `${profile.accountingYear} год`}
+                  </Button>
+                );
+              });
             })}
+            </div>
+            <p className="text-xs text-ink-muted">
+              {profile.employmentKind === "attested"
+                ? "Приказ МЧС России от 24.04.2026 № 308 п. 2: учётный период сотрудника при сменной работе — полугодие или год. Переработка определяется по его итогу."
+                : "Приказ МЧС России от 24.04.2026 № 307 п. 7: учётный период работника при сменной работе — три месяца, полугодие или год. Какой именно — устанавливают правила внутреннего трудового распорядка."}
+            </p>
           </div>
-          <p className="max-w-prose text-xs text-ink-muted">
-            Месяц учётным периодом не является — переработку по нему не считают.
-            Он нужен, чтобы найти, в каком именно месяце разошлось.
-          </p>
-        </div>
-      </section>
 
-      <section aria-labelledby="summary" className="space-y-4">
-        <h2 id="summary" className="text-xl">
-          Как должно быть{" "}
-          {/* Период назван словами рядом с числами. Кнопка «1-е полугодие»
-              выше уже нажата, но в споре важно, какие именно даты стоят за
-              нормой, а не как называется период. */}
-          <span className="text-ink-muted">
-            за {formatPeriodRu(periodStart, periodEnd)}
-          </span>
-        </h2>
+          <div className="space-y-2 border-t border-rule pt-3 lg:border-l lg:border-t-0 lg:pl-8 lg:pt-0">
+            <h3 className="font-display text-xs font-bold uppercase tracking-wide text-ink-muted">
+              Помесячно
+            </h3>
+            <div className="flex flex-wrap gap-1.5">
+              {MONTHS.map((name, index) => {
+                const active = selection.mode === "month" && selection.index === index;
+                return (
+                  <Button
+                    key={name}
+                    type="button"
+                    size="sm"
+                    variant={active ? "default" : "outline"}
+                    aria-pressed={active}
+                    className="rounded-lg"
+                    onClick={() => setSelection({ mode: "month", index })}
+                  >
+                    {name}
+                  </Button>
+                );
+              })}
+            </div>
+            <p className="max-w-prose text-xs text-ink-muted">
+              Месяц учётным периодом не является — переработку по нему не считают.
+              Он нужен, чтобы найти, в каком именно месяце разошлось.
+            </p>
+          </div>
+        </div>
+      </BentoCard>
+
+      {/* Итог и сверка — в одном ряду и рядом. Это две половины одного
+          вопроса: «как должно быть» и «что написано у них», — и держать их
+          на разных экранах значило бы заставить сравнивать по памяти. */}
+      <BentoCard
+        span={4}
+        title="Как должно быть"
+        summary={`за ${formatPeriodRu(periodStart, periodEnd)}`}
+      >
         <PeriodSummary
           calculation={calculation}
           accountingYear={profile.accountingYear}
           payTotal={pay?.primary.total ?? null}
         />
-      </section>
+      </BentoCard>
 
-      {/* Деньги — отдельным разделом и свёрнутым: сумма нужна не всем и не
-          сразу, а поле оклада в основной сводке смотрелось бы как
-          обязательное к заполнению. */}
-      <CollapsibleSection
+      {/* Правая колонка из двух плиток, а не одна высокая: сверка — форма
+          на три поля, и растянутая на высоту сводки она выглядела бы
+          заброшенной. Ниже неё встают деньги, и колонка сходится по
+          высоте с соседкой. */}
+      <div className="flex min-w-0 flex-col gap-3 sm:gap-4 lg:col-span-2">
+      <BentoCard
+        span={6}
+        className="lg:col-span-6"
+        title="Что в вашем табеле"
+        tone={discrepancies && discrepancies.length > 0 ? "signal" : "default"}
+        summary={
+          discrepancies === null
+            ? "сверка не проводилась"
+            : discrepancies.length === 0
+              ? "расхождений нет"
+              : `расхождений: ${discrepancies.length}`
+        }
+      >
+        <ReconcileSection discrepancies={discrepancies} onSubmit={setReportedRaw} />
+      </BentoCard>
+
+      <BentoCard
+        span={6}
+        className="lg:col-span-6"
+        collapsible
+        defaultOpen={false}
         title="Сколько это в деньгах"
         summary={
           pay
             ? `${formatMoney(pay.primary.total)} за ${formatHours(calculation.overtimeHours)} ч`
-            : "укажите оклад — посчитаем по приказу"
+            : "укажите оклад"
         }
       >
         <OvertimePayCard
@@ -221,22 +253,56 @@ export function Workspace({ profile, onChange, onForget }: WorkspaceProps) {
           pay={pay}
           onChange={onChange}
         />
-      </CollapsibleSection>
+      </BentoCard>
+      </div>
 
-      {/* Разделы сворачиваются, и открыт по умолчанию только график: за
-          ним приходят чаще всего. Иначе экран — пять экранов подряд, и до
-          сверки, ради которой всё написано, нужно пролистать двенадцать
-          календарных сеток. Подпись у свёрнутого раздела говорит, что
-          внутри, чтобы не открывать наугад. */}
-      <CollapsibleSection
+      {/* График — во всю ширину: двенадцать месячных сеток в узкой колонке
+          складываются в ленту на несколько экранов, а рядом друг с другом
+          сравниваются глазом. Он же и открыт по умолчанию: за ним приходят
+          чаще всего. */}
+      <BentoCard
+        span={6}
+        collapsible
+        defaultOpen
         title="Ваш график"
         summary={`смен за период: ${calculation.scheduledShifts}`}
-        defaultOpen
       >
         <ShiftStrip calculation={calculation} />
-      </CollapsibleSection>
+      </BentoCard>
 
-      <CollapsibleSection
+      <BentoCard
+        span={2}
+        collapsible
+        defaultOpen={false}
+        title="Отпуска и больничные"
+        summary={
+          profile.absences.length > 0
+            ? `внесено периодов: ${profile.absences.length}`
+            : "не внесено"
+        }
+      >
+        <AbsenceSection profile={profile} onChange={onChange} />
+      </BentoCard>
+
+      <BentoCard
+        span={2}
+        collapsible
+        defaultOpen={false}
+        title="Вызовы помимо графика"
+        summary={
+          profile.callouts.length > 0
+            ? `внесено: ${profile.callouts.length}`
+            : "не внесено"
+        }
+      >
+        <CalloutSection profile={profile} onChange={onChange} />
+      </BentoCard>
+
+      <BentoCard
+        span={2}
+        collapsible
+        defaultOpen={false}
+        tone={pendingTransfers(profile.accountingYear).length > 0 ? "signal" : "default"}
         title={`Календарь ${profile.accountingYear} года`}
         summary={
           Object.keys(profile.calendarOverrides).length > 0
@@ -247,45 +313,12 @@ export function Workspace({ profile, onChange, onForget }: WorkspaceProps) {
         }
       >
         <YearCalendarEditor profile={profile} onChange={onChange} />
-      </CollapsibleSection>
+      </BentoCard>
 
-      <CollapsibleSection
-        title="Отпуска и больничные"
-        summary={
-          profile.absences.length > 0
-            ? `внесено периодов: ${profile.absences.length}`
-            : "не внесено"
-        }
-      >
-        <AbsenceSection profile={profile} onChange={onChange} />
-      </CollapsibleSection>
-
-      <CollapsibleSection
-        title="Вызовы помимо графика"
-        summary={
-          profile.callouts.length > 0
-            ? `внесено: ${profile.callouts.length}`
-            : "не внесено"
-        }
-      >
-        <CalloutSection profile={profile} onChange={onChange} />
-      </CollapsibleSection>
-
-      <CollapsibleSection
-        title="Что написано в вашем табеле"
-        summary={
-          discrepancies === null
-            ? "сверка не проводилась"
-            : discrepancies.length === 0
-              ? "расхождений нет"
-              : `расхождений: ${discrepancies.length}`
-        }
-      >
-        <ReconcileSection discrepancies={discrepancies} onSubmit={setReportedRaw} />
-      </CollapsibleSection>
-
-      <ProfileFooter profile={profile} onForget={onForget} />
-    </div>
+      <BentoCard span={6} title="Ваши данные" summary="лежат только в этом браузере">
+        <ProfileFooter profile={profile} onForget={onForget} />
+      </BentoCard>
+    </BentoGrid>
   );
 }
 
@@ -317,7 +350,7 @@ function AbsenceSection({
       ) : null}
 
       <form
-        className="flex flex-wrap items-start gap-3 rounded-sm border border-rule bg-paper-raised p-4"
+        className="flex flex-wrap items-start gap-3 rounded-lg border border-rule bg-paper p-4"
         onSubmit={(event) => {
           event.preventDefault();
           const form = event.currentTarget;
@@ -362,7 +395,7 @@ function AbsenceSection({
             id={kindId}
             value={kind}
             onChange={(event) => setKind(event.target.value as AbsenceKind)}
-            className="block h-9 w-56 rounded-sm border border-rule-strong bg-paper px-2 text-sm"
+            className="block h-9 w-56 rounded-md border border-rule-strong bg-paper px-2 text-sm"
           >
             {ABSENCE_KINDS.map((option) => (
               <option key={option} value={option}>
@@ -473,7 +506,7 @@ function CalloutSection({
       ) : null}
 
       <form
-        className="flex flex-wrap items-start gap-3 rounded-sm border border-rule bg-paper-raised p-4"
+        className="flex flex-wrap items-start gap-3 rounded-lg border border-rule bg-paper p-4"
         onSubmit={(event) => {
           event.preventDefault();
           const form = event.currentTarget;
@@ -520,7 +553,7 @@ function CalloutSection({
             id={kindId}
             value={kind}
             onChange={(event) => setKind(event.target.value as CalloutKind)}
-            className="block h-9 w-56 rounded-xs border border-rule-strong bg-paper px-2 text-sm"
+            className="block h-9 w-56 rounded-md border border-rule-strong bg-paper px-2 text-sm"
           >
             {CALLOUT_KINDS.map((option) => (
               <option key={option} value={option}>
@@ -604,7 +637,7 @@ function ReconcileSection({
       </p>
 
       <form
-        className="flex flex-wrap items-start gap-3 rounded-sm border border-rule bg-paper-raised p-4"
+        className="flex flex-wrap items-start gap-3 rounded-lg border border-rule bg-paper p-4"
         onSubmit={(event) => {
           event.preventDefault();
           const data = new FormData(event.currentTarget);

@@ -51,7 +51,7 @@ export function OvertimePayCard({
   const attested = profile.employmentKind === "attested";
 
   return (
-    <div className="space-y-4 rounded-xl border border-rule bg-paper-raised p-4">
+    <div className="space-y-4 rounded-lg border border-rule bg-paper p-4">
       <div className="space-y-1.5">
         <Label htmlFor={fieldId}>
           {attested ? "Должностной оклад, ₽ в месяц" : "Зарплата в месяц, ₽"}
