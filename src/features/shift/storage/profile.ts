@@ -132,6 +132,28 @@ export const storedProfileSchema = z.object({
    * расчёта денег, обязаны читаться как есть.
    */
   monthlyPayBase: z.string().max(20).default(""),
+  /**
+   * Реквизиты для рапорта и заявления.
+   *
+   * --- Почему это спрашивается, хотя расчёту не нужно --------------------
+   *
+   * Регистрация нарочно не спрашивает ни фамилии, ни звания, ни
+   * подразделения: расчёт от них не зависит, и собирать их было бы сбором
+   * чужих данных без причины. Но у бумаги, которую человек несёт
+   * начальнику, есть шапка и подпись, и без них она не бумага, а черновик.
+   *
+   * Поэтому поля живут ЗДЕСЬ, а не в регистрации: их спрашивают ровно
+   * тогда, когда человек собрался печатать документ, и каждое остаётся
+   * пустым, если он этого не сделал. Уходят они туда же, куда всё
+   * остальное, — в хранилище этого браузера.
+   *
+   * Необязательные с умолчанием: профили, сохранённые до появления
+   * документов, обязаны читаться как есть.
+   */
+  documentAddressee: z.string().max(300).default(""),
+  documentFullName: z.string().max(200).default(""),
+  documentRank: z.string().max(200).default(""),
+  documentPosition: z.string().max(300).default(""),
   accountingYear: z.number().int().min(2000).max(2100),
   absences: z.array(absenceSchema).max(200),
   /** Необязательное с умолчанием: профили, сохранённые до появления
@@ -170,6 +192,10 @@ export function createProfile(input: NewProfileInput): StoredProfile {
     // возможность их рассогласовать.
     accountingYear: Number(input.firstShiftDate.slice(0, 4)),
     monthlyPayBase: "",
+    documentAddressee: "",
+    documentFullName: "",
+    documentRank: "",
+    documentPosition: "",
     absences: [],
     callouts: [],
     calendarOverrides: {},

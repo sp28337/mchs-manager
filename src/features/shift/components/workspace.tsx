@@ -11,6 +11,7 @@ import { formatHours, parseHours } from "../domain/decimal";
 import { formatDateRu, formatPeriodRu } from "../domain/format";
 import { formatMoney } from "../domain/overtime-pay";
 import { pendingTransfers } from "../domain/production-calendar";
+import { DOCUMENT_NOUN } from "../domain/report-documents";
 import { reconcile, type Discrepancy } from "../domain/reconciliation";
 import {
   accountingPeriodsOf,
@@ -35,6 +36,7 @@ import {
 import { DateField } from "./date-field";
 import { OvertimePayCard } from "./overtime-pay-card";
 import { PeriodSummary } from "./period-summary";
+import { ReportDocumentsCard } from "./report-documents-card";
 import { ProfileFooter } from "./profile-footer";
 import { ShiftStrip } from "./shift-strip";
 import { YearCalendarEditor } from "./year-calendar-editor";
@@ -216,6 +218,21 @@ export function Workspace({ profile, onChange, onForget }: WorkspaceProps) {
         }
       >
         <OvertimePayCard
+          profile={profile}
+          calculation={calculation}
+          pay={pay}
+          onChange={onChange}
+        />
+      </CollapsibleSection>
+
+      {/* Сразу за деньгами, а не в конце: человек, увидевший сумму, тут же
+          спрашивает «и что мне теперь с этим делать». Ответ на этот вопрос
+          обязан стоять там, где он задан. */}
+      <CollapsibleSection
+        title={`Как это потребовать: ${DOCUMENT_NOUN[profile.employmentKind]}`}
+        summary="образец, файл и порядок подачи"
+      >
+        <ReportDocumentsCard
           profile={profile}
           calculation={calculation}
           pay={pay}
