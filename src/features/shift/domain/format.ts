@@ -33,6 +33,12 @@ export function formatDateRu(iso: IsoDate): string {
   return `${iso.slice(8, 10)}.${iso.slice(5, 7)}.${iso.slice(0, 4)}`;
 }
 
+/** `2026-03-02` → `2 марта` — когда год ясен из окружения. */
+export function formatDayMonthRu(iso: IsoDate): string {
+  const month = MONTHS_GENITIVE[Number(iso.slice(5, 7)) - 1] ?? "";
+  return `${Number(iso.slice(8, 10))} ${month}`;
+}
+
 /** `2026-03-01` → `1 марта 2026 г.` — для связного текста, а не таблиц. */
 export function formatDateLongRu(iso: IsoDate): string {
   const month = MONTHS_GENITIVE[Number(iso.slice(5, 7)) - 1] ?? "";

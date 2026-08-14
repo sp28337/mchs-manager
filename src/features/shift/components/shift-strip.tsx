@@ -12,6 +12,7 @@ import {
   year as yearOf,
   type IsoDate,
 } from "../domain/plain-date";
+import { formatDayMonthRu } from "../domain/format";
 import { ABSENCE_LABELS, CALLOUT_LABELS } from "../schemas";
 import type { AbsenceKind, CalloutKind } from "../domain/value-objects";
 
@@ -245,20 +246,44 @@ export function ShiftStrip({ calculation }: { calculation: PeriodCalculation }) 
               label={CALLOUT_LABELS[kind]}
             />
           ))}
+          <Legend
+            className="border-2 border-trace bg-trace-soft text-trace"
+            mark="СОР РЕЗ"
+            label="Несколько вызовов в одни сутки — часы складываются"
+          />
         </LegendGroup>
       </div>
     </div>
   );
 }
 
+/**
+ * Коды вызовов, ужатые до ширины клетки.
+ *
+ * Один вызов — свой код целиком. Два — оба, потому что «СОР РЕЗ» человек
+ * прочитает и в сорока пикселях. Три и больше в клетку не влезут, и вместо
+ * каши там стоит «СОР+2»: счётчик честно говорит, что вызовов больше, а
+ * какие именно — скажет подпись при наведении.
+ */
+function calloutMarks(kinds: readonly CalloutKind[]): string {
+  const marks = kinds.map((kind) => CALLOUT_MARK[kind]);
+  if (marks.length <= 2) return marks.join(" ");
+  return `${marks[0]}+${marks.length - 1}`;
+}
+
 function DayCell({ day, records }: { day: IsoDate; records: readonly DayRecord[] }) {
   const date = dayOfMonth(day);
-  const month = (MONTH_NAMES[monthIndex(day)] ?? "").toLowerCase();
   const weekdayName = WEEKDAY_LABELS[weekday(day)] ?? "";
-  const where = `${date} ${month}, ${weekdayName}`;
+  // Родительный падеж, а не «2 март»: подпись читают вслух экранные
+  // дикторы, и там оговорка слышна.
+  const where = `${formatDayMonthRu(day)}, ${weekdayName}`;
 
   const shift = records.find((record) => record.calloutKind == null);
-  const callout = records.find((record) => record.calloutKind != null);
+  // Вызовов в одни сутки может быть несколько: после смены соревнования, а
+  // следом резерв. Раньше здесь стоял `find`, и второй вызов пропадал из
+  // клетки и из подписи — при том, что в отработанные часы он входил.
+  // Человек видел один код и заключал, что остальное не посчитано.
+  const callouts = records.filter((record) => record.calloutKind != null);
   const workedHours = records
     .filter((record) => record.absenceKind === null)
     .reduce((sum, record) => sum.plus(record.hours), ZERO);
@@ -280,12 +305,22 @@ function DayCell({ day, records }: { day: IsoDate; records: readonly DayRecord[]
               : ""),
     );
   }
-  if (callout?.calloutKind) {
-    parts.push(`${CALLOUT_LABELS[callout.calloutKind]}, ${hours(callout.hours)} ч`);
+  for (const callout of callouts) {
+    if (callout.calloutKind) {
+      parts.push(`${CALLOUT_LABELS[callout.calloutKind]}, ${hours(callout.hours)} ч`);
+    }
+  }
+  // Итог суток называется, когда слагаемых больше одного: спор идёт именно
+  // о том, всё ли посчитано, и сумма отвечает на это прямо.
+  if (parts.length > 1 && workedHours.greaterThan(0)) {
+    parts.push(`всего за сутки ${hours(workedHours)} ч`);
   }
   const label = `${where} — ${parts.length > 0 ? parts.join("; ") : "свободные сутки"}`;
 
   const worked = shift !== undefined && shift.absenceKind === null;
+  const calloutKinds = callouts.flatMap((record) =>
+    record.calloutKind ? [record.calloutKind] : [],
+  );
 
   return (
     <div
@@ -303,16 +338,28 @@ function DayCell({ day, records }: { day: IsoDate; records: readonly DayRecord[]
         // Вызов перебивает вид смены: он редок, и человек ищет глазами
         // именно его. Часы при этом не теряются — они в подписи и в итоге
         // месяца.
-        callout && "border-trace bg-trace-soft text-trace",
+        calloutKinds.length > 0 && "border-trace bg-trace-soft text-trace",
+        // Несколько вызовов в одни сутки видно и без чтения кодов: рамка
+        // становится плотнее. Это единственные сутки, где человеку нужно
+        // навести курсор, — пусть они сами просят об этом.
+        calloutKinds.length > 1 && "border-2",
       )}
     >
       <span className="sr-only">{label}</span>
       <span aria-hidden className="font-mono text-xs">
         {date}
       </span>
-      <span aria-hidden className="font-mono text-[9px]">
-        {callout?.calloutKind
-          ? CALLOUT_MARK[callout.calloutKind]
+      <span
+        aria-hidden
+        className={cn(
+          "font-mono",
+          // Два кода вместо одного набираются мельче и теснее: иначе
+          // «СОР РЕЗ» распирает клетку и ломает сетку месяца.
+          calloutKinds.length > 1 ? "text-[8px] tracking-tighter" : "text-[9px]",
+        )}
+      >
+        {calloutKinds.length > 0
+          ? calloutMarks(calloutKinds)
           : records.length === 0
             ? "В"
             : shift?.absenceKind
