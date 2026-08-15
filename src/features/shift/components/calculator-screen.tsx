@@ -59,7 +59,7 @@ export function CalculatorScreen() {
         <main className={cn(SHELL, "space-y-4")}>
           <header className="flex flex-wrap items-end justify-between gap-4 px-1">
             <div className="space-y-1.5">
-              <p className="font-display text-[10px] font-bold uppercase tracking-[0.14em] text-verify">
+              <p className="font-display text-[10px] font-bold uppercase tracking-[0.14em] text-beacon">
                 {profile.accountingYear} год · {profile.guardNumber}-й караул
               </p>
               <h1 className="font-sans text-3xl font-semibold leading-tight tracking-tight">

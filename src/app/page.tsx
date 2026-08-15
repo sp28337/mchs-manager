@@ -178,19 +178,20 @@ export default function LandingPage() {
         <section className="hero-band relative isolate flex h-lvh flex-col justify-center border-b border-rule pt-15 md:h-[90lvh]">
           <TabelBackdrop />
 
-          {/* Заголовок в два тона: белым — что делать, бирюзой — ради чего.
-              Бирюза здесь тот же цвет, которым в расчёте помечено
-              подтверждённое, поэтому обещание и его исполнение окрашены
-              одинаково. */}
+          {/* Заголовок в два тона: белым — что делать, синим — ради чего.
+              Синий здесь тот же, что в свечении под экраном и в
+              надзаголовках панелей: акцент продукта. Смысловые цвета —
+              сигнальный и подтверждающий — в заголовок не идут, им есть
+              что означать ниже по странице. */}
           <div className="relative z-10 max-w-4xl space-y-7">
-            <Pill tone="verify">
-              <span className="size-1.5 rounded-full bg-verify" aria-hidden />
+            <Pill tone="beacon">
+              <span className="size-1.5 rounded-full bg-beacon" aria-hidden />
               Для аттестованных и вольнонаёмных
             </Pill>
 
             <h1 className="text-4xl font-semibold leading-[1.08] tracking-tight sm:text-6xl">
               Проверьте,{" "}
-              <span className="text-verify">не потеряли ли вы часы</span>
+              <span className="text-beacon">не потеряли ли вы часы</span>
             </h1>
 
             <p className="max-w-2xl text-lg leading-relaxed text-ink-muted">

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { IBM_Plex_Mono, IBM_Plex_Sans, PT_Sans_Narrow } from "next/font/google";
 
+import { LiveryBand } from "@/components/shared/livery-band";
 import { Providers } from "./providers";
 import "./globals.css";
 
@@ -79,6 +80,10 @@ export default function RootLayout({
             оба означала бы либо пустое место, либо кнопку не к месту. */}
         <div className="relative z-10 overflow-x-clip">
           <Providers>{children}</Providers>
+          {/* Кромка страницы — общая на оба раздела: и лендинг, и
+              калькулятор кончаются одинаково, потому что это один сайт, а
+              не два. */}
+          <LiveryBand />
         </div>
       </body>
     </html>
