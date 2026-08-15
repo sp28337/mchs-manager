@@ -152,6 +152,9 @@ export function DateField({
   );
 }
 
+/** Ширина всплывающего календаря; она же нужна для расчёта его места. */
+const POPOVER_WIDTH = 288;
+
 /**
  * Всплывающий календарь.
  *
@@ -159,6 +162,23 @@ export function DateField({
  * же, что показывает график смен, — и тянуть ради неё пакет с порталами и
  * позиционированием значило бы добавить сотню килобайт к приложению,
  * которое целиком весит меньше.
+ *
+ * --- Почему `fixed`, а не `absolute` -------------------------------------
+ *
+ * Поля дат стоят в том числе в боковой колонке, а та прокручивается внутри
+ * себя и потому обрезает всё, что вылезает за её края. Календарь шире
+ * колонки, и при `absolute` от него оставалась бы правая половина.
+ * Элемент с `position: fixed` считается от окна и обрезке предком не
+ * подлежит — при условии, что ни у одного предка нет `transform`, и это
+ * здесь так.
+ *
+ * Портал при этом не нужен: календарь остаётся ребёнком той же обёртки,
+ * поэтому проверка «щёлкнули мимо» через `contains` продолжает работать.
+ *
+ * Место считается от кнопки и прижимается к краям окна, чтобы календарь
+ * не уехал за экран на узком телефоне. Пересчёт идёт на прокрутке и
+ * изменении размера — прокрутка ловится с `capture`, иначе события от
+ * внутренних областей прокрутки сюда не всплывут.
  */
 function CalendarPopover({
   open,
@@ -181,6 +201,37 @@ function CalendarPopover({
 
   const anchor = selected ?? clamp(todayIso(), min, max);
   const [view, setView] = useState({ year: yearOf(anchor), month: monthIndex(anchor) + 1 });
+  const [place, setPlace] = useState<{ top: number; left: number } | null>(null);
+
+  // Обычный `useEffect`, а не `useLayoutEffect`: последний на сервере не
+  // выполняется и ругается в консоль, а мигание кадром здесь и без него
+  // исключено — до первого замера календарь скрыт.
+  useEffect(() => {
+    if (!open) return;
+
+    function measure() {
+      const box = trigger.current?.getBoundingClientRect();
+      if (!box) return;
+      const room = document.documentElement.clientWidth;
+      setPlace({
+        top: box.bottom + 4,
+        // Правый край календаря совпадает с правым краем кнопки, но не
+        // ближе восьми пикселей к любому краю окна.
+        left: Math.min(
+          Math.max(8, box.right - POPOVER_WIDTH),
+          Math.max(8, room - POPOVER_WIDTH - 8),
+        ),
+      });
+    }
+
+    measure();
+    window.addEventListener("resize", measure);
+    document.addEventListener("scroll", measure, true);
+    return () => {
+      window.removeEventListener("resize", measure);
+      document.removeEventListener("scroll", measure, true);
+    };
+  }, [open]);
 
   // Закрытие по щелчку мимо и по Escape. Без первого календарь остаётся
   // висеть над формой и перекрывает соседнее поле; без второго с
@@ -251,7 +302,15 @@ function CalendarPopover({
           id={dialogId}
           role="dialog"
           aria-label="Выбор даты"
-          className="absolute right-0 top-10 z-20 w-72 space-y-2 rounded-sm border border-rule-strong bg-paper-raised p-3 shadow-lg"
+          style={{
+            top: place?.top ?? 0,
+            left: place?.left ?? 0,
+            width: POPOVER_WIDTH,
+            // До первого замера календарь не показывается: иначе он мигнул
+            // бы в левом верхнем углу окна и прыгнул на место.
+            visibility: place ? "visible" : "hidden",
+          }}
+          className="fixed z-50 space-y-2 rounded-sm border border-rule-strong bg-paper-raised p-3 shadow-lg"
         >
           <div className="flex items-center justify-between gap-2">
             <Arrow label="Предыдущий месяц" onClick={() => step(-1)}>

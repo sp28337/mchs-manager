@@ -3,13 +3,17 @@
 import { useId, useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
-import { CollapsibleSection } from "@/components/shared/collapsible-section";
+import {
+  CollapsiblePanel,
+  CollapsibleSection,
+} from "@/components/shared/collapsible-section";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { cn } from "@/lib/utils/cn";
 import { formatHours, parseHours } from "../domain/decimal";
 import { formatDateRu, formatPeriodRu } from "../domain/format";
+import { formatMoney } from "../domain/overtime-pay";
 import { pendingTransfers } from "../domain/production-calendar";
 import { reconcile, type Discrepancy } from "../domain/reconciliation";
 import {
@@ -44,18 +48,32 @@ import { YearCalendarEditor } from "./year-calendar-editor";
  * бы заставить его держать числа в голове, переходя между ними, — ровно в
  * тот момент, когда важна точность.
  *
- * --- Почему настройки съехали в боковую колонку -------------------------
+ * --- Что стоит в боковой колонке и почему именно это --------------------
  *
- * Выбор периода, выбор месяца и оклад — это не разделы наравне с графиком
- * и сверкой, а РУЧКИ, которыми управляют всем остальным. Стоя в общем
- * потоке сверху, они прокручивались вместе с ним: чтобы посмотреть тот же
- * график за соседний месяц, приходилось листать двенадцать календарных
- * сеток вверх, переключать и листать обратно.
+ * Слева — ВВОД, справа — ВЫВОД. Слева человек говорит приложению, что он
+ * знает: какой период смотрим, какой у него оклад, когда он был в отпуске,
+ * куда его вызывали и что написано в выданном табеле. Справа приложение
+ * отвечает: вот норма, вот график, вот производственный календарь.
  *
- * В колонке они закреплены и видны всё время, пока человек листает
- * содержимое, — то есть ровно тогда, когда ими и хочется воспользоваться.
+ * Раньше и то и другое стояло одной лентой сверху вниз, и это стоило
+ * человеку прокрутки на каждом шаге: чтобы посмотреть тот же график за
+ * соседний месяц, приходилось листать двенадцать календарных сеток вверх,
+ * переключать и листать обратно; чтобы внести отпуск и увидеть, как
+ * изменилась норма, — то же самое в другую сторону.
+ *
+ * Колонка закреплена, поэтому ввод и его последствие видны одновременно:
+ * внесённый отпуск сразу меняет норму справа, и человеку не нужно
+ * запоминать, сколько было до.
+ *
  * Ниже `lg` колонки нет: на телефоне она встала бы над содержимым, и это
  * была бы прежняя раскладка, только уже.
+ *
+ * --- Почему все блоки колонки сворачиваются ------------------------------
+ *
+ * Их пять, и развёрнутыми они не помещаются ни в один экран. Открытым
+ * держится только то, что нужно всегда: период и сумма. Остальное человек
+ * открывает, когда вносит, — а свёрнутая крышка при этом отвечает на свой
+ * вопрос без раскрытия («внесено периодов: 3», «расхождений нет»).
  *
  * --- Почему нет состояний загрузки --------------------------------------
  *
@@ -128,13 +146,17 @@ export function Workspace({ profile, onChange, onForget }: WorkspaceProps) {
           длинной оговоркой про оклад колонка бывает выше экрана, и без
           собственной прокрутки её низ стал бы недостижим. */}
       <aside
-        aria-label="Что показывать"
+        aria-label="Что вы вносите"
         className={cn(
-          "mb-10 space-y-6 lg:mb-0",
+          "mb-10 space-y-3 lg:mb-0",
           "lg:sticky lg:top-24 lg:max-h-[calc(100dvh-7rem)] lg:overflow-y-auto lg:pb-6 lg:pr-1",
         )}
       >
-        <div className="space-y-5 rounded-xl border border-rule bg-paper-raised p-4">
+        <CollapsiblePanel
+          title="Период"
+          summary={formatPeriodRu(periodStart, periodEnd)}
+          defaultOpen
+        >
           <PeriodPicker
             accountingYear={profile.accountingYear}
             employmentKind={profile.employmentKind}
@@ -149,21 +171,62 @@ export function Workspace({ profile, onChange, onForget }: WorkspaceProps) {
             }}
             onMonth={setMonth}
           />
-        </div>
+        </CollapsiblePanel>
 
-        {/* Деньги — тоже ручка: сумма меняется от одного введённого числа
-            и от выбранного выше периода. */}
-        <div className="space-y-4 rounded-xl border border-rule bg-paper-raised p-4">
-          <h2 className="font-display text-xs font-bold uppercase tracking-wide text-ink-muted">
-            Сколько это в деньгах
-          </h2>
+        {/* Открыт по умолчанию, как и период: сумма — это ответ, а не
+            ввод, и прятать её за крышкой значило бы вернуть человека к
+            тому, чтобы искать её щелчком. */}
+        <CollapsiblePanel
+          title="Сколько это в деньгах"
+          summary={
+            pay
+              ? `${formatMoney(pay.primary.total)} за ${formatHours(calculation.overtimeHours)} ч`
+              : "укажите оклад — посчитаем по приказу"
+          }
+          defaultOpen
+        >
           <OvertimePayCard
             profile={profile}
             calculation={calculation}
             pay={pay}
             onChange={onChange}
           />
-        </div>
+        </CollapsiblePanel>
+
+        <CollapsiblePanel
+          title="Отпуска и больничные"
+          summary={
+            profile.absences.length > 0
+              ? `внесено периодов: ${profile.absences.length}`
+              : "не внесено"
+          }
+        >
+          <AbsenceSection profile={profile} onChange={onChange} />
+        </CollapsiblePanel>
+
+        <CollapsiblePanel
+          title="Вызовы помимо графика"
+          summary={
+            profile.callouts.length > 0
+              ? `внесено: ${profile.callouts.length}`
+              : "не внесено"
+          }
+        >
+          <CalloutSection profile={profile} onChange={onChange} />
+        </CollapsiblePanel>
+
+        <CollapsiblePanel
+          title="Что написано в вашем табеле"
+          summary={
+            discrepancies === null
+              ? "сверка не проводилась"
+              : discrepancies.length === 0
+                ? "расхождений нет"
+                : `расхождений: ${discrepancies.length}`
+          }
+        >
+          <ReconcileSection discrepancies={discrepancies} onSubmit={setReportedRaw} />
+        </CollapsiblePanel>
       </aside>
 
       <div className="min-w-0 space-y-10">
@@ -187,11 +250,11 @@ export function Workspace({ profile, onChange, onForget }: WorkspaceProps) {
         />
       </section>
 
-      {/* Разделы сворачиваются, и открыт по умолчанию только график: за
-          ним приходят чаще всего. Иначе экран — пять экранов подряд, и до
-          сверки, ради которой всё написано, нужно пролистать двенадцать
-          календарных сеток. Подпись у свёрнутого раздела говорит, что
-          внутри, чтобы не открывать наугад. */}
+      {/* Здесь остались только два раздела, и оба — то, на что человек
+          смотрит, а не то, что он вводит. График открыт: за ним приходят
+          чаще всего. Календарь свёрнут — двенадцать сеток отодвинули бы
+          подвал за пределы разумного, — а подпись у крышки говорит, всё ли
+          в нём размечено, чтобы не открывать наугад. */}
       <CollapsibleSection
         title="Ваш график"
         summary={`смен за период: ${calculation.scheduledShifts}`}
@@ -211,41 +274,6 @@ export function Workspace({ profile, onChange, onForget }: WorkspaceProps) {
         }
       >
         <YearCalendarEditor profile={profile} onChange={onChange} />
-      </CollapsibleSection>
-
-      <CollapsibleSection
-        title="Отпуска и больничные"
-        summary={
-          profile.absences.length > 0
-            ? `внесено периодов: ${profile.absences.length}`
-            : "не внесено"
-        }
-      >
-        <AbsenceSection profile={profile} onChange={onChange} />
-      </CollapsibleSection>
-
-      <CollapsibleSection
-        title="Вызовы помимо графика"
-        summary={
-          profile.callouts.length > 0
-            ? `внесено: ${profile.callouts.length}`
-            : "не внесено"
-        }
-      >
-        <CalloutSection profile={profile} onChange={onChange} />
-      </CollapsibleSection>
-
-      <CollapsibleSection
-        title="Что написано в вашем табеле"
-        summary={
-          discrepancies === null
-            ? "сверка не проводилась"
-            : discrepancies.length === 0
-              ? "расхождений нет"
-              : `расхождений: ${discrepancies.length}`
-        }
-      >
-        <ReconcileSection discrepancies={discrepancies} onSubmit={setReportedRaw} />
       </CollapsibleSection>
 
         <ProfileFooter profile={profile} onForget={onForget} />
@@ -268,21 +296,24 @@ function AbsenceSection({
   const absences = [...profile.absences].sort((a, b) => a.startsOn.localeCompare(b.startsOn));
 
   return (
-    <section aria-labelledby="absences" className="space-y-4">
-      <p className="max-w-prose text-sm text-ink-muted">
+    <section aria-labelledby="absences" className="space-y-3">
+      <p className="text-xs text-ink-muted">
         Внесите периоды, когда вы были освобождены от службы с сохранением
         места. Смены, попавшие в них, вычтутся из НОРМЫ — именно этого чаще
         всего и не делают в табеле.
       </p>
 
       {error ? (
-        <p className="max-w-prose rounded-sm border-l-2 border-signal bg-signal-soft px-4 py-3 text-sm">
+        <p className="rounded-sm border-l-2 border-signal bg-signal-soft px-3 py-2 text-xs">
           {error}
         </p>
       ) : null}
 
+      {/* Поля стоят столбиком, а не строкой: в боковой колонке строка из
+          четырёх полей всё равно переносится, но переносится как попало —
+          то по два, то по три, в зависимости от длины подписи. */}
       <form
-        className="flex flex-wrap items-start gap-3 rounded-sm border border-rule bg-paper-raised p-4"
+        className="space-y-3 rounded-sm border border-rule bg-paper p-3"
         onSubmit={(event) => {
           event.preventDefault();
           const form = event.currentTarget;
@@ -327,7 +358,6 @@ function AbsenceSection({
             id={kindId}
             value={kind}
             onChange={(event) => setKind(event.target.value as AbsenceKind)}
-            className="w-56"
           >
             {ABSENCE_KINDS.map((option) => (
               <option key={option} value={option}>
@@ -337,7 +367,7 @@ function AbsenceSection({
           </Select>
           {/* Отгул работает не так, как остальные виды, и человек обязан
               это увидеть до того, как внесёт период. */}
-          <p className="max-w-56 text-xs text-ink-muted" aria-live="polite">
+          <p className="text-xs text-ink-muted" aria-live="polite">
             {ABSENCE_EFFECT[kind]}
           </p>
         </div>
@@ -348,7 +378,7 @@ function AbsenceSection({
           required
           hint="Как в приказе об отпуске: последний день входит."
         />
-        <Button type="submit" variant="outline" className="mt-[1.375rem]">
+        <Button type="submit" variant="outline" className="w-full">
           Добавить
         </Button>
       </form>
@@ -356,31 +386,35 @@ function AbsenceSection({
       {absences.length > 0 ? (
         <ul className="divide-y divide-rule border-y border-rule">
           {absences.map((absence) => (
-            <li key={absence.id} className="flex flex-wrap items-baseline gap-x-4 py-2 text-sm">
-              <span className="font-medium">{ABSENCE_LABELS[absence.kind]}</span>
-              <span className="font-mono">
+            <li key={absence.id} className="space-y-0.5 py-2">
+              <div className="flex items-baseline justify-between gap-2">
+                <span className="text-sm font-medium">
+                  {ABSENCE_LABELS[absence.kind]}
+                </span>
+                <button
+                  type="button"
+                  className="shrink-0 cursor-pointer text-xs text-ink-muted underline underline-offset-2 hover:text-signal"
+                  onClick={() =>
+                    onChange((previous) => ({
+                      ...previous,
+                      absences: previous.absences.filter((item) => item.id !== absence.id),
+                    }))
+                  }
+                >
+                  Удалить
+                </button>
+              </div>
+              <p className="font-mono text-xs">
                 {formatDateRu(absence.startsOn)} — {formatDateRu(absence.endsOn)}
-              </span>
-              <span className="text-xs text-ink-muted">
+              </p>
+              <p className="text-xs text-ink-muted">
                 {ABSENCE_KIND_BASIS[absence.kind]}
-              </span>
-              <button
-                type="button"
-                className="ml-auto text-xs text-ink-muted underline underline-offset-2 hover:text-signal"
-                onClick={() =>
-                  onChange((previous) => ({
-                    ...previous,
-                    absences: previous.absences.filter((item) => item.id !== absence.id),
-                  }))
-                }
-              >
-                Удалить
-              </button>
+              </p>
             </li>
           ))}
         </ul>
       ) : (
-        <p className="text-sm text-ink-muted">Периодов отсутствия не внесено.</p>
+        <p className="text-xs text-ink-muted">Периодов отсутствия не внесено.</p>
       )}
     </section>
   );
@@ -418,27 +452,27 @@ function CalloutSection({
   const callouts = [...profile.callouts].sort((a, b) => a.startsOn.localeCompare(b.startsOn));
 
   return (
-    <section className="space-y-4">
-      <p className="max-w-prose text-sm text-ink-muted">
+    <section className="space-y-3">
+      <p className="text-xs text-ink-muted">
         Соревнования, сборы, резерв, праздничные мероприятия, выборы. Это
         исполнение обязанностей, то есть служебное время (ч. 1 ст. 54 ФЗ-141,
         ст. 91 ТК РФ): часы прибавляются к отработанному и норму не трогают.
         На графике такие сутки помечены отдельно — видно, куда именно вызывали.
       </p>
-      <p className="max-w-prose text-sm text-ink-muted">
+      <p className="text-xs text-ink-muted">
         Вызовов на одни сутки может быть несколько: после смены соревнования, а
         следом резерв. Вносите каждый отдельно — часы складываются, а в клетке
         графика встанут все коды сразу.
       </p>
 
       {error ? (
-        <p className="max-w-prose rounded-sm border-l-2 border-signal bg-signal-soft px-4 py-3 text-sm">
+        <p className="rounded-sm border-l-2 border-signal bg-signal-soft px-3 py-2 text-xs">
           {error}
         </p>
       ) : null}
 
       <form
-        className="flex flex-wrap items-start gap-3 rounded-sm border border-rule bg-paper-raised p-4"
+        className="space-y-3 rounded-sm border border-rule bg-paper p-3"
         onSubmit={(event) => {
           event.preventDefault();
           const form = event.currentTarget;
@@ -485,7 +519,6 @@ function CalloutSection({
             id={kindId}
             value={kind}
             onChange={(event) => setKind(event.target.value as CalloutKind)}
-            className="w-56"
           >
             {CALLOUT_KINDS.map((option) => (
               <option key={option} value={option}>
@@ -511,7 +544,7 @@ function CalloutSection({
             className="w-28 font-mono"
           />
         </div>
-        <Button type="submit" variant="outline" className="mt-[1.375rem]">
+        <Button type="submit" variant="outline" className="w-full">
           Добавить
         </Button>
       </form>
@@ -519,32 +552,38 @@ function CalloutSection({
       {callouts.length > 0 ? (
         <ul className="divide-y divide-rule border-y border-rule">
           {callouts.map((callout) => (
-            <li key={callout.id} className="flex flex-wrap items-baseline gap-x-4 py-2 text-sm">
-              <span className="font-medium">{CALLOUT_LABELS[callout.kind]}</span>
-              <span className="font-mono">
+            <li key={callout.id} className="space-y-0.5 py-2">
+              <div className="flex items-baseline justify-between gap-2">
+                <span className="text-sm font-medium">
+                  {CALLOUT_LABELS[callout.kind]}
+                </span>
+                <button
+                  type="button"
+                  className="shrink-0 cursor-pointer text-xs text-ink-muted underline underline-offset-2 hover:text-signal"
+                  onClick={() =>
+                    onChange((previous) => ({
+                      ...previous,
+                      callouts: previous.callouts.filter((item) => item.id !== callout.id),
+                    }))
+                  }
+                >
+                  Удалить
+                </button>
+              </div>
+              <p className="font-mono text-xs">
                 {formatDateRu(callout.startsOn)} — {formatDateRu(callout.endsOn)}
-              </span>
-              <span className="font-mono text-trace">
-                {formatHours(callout.hoursPerDay)} ч/сут
-              </span>
-              <span className="text-xs text-ink-muted">{CALLOUT_KIND_BASIS[callout.kind]}</span>
-              <button
-                type="button"
-                className="ml-auto text-xs text-ink-muted underline underline-offset-2 hover:text-signal"
-                onClick={() =>
-                  onChange((previous) => ({
-                    ...previous,
-                    callouts: previous.callouts.filter((item) => item.id !== callout.id),
-                  }))
-                }
-              >
-                Удалить
-              </button>
+                <span className="ml-2 text-trace">
+                  {formatHours(callout.hoursPerDay)} ч/сут
+                </span>
+              </p>
+              <p className="text-xs text-ink-muted">
+                {CALLOUT_KIND_BASIS[callout.kind]}
+              </p>
             </li>
           ))}
         </ul>
       ) : (
-        <p className="text-sm text-ink-muted">Вызовов не внесено.</p>
+        <p className="text-xs text-ink-muted">Вызовов не внесено.</p>
       )}
     </section>
   );
@@ -562,14 +601,14 @@ function ReconcileSection({
   const overtimeId = useId();
 
   return (
-    <section aria-labelledby="reconcile" className="space-y-4">
-      <p className="max-w-prose text-sm text-ink-muted">
+    <section aria-labelledby="reconcile" className="space-y-3">
+      <p className="text-xs text-ink-muted">
         Впишите числа из выданного табеля. Пустое поле не сравнивается — если
         какого-то числа в табеле нет, оставьте его пустым.
       </p>
 
       <form
-        className="flex flex-wrap items-start gap-3 rounded-sm border border-rule bg-paper-raised p-4"
+        className="space-y-3 rounded-sm border border-rule bg-paper p-3"
         onSubmit={(event) => {
           event.preventDefault();
           const data = new FormData(event.currentTarget);
@@ -583,39 +622,39 @@ function ReconcileSection({
         <Field id={normId} name="normHours" label="Норма" />
         <Field id={actualId} name="actualHours" label="Отработано" />
         <Field id={overtimeId} name="overtimeHours" label="Переработка" />
-        <Button type="submit" className="mt-[1.375rem]">
+        <Button type="submit" className="w-full">
           Сверить
         </Button>
       </form>
 
       {discrepancies !== null ? (
         discrepancies.length === 0 ? (
-          <p className="rounded-sm border-l-2 border-verify bg-verify-soft px-4 py-3 text-sm">
+          <p className="rounded-sm border-l-2 border-verify bg-verify-soft px-3 py-2 text-xs">
             Расхождений нет: табель сходится с расчётом. Это тоже результат —
             значит, за этот период вопросов к работодателю нет.
           </p>
         ) : (
-          <ul className="space-y-3">
+          <ul className="space-y-2">
             {discrepancies.map((item) => (
               <li
                 key={item.field}
                 className={cn(
-                  "space-y-1 rounded-sm border-l-2 px-4 py-3",
+                  "space-y-1 rounded-sm border-l-2 px-3 py-2",
                   item.favoursEmployer
                     ? "border-signal bg-signal-soft"
                     : "border-rule-strong bg-paper-sunken",
                 )}
               >
-                <p className="font-medium">
+                <p className="text-sm font-medium">
                   {item.label}: у вас в табеле{" "}
                   <span className="font-mono">{formatHours(item.reported)}</span> ч, по
                   расчёту <span className="font-mono">{formatHours(item.expected)}</span> ч
-                  <span className="ml-2 font-mono text-sm">
+                  <span className="ml-2 font-mono">
                     ({item.delta.greaterThan(0) ? "+" : ""}
                     {formatHours(item.delta)} ч)
                   </span>
                 </p>
-                <p className="max-w-prose text-sm">{item.explanation}</p>
+                <p className="text-xs">{item.explanation}</p>
                 <p className="text-xs text-ink-muted">Основание: {item.basis}</p>
                 {!item.favoursEmployer ? (
                   <p className="text-xs text-ink-muted">
@@ -630,10 +669,10 @@ function ReconcileSection({
       ) : null}
 
       {discrepancies !== null && discrepancies.length > 0 ? (
-        <p className="max-w-prose text-xs text-ink-muted">
+        <p className="text-xs text-ink-muted">
           Расчёт построен на вашем графике и производственном календаре.
           Внимательно, проверьте, что караул, дата
-          первой смены, периоды отсутствия и производственный календарь заполнены корректно: 
+          первой смены, периоды отсутствия и производственный календарь заполнены корректно:
           ошибка в них даст расхождение там, где его нет.
         </p>
       ) : null}
@@ -650,7 +689,7 @@ function Field({ id, name, label }: { id: string; name: string; label: string })
         name={name}
         inputMode="decimal"
         placeholder="—"
-        className="w-32 font-mono"
+        className="w-full font-mono"
       />
     </div>
   );
