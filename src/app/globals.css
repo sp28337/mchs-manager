@@ -82,6 +82,15 @@
   --fps-trip-soft: #f8f0dc;
   --fps-excused: #575d63;
   --fps-excused-soft: #e9eaec;
+
+  /* -- Атмосфера --------------------------------------------------------
+     Свечение под первым экраном и грань панели. На светлой теме и то и
+     другое едва заметно: белую панель на светло-серой странице держит
+     рамка, а не сияние. */
+  --fps-glow: rgba(10, 111, 96, 0.13);
+  --fps-glow-far: rgba(10, 111, 96, 0);
+  --fps-panel-tint: rgba(255, 255, 255, 0.6);
+  --fps-panel-edge: rgba(10, 111, 96, 0.35);
 }
 
 /* Не инверсия: бумага становится графитом, но сигнальный и подтверждающий
@@ -102,8 +111,8 @@
 
   --fps-signal: #db0e17;
   --fps-signal-soft: #2a1710;
-  --fps-verify: #4fcfbd;
-  --fps-verify-soft: #0c211f;
+  --fps-verify: #3ddcc0;
+  --fps-verify-soft: #0a2220;
   --fps-trace: #9a9df3;
   --fps-trace-soft: #191a2e;
 
@@ -119,6 +128,11 @@
   --fps-trip-soft: #251d08;
   --fps-excused: #a4abb3;
   --fps-excused-soft: #1a1d21;
+
+  --fps-glow: rgba(61, 220, 192, 0.16);
+  --fps-glow-far: rgba(61, 220, 192, 0);
+  --fps-panel-tint: rgba(255, 255, 255, 0.038);
+  --fps-panel-edge: rgba(61, 220, 192, 0.42);
 }
 
 @theme inline {
@@ -168,11 +182,21 @@
   --font-sans: var(--font-plex-sans), "IBM Plex Sans", system-ui, sans-serif;
   --font-mono: var(--font-plex-mono), "IBM Plex Mono", ui-monospace, monospace;
 
-  /* Малые и одинаковые. Документ не скруглён; сильное скругление читалось
-     бы как потребительское приложение, каким система не является. */
+  /* Два масштаба, и оба осмысленны.
+
+     МЕЛКИЕ (2-6 px) — то, что внутри панели: клетка календаря, поле
+     ввода, значок легенды. Сетка на 365 клеток с крупным радиусом
+     превращается в россыпь таблеток.
+
+     КРУПНЫЕ (12-16 px) — панели и пилюли. Панель объявляет границу блока
+     сведений, и её край должен читаться без линейки.
+     -------------------------------------------------------------------- */
   --radius-xs: 2px;
-  --radius-sm: 3px;
-  --radius-md: 4px;
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 10px;
+  --radius-xl: 14px;
+  --radius-2xl: 18px;
 
   --breakpoint-xxs: 400px;
   --breakpoint-xs: 28rem;
@@ -191,8 +215,11 @@
     color-scheme: dark;
   }
 
+  /* Страница — самый утопленный уровень: панель светлее её, поле ввода
+     внутри панели темнее панели. Три ступени подряд, и средняя занята
+     панелью. */
   body {
-    background-color: var(--fps-paper);
+    background-color: var(--fps-paper-sunken);
     color: var(--fps-ink);
     font-family: var(--font-sans);
     font-variant-numeric: tabular-nums;
@@ -246,6 +273,46 @@
    фокусе подчёркивание уплотняется, показывая, что след раскрывается.
    -------------------------------------------------------------------------- */
 @layer components {
+  /* --- Атмосфера ------------------------------------------------------
+     Мягкое свечение под первым экраном. Не декор: оно задаёт направление
+     взгляда — светлее там, где начинается чтение, темнее к краям. Слой
+     фиксированный и не участвует в прокрутке, поэтому не «уезжает» с
+     контентом и не создаёт второй горизонт.
+     ------------------------------------------------------------------- */
+  .app-glow {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    background:
+      radial-gradient(70rem 40rem at 50% -8rem, var(--fps-glow), var(--fps-glow-far) 68%),
+      radial-gradient(52rem 34rem at 92% 8%, var(--fps-glow), var(--fps-glow-far) 62%),
+      radial-gradient(46rem 30rem at 4% 34%, var(--fps-glow), var(--fps-glow-far) 60%);
+  }
+
+  /* --- Панель ---------------------------------------------------------
+     Заливка чуть светлее холста и полупрозрачная — сквозь неё проходит
+     свечение, и панель принадлежит фону, а не лежит на нём наклейкой.
+     Рамка волосяная; на наведении она набирает бирюзу — тем же цветом,
+     каким помечено подтверждённое.
+     ------------------------------------------------------------------- */
+  .panel {
+    background-color: var(--fps-panel-tint);
+    border: 1px solid var(--fps-rule);
+    transition: border-color 160ms ease-out, background-color 160ms ease-out;
+  }
+
+  .panel-hover:hover {
+    border-color: var(--fps-panel-edge);
+  }
+
+  /* Панель первого плана: та, ради которой человек пришёл. Бирюзовая
+     подсветка изнутри слева — единственное место, где градиент допущен. */
+  .panel-feature {
+    background-image:
+      radial-gradient(38rem 22rem at 0% 0%, var(--fps-glow), var(--fps-glow-far) 72%);
+  }
+
   .legal-trace {
     font-family: var(--font-mono);
     text-decoration: underline;
@@ -326,9 +393,9 @@
    тёмной теме значения выше. Слева слой уведён почти в ноль маской — под
    заголовком документа быть не должно, он там мешает читать. */
 .tabel-backdrop {
-  --tabel-rule: 0.1;
-  --tabel-text: 0.14;
-  --tabel-fill: 0.11;
+  --tabel-rule: 0.16;
+  --tabel-text: 0.2;
+  --tabel-fill: 0.17;
   --tabel-visibility: 1;
 
   --tabel-mask: linear-gradient(to right, transparent 6%, rgb(0 0 0 / 0.26) 32%, #000 68%);
@@ -337,9 +404,9 @@
 }
 
 .dark .tabel-backdrop {
-  --tabel-rule: 0.15;
-  --tabel-text: 0.19;
-  --tabel-fill: 0.16;
+  --tabel-rule: 0.14;
+  --tabel-text: 0.18;
+  --tabel-fill: 0.15;
 }
 
 /* До широкого экрана документу негде отойти от текста: он неизбежно

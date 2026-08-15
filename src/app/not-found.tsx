@@ -74,7 +74,7 @@ export default function NotFound() {
       <main className="mx-auto flex min-h-lvh w-full max-w-3xl flex-col justify-center gap-6 px-6 pb-16 pt-26">
         <p className="font-mono text-6xl leading-none text-ink-faint sm:text-7xl">404</p>
 
-        <h1 className="text-3xl leading-[1.15] sm:text-4xl">Такой страницы нет</h1>
+        <h1 className="text-3xl leading-[1.15] sm:text-2xl md:text-4xl">Такой страницы нет</h1>
 
         <p className="max-w-prose text-lg text-ink-muted">
           Возможно, в адресе опечатка или ссылка устарела. На сайте всего два

@@ -181,8 +181,8 @@ export default function LandingPage() {
             <p className="font-mono text-xs uppercase tracking-widest text-ink-faint">
               Для аттестованных и вольнонаёмных
             </p>
-            <h1 className="max-w-3xl text-4xl leading-[1.15] sm:text-5xl">
-              Проверьте, не потеряли ли вы часы
+            <h1 className="max-w-3xl text-2xl md:text-4xl lg:text-6xl leading-[1.15] sm:text-5xl">
+              Проверь свой табель
             </h1>
             <p className="max-w-prose text-lg text-ink-muted">
               При графике «сутки через трое» ошибка в табеле может стоить десятков часов переработки.
@@ -206,7 +206,7 @@ export default function LandingPage() {
 
         {/* ------------------------------------------------------- сама проблема */}
         <section aria-labelledby="problem" className="space-y-4 border-b border-rule py-12">
-          <h2 id="problem" className="text-2xl">
+          <h2 id="problem" className="text-2xl md:text-4xl">
             «Отпуск уменьшает норму, а не отработанные часы»
           </h2>
           <div className="grid gap-6 md:grid-cols-2">
@@ -247,7 +247,7 @@ export default function LandingPage() {
 
         {/* --------------------------------------------------------- как работает */}
         <section aria-labelledby="how" className="space-y-6 border-b border-rule py-12">
-          <h2 id="how" className="text-2xl">
+          <h2 id="how" className="text-2xl md:text-4xl">
             Как это работает
           </h2>
           <ol className="grid gap-6 md:grid-cols-3">
@@ -267,7 +267,7 @@ export default function LandingPage() {
 
         {/* --------------------------------------------------------------- нормы */}
         <section aria-labelledby="law" className="space-y-4 border-b border-rule py-12">
-          <h2 id="law" className="text-2xl">
+          <h2 id="law" className="text-2xl md:text-4xl">
             Расчёт, который можно проверить
           </h2>
           <p className="max-w-prose text-ink-muted">
@@ -376,9 +376,9 @@ export default function LandingPage() {
         {/* ------------------------------------------------------------ приватность */}
         <section
           aria-labelledby="privacy"
-          className="space-y-3 border-b border-rule py-12"
+          className="space-y-3 py-12"
         >
-          <h2 id="privacy" className="text-2xl">
+          <h2 id="privacy" className="text-2xl md:text-4xl">
             Ваши данные остаются у вас
           </h2>
           <div className="grid gap-6 md:grid-cols-2">
@@ -399,14 +399,17 @@ export default function LandingPage() {
           aria-labelledby="faq"
           className="space-y-4 border-rule py-12"
         >
-          <h2 id="faq" className="text-2xl">
+          <h2 id="faq" className="text-2xl md:text-4xl">
             Частые вопросы
           </h2>
 
-          <div className="divide-y divide-rule border-y border-rule">
+          <div className="grid gap-2">
             {FAQ.map((item) => (
-              <details key={item.question} className="group">
-                <summary className="flex cursor-pointer list-none items-center justify-between gap-6 py-4 font-medium marker:hidden">
+              <details
+                key={item.question}
+                className="panel panel-hover group rounded-xl px-4"
+              >
+                <summary className="flex cursor-pointer list-none items-center justify-between gap-6 py-3.5 text-sm md:text-md font-medium marker:hidden">
                   <span>{item.question}</span>
 
                   <ChevronDown
@@ -415,8 +418,8 @@ export default function LandingPage() {
                   />
                 </summary>
 
-                <div className="pb-4 pr-11">
-                  <p className="text-sm leading-6 text-ink-muted">
+                <div className="pb-4 pr-10">
+                  <p className="text-sm md:text-md leading-6 text-ink-muted">
                     {item.answer}
                   </p>
                 </div>
@@ -428,7 +431,7 @@ export default function LandingPage() {
         {/* ------------------------------------------------------------- ещё раз CTA */}
         <section className="space-y-4 py-14 text-center">
           <Logo className="mx-auto size-10 text-signal" />
-          <h2 className="text-2xl">Проверьте свой табель</h2>
+          <h2 className="text-2xl md:text-4xl">Проверьте свой табель</h2>
           <p className="mx-auto max-w-prose text-ink-muted">
             Это займёт около минуты. Введите свои данные, укажите периоды отсутствия и перенесите часы из табеля.
             Если всё сходится — вы это тоже увидите.
