@@ -3,6 +3,7 @@
 import { CircleQuestionMark } from "lucide-react";
 import { useId, useState } from "react";
 
+import { Hint } from "@/components/ui/hint";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Modal } from "@/components/ui/modal";
@@ -69,9 +70,30 @@ export function OvertimePayCard({
   return (
     <div className="space-y-4">
       <div className="space-y-1.5">
-        <Label htmlFor={fieldId}>
-          {attested ? "Должностной оклад, ₽ в месяц" : "Зарплата в месяц, ₽"}
-        </Label>
+        <div className="flex items-center gap-1.5">
+          <Label htmlFor={fieldId}>
+            {attested ? "Должностной оклад, ₽ в месяц" : "Зарплата в месяц, ₽"}
+          </Label>
+          {/* Какое именно число сюда вписывать — единственное, в чём тут
+              можно ошибиться, и ошибка меняет всю сумму. Поэтому знак
+              вопроса стоит у самой подписи поля, а не где-то ниже. */}
+          <Hint label="Какое число сюда вписывать">
+            {attested ? (
+              <>
+                Только должностной оклад — оклад по званию и надбавки в
+                часовую ставку не входят (Приказ МЧС России от 27.06.2024
+                № 539, п. 105).
+              </>
+            ) : (
+              <>
+                Оклад вместе с компенсационными и стимулирующими выплатами:
+                сверхурочная работа оплачивается исходя из заработной платы
+                целиком (Приказ МЧС России от 14.12.2019 № 747, приложение 2
+                п. 10; ч. 1 ст. 152 ТК РФ).
+              </>
+            )}
+          </Hint>
+        </div>
         <Input
           id={fieldId}
           inputMode="decimal"
@@ -83,21 +105,6 @@ export function OvertimePayCard({
             onChange((previous) => ({ ...previous, monthlyPayBase: next }));
           }}
         />
-        <p className="text-xs text-ink-muted">
-          {attested ? (
-            <>
-              Только должностной оклад — оклад по званию и надбавки в часовую
-              ставку не входят (Приказ МЧС России от 27.06.2024 № 539, п. 105).
-            </>
-          ) : (
-            <>
-              Оклад вместе с компенсационными и стимулирующими выплатами:
-              сверхурочная работа оплачивается исходя из заработной платы
-              целиком (Приказ МЧС России от 14.12.2019 № 747, приложение 2
-              п. 10; ч. 1 ст. 152 ТК РФ).
-            </>
-          )}
-        </p>
       </div>
 
       {pay === null ? null : (

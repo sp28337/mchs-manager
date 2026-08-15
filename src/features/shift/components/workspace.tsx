@@ -1,6 +1,16 @@
 "use client";
 
-import { useId, useMemo, useState } from "react";
+import {
+  Banknote,
+  CalendarMinus2,
+  CalendarRange,
+  ClipboardCheck,
+  PanelLeftClose,
+  PanelLeftOpen,
+  Siren,
+  type LucideIcon,
+} from "lucide-react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -75,6 +85,22 @@ import { YearCalendarEditor } from "./year-calendar-editor";
  * открывает, когда вносит, — а свёрнутая крышка при этом отвечает на свой
  * вопрос без раскрытия («внесено периодов: 3», «расхождений нет»).
  *
+ * --- Почему колонку можно убрать целиком ---------------------------------
+ *
+ * График на год и двенадцать календарных сеток — самое широкое, что есть
+ * на экране, и девятнадцать рем слева им мешают. Но убрать колонку совсем
+ * значило бы спрятать вход в неё: человек, свернувший её ради календаря,
+ * должен видеть, куда нажать, чтобы вернуться к отпускам.
+ *
+ * Поэтому она сворачивается не в ничто, а в полоску значков. Значок в
+ * полоске — тот же, что в заголовке блока, и нажатие на него делает сразу
+ * два дела: возвращает колонку и открывает именно этот блок. Иначе
+ * человек, нажавший на сирену, получил бы развёрнутую колонку и всё тот же
+ * закрытый блок вызовов.
+ *
+ * Свёрнутость — состояние экрана, а не данных, и в профиль не пишется:
+ * человек сворачивает колонку на время, пока смотрит календарь.
+ *
  * --- Почему нет состояний загрузки --------------------------------------
  *
  * Считать больше нечего ждать: расчёт идёт здесь же, за доли миллисекунды,
@@ -85,6 +111,40 @@ import { YearCalendarEditor } from "./year-calendar-editor";
 
 const ABSENCE_KINDS = Object.keys(ABSENCE_LABELS) as AbsenceKind[];
 const CALLOUT_KINDS = Object.keys(CALLOUT_LABELS) as CalloutKind[];
+
+/**
+ * Блоки боковой колонки.
+ *
+ * Список объявлен один раз, потому что читается дважды: заголовками в
+ * развёрнутой колонке и значками в свёрнутой полоске. Разойдись эти два
+ * места — и полоска перестала бы отвечать на вопрос «где здесь вызовы».
+ *
+ * Значки выбраны по смыслу, а не по красоте: диапазон дат у периода,
+ * купюра у денег, календарь с минусом у отсутствий (они вычитаются из
+ * нормы), сирена у вызовов, планшет с галочкой у сверки.
+ */
+type PanelId = "period" | "pay" | "absences" | "callouts" | "reconcile";
+
+const PANEL_META: Record<PanelId, { title: string; Icon: LucideIcon }> = {
+  period: { title: "Период", Icon: CalendarRange },
+  pay: { title: "Сколько это в деньгах", Icon: Banknote },
+  absences: { title: "Отпуска и больничные", Icon: CalendarMinus2 },
+  callouts: { title: "Вызовы помимо графика", Icon: Siren },
+  reconcile: { title: "Что написано в вашем табеле", Icon: ClipboardCheck },
+};
+
+/**
+ * Порядок значков в свёрнутой полоске.
+ *
+ * Здесь перечислены только те блоки, которые реально показываются: значок
+ * в полоске обязан куда-то вести, а нажатие на значок выключенного блока
+ * развернуло бы колонку и не открыло ничего. Сейчас снаружи оставлена
+ * сверка — она выключена в разметке ниже.
+ */
+const PANEL_ORDER: readonly PanelId[] = ["period", "pay", "absences", "callouts"];
+
+/** Опознаватель блока в разметке: по нему в блок уводится фокус. */
+const panelDomId = (id: PanelId) => `aside-panel-${id}`;
 
 export interface WorkspaceProps {
   profile: StoredProfile;
@@ -140,22 +200,116 @@ export function Workspace({ profile, onChange, onForget }: WorkspaceProps) {
     });
   }, [calculation, reportedRaw]);
 
+  const [collapsed, setCollapsed] = useState(false);
+  const [openPanels, setOpenPanels] = useState<Record<PanelId, boolean>>({
+    period: true,
+    pay: true,
+    absences: false,
+    callouts: false,
+    reconcile: false,
+  });
+
+  // Куда увести фокус после разворота колонки из полоски. Само по себе
+  // открытие блока фокус не двигает, и человек с клавиатуры остался бы на
+  // кнопке, которой на экране больше нет.
+  //
+  // Ссылка, а не состояние: намерение живёт от нажатия до ближайшей
+  // отрисовки и ни на что не влияет, кроме одного вызова `focus`.
+  // Состоянием оно потребовало бы сброса — то есть ещё одной отрисовки
+  // ради ничего.
+  const aside = useRef<HTMLElement>(null);
+  const pendingFocus = useRef<PanelId | null>(null);
+
+  useEffect(() => {
+    if (collapsed) return;
+    const id = pendingFocus.current;
+    if (id === null) return;
+    pendingFocus.current = null;
+
+    const summary = aside.current?.querySelector<HTMLElement>(
+      `#${panelDomId(id)} > summary`,
+    );
+    summary?.focus();
+    summary?.scrollIntoView({ block: "nearest" });
+  }, [collapsed]);
+
+  function openFromRail(id: PanelId) {
+    pendingFocus.current = id;
+    setCollapsed(false);
+    setOpenPanels((previous) => ({ ...previous, [id]: true }));
+  }
+
+  function panelProps(id: PanelId) {
+    return {
+      id: panelDomId(id),
+      title: PANEL_META[id].title,
+      icon: <PanelIcon id={id} />,
+      open: openPanels[id],
+      onOpenChange: (next: boolean) =>
+        setOpenPanels((previous) => ({ ...previous, [id]: next })),
+    };
+  }
+
   return (
-    <div className="lg:grid lg:grid-cols-[19rem_minmax(0,1fr)] lg:items-start lg:gap-8 xl:grid-cols-[21rem_minmax(0,1fr)]">
+    <div
+      className={cn(
+        "lg:grid lg:items-start lg:gap-8",
+        collapsed
+          ? "lg:grid-cols-[3.25rem_minmax(0,1fr)]"
+          : "lg:grid-cols-[19rem_minmax(0,1fr)] xl:grid-cols-[21rem_minmax(0,1fr)]",
+      )}
+    >
       {/* Ручки управления. Закреплены и прокручиваются внутри себя: с
           длинной оговоркой про оклад колонка бывает выше экрана, и без
-          собственной прокрутки её низ стал бы недостижим. */}
+          собственной прокрутки её низ стал бы недостижим.
+
+          Полоска и сами блоки существуют в разметке одновременно, а
+          показывается одно из двух — классами. Ниже `lg` колонки нет
+          вовсе, и сворачивать там нечего: полоска значков поперёк
+          телефона была бы лишней строкой ни о чём, поэтому в узком окне
+          блоки видны всегда, а полоска — никогда. */}
       <aside
+        ref={aside}
         aria-label="Что вы вносите"
         className={cn(
-          "mb-10 space-y-3 lg:mb-0",
-          "lg:sticky lg:top-24 lg:max-h-[calc(100dvh-7rem)] lg:overflow-y-auto lg:pb-6 lg:pr-1",
+          "mb-10 lg:mb-0",
+          "lg:sticky lg:top-24 lg:max-h-[calc(100dvh-7rem)] lg:overflow-y-auto lg:pb-6",
+          collapsed ? "lg:overflow-x-hidden" : "lg:pr-1",
         )}
       >
+        {collapsed ? (
+          <div className="hidden flex-col items-center gap-1 rounded-xl border border-rule bg-paper-raised p-1.5 lg:flex">
+            <RailButton
+              label="Развернуть панель"
+              onClick={() => setCollapsed(false)}
+            >
+              <PanelLeftOpen aria-hidden className="size-4" />
+            </RailButton>
+            <span aria-hidden className="my-1 h-px w-6 bg-rule" />
+            {PANEL_ORDER.map((id) => {
+              const { title, Icon } = PANEL_META[id];
+              return (
+                <RailButton key={id} label={title} onClick={() => openFromRail(id)}>
+                  <Icon aria-hidden className="size-4" />
+                </RailButton>
+              );
+            })}
+          </div>
+        ) : null}
+
+        <div className={cn("space-y-3", collapsed && "lg:hidden")}>
+          {/* Кнопка сворачивания стоит над блоками и вплотную к правому
+              краю колонки — там, куда она колонку и уводит. Ниже `lg`
+              скрыта: там нет колонки, которую можно свернуть. */}
+          <div className="hidden justify-end lg:flex">
+            <RailButton label="Свернуть панель" onClick={() => setCollapsed(true)}>
+              <PanelLeftClose aria-hidden className="size-4" />
+            </RailButton>
+          </div>
+
         <CollapsiblePanel
-          title="Период"
+          {...panelProps("period")}
           summary={formatPeriodRu(periodStart, periodEnd)}
-          defaultOpen
         >
           <PeriodPicker
             accountingYear={profile.accountingYear}
@@ -177,13 +331,12 @@ export function Workspace({ profile, onChange, onForget }: WorkspaceProps) {
             ввод, и прятать её за крышкой значило бы вернуть человека к
             тому, чтобы искать её щелчком. */}
         <CollapsiblePanel
-          title="Сколько это в деньгах"
+          {...panelProps("pay")}
           summary={
             pay
               ? `${formatMoney(pay.primary.total)} за ${formatHours(calculation.overtimeHours)} ч`
               : "укажите оклад — посчитаем по приказу"
           }
-          defaultOpen
         >
           <OvertimePayCard
             profile={profile}
@@ -194,7 +347,14 @@ export function Workspace({ profile, onChange, onForget }: WorkspaceProps) {
         </CollapsiblePanel>
 
         <CollapsiblePanel
-          title="Отпуска и больничные"
+          {...panelProps("absences")}
+          hint={
+            <>
+              Внесите периоды, когда вы были освобождены от службы с
+              сохранением места. Смены, попавшие в них, вычтутся из НОРМЫ —
+              именно этого чаще всего и не делают в табеле.
+            </>
+          }
           summary={
             profile.absences.length > 0
               ? `внесено периодов: ${profile.absences.length}`
@@ -205,7 +365,22 @@ export function Workspace({ profile, onChange, onForget }: WorkspaceProps) {
         </CollapsiblePanel>
 
         <CollapsiblePanel
-          title="Вызовы помимо графика"
+          {...panelProps("callouts")}
+          hint={
+            <>
+              Соревнования, сборы, резерв, праздничные мероприятия, выборы.
+              Это исполнение обязанностей, то есть служебное время (ч. 1
+              ст. 54 ФЗ-141, ст. 91 ТК РФ): часы прибавляются к
+              отработанному и норму не трогают. На графике такие сутки
+              помечены отдельно — видно, куда именно вызывали.
+              <span className="mt-2 block">
+                Вызовов на одни сутки может быть несколько: после смены
+                соревнования, а следом резерв. Вносите каждый отдельно —
+                часы складываются, а в клетке графика встанут все коды
+                сразу.
+              </span>
+            </>
+          }
           summary={
             profile.callouts.length > 0
               ? `внесено: ${profile.callouts.length}`
@@ -215,8 +390,19 @@ export function Workspace({ profile, onChange, onForget }: WorkspaceProps) {
           <CalloutSection profile={profile} onChange={onChange} />
         </CollapsiblePanel>
 
-        {/* <CollapsiblePanel
-          title="Что написано в вашем табеле"
+        {/* Блок сверки выключен. Если он возвращается — раскомментировать
+            здесь и добавить "reconcile" обратно в PANEL_ORDER, иначе в
+            свёрнутой полоске появится значок, ведущий в никуда.
+
+        <CollapsiblePanel
+          {...panelProps("reconcile")}
+          hint={
+            <>
+              Впишите числа из выданного табеля. Пустое поле не
+              сравнивается — если какого-то числа в табеле нет, оставьте
+              его пустым.
+            </>
+          }
           summary={
             discrepancies === null
               ? "сверка не проводилась"
@@ -226,7 +412,10 @@ export function Workspace({ profile, onChange, onForget }: WorkspaceProps) {
           }
         >
           <ReconcileSection discrepancies={discrepancies} onSubmit={setReportedRaw} />
-        </CollapsiblePanel> */}
+        </CollapsiblePanel>
+
+        */}
+        </div>
       </aside>
 
       <div className="min-w-0 space-y-10">
@@ -282,6 +471,46 @@ export function Workspace({ profile, onChange, onForget }: WorkspaceProps) {
   );
 }
 
+/** Значок блока — тот же в заголовке и в свёрнутой полоске. */
+function PanelIcon({ id }: { id: PanelId }) {
+  const { Icon } = PANEL_META[id];
+  return <Icon aria-hidden />;
+}
+
+/**
+ * Кнопка в полоске значков и кнопка сворачивания колонки.
+ *
+ * Подпись обязательна и живёт в двух местах сразу: `aria-label` — для
+ * программы чтения, `title` — для всплывающей подсказки браузера. В
+ * свёрнутой полоске на экране нет ни одного слова, и без второй человек,
+ * не узнавший значок, остаётся гадать.
+ */
+function RailButton({
+  label,
+  onClick,
+  children,
+}: {
+  label: string;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={label}
+      title={label}
+      className={cn(
+        "flex size-9 shrink-0 cursor-pointer items-center justify-center rounded-lg",
+        "text-ink-faint transition-colors hover:bg-paper-sunken hover:text-ink",
+        "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-trace",
+      )}
+    >
+      {children}
+    </button>
+  );
+}
+
 function AbsenceSection({
   profile,
   onChange,
@@ -297,12 +526,6 @@ function AbsenceSection({
 
   return (
     <section aria-labelledby="absences" className="space-y-3">
-      <p className="text-xs text-ink-muted">
-        Внесите периоды, когда вы были освобождены от службы с сохранением
-        места. Смены, попавшие в них, вычтутся из НОРМЫ — именно этого чаще
-        всего и не делают в табеле.
-      </p>
-
       {error ? (
         <p className="rounded-sm border-l-2 border-signal bg-signal-soft px-3 py-2 text-xs">
           {error}
@@ -453,18 +676,6 @@ function CalloutSection({
 
   return (
     <section className="space-y-3">
-      <p className="text-xs text-ink-muted">
-        Соревнования, сборы, резерв, праздничные мероприятия, выборы. Это
-        исполнение обязанностей, то есть служебное время (ч. 1 ст. 54 ФЗ-141,
-        ст. 91 ТК РФ): часы прибавляются к отработанному и норму не трогают.
-        На графике такие сутки помечены отдельно — видно, куда именно вызывали.
-      </p>
-      <p className="text-xs text-ink-muted">
-        Вызовов на одни сутки может быть несколько: после смены соревнования, а
-        следом резерв. Вносите каждый отдельно — часы складываются, а в клетке
-        графика встанут все коды сразу.
-      </p>
-
       {error ? (
         <p className="rounded-sm border-l-2 border-signal bg-signal-soft px-3 py-2 text-xs">
           {error}
@@ -602,11 +813,6 @@ function ReconcileSection({
 
   return (
     <section aria-labelledby="reconcile" className="space-y-3">
-      <p className="text-xs text-ink-muted">
-        Впишите числа из выданного табеля. Пустое поле не сравнивается — если
-        какого-то числа в табеле нет, оставьте его пустым.
-      </p>
-
       <form
         className="space-y-3 rounded-sm border border-rule bg-paper p-3"
         onSubmit={(event) => {

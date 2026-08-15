@@ -5,6 +5,7 @@ import { useEffect, useId, useRef, useState } from "react";
 
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useAnchoredPosition } from "@/lib/hooks/use-anchored-position";
 import { cn } from "@/lib/utils/cn";
 
 import { formatDateRu, maskDateRu, parseDateRu } from "../domain/format";
@@ -163,22 +164,8 @@ const POPOVER_WIDTH = 288;
  * позиционированием значило бы добавить сотню килобайт к приложению,
  * которое целиком весит меньше.
  *
- * --- Почему `fixed`, а не `absolute` -------------------------------------
- *
- * Поля дат стоят в том числе в боковой колонке, а та прокручивается внутри
- * себя и потому обрезает всё, что вылезает за её края. Календарь шире
- * колонки, и при `absolute` от него оставалась бы правая половина.
- * Элемент с `position: fixed` считается от окна и обрезке предком не
- * подлежит — при условии, что ни у одного предка нет `transform`, и это
- * здесь так.
- *
- * Портал при этом не нужен: календарь остаётся ребёнком той же обёртки,
- * поэтому проверка «щёлкнули мимо» через `contains` продолжает работать.
- *
- * Место считается от кнопки и прижимается к краям окна, чтобы календарь
- * не уехал за экран на узком телефоне. Пересчёт идёт на прокрутке и
- * изменении размера — прокрутка ловится с `capture`, иначе события от
- * внутренних областей прокрутки сюда не всплывут.
+ * Место считается хуком `useAnchoredPosition` — там же объяснено, почему
+ * слой `fixed`, а не `absolute`.
  */
 function CalendarPopover({
   open,
@@ -201,37 +188,13 @@ function CalendarPopover({
 
   const anchor = selected ?? clamp(todayIso(), min, max);
   const [view, setView] = useState({ year: yearOf(anchor), month: monthIndex(anchor) + 1 });
-  const [place, setPlace] = useState<{ top: number; left: number } | null>(null);
 
-  // Обычный `useEffect`, а не `useLayoutEffect`: последний на сервере не
-  // выполняется и ругается в консоль, а мигание кадром здесь и без него
-  // исключено — до первого замера календарь скрыт.
-  useEffect(() => {
-    if (!open) return;
-
-    function measure() {
-      const box = trigger.current?.getBoundingClientRect();
-      if (!box) return;
-      const room = document.documentElement.clientWidth;
-      setPlace({
-        top: box.bottom + 4,
-        // Правый край календаря совпадает с правым краем кнопки, но не
-        // ближе восьми пикселей к любому краю окна.
-        left: Math.min(
-          Math.max(8, box.right - POPOVER_WIDTH),
-          Math.max(8, room - POPOVER_WIDTH - 8),
-        ),
-      });
-    }
-
-    measure();
-    window.addEventListener("resize", measure);
-    document.addEventListener("scroll", measure, true);
-    return () => {
-      window.removeEventListener("resize", measure);
-      document.removeEventListener("scroll", measure, true);
-    };
-  }, [open]);
+  // Правым краем к кнопке: поле даты стоит слева в своей колонке, и
+  // календарь, разложенный вправо, вылез бы за неё.
+  const place = useAnchoredPosition(open, trigger, {
+    width: POPOVER_WIDTH,
+    align: "right",
+  });
 
   // Закрытие по щелчку мимо и по Escape. Без первого календарь остаётся
   // висеть над формой и перекрывает соседнее поле; без второго с

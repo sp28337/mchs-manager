@@ -1,6 +1,7 @@
 import { ChevronDown } from "lucide-react";
 import type { ReactNode } from "react";
 
+import { Hint } from "@/components/ui/hint";
 import { cn } from "@/lib/utils/cn";
 
 /**
@@ -76,23 +77,63 @@ export function CollapsibleSection({
  * «внесено периодов: 3», «расхождений нет». Иначе колонка из пяти
  * закрытых крышек заставляет открывать их по очереди, чтобы вспомнить,
  * что где.
+ *
+ * --- Зачем значок ---------------------------------------------------------
+ *
+ * Не для украшения: свёрнутая в полоску колонка показывает ОДНИ значки, и
+ * человек выбирает блок по ним. Значок обязан быть тем же самым в полоске
+ * и в заголовке, иначе полоска станет ребусом. Поэтому он приходит
+ * снаружи — набор блоков знает вызывающий код, а не этот компонент.
+ *
+ * --- Почему открытость можно задать снаружи -------------------------------
+ *
+ * Обычно блок сам помнит, раскрыт он или нет, и вмешиваться незачем. Но по
+ * нажатию на значок в свёрнутой полоске колонка обязана не только
+ * развернуться, но и открыть нужный блок, — а это решение принимается вне
+ * блока. Поэтому `open`/`onOpenChange` необязательны: без них блок
+ * работает сам по себе.
  */
 export function CollapsiblePanel({
+  id,
   title,
+  icon,
+  hint,
   summary,
   children,
   defaultOpen = false,
+  open,
+  onOpenChange,
   className,
 }: {
+  /** Нужен, чтобы блок можно было найти и увести в него фокус снаружи. */
+  id?: string;
   title: ReactNode;
+  /** Значок блока: он же представляет блок в свёрнутой полоске. */
+  icon?: ReactNode;
+  /** Знак вопроса рядом с заголовком: пояснение, что это за блок. */
+  hint?: ReactNode;
   summary?: ReactNode;
   children: ReactNode;
   defaultOpen?: boolean;
+  /** Управление снаружи. Вместе с `onOpenChange`, иначе блок замрёт. */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
   className?: string;
 }) {
+  // Неуправляемый случай тоже задаётся через `open`, а не `defaultOpen`:
+  // React выставит атрибут один раз и больше его не тронет, пока значение
+  // не изменится, — дальше блоком распоряжается сам браузер.
+  const isOpen = open ?? defaultOpen;
+
   return (
     <details
-      open={defaultOpen}
+      id={id}
+      open={isOpen}
+      onToggle={
+        onOpenChange
+          ? (event) => onOpenChange(event.currentTarget.open)
+          : undefined
+      }
       className={cn("group rounded-xl border border-rule bg-paper-raised", className)}
     >
       <summary
@@ -102,9 +143,17 @@ export function CollapsiblePanel({
           "[&::-webkit-details-marker]:hidden",
         )}
       >
+        {icon ? (
+          <span aria-hidden className="mt-px shrink-0 text-ink-faint [&_svg]:size-4">
+            {icon}
+          </span>
+        ) : null}
         <span className="min-w-0 flex-1 space-y-0.5">
-          <span className="block font-display text-xs font-bold uppercase tracking-wide text-ink-muted">
-            {title}
+          <span className="flex items-center gap-1.5">
+            <span className="min-w-0 font-display text-xs font-bold uppercase tracking-wide text-ink-muted">
+              {title}
+            </span>
+            {hint ? <Hint>{hint}</Hint> : null}
           </span>
           {summary ? (
             <span className="block text-xs text-ink-faint">{summary}</span>

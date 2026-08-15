@@ -2,6 +2,7 @@
 
 import { useId } from "react";
 
+import { Hint } from "@/components/ui/hint";
 import { Select } from "@/components/ui/select";
 
 import type { AccountingPeriodKind } from "../domain/value-objects";
@@ -81,12 +82,19 @@ export function PeriodPicker({
   return (
     <div className="space-y-5">
       <div className="space-y-1.5">
-        <label
-          htmlFor={periodId}
-          className="block font-display text-xs font-bold uppercase tracking-wide text-ink-muted"
-        >
-          Учётный период
-        </label>
+        <div className="flex items-center gap-1.5">
+          <label
+            htmlFor={periodId}
+            className="font-display text-xs font-bold uppercase tracking-wide text-ink-muted"
+          >
+            Учётный период
+          </label>
+          <Hint label="За что отвечает учётный период">
+            {employmentKind === "attested"
+              ? "Приказ МЧС России от 24.04.2026 № 308 п. 2: учётный период сотрудника при сменной работе — полугодие или год. Переработка определяется по его итогу."
+              : "Приказ МЧС России от 24.04.2026 № 307 п. 7: учётный период работника при сменной работе — три месяца, полугодие или год. Какой именно — устанавливают правила внутреннего трудового распорядка."}
+          </Hint>
+        </div>
         <Select
           id={periodId}
           value={`${statutory.kind}:${statutory.index}`}
@@ -107,20 +115,21 @@ export function PeriodPicker({
             ));
           })}
         </Select>
-        <p className="text-xs text-ink-muted">
-          {employmentKind === "attested"
-            ? "Приказ МЧС России от 24.04.2026 № 308 п. 2: учётный период сотрудника при сменной работе — полугодие или год. Переработка определяется по его итогу."
-            : "Приказ МЧС России от 24.04.2026 № 307 п. 7: учётный период работника при сменной работе — три месяца, полугодие или год. Какой именно — устанавливают правила внутреннего трудового распорядка."}
-        </p>
       </div>
 
       <div className="space-y-1.5">
-        <label
-          htmlFor={monthId}
-          className="block font-display text-xs font-bold uppercase tracking-wide text-ink-muted"
-        >
-          Помесячно
-        </label>
+        <div className="flex items-center gap-1.5">
+          <label
+            htmlFor={monthId}
+            className="font-display text-xs font-bold uppercase tracking-wide text-ink-muted"
+          >
+            Помесячно
+          </label>
+          <Hint label="Зачем нужен выбор месяца">
+            Месяц учётным периодом не является — переработку по нему не
+            считают. Он нужен, чтобы найти, в каком именно месяце разошлось.
+          </Hint>
+        </div>
         <Select
           id={monthId}
           value={month === null ? "all" : String(month)}
@@ -136,10 +145,6 @@ export function PeriodPicker({
             </option>
           ))}
         </Select>
-        <p className="text-xs text-ink-muted">
-          Месяц учётным периодом не является — переработку по нему не считают.
-          Он нужен, чтобы найти, в каком именно месяце разошлось.
-        </p>
       </div>
     </div>
   );
