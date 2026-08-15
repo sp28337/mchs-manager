@@ -47,8 +47,7 @@ import { OvertimePayCard } from "./overtime-pay-card";
 import { PeriodPicker, type StatutoryChoice } from "./period-picker";
 import { PeriodSummary } from "./period-summary";
 import { ProfileFooter } from "./profile-footer";
-import { ShiftStrip } from "./shift-strip";
-import { YearCalendarEditor } from "./year-calendar-editor";
+import { YearView, type YearViewKind } from "./year-view";
 
 /**
  * Рабочий экран: период, расчёт, график, отсутствия и сверка.
@@ -199,6 +198,10 @@ export function Workspace({ profile, onChange, onForget }: WorkspaceProps) {
       overtimeHours: parseHours(reportedRaw.overtime),
     });
   }, [calculation, reportedRaw]);
+
+  // Что показано на сетке года. Живёт здесь, а не в самой сетке, потому
+  // что от этого зависят заголовок и подпись раздела вокруг неё.
+  const [yearView, setYearView] = useState<YearViewKind>("shifts");
 
   const [collapsed, setCollapsed] = useState(false);
   const [openPanels, setOpenPanels] = useState<Record<PanelId, boolean>>({
@@ -439,30 +442,37 @@ export function Workspace({ profile, onChange, onForget }: WorkspaceProps) {
         />
       </section>
 
-      {/* Здесь остались только два раздела, и оба — то, на что человек
-          смотрит, а не то, что он вводит. График открыт: за ним приходят
-          чаще всего. Календарь свёрнут — двенадцать сеток отодвинули бы
-          подвал за пределы разумного, — а подпись у крышки говорит, всё ли
-          в нём размечено, чтобы не открывать наугад. */}
+      {/* Один раздел на обе сетки: они показывают одно и то же поле —
+          месяцы клетками по дням недели, — и человек смотрит их по
+          очереди, сверяя смену с типом дня. Двумя разделами это означало
+          прокрутку между ними; переключателем — то же место на экране.
+
+          Заголовок и подпись следуют за переключателем: раздел называет
+          то, что в нём сейчас показано, а не оба варианта сразу. */}
       <CollapsibleSection
-        title="Ваш график"
-        summary={`смен за период: ${calculation.scheduledShifts}`}
+        title={
+          yearView === "shifts"
+            ? "Ваш график"
+            : `Производственный календарь ${profile.accountingYear} года`
+        }
+        summary={
+          yearView === "shifts"
+            ? `смен за период: ${calculation.scheduledShifts}`
+            : Object.keys(profile.calendarOverrides).length > 0
+              ? `ваших правок: ${Object.keys(profile.calendarOverrides).length}`
+              : pendingTransfers(profile.accountingYear).length > 0
+                ? "переносы выходных не размечены"
+                : "праздники и переносы размечены"
+        }
         defaultOpen
       >
-        <ShiftStrip calculation={calculation} />
-      </CollapsibleSection>
-
-      <CollapsibleSection
-        title={`Календарь ${profile.accountingYear} года`}
-        summary={
-          Object.keys(profile.calendarOverrides).length > 0
-            ? `ваших правок: ${Object.keys(profile.calendarOverrides).length}`
-            : pendingTransfers(profile.accountingYear).length > 0
-              ? "переносы выходных не размечены"
-              : "праздники и переносы размечены"
-        }
-      >
-        <YearCalendarEditor profile={profile} onChange={onChange} />
+        <YearView
+          profile={profile}
+          calculation={calculation}
+          view={yearView}
+          onViewChange={setYearView}
+          onChange={onChange}
+        />
       </CollapsibleSection>
 
         <ProfileFooter profile={profile} onForget={onForget} />

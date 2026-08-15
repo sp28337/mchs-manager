@@ -35,6 +35,35 @@ export type Decimal = InstanceType<typeof Dec>;
 
 export const ZERO: Decimal = new Dec(0);
 
+/**
+ * Число из строки или `null`, если это не число.
+ *
+ * --- Зачем обёртка -------------------------------------------------------
+ *
+ * `decimal.js` сообщает о непригодной строке НЕ значением, а исключением:
+ * `new Dec("и")` бросает `DecimalError: Invalid argument`. Проверка вида
+ * `value.isFinite()` до него не доживает — до неё дело не доходит.
+ *
+ * Разбор при этом вызывается на каждое нажатие клавиши в поле оклада и в
+ * полях сверки, то есть строка «не число» — не редкость, а нормальное
+ * промежуточное состояние: человек стёр всё и набирает заново, случайно
+ * задел букву, вставил «30 000 руб.». Исключение в этом месте роняло весь
+ * экран расчёта, и вместе с ним — введённые отпуска на экране.
+ *
+ * Поэтому непригодная строка обязана возвращаться значением, и вся работа
+ * с `decimal.js` из пользовательского ввода идёт только через эту функцию.
+ */
+export function toDecimal(input: string): Decimal | null {
+  let value: Decimal;
+  try {
+    value = new Dec(input);
+  } catch {
+    return null;
+  }
+  // `new Dec("NaN")` не бросает, а возвращает NaN — это тоже не число.
+  return value.isNaN() ? null : value;
+}
+
 /** Наибольшее из двух — нужно там, где величина не имеет права уйти в минус. */
 export function atLeastZero(value: Decimal): Decimal {
   return value.isNegative() ? ZERO : value;
@@ -64,6 +93,6 @@ export function formatDays(hours: Decimal): string {
 export function parseHours(input: string): Decimal | null {
   const normalised = input.trim().replace(",", ".");
   if (normalised === "") return null;
-  const value = new Dec(normalised);
-  return value.isFinite() ? value : null;
+  const value = toDecimal(normalised);
+  return value !== null && value.isFinite() ? value : null;
 }

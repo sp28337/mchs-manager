@@ -121,7 +121,14 @@ interface MonthGroup {
   absentStarts: number;
 }
 
-export function ShiftStrip({ calculation }: { calculation: PeriodCalculation }) {
+export function ShiftStrip({
+  calculation,
+  gridClassName,
+}: {
+  calculation: PeriodCalculation;
+  /** Раскладка месяцев: её задаёт масштаб, общий с календарём года. */
+  gridClassName?: string;
+}) {
   // На одни сутки может прийтись и смена, и вызов: человека вызвали на
   // соревнования в свой выходной или сняли со смены на выборы. Карта
   // «день → одна запись» такой день теряла бы молча.
@@ -168,7 +175,12 @@ export function ShiftStrip({ calculation }: { calculation: PeriodCalculation }) 
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-1 gap-x-6 gap-y-5 sm:grid-cols-2 lg:grid-cols-3">
+      <div
+        className={
+          gridClassName ??
+          "grid grid-cols-1 gap-x-6 gap-y-5 sm:grid-cols-2 lg:grid-cols-3"
+        }
+      >
         {groups.map((group, index) => (
           <MonthGrid
             key={`${group.year}-${group.month}`}
@@ -346,7 +358,12 @@ function DayCell({ day, records }: { day: IsoDate; records: readonly DayRecord[]
       )}
     >
       <span className="sr-only">{label}</span>
-      <span aria-hidden className="font-mono text-xs">
+      {/* Кегль задан в `em`, а не в пикселях: клетка растёт и уменьшается
+          вместе с масштабом сетки, и число обязано расти вместе с ней —
+          иначе на крупном масштабе получается пустой квадрат с мелкой
+          цифрой посередине. Размер в `em` берётся от сетки, которая его и
+          назначает. */}
+      <span aria-hidden className="font-mono text-[1em]">
         {date}
       </span>
       <span
@@ -355,7 +372,7 @@ function DayCell({ day, records }: { day: IsoDate; records: readonly DayRecord[]
           "font-mono",
           // Два кода вместо одного набираются мельче и теснее: иначе
           // «СОР РЕЗ» распирает клетку и ломает сетку месяца.
-          calloutKinds.length > 1 ? "text-[8px] tracking-tighter" : "text-[9px]",
+          calloutKinds.length > 1 ? "text-[0.67em] tracking-tighter" : "text-[0.75em]",
         )}
       >
         {calloutKinds.length > 0

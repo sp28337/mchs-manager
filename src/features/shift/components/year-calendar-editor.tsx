@@ -58,6 +58,15 @@ import { MonthGrid, WEEKDAY_LABELS } from "./month-grid";
  * Кнопки «Сохранить» здесь нет и быть не должно: запись идёт в браузер, а
  * не по сети, и отдельный шаг сохранения означал бы только возможность
  * потерять правку, закрыв вкладку.
+ *
+ * --- Почему он больше не сворачивается сам ------------------------------
+ *
+ * Здесь была своя кнопка «Открыть календарь»: блок стоял отдельным
+ * разделом, и двенадцать сеток сразу отодвинули бы всё остальное вниз.
+ * Теперь календарь показывается по переключателю в `YearView` — то есть
+ * его уже выбрали и хотят видеть. Вторая крышка внутри означала бы, что
+ * на нажатие «Производственный календарь» человек получает кнопку
+ * «Открыть календарь».
  */
 
 const DAY_TYPES: DayType[] = ["working", "pre_holiday", "holiday", "weekend"];
@@ -65,11 +74,16 @@ const DAY_TYPES: DayType[] = ["working", "pre_holiday", "holiday", "weekend"];
 export interface YearCalendarEditorProps {
   profile: StoredProfile;
   onChange: (change: (previous: StoredProfile) => StoredProfile) => void;
+  /** Раскладка месяцев: её задаёт масштаб, общий с графиком смен. */
+  gridClassName?: string;
 }
 
-export function YearCalendarEditor({ profile, onChange }: YearCalendarEditorProps) {
+export function YearCalendarEditor({
+  profile,
+  onChange,
+  gridClassName,
+}: YearCalendarEditorProps) {
   const [brush, setBrush] = useState<DayType>("weekend");
-  const [open, setOpen] = useState(false);
   const [range, setRange] = useState<{ from: IsoDate | null; to: IsoDate | null }>({
     from: null,
     to: null,
@@ -101,35 +115,6 @@ export function YearCalendarEditor({ profile, onChange }: YearCalendarEditorProp
     });
   }
 
-  if (!open) {
-    return (
-      <section aria-labelledby="calendar" className="space-y-2">
-        <p className="max-w-prose text-sm text-ink-muted">
-          Праздники по ст. 112 ТК РФ и предпраздничные дни по ст. 95 размечены
-          автоматически.{" "}
-          {pending.length > 0 ? (
-            <>
-              Переносы выходных устанавливает Правительство отдельным
-              постановлением на каждый год, и на {year} год приложение его ещё
-              не знает.
-            </>
-          ) : (
-            <>
-              Перенос выходных дней на {year} год внесён по постановлению
-              Правительства — календарь должен совпасть с выданным вам.
-            </>
-          )}{" "}
-          Если ваш производственный календарь всё-таки отличается, поправьте
-          здесь: ошибка в одном дне — это 8 часов нормы.
-        </p>
-        {pending.length > 0 ? <PendingNotice pending={pending} /> : null}
-        <Button type="button" variant="outline" onClick={() => setOpen(true)} className="rounded-xl">
-          Открыть календарь
-        </Button>
-      </section>
-    );
-  }
-
   const byMonth = new Map<number, CalendarDay[]>();
   for (const item of days) {
     const month = monthIndex(item.day);
@@ -140,11 +125,24 @@ export function YearCalendarEditor({ profile, onChange }: YearCalendarEditorProp
 
   return (
     <section aria-labelledby="calendar" className="space-y-4">
-      <div className="flex flex-wrap items-baseline justify-between gap-3">
-        <Button type="button" variant="ghost" size="sm" onClick={() => setOpen(false)}>
-          Свернуть
-        </Button>
-      </div>
+      <p className="max-w-prose text-sm text-ink-muted">
+        Праздники по ст. 112 ТК РФ и предпраздничные дни по ст. 95 размечены
+        автоматически.{" "}
+        {pending.length > 0 ? (
+          <>
+            Переносы выходных устанавливает Правительство отдельным
+            постановлением на каждый год, и на {year} год приложение его ещё не
+            знает.
+          </>
+        ) : (
+          <>
+            Перенос выходных дней на {year} год внесён по постановлению
+            Правительства — календарь должен совпасть с выданным вам.
+          </>
+        )}{" "}
+        Если ваш производственный календарь всё-таки отличается, поправьте
+        здесь: ошибка в одном дне — это 8 часов нормы.
+      </p>
 
       {pending.length > 0 ? <PendingNotice pending={pending} /> : null}
 
@@ -210,7 +208,12 @@ export function YearCalendarEditor({ profile, onChange }: YearCalendarEditorProp
         </form>
       </div>
 
-      <div className="grid grid-cols-1 gap-x-6 gap-y-5 sm:grid-cols-2 lg:grid-cols-3">
+      <div
+        className={
+          gridClassName ??
+          "grid grid-cols-1 gap-x-6 gap-y-5 sm:grid-cols-2 lg:grid-cols-3"
+        }
+      >
         {MONTH_NAMES.map((name, month) => {
           const items = byMonth.get(month) ?? [];
           const edited = items.filter((item) => item.source === "override").length;
@@ -299,10 +302,13 @@ function DayButton({ item, onPaint }: { item: CalendarDay; onPaint: () => void }
         DAY_TYPE_TONE[item.dayType],
       )}
     >
-      <span aria-hidden className="font-mono text-xs">
+      {/* Кегль в `em`: клетка следует за масштабом сетки, и число вместе
+          с ней. То же решение, что в клетке графика, — иначе при
+          переключении между сетками менялся бы размер цифр. */}
+      <span aria-hidden className="font-mono text-[1em]">
         {date}
       </span>
-      <span aria-hidden className="font-mono text-[9px]">
+      <span aria-hidden className="font-mono text-[0.75em]">
         {DAY_TYPE_MARK[item.dayType]}
       </span>
       {item.source === "override" ? (

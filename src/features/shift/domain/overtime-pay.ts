@@ -46,7 +46,7 @@
  * Здесь считается ровно одно: часы сверх нормы учётного периода.
  */
 
-import { Dec, atLeastZero, type Decimal } from "./decimal";
+import { Dec, atLeastZero, toDecimal, type Decimal } from "./decimal";
 import type { EmploymentKind } from "./value-objects";
 
 const MONTHS_IN_YEAR = new Dec(12);
@@ -249,9 +249,13 @@ export function formatMoneyAmount(value: Decimal): string {
 
 /** Разбор суммы, введённой человеком: «30 000», «30000,50», «30000.50». */
 export function parseMoney(input: string): Decimal | null {
-  const normalised = input.replace(/\s| /g, "").replace(",", ".");
+  // `\s` в JavaScript уже покрывает и неразрывный пробел U+00A0, и
+  // узкий U+202F, которым `toLocaleString` разделяет разряды. Раньше
+  // U+00A0 стоял в этом выражении отдельным символом — невидимым в
+  // тексте программы и потому неотличимым от опечатки.
+  const normalised = input.replace(/\s/gu, "").replace(",", ".");
   if (normalised === "") return null;
-  const value = new Dec(normalised);
-  if (!value.isFinite() || value.isNegative()) return null;
+  const value = toDecimal(normalised);
+  if (value === null || !value.isFinite() || value.isNegative()) return null;
   return value;
 }
