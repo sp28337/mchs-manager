@@ -215,7 +215,7 @@ export function Workspace({ profile, onChange, onForget }: WorkspaceProps) {
           <CalloutSection profile={profile} onChange={onChange} />
         </CollapsiblePanel>
 
-        <CollapsiblePanel
+        {/* <CollapsiblePanel
           title="Что написано в вашем табеле"
           summary={
             discrepancies === null
@@ -226,7 +226,7 @@ export function Workspace({ profile, onChange, onForget }: WorkspaceProps) {
           }
         >
           <ReconcileSection discrepancies={discrepancies} onSubmit={setReportedRaw} />
-        </CollapsiblePanel>
+        </CollapsiblePanel> */}
       </aside>
 
       <div className="min-w-0 space-y-10">

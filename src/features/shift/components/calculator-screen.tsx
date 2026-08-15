@@ -45,7 +45,7 @@ export function CalculatorScreen() {
           <p className="text-sm text-ink-muted">Открываем ваш профиль…</p>
         </main>
       ) : profile ? (
-        <main className="mx-auto w-full 2xl:max-w-[2000px] space-y-10 px-6 pb-12 pt-26 xl:max-w-6xl">
+        <main className="mx-auto w-full 2xl:max-w-[2000px] space-y-10 px-6 pb-12 pt-26">
 
 
           <Workspace profile={profile} onChange={update} onForget={forget} />
