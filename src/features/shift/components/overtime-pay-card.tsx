@@ -1,9 +1,11 @@
 "use client";
 
-import { useId } from "react";
+import { CircleQuestionMark } from "lucide-react";
+import { useId, useState } from "react";
 
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Modal } from "@/components/ui/modal";
 
 import { formatHours as hours } from "../domain/decimal";
 import { formatMoney, type OvertimePay, type OvertimePayEstimate } from "../domain/overtime-pay";
@@ -35,6 +37,19 @@ import type { StoredProfile } from "../storage/profile";
  *    компенсации не дают (п. 104): у сменника такие смены каждый месяц,
  *    и без этой оговорки он ждал бы за них доплату.
  * 4. Это начислено, до НДФЛ.
+ *
+ * --- Почему разбор всё-таки убран в окно --------------------------------
+ *
+ * Карточка переехала в боковую колонку и стоит там постоянно, а не
+ * раскрывается по требованию. Вывод суммы с четырьмя оговорками — это
+ * полтора экрана текста, и в колонке шириной в двадцать знаков он
+ * вытеснил бы всё остальное. Поэтому в колонке остались только те две
+ * вещи, ради которых сюда смотрят: поле оклада и получившаяся сумма.
+ *
+ * Разбор при этом никуда не делся и не стал мельче — он открывается
+ * знаком вопроса рядом с суммой и показывается целиком. Это важнее, чем
+ * кажется: сумма без вывода — слово человека против слова бухгалтерии,
+ * поэтому кнопка стоит вплотную к числу, а не в конце страницы.
  */
 export function OvertimePayCard({
   profile,
@@ -48,10 +63,11 @@ export function OvertimePayCard({
   onChange: (change: (previous: StoredProfile) => StoredProfile) => void;
 }) {
   const fieldId = useId();
+  const [open, setOpen] = useState(false);
   const attested = profile.employmentKind === "attested";
 
   return (
-    <div className="space-y-4 rounded-xl border border-rule bg-paper-raised p-4">
+    <div className="space-y-4">
       <div className="space-y-1.5">
         <Label htmlFor={fieldId}>
           {attested ? "Должностной оклад, ₽ в месяц" : "Зарплата в месяц, ₽"}
@@ -60,14 +76,14 @@ export function OvertimePayCard({
           id={fieldId}
           inputMode="decimal"
           placeholder="—"
-          className="w-40 font-mono"
+          className="w-full font-mono"
           value={profile.monthlyPayBase}
           onChange={(event) => {
             const next = event.target.value;
             onChange((previous) => ({ ...previous, monthlyPayBase: next }));
           }}
         />
-        <p className="max-w-prose text-xs text-ink-muted">
+        <p className="text-xs text-ink-muted">
           {attested ? (
             <>
               Только должностной оклад — оклад по званию и надбавки в часовую
@@ -85,75 +101,113 @@ export function OvertimePayCard({
       </div>
 
       {pay === null ? null : (
-        <div className="space-y-4 border-t border-rule pt-4">
-          <Derivation pay={pay.primary} calculation={calculation} attested={attested} />
+        <>
+          {/* Сумма осталась ровно там, где стояла, — сразу под полем
+              оклада. В окно ушёл только её вывод. */}
+          <div className="flex items-start gap-2 border-t border-rule pt-4">
+            <div className="min-w-0 flex-1 space-y-0.5">
+              <p className="font-mono text-2xl leading-none text-verify">
+                ≈ {formatMoney(pay.primary.total)}
+              </p>
+              <p className="font-display text-xs font-bold uppercase tracking-wide text-ink-muted">
+                За {hours(calculation.overtimeHours)} ч переработки
+              </p>
+            </div>
+            {/* Знак вопроса появляется вместе с суммой: до неё объяснять
+                нечего. Подпись у него полная, потому что «?» экранный
+                диктор произнесёт как «вопросительный знак». */}
+            <button
+              type="button"
+              onClick={() => setOpen(true)}
+              aria-label="Как получилась эта сумма"
+              className="-mr-1 -mt-1 shrink-0 cursor-pointer rounded-full p-1.5 text-ink-muted transition-colors hover:bg-paper-sunken hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-trace"
+            >
+              <CircleQuestionMark className="size-5" />
+            </button>
+          </div>
 
-          {pay.alternative ? (
-            <p className="max-w-prose rounded-sm border-l-2 border-trace bg-trace-soft px-4 py-3 text-sm">
-              Порог полуторного размера при суммированном учёте приказ № 747 не
-              определяет, и практика расходится. Если исходить из того, что в
-              полуторном размере оплачиваются только первые два часа за весь
-              учётный период, а остальное в двойном, выйдет{" "}
-              <span className="font-mono">{formatMoney(pay.alternative.total)}</span> —
-              на{" "}
-              <span className="font-mono">
-                {formatMoney(pay.alternative.total.minus(pay.primary.total))}
-              </span>{" "}
-              больше. Требовать разумно с меньшей суммы, но знать про большую вы
-              вправе.
-            </p>
-          ) : null}
+          <Modal
+            open={open}
+            onClose={() => setOpen(false)}
+            title="Как получилась эта сумма"
+          >
+            <div className="space-y-4">
+              <Derivation
+                pay={pay.primary}
+                calculation={calculation}
+                attested={attested}
+              />
 
-          <ul className="max-w-prose space-y-1.5 text-xs text-ink-muted">
-            <li>
-              Сумма начислена до НДФЛ — на руки придёт меньше на величину
-              налога.
-            </li>
-            {attested ? (
-              <>
-                {/* Самая важная строка на карточке. По отменённому приказу
-                    № 195 деньги шли «по рапорту сотрудника», и человек,
-                    рапорта не подавший, оставался ни с чем. Приказ № 539
-                    развернул условие: компенсация выплачивается, ЕСЛИ отдых
-                    не предоставлен. Рапорт теперь нужен тому, кто хочет
-                    взять отдых ВМЕСТО денег. */}
+              {pay.alternative ? (
+                <p className="rounded-sm border-l-2 border-trace bg-trace-soft px-4 py-3 text-sm">
+                  Порог полуторного размера при суммированном учёте приказ
+                  № 747 не определяет, и практика расходится. Если исходить из
+                  того, что в полуторном размере оплачиваются только первые два
+                  часа за весь учётный период, а остальное в двойном, выйдет{" "}
+                  <span className="font-mono">
+                    {formatMoney(pay.alternative.total)}
+                  </span>{" "}
+                  — на{" "}
+                  <span className="font-mono">
+                    {formatMoney(pay.alternative.total.minus(pay.primary.total))}
+                  </span>{" "}
+                  больше. Требовать разумно с меньшей суммы, но знать про
+                  большую вы вправе.
+                </p>
+              ) : null}
+
+              <ul className="space-y-1.5 text-xs text-ink-muted">
                 <li>
-                  Компенсация выплачивается{" "}
-                  <strong>если вам не предоставили дополнительное время
-                  отдыха или дополнительные дни отпуска</strong> (п. 103
-                  приказа № 539). Рапорт нужен для обратного — чтобы взять
-                  отдых вместо денег; тогда эти часы не оплачиваются (п. 109),
-                  а день отдыха за выходной или праздник оплате не подлежит
-                  (п. 110).
+                  Сумма начислена до НДФЛ — на руки придёт меньше на величину
+                  налога.
                 </li>
+                {attested ? (
+                  <>
+                    {/* Самая важная строка на карточке. По отменённому приказу
+                        № 195 деньги шли «по рапорту сотрудника», и человек,
+                        рапорта не подавший, оставался ни с чем. Приказ № 539
+                        развернул условие: компенсация выплачивается, ЕСЛИ
+                        отдых не предоставлен. Рапорт теперь нужен тому, кто
+                        хочет взять отдых ВМЕСТО денег. */}
+                    <li>
+                      Компенсация выплачивается{" "}
+                      <strong>если вам не предоставили дополнительное время
+                      отдыха или дополнительные дни отпуска</strong> (п. 103
+                      приказа № 539). Рапорт нужен для обратного — чтобы взять
+                      отдых вместо денег; тогда эти часы не оплачиваются
+                      (п. 109), а день отдыха за выходной или праздник оплате
+                      не подлежит (п. 110).
+                    </li>
+                    <li>
+                      Смены, попавшие на субботу и воскресенье{" "}
+                      <strong>по графику сменности</strong>, отдельной денежной
+                      компенсации не дают (п. 104) — они оплачены как обычное
+                      служебное время и входят в часы выше.
+                    </li>
+                    <li>
+                      Компенсация не выплачивается за службу в особых условиях —
+                      при ликвидации ЧС, в зоне контртеррористической операции,
+                      при военном или чрезвычайном положении (п. 111): там она
+                      заменена отдельными выплатами.
+                    </li>
+                  </>
+                ) : (
+                  <li>
+                    Коллективный договор или локальный акт могут установить
+                    размеры выше — расчёт даёт минимум (п. 10(1) приказа
+                    № 747). Порядок исчисления часовой ставки тоже задаёт
+                    локальный акт (п. 8), поэтому сверьтесь со своим.
+                  </li>
+                )}
                 <li>
-                  Смены, попавшие на субботу и воскресенье{" "}
-                  <strong>по графику сменности</strong>, отдельной денежной
-                  компенсации не дают (п. 104) — они оплачены как обычное
-                  служебное время и входят в часы выше.
+                  Ночные и праздничные часы сюда не входят: они оплачиваются
+                  отдельно и ежемесячно. Прибавить их к этой сумме значило бы
+                  посчитать одни и те же часы дважды.
                 </li>
-                <li>
-                  Компенсация не выплачивается за службу в особых условиях —
-                  при ликвидации ЧС, в зоне контртеррористической операции,
-                  при военном или чрезвычайном положении (п. 111): там она
-                  заменена отдельными выплатами.
-                </li>
-              </>
-            ) : (
-              <li>
-                Коллективный договор или локальный акт могут установить размеры
-                выше — расчёт даёт минимум (п. 10(1) приказа № 747). Порядок
-                исчисления часовой ставки тоже задаёт локальный акт (п. 8),
-                поэтому сверьтесь со своим.
-              </li>
-            )}
-            <li>
-              Ночные и праздничные часы сюда не входят: они оплачиваются
-              отдельно и ежемесячно. Прибавить их к этой сумме значило бы
-              посчитать одни и те же часы дважды.
-            </li>
-          </ul>
-        </div>
+              </ul>
+            </div>
+          </Modal>
+        </>
       )}
     </div>
   );

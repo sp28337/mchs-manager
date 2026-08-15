@@ -6,10 +6,10 @@ import { Button } from "@/components/ui/button";
 import { CollapsibleSection } from "@/components/shared/collapsible-section";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select } from "@/components/ui/select";
 import { cn } from "@/lib/utils/cn";
 import { formatHours, parseHours } from "../domain/decimal";
 import { formatDateRu, formatPeriodRu } from "../domain/format";
-import { formatMoney } from "../domain/overtime-pay";
 import { pendingTransfers } from "../domain/production-calendar";
 import { reconcile, type Discrepancy } from "../domain/reconciliation";
 import {
@@ -19,11 +19,7 @@ import {
   overtimePayFor,
   statutoryBounds,
 } from "../model/derive";
-import {
-  ABSENCE_KIND_BASIS,
-  CALLOUT_KIND_BASIS,
-  type AccountingPeriodKind,
-} from "../domain/value-objects";
+import { ABSENCE_KIND_BASIS, CALLOUT_KIND_BASIS } from "../domain/value-objects";
 import type { StoredProfile } from "../storage/profile";
 import {
   ABSENCE_EFFECT,
@@ -34,6 +30,7 @@ import {
 } from "../schemas";
 import { DateField } from "./date-field";
 import { OvertimePayCard } from "./overtime-pay-card";
+import { PeriodPicker, type StatutoryChoice } from "./period-picker";
 import { PeriodSummary } from "./period-summary";
 import { ProfileFooter } from "./profile-footer";
 import { ShiftStrip } from "./shift-strip";
@@ -47,6 +44,19 @@ import { YearCalendarEditor } from "./year-calendar-editor";
  * бы заставить его держать числа в голове, переходя между ними, — ровно в
  * тот момент, когда важна точность.
  *
+ * --- Почему настройки съехали в боковую колонку -------------------------
+ *
+ * Выбор периода, выбор месяца и оклад — это не разделы наравне с графиком
+ * и сверкой, а РУЧКИ, которыми управляют всем остальным. Стоя в общем
+ * потоке сверху, они прокручивались вместе с ним: чтобы посмотреть тот же
+ * график за соседний месяц, приходилось листать двенадцать календарных
+ * сеток вверх, переключать и листать обратно.
+ *
+ * В колонке они закреплены и видны всё время, пока человек листает
+ * содержимое, — то есть ровно тогда, когда ими и хочется воспользоваться.
+ * Ниже `lg` колонки нет: на телефоне она встала бы над содержимым, и это
+ * была бы прежняя раскладка, только уже.
+ *
  * --- Почему нет состояний загрузки --------------------------------------
  *
  * Считать больше нечего ждать: расчёт идёт здесь же, за доли миллисекунды,
@@ -55,17 +65,8 @@ import { YearCalendarEditor } from "./year-calendar-editor";
  * результат — и это самое заметное следствие переноса расчёта в браузер.
  */
 
-const MONTHS = [
-  "январь", "февраль", "март", "апрель", "май", "июнь",
-  "июль", "август", "сентябрь", "октябрь", "ноябрь", "декабрь",
-];
-
 const ABSENCE_KINDS = Object.keys(ABSENCE_LABELS) as AbsenceKind[];
 const CALLOUT_KINDS = Object.keys(CALLOUT_LABELS) as CalloutKind[];
-
-type Selection =
-  | { mode: "month"; index: number }
-  | { mode: "statutory"; kind: AccountingPeriodKind; index: number };
 
 export interface WorkspaceProps {
   profile: StoredProfile;
@@ -80,16 +81,20 @@ export function Workspace({ profile, onChange, onForget }: WorkspaceProps) {
   // переработка (ст. 104 ТК РФ), и открывать экран на месяце значило бы
   // показывать первым то число, которое ничего не решает.
   const widest = periods.at(-1) ?? "year";
-  const [selection, setSelection] = useState<Selection>({
-    mode: "statutory",
+  const [statutory, setStatutory] = useState<StatutoryChoice>({
     kind: widest,
     index: 0,
   });
+  // Месяц хранится отдельно от периода, а не вместо него: это уточнение
+  // поверх выбранного периода, и `null` значит «весь период». Раньше это
+  // было одно поле с двумя режимами, и выбор месяца стирал выбранный
+  // период — вернуться к нему можно было, только вспомнив, какой он был.
+  const [month, setMonth] = useState<number | null>(null);
 
   const { periodStart, periodEnd } =
-    selection.mode === "month"
-      ? monthBounds(profile.accountingYear, selection.index)
-      : statutoryBounds(profile.accountingYear, selection.kind, selection.index);
+    month === null
+      ? statutoryBounds(profile.accountingYear, statutory.kind, statutory.index)
+      : monthBounds(profile.accountingYear, month);
 
   const calculation = useMemo(
     () => calculateFor(profile, periodStart, periodEnd),
@@ -118,75 +123,50 @@ export function Workspace({ profile, onChange, onForget }: WorkspaceProps) {
   }, [calculation, reportedRaw]);
 
   return (
-    <div className="space-y-10">
-      <section aria-labelledby="period" className="space-y-4">
-        <h2
-          id="period"
-          className="font-display text-xs font-bold uppercase tracking-wide text-ink-muted"
-        >
-          Учётный период
-        </h2>
-
-        <div className="flex flex-wrap gap-1">
-          {periods.flatMap((kind) => {
-            const count = kind === "quarter" ? 4 : kind === "half_year" ? 2 : 1;
-            return Array.from({ length: count }, (_, index) => {
-              const active =
-                selection.mode === "statutory" &&
-                selection.kind === kind &&
-                selection.index === index;
-              return (
-                <Button
-                  key={`${kind}-${index}`}
-                  type="button"
-                  size="sm"
-                  variant={active ? "default" : "outline"}
-                  aria-pressed={active}
-                  onClick={() => setSelection({ mode: "statutory", kind, index })}
-                >
-                  {count > 1
-                    ? `${index + 1}-${kind === "quarter" ? "й квартал" : "е полугодие"}`
-                    : `${profile.accountingYear} год`}
-                </Button>
-              );
-            });
-          })}
+    <div className="lg:grid lg:grid-cols-[19rem_minmax(0,1fr)] lg:items-start lg:gap-8 xl:grid-cols-[21rem_minmax(0,1fr)]">
+      {/* Ручки управления. Закреплены и прокручиваются внутри себя: с
+          длинной оговоркой про оклад колонка бывает выше экрана, и без
+          собственной прокрутки её низ стал бы недостижим. */}
+      <aside
+        aria-label="Что показывать"
+        className={cn(
+          "mb-10 space-y-6 lg:mb-0",
+          "lg:sticky lg:top-24 lg:max-h-[calc(100dvh-7rem)] lg:overflow-y-auto lg:pb-6 lg:pr-1",
+        )}
+      >
+        <div className="space-y-5 rounded-xl border border-rule bg-paper-raised p-4">
+          <PeriodPicker
+            accountingYear={profile.accountingYear}
+            employmentKind={profile.employmentKind}
+            periods={periods}
+            statutory={statutory}
+            month={month}
+            onStatutory={(choice) => {
+              setStatutory(choice);
+              // Месяц сбрасывается вместе с периодом: он выбирался из
+              // месяцев прежнего периода и в новый может не входить.
+              setMonth(null);
+            }}
+            onMonth={setMonth}
+          />
         </div>
 
-        <p className="max-w-prose text-xs text-ink-muted">
-          {profile.employmentKind === "attested"
-            ? "Приказ МЧС России от 24.04.2026 № 308 п. 2: учётный период сотрудника при сменной работе — полугодие или год. Переработка определяется по его итогу."
-            : "Приказ МЧС России от 24.04.2026 № 307 п. 7: учётный период работника при сменной работе — три месяца, полугодие или год. Какой именно — устанавливают правила внутреннего трудового распорядка."}
-        </p>
-
-        <div className="space-y-2 border-t border-rule pt-3">
-          <h3 className="font-display text-xs font-bold uppercase tracking-wide text-ink-muted">
-            Помесячно
-          </h3>
-          <div className="flex flex-wrap gap-1">
-            {MONTHS.map((name, index) => {
-              const active = selection.mode === "month" && selection.index === index;
-              return (
-                <Button
-                  key={name}
-                  type="button"
-                  size="sm"
-                  variant={active ? "default" : "outline"}
-                  aria-pressed={active}
-                  onClick={() => setSelection({ mode: "month", index })}
-                >
-                  {name}
-                </Button>
-              );
-            })}
-          </div>
-          <p className="max-w-prose text-xs text-ink-muted">
-            Месяц учётным периодом не является — переработку по нему не считают.
-            Он нужен, чтобы найти, в каком именно месяце разошлось.
-          </p>
+        {/* Деньги — тоже ручка: сумма меняется от одного введённого числа
+            и от выбранного выше периода. */}
+        <div className="space-y-4 rounded-xl border border-rule bg-paper-raised p-4">
+          <h2 className="font-display text-xs font-bold uppercase tracking-wide text-ink-muted">
+            Сколько это в деньгах
+          </h2>
+          <OvertimePayCard
+            profile={profile}
+            calculation={calculation}
+            pay={pay}
+            onChange={onChange}
+          />
         </div>
-      </section>
+      </aside>
 
+      <div className="min-w-0 space-y-10">
       <section aria-labelledby="summary" className="space-y-4">
         <h2 id="summary" className="text-xl">
           Как должно быть{" "}
@@ -203,25 +183,6 @@ export function Workspace({ profile, onChange, onForget }: WorkspaceProps) {
           payTotal={pay?.primary.total ?? null}
         />
       </section>
-
-      {/* Деньги — отдельным разделом и свёрнутым: сумма нужна не всем и не
-          сразу, а поле оклада в основной сводке смотрелось бы как
-          обязательное к заполнению. */}
-      <CollapsibleSection
-        title="Сколько это в деньгах"
-        summary={
-          pay
-            ? `${formatMoney(pay.primary.total)} за ${formatHours(calculation.overtimeHours)} ч`
-            : "укажите оклад — посчитаем по приказу"
-        }
-      >
-        <OvertimePayCard
-          profile={profile}
-          calculation={calculation}
-          pay={pay}
-          onChange={onChange}
-        />
-      </CollapsibleSection>
 
       {/* Разделы сворачиваются, и открыт по умолчанию только график: за
           ним приходят чаще всего. Иначе экран — пять экранов подряд, и до
@@ -284,7 +245,8 @@ export function Workspace({ profile, onChange, onForget }: WorkspaceProps) {
         <ReconcileSection discrepancies={discrepancies} onSubmit={setReportedRaw} />
       </CollapsibleSection>
 
-      <ProfileFooter profile={profile} onForget={onForget} />
+        <ProfileFooter profile={profile} onForget={onForget} />
+      </div>
     </div>
   );
 }
@@ -358,18 +320,18 @@ function AbsenceSection({
       >
         <div className="space-y-1.5">
           <Label htmlFor={kindId}>Причина</Label>
-          <select
+          <Select
             id={kindId}
             value={kind}
             onChange={(event) => setKind(event.target.value as AbsenceKind)}
-            className="block h-9 w-56 rounded-sm border border-rule-strong bg-paper px-2 text-sm"
+            className="w-56"
           >
             {ABSENCE_KINDS.map((option) => (
               <option key={option} value={option}>
                 {ABSENCE_LABELS[option]}
               </option>
             ))}
-          </select>
+          </Select>
           {/* Отгул работает не так, как остальные виды, и человек обязан
               это увидеть до того, как внесёт период. */}
           <p className="max-w-56 text-xs text-ink-muted" aria-live="polite">
@@ -516,18 +478,18 @@ function CalloutSection({
       >
         <div className="space-y-1.5">
           <Label htmlFor={kindId}>Куда вызывали</Label>
-          <select
+          <Select
             id={kindId}
             value={kind}
             onChange={(event) => setKind(event.target.value as CalloutKind)}
-            className="block h-9 w-56 rounded-xs border border-rule-strong bg-paper px-2 text-sm"
+            className="w-56"
           >
             {CALLOUT_KINDS.map((option) => (
               <option key={option} value={option}>
                 {CALLOUT_LABELS[option]}
               </option>
             ))}
-          </select>
+          </Select>
         </div>
         <DateField label="С" name="startsOn" required />
         <DateField
