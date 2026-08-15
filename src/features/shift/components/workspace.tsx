@@ -451,24 +451,27 @@ export function Workspace({ profile, onChange, onForget }: WorkspaceProps) {
           Заголовок и подпись следуют за переключателем: раздел называет
           то, что в нём сейчас показано, а не оба варианта сразу. */}
       <CollapsibleSection
-        title={
-          yearView === "shifts"
-            ? "Ваш график"
-            : `Производственный календарь ${profile.accountingYear} года`
-        }
+        title="Календарь"
+        // {
+        //   yearView === "shifts"
+        //     ? "Ваш график"
+        //     : `Производственный календарь`
+        // }
+
         // Только у календаря: у графика такого абзаца не было, и пустой
         // знак вопроса рядом с заголовком обещал бы объяснение, которого
         // нет.
         hint={yearView === "calendar" ? <CalendarNote profile={profile} /> : undefined}
-        summary={
-          yearView === "shifts"
-            ? `смен за период: ${calculation.scheduledShifts}`
-            : Object.keys(profile.calendarOverrides).length > 0
-              ? `ваших правок: ${Object.keys(profile.calendarOverrides).length}`
-              : pendingTransfers(profile.accountingYear).length > 0
-                ? "переносы выходных не размечены"
-                : "праздники и переносы размечены"
-        }
+        summary=""
+        // {
+        //   yearView === "shifts"
+        //     ? `смен за период: ${calculation.scheduledShifts}`
+        //     : Object.keys(profile.calendarOverrides).length > 0
+        //       ? `ваших правок: ${Object.keys(profile.calendarOverrides).length}`
+        //       : pendingTransfers(profile.accountingYear).length > 0
+        //         ? "переносы выходных не размечены"
+        //         : "праздники и переносы размечены"
+        // }
         defaultOpen
       >
         <YearView

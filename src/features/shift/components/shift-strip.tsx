@@ -189,9 +189,9 @@ export function ShiftStrip({
                 {MONTH_NAMES[group.month]}
                 {/* Год подписывается только там, где он меняется:
                     повторять его у каждого месяца — шум. */}
-                {index === 0 || group.year !== groups[index - 1]?.year ? (
+                {/* {index === 0 || group.year !== groups[index - 1]?.year ? (
                   <span className="text-ink-muted"> {group.year}</span>
-                ) : null}
+                ) : null} */}
               </>
             }
             meta={

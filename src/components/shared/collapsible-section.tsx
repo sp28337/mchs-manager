@@ -56,7 +56,7 @@ export function CollapsibleSection({
         <span aria-hidden className="font-mono text-ink-faint transition-transform group-open:rotate-90">
           ›
         </span>
-        <h2 className="text-xl">{title}</h2>
+        <h2 className="text-xl flex items-center">{title}</h2>
         {hint ? <Hint>{hint}</Hint> : null}
         {summary ? <span className="text-sm text-ink-muted">{summary}</span> : null}
       </summary>
