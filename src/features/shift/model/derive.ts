@@ -25,20 +25,76 @@ import type { IsoDate } from "../domain/plain-date";
 import {
   ACCOUNTING_PERIODS,
   deriveWeeklyNorm,
+  weeklyNormGroundApplies,
+  weeklyNormGroundOf,
+  weeklyNormGroundToFacts,
   type AccountingPeriodKind,
   type GuardNumber,
   type WeeklyNorm,
+  type WeeklyNormGround,
+  type WeeklyNormInput,
 } from "../domain/value-objects";
 import { overridesOf, type StoredProfile } from "../storage/profile";
 
-export function weeklyNormOf(profile: StoredProfile): WeeklyNorm {
-  return deriveWeeklyNorm({
+/**
+ * Профиль на языке домена.
+ *
+ * Хранилище называет поля своими именами (`employmentKind`,
+ * `workingConditions`), домен — своими. Перевод собран здесь один раз,
+ * потому что нужен уже трижды: для нормы, для её основания и для проверки,
+ * какие основания человеку вообще доступны.
+ */
+export function weeklyNormInputOf(profile: StoredProfile): WeeklyNormInput {
+  return {
     employment: profile.employmentKind,
     gender: profile.gender,
     conditions: profile.workingConditions,
     northernLocality: profile.northernLocality,
     disabilityGroupIorII: profile.disabilityGroupIorII,
-  });
+  };
+}
+
+export function weeklyNormOf(profile: StoredProfile): WeeklyNorm {
+  return deriveWeeklyNorm(weeklyNormInputOf(profile));
+}
+
+/**
+ * Выбранное основание — признаками профиля.
+ *
+ * Возвращаемый тип назван через `Pick`, а не описан вручную, и это важно:
+ * домен зовёт поле `conditions`, хранилище — `workingConditions`. Первая
+ * версия раскладывала основание прямо в доменных именах и подмешивала
+ * результат в профиль через `...`, отчего в профиль попадал посторонний
+ * ключ `conditions`, а настоящий оставался прежним: человек выбирал «36
+ * часов — вредные условия» и получал 40. Проверка лишних полей на
+ * расширении объекта не срабатывает, поэтому поймать это может только
+ * тип, названный явно.
+ */
+export function weeklyNormGroundFacts(
+  ground: WeeklyNormGround,
+): Pick<
+  StoredProfile,
+  "workingConditions" | "northernLocality" | "disabilityGroupIorII"
+> {
+  const facts = weeklyNormGroundToFacts(ground);
+  return {
+    workingConditions: facts.conditions,
+    northernLocality: facts.northernLocality,
+    disabilityGroupIorII: facts.disabilityGroupIorII,
+  };
+}
+
+/** Какое основание действует сейчас. */
+export function weeklyNormGroundOfProfile(profile: StoredProfile): WeeklyNormGround {
+  return weeklyNormGroundOf(weeklyNormInputOf(profile));
+}
+
+/** Доступно ли основание этому человеку. */
+export function weeklyNormGroundAvailable(
+  ground: WeeklyNormGround,
+  profile: StoredProfile,
+): boolean {
+  return weeklyNormGroundApplies(ground, weeklyNormInputOf(profile));
 }
 
 /**

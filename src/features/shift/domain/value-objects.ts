@@ -242,6 +242,84 @@ export function deriveWeeklyNorm({
   };
 }
 
+// -------------------------------------------- основание недельной нормы
+
+/**
+ * Основание сокращённой недели — то, ЧЕМ норма вызвана.
+ *
+ * --- Зачем оно понадобилось ----------------------------------------------
+ *
+ * В настройках норма выбирается напрямую: 40, 36 или 35 часов. Но само по
+ * себе число в этом приложении ничего не стоит — весь смысл в том, чтобы
+ * человек мог возразить работодателю, а «36 часов» без ссылки на норму
+ * это мнение. Значит, выбирая число, человек обязан выбирать вместе с ним
+ * и основание.
+ *
+ * Оснований на 36 часов ровно два, и они разные по существу: вредные
+ * условия по спецоценке и работа на Севере. Свести их в один пункт «36»
+ * значило бы подставить в довод не ту статью — ту самую ошибку, из-за
+ * которой довод в кабинете и рассыпается.
+ *
+ * --- Почему список здесь, а не в разметке --------------------------------
+ *
+ * Он обязан совпадать с `deriveWeeklyNorm` по порядку и по составу: если
+ * они разойдутся, человек увидит в настройках «36 часов», а в расчёте
+ * получит 40. Оба живут в одном файле и покрыты общим тестом.
+ */
+export type WeeklyNormGround = "base" | "harmful" | "northern" | "disability";
+
+export const WEEKLY_NORM_GROUND_LABELS: Record<WeeklyNormGround, string> = {
+  base: "40 часов — общая норма",
+  harmful: "36 часов — вредные (3-4 степень) или опасные условия",
+  northern: "36 часов — Крайний Север и приравненные местности",
+  disability: "35 часов — инвалидность I или II группы",
+};
+
+/**
+ * Кому какое основание вообще доступно.
+ *
+ * Северное сокращение оба приказа (№ 308 п. 1, № 307 п. 4) дают женщинам;
+ * инвалидность I-II группы даёт 35 часов только работнику (№ 307 п. 5) —
+ * службу в ФПС ГПС инвалид I или II группы не проходит. Предлагать
+ * недоступное основание значило бы дать выбрать норму, которой человек не
+ * получит.
+ */
+export function weeklyNormGroundApplies(
+  ground: WeeklyNormGround,
+  who: { employment: EmploymentKind; gender: Gender },
+): boolean {
+  if (ground === "northern") return who.gender === "female";
+  if (ground === "disability") return who.employment === "civilian";
+  return true;
+}
+
+/** Признаки, которые задаёт выбранное основание. */
+export function weeklyNormGroundToFacts(ground: WeeklyNormGround): {
+  conditions: WorkingConditions;
+  northernLocality: boolean;
+  disabilityGroupIorII: boolean;
+} {
+  return {
+    conditions: ground === "harmful" ? "harmful_or_dangerous" : "normal",
+    northernLocality: ground === "northern",
+    disabilityGroupIorII: ground === "disability",
+  };
+}
+
+/**
+ * Обратное чтение: какое основание сейчас действует.
+ *
+ * Порядок проверок ТОТ ЖЕ, что в `deriveWeeklyNorm`, и это не совпадение,
+ * а требование: иначе у человека с инвалидностью во вредных условиях
+ * настройки показали бы «36», а расчёт взял бы 35.
+ */
+export function weeklyNormGroundOf(input: WeeklyNormInput): WeeklyNormGround {
+  if (input.disabilityGroupIorII && input.employment === "civilian") return "disability";
+  if (input.conditions === "harmful_or_dangerous") return "harmful";
+  if (input.gender === "female" && input.northernLocality) return "northern";
+  return "base";
+}
+
 // ------------------------------------------------------------- дежурство
 
 /** Сутки через трое: заступил — и через четверо суток снова. */

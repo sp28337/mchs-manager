@@ -7,6 +7,7 @@ import {
   ClipboardCheck,
   PanelLeftClose,
   PanelLeftOpen,
+  Settings2,
   Siren,
   type LucideIcon,
 } from "lucide-react";
@@ -32,6 +33,7 @@ import {
   monthBounds,
   overtimePayFor,
   statutoryBounds,
+  weeklyNormOf,
 } from "../model/derive";
 import { ABSENCE_KIND_BASIS, CALLOUT_KIND_BASIS } from "../domain/value-objects";
 import type { StoredProfile } from "../storage/profile";
@@ -47,6 +49,7 @@ import { OvertimePayCard } from "./overtime-pay-card";
 import { PeriodPicker, type StatutoryChoice } from "./period-picker";
 import { PeriodSummary } from "./period-summary";
 import { ProfileFooter } from "./profile-footer";
+import { SettingsPanel } from "./settings-panel";
 import { CalendarNote } from "./year-calendar-editor";
 import { YearView, type YearViewKind } from "./year-view";
 
@@ -123,7 +126,13 @@ const CALLOUT_KINDS = Object.keys(CALLOUT_LABELS) as CalloutKind[];
  * купюра у денег, календарь с минусом у отсутствий (они вычитаются из
  * нормы), сирена у вызовов, планшет с галочкой у сверки.
  */
-type PanelId = "period" | "pay" | "absences" | "callouts" | "reconcile";
+type PanelId =
+  | "period"
+  | "pay"
+  | "absences"
+  | "callouts"
+  | "reconcile"
+  | "settings";
 
 const PANEL_META: Record<PanelId, { title: string; Icon: LucideIcon }> = {
   period: { title: "Период", Icon: CalendarRange },
@@ -131,6 +140,7 @@ const PANEL_META: Record<PanelId, { title: string; Icon: LucideIcon }> = {
   absences: { title: "Отпуска и больничные", Icon: CalendarMinus2 },
   callouts: { title: "Вызовы помимо графика", Icon: Siren },
   reconcile: { title: "Что написано в вашем табеле", Icon: ClipboardCheck },
+  settings: { title: "Настройки", Icon: Settings2 },
 };
 
 /**
@@ -141,7 +151,15 @@ const PANEL_META: Record<PanelId, { title: string; Icon: LucideIcon }> = {
  * развернуло бы колонку и не открыло ничего. Сейчас снаружи оставлена
  * сверка — она выключена в разметке ниже.
  */
-const PANEL_ORDER: readonly PanelId[] = ["period", "pay", "absences", "callouts"];
+const PANEL_ORDER: readonly PanelId[] = [
+  "period",
+  "pay",
+  "absences",
+  "callouts",
+  // Настройки последними: их задают однажды и почти не трогают, а
+  // остальные блоки открывают при каждом разборе.
+  "settings",
+];
 
 /** Опознаватель блока в разметке: по нему в блок уводится фокус. */
 const panelDomId = (id: PanelId) => `aside-panel-${id}`;
@@ -211,6 +229,7 @@ export function Workspace({ profile, onChange, onForget }: WorkspaceProps) {
     absences: false,
     callouts: false,
     reconcile: false,
+    settings: false,
   });
 
   // Куда увести фокус после разворота колонки из полоски. Само по себе
@@ -419,6 +438,24 @@ export function Workspace({ profile, onChange, onForget }: WorkspaceProps) {
         </CollapsiblePanel>
 
         */}
+
+        {/* Ответы анкеты. Стоят последними и закрыты: их задают однажды,
+            а открывают тогда, когда график на экране разошёлся с тем, что
+            висит в части, — то есть когда ошиблись здесь. */}
+        <CollapsiblePanel
+          {...panelProps("settings")}
+          hint={
+            <>
+              Те же вопросы, что в анкете при первом заходе. Любой ответ
+              меняется прямо здесь, и расчёт справа пересчитывается сразу —
+              заводить профиль заново, чтобы исправить караул, больше не
+              нужно.
+            </>
+          }
+          summary={`${weeklyNormOf(profile).hours.toFixed(0)} ч в неделю · ${profile.guardNumber}-й караул · ${profile.accountingYear}`}
+        >
+          <SettingsPanel profile={profile} onChange={onChange} />
+        </CollapsiblePanel>
         </div>
       </aside>
 
