@@ -167,6 +167,9 @@ export function Workspace({ profile, onChange, onForget }: WorkspaceProps) {
       </aside>
 
       <div className="min-w-0 space-y-10">
+      <header className="space-y-1">
+        <h1 className="text-3xl leading-tight">{profile.displayName}</h1>
+      </header>
       <section aria-labelledby="summary" className="space-y-4">
         <h2 id="summary" className="text-xl">
           Как должно быть{" "}

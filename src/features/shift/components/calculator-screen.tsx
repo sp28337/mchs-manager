@@ -45,13 +45,8 @@ export function CalculatorScreen() {
           <p className="text-sm text-ink-muted">Открываем ваш профиль…</p>
         </main>
       ) : profile ? (
-        <main className="mx-auto w-full max-w-4xl space-y-10 px-6 pb-12 pt-26 xl:max-w-6xl 2xl:max-w-7xl">
-          <header className="space-y-1">
-            <p className="font-mono text-xs uppercase tracking-widest text-ink-faint">
-              {profile.accountingYear} год · {profile.guardNumber}-й караул
-            </p>
-            <h1 className="text-3xl leading-tight">{profile.displayName}</h1>
-          </header>
+        <main className="mx-auto w-full 2xl:max-w-[2000px] space-y-10 px-6 pb-12 pt-26 xl:max-w-6xl">
+
 
           <Workspace profile={profile} onChange={update} onForget={forget} />
         </main>
