@@ -16,12 +16,17 @@ import { cn } from "@/lib/utils/cn";
  * вмешательством: отзыв из отпуска, сторно движения, переоткрытие
  * утверждённого табеля.
  *
- * Основное действие — `default`: чернила на бумаге. Спокойное, но
- * единственное залитое пятно в форме, и потому заметное.
+ * Основное действие — `default`: чернила на бумаге. На тёмной теме это
+ * светлая пилюля с тёмным текстом — самое контрастное пятно на экране, и
+ * потому единственное, что читается как «нажми сюда».
+ *
+ * Скругление полное. Панели скруглены на 18 px, поля на 6, кнопки — до
+ * конца: так три уровня элементов различаются формой, а не только
+ * размером.
  */
 const buttonVariants = cva(
   cn(
-    "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-sm",
+    "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-full",
     "text-sm font-medium transition-colors",
     "disabled:pointer-events-none disabled:opacity-50",
     "[&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
@@ -29,9 +34,9 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        default: "bg-ink text-paper hover:bg-ink/85",
+        default: "bg-ink text-paper-raised hover:opacity-90",
         outline:
-          "border border-rule-strong bg-transparent text-ink hover:bg-paper-sunken",
+          "border border-rule bg-paper/50 text-ink hover:border-rule-strong hover:bg-paper",
         ghost: "text-ink-muted hover:bg-paper-sunken hover:text-ink",
         signal: "bg-signal text-white hover:bg-signal/85",
         link: "text-trace underline-offset-4 hover:underline",

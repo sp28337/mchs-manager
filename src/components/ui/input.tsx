@@ -11,12 +11,13 @@ export function Input({
     <input
       type={type}
       className={cn(
-        "flex h-9 w-full rounded-sm border border-rule-strong bg-paper-raised px-3 py-1",
+        "flex h-9 w-full rounded-md border border-rule bg-paper px-3 py-1",
         "text-sm text-ink placeholder:text-ink-faint",
         "disabled:cursor-not-allowed disabled:opacity-50",
         // `aria-invalid` вместо собственного пропа `error`: состояние поля
         // обязано быть объявлено средствам доступности, а не только
         // покрашено (WCAG 2.2, 3.3.1 Error Identification).
+        "transition-colors focus:border-verify/60",
         "aria-invalid:border-signal",
         className,
       )}
