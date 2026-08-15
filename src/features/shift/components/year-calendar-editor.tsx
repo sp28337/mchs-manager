@@ -125,27 +125,45 @@ export function YearCalendarEditor({
 
   return (
     <section aria-labelledby="calendar" className="space-y-4">
-      <p className="max-w-prose text-sm text-ink-muted">
-        Праздники по ст. 112 ТК РФ и предпраздничные дни по ст. 95 размечены
-        автоматически.{" "}
-        {pending.length > 0 ? (
-          <>
-            Переносы выходных устанавливает Правительство отдельным
-            постановлением на каждый год, и на {year} год приложение его ещё не
-            знает.
-          </>
-        ) : (
-          <>
-            Перенос выходных дней на {year} год внесён по постановлению
-            Правительства — календарь должен совпасть с выданным вам.
-          </>
-        )}{" "}
-        Если ваш производственный календарь всё-таки отличается, поправьте
-        здесь: ошибка в одном дне — это 8 часов нормы.
-      </p>
+      {/* Сетка идёт ПЕРВОЙ и ничего над собой не имеет — в этом весь
+          смысл. Календарь показывается на месте графика по нажатию
+          кнопки, и всё, что стояло бы выше сетки, сдвигало бы её вниз:
+          человек, смотревший на мартовскую клетку, после переключения
+          искал бы её заново. Пояснение ушло под знак вопроса у заголовка,
+          инструменты правки — под сетку. */}
+      <div
+        className={
+          gridClassName ??
+          "grid grid-cols-1 gap-x-6 gap-y-5 sm:grid-cols-2 lg:grid-cols-3"
+        }
+      >
+        {MONTH_NAMES.map((name, month) => {
+          const items = byMonth.get(month) ?? [];
+          const edited = items.filter((item) => item.source === "override").length;
+          const byDay = new Map(items.map((item) => [item.day, item]));
+          return (
+            <MonthGrid
+              key={name}
+              title={name}
+              meta={edited > 0 ? <span className="text-ink">правок: {edited}</span> : null}
+              days={items.map((item) => item.day)}
+              renderDay={(day) => {
+                const item = byDay.get(day);
+                return item ? (
+                  <DayButton item={item} onPaint={() => paint(day, day, brush)} />
+                ) : null;
+              }}
+            />
+          );
+        })}
+      </div>
 
       {pending.length > 0 ? <PendingNotice pending={pending} /> : null}
 
+      {/* Инструменты правки — под сеткой, а не над ней. Так они не
+          сдвигают её при переключении с графика, и порядок совпадает с
+          порядком действий: сперва человек нашёл в сетке день, из-за
+          которого пришёл, и только потом выбирает, чем его пометить. */}
       <div className="space-y-4 rounded-sm border border-rule bg-paper-raised p-4">
         <fieldset className="space-y-2">
           <legend className="font-display text-xs font-bold uppercase tracking-wide text-ink-muted">
@@ -166,7 +184,7 @@ export function YearCalendarEditor({
             ))}
           </div>
           <p className="max-w-prose text-xs text-ink-muted" aria-live="polite">
-            {DAY_TYPE_EFFECT[brush]}. Щёлкните по числу в календаре ниже.
+            {DAY_TYPE_EFFECT[brush]}. Щёлкните по числу в календаре выше.
           </p>
         </fieldset>
 
@@ -206,33 +224,6 @@ export function YearCalendarEditor({
             щелчком.
           </p>
         </form>
-      </div>
-
-      <div
-        className={
-          gridClassName ??
-          "grid grid-cols-1 gap-x-6 gap-y-5 sm:grid-cols-2 lg:grid-cols-3"
-        }
-      >
-        {MONTH_NAMES.map((name, month) => {
-          const items = byMonth.get(month) ?? [];
-          const edited = items.filter((item) => item.source === "override").length;
-          const byDay = new Map(items.map((item) => [item.day, item]));
-          return (
-            <MonthGrid
-              key={name}
-              title={name}
-              meta={edited > 0 ? <span className="text-ink">правок: {edited}</span> : null}
-              days={items.map((item) => item.day)}
-              renderDay={(day) => {
-                const item = byDay.get(day);
-                return item ? (
-                  <DayButton item={item} onPaint={() => paint(day, day, brush)} />
-                ) : null;
-              }}
-            />
-          );
-        })}
       </div>
 
       <dl className="flex flex-wrap gap-x-6 gap-y-2 text-xs">
@@ -277,6 +268,41 @@ export function YearCalendarEditor({
         ) : null}
       </div>
     </section>
+  );
+}
+
+/**
+ * Пояснение к календарю — то, что раньше стояло абзацем над сеткой.
+ *
+ * Живёт здесь, а не там, где показывается: текст говорит о том, что и
+ * откуда в этой сетке размечено, и разойтись с самой сеткой ему нельзя.
+ * Показывается он знаком вопроса у заголовка раздела — над сеткой места
+ * нет, там она сама.
+ */
+export function CalendarNote({ profile }: { profile: StoredProfile }) {
+  const year = profile.accountingYear;
+  const pending = pendingTransfers(year).filter(
+    (day) => profile.calendarOverrides[day] === undefined,
+  );
+
+  return (
+    <>
+      Праздники по ст. 112 ТК РФ и предпраздничные дни по ст. 95 размечены
+      автоматически.{" "}
+      {pending.length > 0 ? (
+        <>
+          Переносы выходных устанавливает Правительство отдельным постановлением
+          на каждый год, и на {year} год приложение его ещё не знает.
+        </>
+      ) : (
+        <>
+          Перенос выходных дней на {year} год внесён по постановлению
+          Правительства — календарь должен совпасть с выданным вам.
+        </>
+      )}{" "}
+      Если ваш производственный календарь всё-таки отличается, поправьте здесь:
+      ошибка в одном дне — это 8 часов нормы. Инструменты правки — под сеткой.
+    </>
   );
 }
 

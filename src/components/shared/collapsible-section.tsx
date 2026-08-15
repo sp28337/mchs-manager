@@ -22,12 +22,22 @@ import { cn } from "@/lib/utils/cn";
  */
 export function CollapsibleSection({
   title,
+  hint,
   summary,
   children,
   defaultOpen = false,
   className,
 }: {
   title: ReactNode;
+  /**
+   * Знак вопроса сразу после заголовка.
+   *
+   * Для того, что раньше стояло абзацем над содержимым раздела и
+   * отодвигало его вниз. У сетки года это не мелочь: она показывается на
+   * месте другой сетки по нажатию кнопки, и абзац над ней сдвигал бы её
+   * при каждом переключении.
+   */
+  hint?: ReactNode;
   /** Короткая подпись справа: что внутри, не открывая. */
   summary?: ReactNode;
   children: ReactNode;
@@ -47,6 +57,7 @@ export function CollapsibleSection({
           ›
         </span>
         <h2 className="text-xl">{title}</h2>
+        {hint ? <Hint>{hint}</Hint> : null}
         {summary ? <span className="text-sm text-ink-muted">{summary}</span> : null}
       </summary>
       <div className="pt-4">{children}</div>

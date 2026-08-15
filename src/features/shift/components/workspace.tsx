@@ -47,6 +47,7 @@ import { OvertimePayCard } from "./overtime-pay-card";
 import { PeriodPicker, type StatutoryChoice } from "./period-picker";
 import { PeriodSummary } from "./period-summary";
 import { ProfileFooter } from "./profile-footer";
+import { CalendarNote } from "./year-calendar-editor";
 import { YearView, type YearViewKind } from "./year-view";
 
 /**
@@ -455,6 +456,10 @@ export function Workspace({ profile, onChange, onForget }: WorkspaceProps) {
             ? "Ваш график"
             : `Производственный календарь ${profile.accountingYear} года`
         }
+        // Только у календаря: у графика такого абзаца не было, и пустой
+        // знак вопроса рядом с заголовком обещал бы объяснение, которого
+        // нет.
+        hint={yearView === "calendar" ? <CalendarNote profile={profile} /> : undefined}
         summary={
           yearView === "shifts"
             ? `смен за период: ${calculation.scheduledShifts}`
