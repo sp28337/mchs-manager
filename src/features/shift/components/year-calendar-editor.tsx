@@ -148,7 +148,7 @@ export function YearCalendarEditor({ profile, onChange }: YearCalendarEditorProp
 
       {pending.length > 0 ? <PendingNotice pending={pending} /> : null}
 
-      <div className="space-y-4 rounded-sm border border-rule bg-paper-raised p-4">
+      <div className="space-y-4 rounded-xl border border-rule bg-paper/70 p-4">
         <fieldset className="space-y-2">
           <legend className="font-display text-xs font-bold uppercase tracking-wide text-ink-muted">
             Чем помечать
@@ -327,7 +327,7 @@ function DayButton({ item, onPaint }: { item: CalendarDay; onPaint: () => void }
  */
 function PendingNotice({ pending }: { pending: readonly IsoDate[] }) {
   return (
-    <p className="max-w-prose rounded-sm border-l-2 border-signal bg-signal-soft px-4 py-3 text-sm">
+    <p className="max-w-prose rounded-xl border border-signal/30 bg-signal-soft px-4 py-3 text-sm">
       В новогодние каникулы попали выходные ({pending.map(formatDateRu).join(", ")}),
       которые постановление Правительства переносит на другие даты. Какие это
       даты, приложение не знает — из закона они не выводятся. Пока перенос не

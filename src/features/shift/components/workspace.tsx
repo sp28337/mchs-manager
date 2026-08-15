@@ -3,7 +3,13 @@
 import { useId, useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
-import { CollapsibleSection } from "@/components/shared/collapsible-section";
+import {
+  Panel,
+  PanelGrid,
+  Pill,
+  Segmented,
+  SegmentedItem,
+} from "@/components/shared/panel";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils/cn";
@@ -118,174 +124,182 @@ export function Workspace({ profile, onChange, onForget }: WorkspaceProps) {
   }, [calculation, reportedRaw]);
 
   return (
-    <div className="space-y-10">
-      <section aria-labelledby="period" className="space-y-4">
-        <h2
-          id="period"
-          className="font-display text-xs font-bold uppercase tracking-wide text-ink-muted"
-        >
-          Учётный период
-        </h2>
-
-        <div className="flex flex-wrap gap-1">
-          {periods.flatMap((kind) => {
-            const count = kind === "quarter" ? 4 : kind === "half_year" ? 2 : 1;
-            return Array.from({ length: count }, (_, index) => {
-              const active =
-                selection.mode === "statutory" &&
-                selection.kind === kind &&
-                selection.index === index;
-              return (
-                <Button
+    <PanelGrid dense>
+      {/* Полоса управления периодом — первой и во всю ширину: она задаёт
+          числа во всех остальных панелях. Высота минимальная, это
+          управление, а не раздел. */}
+      <Panel span={12} dense bodyClassName="py-3.5">
+        <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
+          <Segmented>
+            {periods.flatMap((kind) => {
+              const count = kind === "quarter" ? 4 : kind === "half_year" ? 2 : 1;
+              return Array.from({ length: count }, (_, index) => (
+                <SegmentedItem
                   key={`${kind}-${index}`}
-                  type="button"
-                  size="sm"
-                  variant={active ? "default" : "outline"}
-                  aria-pressed={active}
+                  active={
+                    selection.mode === "statutory" &&
+                    selection.kind === kind &&
+                    selection.index === index
+                  }
                   onClick={() => setSelection({ mode: "statutory", kind, index })}
                 >
                   {count > 1
-                    ? `${index + 1}-${kind === "quarter" ? "й квартал" : "е полугодие"}`
-                    : `${profile.accountingYear} год`}
-                </Button>
-              );
-            });
-          })}
-        </div>
-
-        <p className="max-w-prose text-xs text-ink-muted">
-          {profile.employmentKind === "attested"
-            ? "Приказ МЧС России от 24.04.2026 № 308 п. 2: учётный период сотрудника при сменной работе — полугодие или год. Переработка определяется по его итогу."
-            : "Приказ МЧС России от 24.04.2026 № 307 п. 7: учётный период работника при сменной работе — три месяца, полугодие или год. Какой именно — устанавливают правила внутреннего трудового распорядка."}
-        </p>
-
-        <div className="space-y-2 border-t border-rule pt-3">
-          <h3 className="font-display text-xs font-bold uppercase tracking-wide text-ink-muted">
-            Помесячно
-          </h3>
-          <div className="flex flex-wrap gap-1">
-            {MONTHS.map((name, index) => {
-              const active = selection.mode === "month" && selection.index === index;
-              return (
-                <Button
-                  key={name}
-                  type="button"
-                  size="sm"
-                  variant={active ? "default" : "outline"}
-                  aria-pressed={active}
-                  onClick={() => setSelection({ mode: "month", index })}
-                >
-                  {name}
-                </Button>
-              );
+                    ? `${index + 1}-${kind === "quarter" ? "й кв." : "е полуг."}`
+                    : `${profile.accountingYear}`}
+                </SegmentedItem>
+              ));
             })}
-          </div>
-          <p className="max-w-prose text-xs text-ink-muted">
-            Месяц учётным периодом не является — переработку по нему не считают.
-            Он нужен, чтобы найти, в каком именно месяце разошлось.
-          </p>
-        </div>
-      </section>
+          </Segmented>
 
-      <section aria-labelledby="summary" className="space-y-4">
-        <h2 id="summary" className="text-xl">
-          Как должно быть{" "}
-          {/* Период назван словами рядом с числами. Кнопка «1-е полугодие»
-              выше уже нажата, но в споре важно, какие именно даты стоят за
-              нормой, а не как называется период. */}
-          <span className="text-ink-muted">
-            за {formatPeriodRu(periodStart, periodEnd)}
-          </span>
-        </h2>
+          {/* На телефоне двенадцать клеток в строку не помещаются, полоса
+              прокручивается вбок. Отрицательные поля выводят её под края
+              панели: обрезанная клетка у самого края видна как «дальше есть
+              ещё», а упирающаяся во внутренний отступ — нет. */}
+          <div className="-mx-4 flex min-w-0 max-w-full items-center gap-2 overflow-x-auto px-4 lg:mx-0 lg:px-0">
+            <span className="shrink-0 font-display text-[10px] font-bold uppercase tracking-[0.12em] text-ink-faint">
+              Месяц
+            </span>
+            <Segmented className="shrink-0">
+              {MONTHS.map((name, index) => (
+                <SegmentedItem
+                  key={name}
+                  active={selection.mode === "month" && selection.index === index}
+                  onClick={() => setSelection({ mode: "month", index })}
+                  className="px-2.5 font-mono uppercase"
+                >
+                  {name.slice(0, 3)}
+                </SegmentedItem>
+              ))}
+            </Segmented>
+          </div>
+
+          <Pill tone="plain" className="ml-auto font-mono">
+            {formatPeriodRu(periodStart, periodEnd)}
+          </Pill>
+        </div>
+      </Panel>
+
+      {/* Итог — панель первого плана: за ней сюда и приходят. Свечение
+          изнутри и главное число крупнее всего на экране. */}
+      <Panel
+        span={8}
+        dense
+        feature
+        eyebrow="Как должно быть"
+        title={`Итог за ${formatPeriodRu(periodStart, periodEnd)}`}
+      >
         <PeriodSummary
           calculation={calculation}
           accountingYear={profile.accountingYear}
           payTotal={pay?.primary.total ?? null}
         />
-      </section>
+      </Panel>
 
-      {/* Деньги — отдельным разделом и свёрнутым: сумма нужна не всем и не
-          сразу, а поле оклада в основной сводке смотрелось бы как
-          обязательное к заполнению. */}
-      <CollapsibleSection
-        title="Сколько это в деньгах"
-        summary={
-          pay
-            ? `${formatMoney(pay.primary.total)} за ${formatHours(calculation.overtimeHours)} ч`
-            : "укажите оклад — посчитаем по приказу"
-        }
-      >
-        <OvertimePayCard
-          profile={profile}
-          calculation={calculation}
-          pay={pay}
-          onChange={onChange}
-        />
-      </CollapsibleSection>
+      {/* Правая колонка из двух панелей: сверка — форма на три поля, и
+          растянутая на высоту сводки она выглядела бы заброшенной. */}
+      <div className="flex min-w-0 flex-col gap-3 lg:col-span-4">
+        <Panel
+          span={12}
+          dense
+          className="lg:col-span-12"
+          attention={Boolean(discrepancies && discrepancies.length > 0)}
+          eyebrow="Сверка"
+          title="Что в вашем табеле"
+          summary={
+            discrepancies === null
+              ? "не проводилась"
+              : discrepancies.length === 0
+                ? "расхождений нет"
+                : `расхождений: ${discrepancies.length}`
+          }
+        >
+          <ReconcileSection discrepancies={discrepancies} onSubmit={setReportedRaw} />
+        </Panel>
 
-      {/* Разделы сворачиваются, и открыт по умолчанию только график: за
-          ним приходят чаще всего. Иначе экран — пять экранов подряд, и до
-          сверки, ради которой всё написано, нужно пролистать двенадцать
-          календарных сеток. Подпись у свёрнутого раздела говорит, что
-          внутри, чтобы не открывать наугад. */}
-      <CollapsibleSection
-        title="Ваш график"
-        summary={`смен за период: ${calculation.scheduledShifts}`}
+        <Panel
+          span={12}
+          dense
+          className="lg:col-span-12"
+          collapsible
+          defaultOpen={false}
+          eyebrow="Деньги"
+          title="Сколько это в рублях"
+          summary={pay ? formatMoney(pay.primary.total) : "нужен оклад"}
+        >
+          <OvertimePayCard
+            profile={profile}
+            calculation={calculation}
+            pay={pay}
+            onChange={onChange}
+          />
+        </Panel>
+      </div>
+
+      {/* График во всю ширину: двенадцать месячных сеток в узкой колонке
+          невозможно сравнить глазом. */}
+      <Panel
+        span={12}
+        dense
+        collapsible
         defaultOpen
+        eyebrow="График караула"
+        title="Ваши смены по суткам"
+        summary={`смен за период: ${calculation.scheduledShifts}`}
       >
         <ShiftStrip calculation={calculation} />
-      </CollapsibleSection>
+      </Panel>
 
-      <CollapsibleSection
-        title={`Календарь ${profile.accountingYear} года`}
-        summary={
-          Object.keys(profile.calendarOverrides).length > 0
-            ? `ваших правок: ${Object.keys(profile.calendarOverrides).length}`
-            : pendingTransfers(profile.accountingYear).length > 0
-              ? "переносы выходных не размечены"
-              : "праздники и переносы размечены"
-        }
-      >
-        <YearCalendarEditor profile={profile} onChange={onChange} />
-      </CollapsibleSection>
-
-      <CollapsibleSection
+      <Panel
+        span={4}
+        dense
+        collapsible
+        defaultOpen={false}
+        eyebrow="Исключения из нормы"
         title="Отпуска и больничные"
         summary={
-          profile.absences.length > 0
-            ? `внесено периодов: ${profile.absences.length}`
-            : "не внесено"
+          profile.absences.length > 0 ? `внесено: ${profile.absences.length}` : "не внесено"
         }
       >
         <AbsenceSection profile={profile} onChange={onChange} />
-      </CollapsibleSection>
+      </Panel>
 
-      <CollapsibleSection
+      <Panel
+        span={4}
+        dense
+        collapsible
+        defaultOpen={false}
+        eyebrow="Сверх графика"
         title="Вызовы помимо графика"
         summary={
-          profile.callouts.length > 0
-            ? `внесено: ${profile.callouts.length}`
-            : "не внесено"
+          profile.callouts.length > 0 ? `внесено: ${profile.callouts.length}` : "не внесено"
         }
       >
         <CalloutSection profile={profile} onChange={onChange} />
-      </CollapsibleSection>
+      </Panel>
 
-      <CollapsibleSection
-        title="Что написано в вашем табеле"
+      <Panel
+        span={4}
+        dense
+        collapsible
+        defaultOpen={false}
+        attention={pendingTransfers(profile.accountingYear).length > 0}
+        eyebrow="Основа нормы"
+        title={`Календарь ${profile.accountingYear} года`}
         summary={
-          discrepancies === null
-            ? "сверка не проводилась"
-            : discrepancies.length === 0
-              ? "расхождений нет"
-              : `расхождений: ${discrepancies.length}`
+          Object.keys(profile.calendarOverrides).length > 0
+            ? `правок: ${Object.keys(profile.calendarOverrides).length}`
+            : pendingTransfers(profile.accountingYear).length > 0
+              ? "переносы не размечены"
+              : "размечен"
         }
       >
-        <ReconcileSection discrepancies={discrepancies} onSubmit={setReportedRaw} />
-      </CollapsibleSection>
+        <YearCalendarEditor profile={profile} onChange={onChange} />
+      </Panel>
 
-      <ProfileFooter profile={profile} onForget={onForget} />
-    </div>
+      <Panel span={12} dense eyebrow="Хранение" title="Ваши данные">
+        <ProfileFooter profile={profile} onForget={onForget} />
+      </Panel>
+    </PanelGrid>
   );
 }
 
@@ -311,13 +325,13 @@ function AbsenceSection({
       </p>
 
       {error ? (
-        <p className="max-w-prose rounded-sm border-l-2 border-signal bg-signal-soft px-4 py-3 text-sm">
+        <p className="max-w-prose rounded-xl border border-signal/30 bg-signal-soft px-4 py-3 text-sm">
           {error}
         </p>
       ) : null}
 
       <form
-        className="flex flex-wrap items-start gap-3 rounded-sm border border-rule bg-paper-raised p-4"
+        className="flex flex-wrap items-start gap-3 rounded-xl border border-rule bg-paper/70 p-4"
         onSubmit={(event) => {
           event.preventDefault();
           const form = event.currentTarget;
@@ -362,7 +376,7 @@ function AbsenceSection({
             id={kindId}
             value={kind}
             onChange={(event) => setKind(event.target.value as AbsenceKind)}
-            className="block h-9 w-56 rounded-sm border border-rule-strong bg-paper px-2 text-sm"
+            className="block h-9 w-56 rounded-md border border-rule bg-paper px-2 text-sm"
           >
             {ABSENCE_KINDS.map((option) => (
               <option key={option} value={option}>
@@ -467,13 +481,13 @@ function CalloutSection({
       </p>
 
       {error ? (
-        <p className="max-w-prose rounded-sm border-l-2 border-signal bg-signal-soft px-4 py-3 text-sm">
+        <p className="max-w-prose rounded-xl border border-signal/30 bg-signal-soft px-4 py-3 text-sm">
           {error}
         </p>
       ) : null}
 
       <form
-        className="flex flex-wrap items-start gap-3 rounded-sm border border-rule bg-paper-raised p-4"
+        className="flex flex-wrap items-start gap-3 rounded-xl border border-rule bg-paper/70 p-4"
         onSubmit={(event) => {
           event.preventDefault();
           const form = event.currentTarget;
@@ -520,7 +534,7 @@ function CalloutSection({
             id={kindId}
             value={kind}
             onChange={(event) => setKind(event.target.value as CalloutKind)}
-            className="block h-9 w-56 rounded-xs border border-rule-strong bg-paper px-2 text-sm"
+            className="block h-9 w-56 rounded-md border border-rule bg-paper px-2 text-sm"
           >
             {CALLOUT_KINDS.map((option) => (
               <option key={option} value={option}>
@@ -604,7 +618,7 @@ function ReconcileSection({
       </p>
 
       <form
-        className="flex flex-wrap items-start gap-3 rounded-sm border border-rule bg-paper-raised p-4"
+        className="flex flex-wrap items-start gap-3 rounded-xl border border-rule bg-paper/70 p-4"
         onSubmit={(event) => {
           event.preventDefault();
           const data = new FormData(event.currentTarget);

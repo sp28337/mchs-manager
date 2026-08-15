@@ -1,4 +1,4 @@
-import { cn } from "@/lib/utils/cn";
+import { Metric, Pill } from "@/components/shared/panel";
 
 import { atLeastZero, formatHours as hours, formatDays as days, type Decimal } from "../domain/decimal";
 import { formatMoneyAmount } from "../domain/overtime-pay";
@@ -47,7 +47,7 @@ export function PeriodSummary({
         // Не «календарь не опубликован» — эта формулировка досталась от
         // серверной версии и человеку ничего не говорила. Названа
         // конкретная недостача и её цена в часах.
-        <p className="rounded-sm border-l-2 border-signal bg-signal-soft px-4 py-3 text-sm">
+        <p className="rounded-xl border border-signal/30 bg-signal-soft px-4 py-3 text-sm">
           Норма может быть завышена на {pending * 8} часов: переносы новогодних
           выходных на {accountingYear} год ещё не проставлены. Откройте
           календарь года ниже и отметьте их по своему производственному
@@ -55,62 +55,59 @@ export function PeriodSummary({
         </p>
       ) : null}
 
-      <dl className="flex flex-wrap gap-x-10 gap-y-5">
-        <Figure
-          value={hours(calculation.normHours)}
-          unit="ч"
-          caption="Норма к отработке"
-          emphatic
-        />
-        <Figure value={hours(calculation.actualHours)} unit="ч" caption="Отработано" />
-        <div className="flex gap-6 flex-wrap">
-          <Figure
-            value={hours(calculation.overtimeHours)}
-            unit="ч"
-            caption="Переработка"
-            tone={overtime ? "verify" : undefined}
+      {/* Главное число одно, и оно крупнее всего на экране: человек пришёл
+          за переработкой, остальное — её вывод. Под ним стоит само
+          вычитание: число без вывода в разборе ничего не стоит. */}
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,auto)_minmax(0,1fr)] lg:gap-10">
+        <div className="space-y-2">
+          <Metric
+            label={
+              calculation.undertimeHours.greaterThan(0) ? "Недоработка" : "Переработка"
+            }
+            value={hours(
+              calculation.undertimeHours.greaterThan(0)
+                ? calculation.undertimeHours
+                : calculation.overtimeHours,
+            )}
+            unit="часов"
+            size="xl"
+            tone={
+              calculation.undertimeHours.greaterThan(0)
+                ? "signal"
+                : overtime
+                  ? "verify"
+                  : "muted"
+            }
           />
-          {overtime ? (
-            <>
-              <div className="flex items-center text-2xl">
-                ≈ 
-              </div>
-              {/* <span className="font-mono text-2xl text-verify">
-                {days(calculation.overtimeHours)} суток
-              </span> */}
-              <Figure
-                value={days(calculation.overtimeHours)}
-                unit="суток"
-                caption="В сутках"
-                tone={overtime ? "verify" : undefined}
-              />
-              {payTotal ? (
-                <div className="flex gap-6">
-                  <span className="flex items-center font-semibold">
-                    или
-                  </span>
-                  <Figure
-                    value={formatMoneyAmount(payTotal)}
-                    unit="₽"
-                    caption="Выплата (до НДФЛ)"
-                    tone="verify"
-                  />
-                </div>
-              ) : null}
-            </>
-          ) : null}
-          {calculation.undertimeHours.greaterThan(0) ? (
-            <Figure
-              value={hours(calculation.undertimeHours)}
-              unit="ч"
-              caption="Недоработка"
-              tone="signal"
-            />
-          ) : null}
+          <div className="flex flex-wrap items-center gap-2">
+            <Pill tone="plain" className="font-mono">
+              {hours(calculation.actualHours)} − {hours(calculation.normHours)} ={" "}
+              {hours(calculation.overtimeHours.minus(calculation.undertimeHours))}
+            </Pill>
+            {overtime ? (
+              <Pill tone="verify">≈ {days(calculation.overtimeHours)} суток</Pill>
+            ) : null}
+            {overtime && payTotal ? (
+              <Pill tone="verify" className="font-mono">
+                {formatMoneyAmount(payTotal)} ₽
+              </Pill>
+            ) : null}
+          </div>
         </div>
-      </dl>
 
-      <div className="space-y-2 rounded-xl border border-rule bg-paper-raised p-4">
+        <dl className="grid grid-cols-2 gap-x-6 gap-y-5 self-center sm:grid-cols-3 lg:border-l lg:border-rule lg:pl-10">
+          <Metric label="Норма к отработке" value={hours(calculation.normHours)} unit="ч" />
+          <Metric label="Отработано" value={hours(calculation.actualHours)} unit="ч" />
+          <Metric
+            label="Исключено из нормы"
+            value={hours(calculation.excludedHours)}
+            unit="ч"
+            tone={excluded ? undefined : "muted"}
+          />
+        </dl>
+      </div>
+
+      <div className="space-y-2 rounded-xl border border-rule bg-paper/70 p-4">
         <h3 className="font-display text-xs font-bold uppercase tracking-wide text-ink-muted">
           Откуда взялась норма
         </h3>
@@ -151,7 +148,7 @@ export function PeriodSummary({
         // всё равно переработал — печатала «недоработка 0,00 ч, которой
         // нет». Число верное, фраза бессмысленная, а настоящая потеря
         // (заниженная переработка) при этом не называлась вовсе.
-        <p className="max-w-prose rounded-r-xl rounded-l-sm border-l-2 border-signal bg-signal-soft px-4 py-3 text-sm">
+        <p className="max-w-prose rounded-xl border border-signal/30 bg-signal-soft px-4 py-3 text-sm">
           {calculation.wrongNormUndertimeHours.greaterThan(0) ? (
             <>
               Если в вашем табеле норму НЕ уменьшили на эти часы, у вас
@@ -176,12 +173,12 @@ export function PeriodSummary({
         </p>
       ) : null}
 
-      <dl className="flex flex-wrap gap-x-8 gap-y-2 text-sm">
-        <Small label="Смен по графику" value={String(calculation.scheduledShifts)} />
-        <Small label="Отработано смен" value={String(calculation.workedShifts)} />
-        <Small label="Пропущено по уважительной причине" value={String(calculation.absentShifts)} />
-        <Small label="Ночные часы" value={`${hours(calculation.nightHours)} ч`} />
-        <Small label="Праздничные часы" value={`${hours(calculation.holidayHours)} ч`} />
+      <dl className="grid grid-cols-2 gap-x-6 gap-y-4 border-t border-rule pt-5 sm:grid-cols-5">
+        <Metric label="Смен по графику" value={String(calculation.scheduledShifts)} size="sm" />
+        <Metric label="Отработано смен" value={String(calculation.workedShifts)} size="sm" />
+        <Metric label="Пропущено смен" value={String(calculation.absentShifts)} size="sm" />
+        <Metric label="Ночные часы" value={hours(calculation.nightHours)} unit="ч" size="sm" />
+        <Metric label="Праздничные" value={hours(calculation.holidayHours)} unit="ч" size="sm" />
       </dl>
 
       {calculation.holidayHours.greaterThan(0) || calculation.nightHours.greaterThan(0) ? (
@@ -192,46 +189,6 @@ export function PeriodSummary({
           доплату было бы неправдой.
         </p>
       ) : null}
-    </div>
-  );
-}
-
-function Figure({
-  value,
-  unit,
-  caption,
-  emphatic,
-  tone,
-}: {
-  value: string;
-  unit: string;
-  caption: string;
-  emphatic?: boolean;
-  tone?: "signal" | "verify";
-}) {
-  return (
-    <div className="space-y-0.5">
-      <dd
-        className={cn(
-          "font-mono leading-none",
-          emphatic ? "text-3xl" : "text-2xl",
-          tone === "signal" && "text-signal",
-          tone === "verify" && "text-verify  font-medium",
-        )}
-      >
-        {value}
-        <span className="ml-1 text-base text-ink-muted">{unit}</span>
-      </dd>
-      <dt className="text-xs text-ink-muted">{caption}</dt>
-    </div>
-  );
-}
-
-function Small({ label, value }: { label: string; value: string }) {
-  return (
-    <div>
-      <dt className="text-xs text-ink-muted">{label}</dt>
-      <dd className="font-mono">{value}</dd>
     </div>
   );
 }

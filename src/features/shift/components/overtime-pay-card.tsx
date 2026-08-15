@@ -51,7 +51,7 @@ export function OvertimePayCard({
   const attested = profile.employmentKind === "attested";
 
   return (
-    <div className="space-y-4 rounded-xl border border-rule bg-paper-raised p-4">
+    <div className="space-y-4 rounded-xl border border-rule bg-paper/70 p-4">
       <div className="space-y-1.5">
         <Label htmlFor={fieldId}>
           {attested ? "Должностной оклад, ₽ в месяц" : "Зарплата в месяц, ₽"}
@@ -89,7 +89,7 @@ export function OvertimePayCard({
           <Derivation pay={pay.primary} calculation={calculation} attested={attested} />
 
           {pay.alternative ? (
-            <p className="max-w-prose rounded-sm border-l-2 border-trace bg-trace-soft px-4 py-3 text-sm">
+            <p className="max-w-prose rounded-xl border border-trace/30 bg-trace-soft px-4 py-3 text-sm">
               Порог полуторного размера при суммированном учёте приказ № 747 не
               определяет, и практика расходится. Если исходить из того, что в
               полуторном размере оплачиваются только первые два часа за весь

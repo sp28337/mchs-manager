@@ -53,7 +53,12 @@ export default function RootLayout({
       className={`${display.variable} ${sans.variable} ${mono.variable}`}
       suppressHydrationWarning
     >
-      <body className="min-h-dvh bg-paper text-ink">
+      <body className="min-h-dvh bg-paper-sunken text-ink">
+        {/* Свечение под содержимым, а не за ним: слой фиксированный,
+            поэтому при прокрутке не уезжает и не создаёт второй горизонт.
+            Он же задаёт направление взгляда — светлее там, где начинается
+            чтение. */}
+        <div aria-hidden className="app-glow" />
         {/* Обёртка нужна ради полос во всю ширину окна — сейчас это
             фоновый табель первого экрана, который шире колонки `main`.
 
@@ -72,7 +77,7 @@ export default function RootLayout({
             Сама шапка рисуется страницами, а не здесь: у лендинга и
             калькулятора в ней разное главное действие, и общая шапка на
             оба означала бы либо пустое место, либо кнопку не к месту. */}
-        <div className="overflow-x-clip">
+        <div className="relative z-10 overflow-x-clip">
           <Providers>{children}</Providers>
         </div>
       </body>

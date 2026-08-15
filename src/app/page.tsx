@@ -3,8 +3,9 @@ import Link from "next/link";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { SiteHeader } from "@/components/shared/site-header";
 import { TabelBackdrop } from "@/components/shared/tabel-backdrop";
+import { Panel, PanelGrid, Pill } from "@/components/shared/panel";
 import { Logo } from "@/components/ui/logo";
-import { Calculator, ChevronDown } from "lucide-react";
+import { ArrowRight, Calculator, ChevronDown } from "lucide-react";
 
 /**
  * Посадочная страница.
@@ -149,7 +150,7 @@ export default function LandingPage() {
         action={
           <Link
             href="/calculator"
-            className="font-semibold inline-flex gap-2 h-9 items-center rounded-xl bg-ink px-4 text-sm text-paper hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-trace no-underline"
+            className="inline-flex h-9 items-center gap-2 rounded-full bg-ink px-4 text-sm font-semibold text-paper-raised no-underline hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-trace"
           >
             <div className="hidden xxs:block">
               Калькулятор
@@ -177,38 +178,49 @@ export default function LandingPage() {
         <section className="hero-band relative isolate flex h-lvh flex-col justify-center border-b border-rule pt-15 md:h-[90lvh]">
           <TabelBackdrop />
 
-          <div className="relative z-10 space-y-6">
-            <p className="font-mono text-xs uppercase tracking-widest text-ink-faint">
+          {/* Заголовок в два тона: белым — что делать, бирюзой — ради чего.
+              Бирюза здесь тот же цвет, которым в расчёте помечено
+              подтверждённое, поэтому обещание и его исполнение окрашены
+              одинаково. */}
+          <div className="relative z-10 max-w-4xl space-y-7">
+            <Pill tone="verify">
+              <span className="size-1.5 rounded-full bg-verify" aria-hidden />
               Для аттестованных и вольнонаёмных
-            </p>
-            <h1 className="max-w-3xl text-4xl leading-[1.15] sm:text-5xl">
-              Проверьте, не потеряли ли вы часы
+            </Pill>
+
+            <h1 className="text-4xl font-semibold leading-[1.08] tracking-tight sm:text-6xl">
+              Проверьте,{" "}
+              <span className="text-verify">не потеряли ли вы часы</span>
             </h1>
-            <p className="max-w-prose text-lg text-ink-muted">
-              При графике «сутки через трое» ошибка в табеле может стоить десятков часов переработки.
 
-              Этот калькулятор самостоятельно восстанавливает ваш график караула, определяет норму рабочего времени за учётный период и сравнивает её с данными табеля.
+            <p className="max-w-2xl text-lg leading-relaxed text-ink-muted">
+              При графике «сутки через трое» ошибка в табеле стоит десятков часов
+              переработки. Калькулятор восстанавливает ваш график караула, считает
+              норму по производственному календарю и показывает, где выданный
+              табель с ней расходится.
             </p>
 
-            <div className="flex flex-wrap items-center gap-4 pt-2">
+            <div className="flex flex-wrap items-center gap-3 pt-1">
               <Link
                 href="/calculator"
-                className="inline-flex h-11 items-center font-bold rounded-xl bg-ink px-6 text-base text-paper hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-trace"
+                className="inline-flex h-12 items-center gap-2 rounded-full bg-ink px-7 text-base font-semibold text-paper-raised no-underline hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-trace"
               >
                 Открыть калькулятор
+                <ArrowRight className="size-4" />
               </Link>
-              <p className="text-sm text-ink-muted">
-                Бесплатно · без регистрации
-              </p>
+              <Pill tone="plain">Бесплатно · без регистрации</Pill>
+              <Pill tone="plain">Данные не покидают браузер</Pill>
             </div>
           </div>
         </section>
 
+        <PanelGrid className="py-14">
         {/* ------------------------------------------------------- сама проблема */}
-        <section aria-labelledby="problem" className="space-y-4 border-b border-rule py-12">
-          <h2 id="problem" className="text-2xl">
-            «Отпуск уменьшает норму, а не отработанные часы»
-          </h2>
+        <Panel
+          span={7}
+          eyebrow="В чём ошибка"
+          title="Отпуск уменьшает норму, а не отработанные часы"
+        >
           <div className="grid gap-6 md:grid-cols-2">
             <p className="max-w-prose">
               При суммированном учёте время отпуска, больничного или другого освобождения от 
@@ -225,17 +237,20 @@ export default function LandingPage() {
             </p>
           </div>
 
-          <div className="mt-2 grid gap-px overflow-hidden rounded-xl border border-rule bg-rule sm:grid-cols-2">
-            <div className="space-y-1 bg-signal-soft p-4">
-              <p className="font-display text-xs font-bold uppercase tracking-wide text-signal">
+        </Panel>
+
+        <Panel span={5} eyebrow="На числах" title="Месяц отпуска">
+          <div className="grid gap-3">
+            <div className="space-y-1 rounded-xl border border-signal/30 bg-signal-soft p-4">
+              <p className="font-display text-[10px] font-bold uppercase tracking-[0.12em] text-signal">
                 Как считают неправильно
               </p>
               <p className="font-mono text-sm">норма за отпуск 168 ч</p>
               <p className="font-mono text-sm">факт за отпуск 0 ч − 168 ч = -168 ч</p>
               <p className="text-sm font-semibold">Появилась задолженность</p>
             </div>
-            <div className="space-y-1 bg-verify-soft p-4">
-              <p className="font-display text-xs font-bold uppercase tracking-wide text-verify">
+            <div className="space-y-1 rounded-xl border border-verify/30 bg-verify-soft p-4">
+              <p className="font-display text-[10px] font-bold uppercase tracking-[0.12em] text-verify">
                 Как должно быть
               </p>
               <p className="font-mono text-sm">норма за отпуск 168 ч − 168 ч = 0 ч</p>
@@ -243,44 +258,34 @@ export default function LandingPage() {
               <p className="text-sm font-semibold">Задолженности нет</p>
             </div>
           </div>
-        </section>
+        </Panel>
 
         {/* --------------------------------------------------------- как работает */}
-        <section aria-labelledby="how" className="space-y-6 border-b border-rule py-12">
-          <h2 id="how" className="text-2xl">
-            Как это работает
-          </h2>
-          <ol className="grid gap-6 md:grid-cols-3">
-            {STEPS.map((step, index) => (
-              <li key={step.title} className="space-y-2">
-                <p className="font-mono text-3xl leading-none text-ink-faint">
-                  {index + 1}
-                </p>
-                <h3 className="font-display text-base font-bold uppercase tracking-wide">
-                  {step.title}
-                </h3>
-                <p className="text-sm text-ink-muted">{step.text}</p>
-              </li>
-            ))}
-          </ol>
-        </section>
+        {STEPS.map((step, index) => (
+          <Panel
+            key={step.title}
+            span={4}
+            eyebrow={`Шаг ${index + 1}`}
+            title={step.title}
+            className="panel-hover"
+          >
+            <p className="text-sm leading-relaxed text-ink-muted">{step.text}</p>
+          </Panel>
+        ))}
 
         {/* --------------------------------------------------------------- нормы */}
-        <section aria-labelledby="law" className="space-y-4 border-b border-rule py-12">
-          <h2 id="law" className="text-2xl">
-            Расчёт, который можно проверить
-          </h2>
-          <p className="max-w-prose text-ink-muted">
-            Калькулятор не берёт цифры «из воздуха».
+        <Panel
+          span={12}
+          feature
+          eyebrow="Правовой след"
+          title="Расчёт, который можно проверить"
+        >
+          <p className="max-w-2xl text-ink-muted">
+            Калькулятор не берёт цифры «из воздуха». У каждого этапа есть
+            основание: от продолжительности службы и учётного периода до нормы и
+            исключения часов за отпуск или больничный.
           </p>
-          <p className="max-w-prose text-ink-muted">
-            Для каждого этапа расчёта есть правовое основание: от продолжительности службы и 
-            учётного периода до расчёта нормы и исключения часов за отпуск или больничный.
-          </p>
-          <h3 className="text-xl">
-            Основные документы:
-          </h3>
-          <dl className="grid gap-x-8 gap-y-4 sm:grid-cols-2">
+          <dl className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
             {[
               [
                 "Федеральный закон № 141-ФЗ от 23.05.2016",
@@ -339,7 +344,10 @@ export default function LandingPage() {
               ],
             ].map(([source, what, href]) => {
               return (
-                <div key={source} className="space-y-0.5 group cursor-pointer">
+                <div
+                  key={source}
+                  className="panel panel-hover group space-y-1 rounded-xl p-4"
+                >
                   <dt className="text-sm font-medium">
                     <a
                       href={href}
@@ -366,22 +374,16 @@ export default function LandingPage() {
                       </svg>
                     </a>
                   </dt>
-                  <dd className="text-sm text-ink-muted">{what}</dd>
+                  <dd className="text-sm leading-relaxed text-ink-muted">{what}</dd>
                 </div>
               );
             })}
           </dl>
-        </section>
+        </Panel>
 
         {/* ------------------------------------------------------------ приватность */}
-        <section
-          aria-labelledby="privacy"
-          className="space-y-3 border-b border-rule py-12"
-        >
-          <h2 id="privacy" className="text-2xl">
-            Ваши данные остаются у вас
-          </h2>
-          <div className="grid gap-6 md:grid-cols-2">
+        <Panel span={5} eyebrow="Приватность" title="Ваши данные остаются у вас">
+          <div className="space-y-4">
             <p className="max-w-prose">
               Для расчёта могут понадобиться сведения о больничных, а для вольнонаёмных сотрудников — об инвалидности. 
               Это чувствительная информация, и ей не нужно покидать ваше устройство.
@@ -392,21 +394,17 @@ export default function LandingPage() {
               При необходимости его можно сохранить в файл и использовать позже.
             </p>
           </div>
-        </section>
+        </Panel>
 
         {/* ---------------------------------------------------------------- вопросы */}
-        <section
-          aria-labelledby="faq"
-          className="space-y-4 border-rule py-12"
-        >
-          <h2 id="faq" className="text-2xl">
-            Частые вопросы
-          </h2>
-
-          <div className="divide-y divide-rule border-y border-rule">
+        <Panel span={7} eyebrow="Справка" title="Частые вопросы" bodyClassName="pb-4">
+          <div className="grid gap-2">
             {FAQ.map((item) => (
-              <details key={item.question} className="group">
-                <summary className="flex cursor-pointer list-none items-center justify-between gap-6 py-4 font-medium marker:hidden">
+              <details
+                key={item.question}
+                className="panel panel-hover group rounded-xl px-4"
+              >
+                <summary className="flex cursor-pointer list-none items-center justify-between gap-6 py-3.5 text-sm font-medium marker:hidden">
                   <span>{item.question}</span>
 
                   <ChevronDown
@@ -415,7 +413,7 @@ export default function LandingPage() {
                   />
                 </summary>
 
-                <div className="pb-4 pr-11">
+                <div className="pb-4 pr-10">
                   <p className="text-sm leading-6 text-ink-muted">
                     {item.answer}
                   </p>
@@ -423,12 +421,12 @@ export default function LandingPage() {
               </details>
             ))}
           </div>
-        </section>
+        </Panel>
 
         {/* ------------------------------------------------------------- ещё раз CTA */}
-        <section className="space-y-4 py-14 text-center">
-          <Logo className="mx-auto size-10 text-signal" />
-          <h2 className="text-2xl">Проверьте свой табель</h2>
+        <Panel span={12} feature bodyClassName="flex flex-col items-center gap-5 py-12 text-center">
+          <Logo className="size-10 text-signal" />
+          <h2 className="text-3xl font-semibold tracking-tight">Проверьте свой табель</h2>
           <p className="mx-auto max-w-prose text-ink-muted">
             Это займёт около минуты. Введите свои данные, укажите периоды отсутствия и перенесите часы из табеля.
             Если всё сходится — вы это тоже увидите.
@@ -436,11 +434,13 @@ export default function LandingPage() {
           </p>
           <Link
             href="/calculator"
-            className="inline-flex h-11 items-center rounded-xl bg-ink px-6 text-base text-paper hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-trace"
+            className="inline-flex h-12 items-center gap-2 rounded-full bg-ink px-7 text-base font-semibold text-paper-raised no-underline hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-trace"
           >
             Открыть калькулятор
+            <ArrowRight className="size-4" />
           </Link>
-        </section>
+        </Panel>
+        </PanelGrid>
       </main>
 
       <footer className="border-t border-rule">

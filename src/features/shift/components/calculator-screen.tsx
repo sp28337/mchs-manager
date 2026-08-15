@@ -2,6 +2,7 @@
 
 import { Button } from "@/components/ui/button";
 import { SiteHeader } from "@/components/shared/site-header";
+import { cn } from "@/lib/utils/cn";
 import { Save } from "lucide-react";
 import { RegisterForm } from "./register-form";
 import { Workspace } from "./workspace";
@@ -24,6 +25,16 @@ import { useProfile } from "../storage/use-profile";
  * его на сервере нет. Отрисовать на сервере догадку и заменить её в
  * браузере значило бы мигнуть человеку анкетой поверх готового расчёта.
  */
+/**
+ * Ширина рабочей области.
+ *
+ * Раскладка панельная, и узкая колонка ей противопоказана: на широком
+ * экране двенадцать календарных сеток и сводка помещаются рядом. Верхний
+ * предел всё же есть — без него на мониторе в 3440 px панели растянулись
+ * бы в ленты, а строка текста ушла бы за читаемую длину.
+ */
+const SHELL = "mx-auto w-full max-w-[112rem] px-3 pb-16 pt-24 sm:px-6 sm:pt-28";
+
 export function CalculatorScreen() {
   const { state, save, update, forget } = useProfile();
 
@@ -41,16 +52,20 @@ export function CalculatorScreen() {
       />
 
       {state.status === "loading" ? (
-        <main className="mx-auto w-full max-w-4xl px-6 pb-12 pt-26 xl:max-w-6xl 2xl:max-w-7xl">
+        <main className={SHELL}>
           <p className="text-sm text-ink-muted">Открываем ваш профиль…</p>
         </main>
       ) : profile ? (
-        <main className="mx-auto w-full max-w-4xl space-y-10 px-6 pb-12 pt-26 xl:max-w-6xl 2xl:max-w-7xl">
-          <header className="space-y-1">
-            <p className="font-mono text-xs uppercase tracking-widest text-ink-faint">
-              {profile.accountingYear} год · {profile.guardNumber}-й караул
-            </p>
-            <h1 className="text-3xl leading-tight">{profile.displayName}</h1>
+        <main className={cn(SHELL, "space-y-4")}>
+          <header className="flex flex-wrap items-end justify-between gap-4 px-1">
+            <div className="space-y-1.5">
+              <p className="font-display text-[10px] font-bold uppercase tracking-[0.14em] text-verify">
+                {profile.accountingYear} год · {profile.guardNumber}-й караул
+              </p>
+              <h1 className="font-sans text-3xl font-semibold leading-tight tracking-tight">
+                {profile.displayName}
+              </h1>
+            </div>
           </header>
 
           <Workspace profile={profile} onChange={update} onForget={forget} />
