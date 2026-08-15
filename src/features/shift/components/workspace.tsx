@@ -276,7 +276,7 @@ export function Workspace({ profile, onChange, onForget }: WorkspaceProps) {
         aria-label="Что вы вносите"
         className={cn(
           "mb-10 lg:mb-0",
-          "lg:sticky lg:top-24 lg:max-h-[calc(100dvh-7rem)] lg:overflow-y-auto lg:pb-6",
+          "lg:sticky lg:top-24 lg:max-h-[calc(100dvh-7rem)] lg:overflow-y-auto lg:pb-6 scrollbar-aside",
           collapsed ? "lg:overflow-x-hidden" : "lg:pr-1",
         )}
       >
@@ -312,7 +312,7 @@ export function Workspace({ profile, onChange, onForget }: WorkspaceProps) {
 
         <CollapsiblePanel
           {...panelProps("period")}
-          summary={formatPeriodRu(periodStart, periodEnd)}
+          summary=""
         >
           <PeriodPicker
             accountingYear={profile.accountingYear}

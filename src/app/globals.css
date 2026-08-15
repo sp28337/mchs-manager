@@ -536,3 +536,28 @@
     font-size: 1rem;
   }
 }
+
+
+@layer utilities {
+  .scrollbar-aside {
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-rule-strong) transparent;
+  }
+
+  .scrollbar-aside::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  .scrollbar-aside::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .scrollbar-aside::-webkit-scrollbar-thumb {
+    background: var(--color-rule-strong);
+    border-radius: 9999px;
+  }
+
+  .scrollbar-aside::-webkit-scrollbar-thumb:hover {
+    background: var(--color-ink-faint);
+  }
+}

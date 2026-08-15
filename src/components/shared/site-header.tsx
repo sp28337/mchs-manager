@@ -42,7 +42,7 @@ export interface SiteHeaderProps {
 export function SiteHeader({ tagline, action, className }: SiteHeaderProps) {
   return (
     <header className={cn("fixed w-full z-100  bg-linear-to-b from-paper from-50% to-transparent h-24", className)}>
-      <div className="mx-auto flex w-full flex-wrap items-center gap-x-6 gap-y-3 px-6 py-3 2xl:max-w-[2000px]">
+      <div className="mx-auto flex w-full flex-wrap items-center gap-x-6 gap-y-3 pl-6 lg:pl-9 pr-6 py-3 2xl:max-w-[2000px]">
         <Link
           href="/"
           className="group flex items-center gap-2.5 rounded-xs focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-trace"
