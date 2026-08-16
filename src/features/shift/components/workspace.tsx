@@ -21,6 +21,9 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
+import { Hint } from "@/components/ui/hint";
+import { Modal } from "@/components/ui/modal";
+import { useMediaQuery } from "@/lib/hooks/use-media-query";
 import { cn } from "@/lib/utils/cn";
 import { formatHours, parseHours } from "../domain/decimal";
 import { formatDateRu, formatPeriodRu } from "../domain/format";
@@ -144,22 +147,11 @@ const PANEL_META: Record<PanelId, { title: string; Icon: LucideIcon }> = {
 };
 
 /**
- * Порядок значков в свёрнутой полоске.
- *
- * Здесь перечислены только те блоки, которые реально показываются: значок
- * в полоске обязан куда-то вести, а нажатие на значок выключенного блока
- * развернуло бы колонку и не открыло ничего. Сейчас снаружи оставлена
- * сверка — она выключена в разметке ниже.
+ * Состав и порядок блоков задаёт список `panels` внутри самого экрана: там
+ * же, где их содержимое, — иначе значок в полоске мог бы вести в блок,
+ * которого в разметке нет. Настройки в нём стоят последними: их задают
+ * однажды и почти не трогают, а остальное открывают при каждом разборе.
  */
-const PANEL_ORDER: readonly PanelId[] = [
-  "period",
-  "pay",
-  "absences",
-  "callouts",
-  // Настройки последними: их задают однажды и почти не трогают, а
-  // остальные блоки открывают при каждом разборе.
-  "settings",
-];
 
 /** Опознаватель блока в разметке: по нему в блок уводится фокус. */
 const panelDomId = (id: PanelId) => `aside-panel-${id}`;
@@ -222,6 +214,13 @@ export function Workspace({ profile, onChange, onForget }: WorkspaceProps) {
   // что от этого зависят заголовок и подпись раздела вокруг неё.
   const [yearView, setYearView] = useState<YearViewKind>("shifts");
 
+  // Ниже `lg` колонки нет вовсе: вместо неё полоска значков у правого
+  // края и по одному блоку в окне. Проверка ширины здесь значением, а не
+  // классами, потому что это разная РАЗМЕТКА, а не разные отступы; почему
+  // это безопасно — в `useMediaQuery`.
+  const wide = useMediaQuery("(min-width: 64rem)");
+  const [phonePanel, setPhonePanel] = useState<PanelId | null>(null);
+
   const [collapsed, setCollapsed] = useState(false);
   const [openPanels, setOpenPanels] = useState<Record<PanelId, boolean>>({
     period: true,
@@ -273,193 +272,171 @@ export function Workspace({ profile, onChange, onForget }: WorkspaceProps) {
     };
   }
 
+  /**
+   * Содержимое блоков — одним списком, потому что показывать его нужно в
+   * двух разных оболочках. На широком экране это столбец раскрывающихся
+   * карточек, на телефоне — по одному блоку в окне, вызванном из полоски
+   * значков. Описать блоки дважды значило бы завести две формы оклада с
+   * двумя независимыми состояниями и следить, чтобы они не разошлись.
+   */
+  const panels: readonly {
+    id: PanelId;
+    hint?: React.ReactNode;
+    summary?: React.ReactNode;
+    body: React.ReactNode;
+  }[] = [
+    {
+      id: "period",
+      summary: formatPeriodRu(periodStart, periodEnd),
+      body: (
+        <PeriodPicker
+          accountingYear={profile.accountingYear}
+          employmentKind={profile.employmentKind}
+          periods={periods}
+          statutory={statutory}
+          month={month}
+          onStatutory={(choice) => {
+            setStatutory(choice);
+            // Месяц сбрасывается вместе с периодом: он выбирался из
+            // месяцев прежнего периода и в новый может не входить.
+            setMonth(null);
+          }}
+          onMonth={setMonth}
+        />
+      ),
+    },
+    {
+      id: "pay",
+      summary: pay
+        ? `${formatMoney(pay.primary.total)} за ${formatHours(calculation.overtimeHours)} ч`
+        : "укажите оклад — посчитаем по приказу",
+      body: (
+        <OvertimePayCard
+          profile={profile}
+          calculation={calculation}
+          pay={pay}
+          onChange={onChange}
+        />
+      ),
+    },
+    {
+      id: "absences",
+      hint: (
+        <>
+          Внесите периоды, когда вы были освобождены от службы с сохранением
+          места. Смены, попавшие в них, вычтутся из НОРМЫ — именно этого чаще
+          всего и не делают в табеле.
+        </>
+      ),
+      summary:
+        profile.absences.length > 0
+          ? `внесено периодов: ${profile.absences.length}`
+          : "не внесено",
+      body: <AbsenceSection profile={profile} onChange={onChange} />,
+    },
+    {
+      id: "callouts",
+      hint: (
+        <>
+          Соревнования, сборы, резерв, праздничные мероприятия, выборы. Это
+          исполнение обязанностей, то есть служебное время (ч. 1 ст. 54
+          ФЗ-141, ст. 91 ТК РФ): часы прибавляются к отработанному и норму не
+          трогают. На графике такие сутки помечены отдельно — видно, куда
+          именно вызывали.
+          <span className="mt-2 block">
+            Вызовов на одни сутки может быть несколько: после смены
+            соревнования, а следом резерв. Вносите каждый отдельно — часы
+            складываются, а в клетке графика встанут все коды сразу.
+          </span>
+        </>
+      ),
+      summary:
+        profile.callouts.length > 0
+          ? `внесено: ${profile.callouts.length}`
+          : "не внесено",
+      body: <CalloutSection profile={profile} onChange={onChange} />,
+    },
+    {
+      id: "settings",
+      hint: (
+        <>
+          Те же вопросы, что в анкете при первом заходе. Любой ответ меняется
+          прямо здесь, и расчёт пересчитывается сразу — заводить профиль
+          заново, чтобы исправить караул, больше не нужно.
+        </>
+      ),
+      summary: `${weeklyNormOf(profile).hours.toFixed(0)} ч в неделю · ${profile.guardNumber}-й караул · ${profile.accountingYear}`,
+      body: <SettingsPanel profile={profile} onChange={onChange} />,
+    },
+  ];
+
+  const openOnPhone = panels.find((panel) => panel.id === phonePanel) ?? null;
+
   return (
     <div
       className={cn(
-        "lg:grid lg:items-start lg:gap-8",
-        collapsed
-          ? "lg:grid-cols-[3.25rem_minmax(0,1fr)]"
-          : "lg:grid-cols-[19rem_minmax(0,1fr)] xl:grid-cols-[21rem_minmax(0,1fr)]",
+        wide && "grid items-start gap-8",
+        wide &&
+          (collapsed
+            ? "grid-cols-[3.25rem_minmax(0,1fr)]"
+            : "grid-cols-[19rem_minmax(0,1fr)] xl:grid-cols-[21rem_minmax(0,1fr)]"),
       )}
     >
       {/* Ручки управления. Закреплены и прокручиваются внутри себя: с
           длинной оговоркой про оклад колонка бывает выше экрана, и без
-          собственной прокрутки её низ стал бы недостижим.
-
-          Полоска и сами блоки существуют в разметке одновременно, а
-          показывается одно из двух — классами. Ниже `lg` колонки нет
-          вовсе, и сворачивать там нечего: полоска значков поперёк
-          телефона была бы лишней строкой ни о чём, поэтому в узком окне
-          блоки видны всегда, а полоска — никогда. */}
-      <aside
-        ref={aside}
-        aria-label="Что вы вносите"
-        className={cn(
-          "mb-10 lg:mb-0",
-          "lg:sticky lg:top-24 lg:max-h-[calc(100dvh-7rem)] lg:overflow-y-auto lg:pb-6 scrollbar-aside",
-          collapsed ? "lg:overflow-x-hidden" : "lg:pr-1",
-        )}
-      >
-        {collapsed ? (
-          <div className="hidden flex-col items-center gap-1 rounded-xl border border-rule bg-paper-raised p-1.5 lg:flex">
-            <RailButton
-              label="Развернуть панель"
-              onClick={() => setCollapsed(false)}
-            >
-              <PanelLeftOpen aria-hidden className="size-4" />
-            </RailButton>
-            <span aria-hidden className="my-1 h-px w-6 bg-rule" />
-            {PANEL_ORDER.map((id) => {
-              const { title, Icon } = PANEL_META[id];
-              return (
-                <RailButton key={id} label={title} onClick={() => openFromRail(id)}>
-                  <Icon aria-hidden className="size-4" />
+          собственной прокрутки её низ стал бы недостижим. */}
+      {wide ? (
+        <aside
+          ref={aside}
+          aria-label="Что вы вносите"
+          className={cn(
+            "sticky top-24 max-h-[calc(100dvh-7rem)] overflow-y-auto pb-6 scrollbar-aside",
+            collapsed ? "overflow-x-hidden" : "pr-1",
+          )}
+        >
+          {collapsed ? (
+            <div className="flex flex-col items-center gap-1 rounded-xl border border-rule bg-paper-raised p-1.5">
+              <RailButton
+                label="Развернуть панель"
+                onClick={() => setCollapsed(false)}
+              >
+                <PanelLeftOpen aria-hidden className="size-4" />
+              </RailButton>
+              <span aria-hidden className="my-1 h-px w-6 bg-rule" />
+              {panels.map(({ id }) => {
+                const { title, Icon } = PANEL_META[id];
+                return (
+                  <RailButton key={id} label={title} onClick={() => openFromRail(id)}>
+                    <Icon aria-hidden className="size-4" />
+                  </RailButton>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {/* Кнопка сворачивания стоит над блоками и вплотную к правому
+                  краю колонки — там, куда она колонку и уводит. */}
+              <div className="flex justify-end">
+                <RailButton label="Свернуть панель" onClick={() => setCollapsed(true)}>
+                  <PanelLeftClose aria-hidden className="size-4" />
                 </RailButton>
-              );
-            })}
-          </div>
-        ) : null}
+              </div>
 
-        <div className={cn("space-y-3", collapsed && "lg:hidden")}>
-          {/* Кнопка сворачивания стоит над блоками и вплотную к правому
-              краю колонки — там, куда она колонку и уводит. Ниже `lg`
-              скрыта: там нет колонки, которую можно свернуть. */}
-          <div className="hidden justify-end lg:flex">
-            <RailButton label="Свернуть панель" onClick={() => setCollapsed(true)}>
-              <PanelLeftClose aria-hidden className="size-4" />
-            </RailButton>
-          </div>
+              {panels.map(({ id, hint, summary, body }) => (
+                <CollapsiblePanel key={id} {...panelProps(id)} hint={hint} summary={summary}>
+                  {body}
+                </CollapsiblePanel>
+              ))}
+            </div>
+          )}
+        </aside>
+      ) : (
+        <PhoneDock panels={panels} onOpen={setPhonePanel} />
+      )}
 
-        <CollapsiblePanel
-          {...panelProps("period")}
-          summary=""
-        >
-          <PeriodPicker
-            accountingYear={profile.accountingYear}
-            employmentKind={profile.employmentKind}
-            periods={periods}
-            statutory={statutory}
-            month={month}
-            onStatutory={(choice) => {
-              setStatutory(choice);
-              // Месяц сбрасывается вместе с периодом: он выбирался из
-              // месяцев прежнего периода и в новый может не входить.
-              setMonth(null);
-            }}
-            onMonth={setMonth}
-          />
-        </CollapsiblePanel>
-
-        {/* Открыт по умолчанию, как и период: сумма — это ответ, а не
-            ввод, и прятать её за крышкой значило бы вернуть человека к
-            тому, чтобы искать её щелчком. */}
-        <CollapsiblePanel
-          {...panelProps("pay")}
-          summary={
-            pay
-              ? `${formatMoney(pay.primary.total)} за ${formatHours(calculation.overtimeHours)} ч`
-              : "укажите оклад — посчитаем по приказу"
-          }
-        >
-          <OvertimePayCard
-            profile={profile}
-            calculation={calculation}
-            pay={pay}
-            onChange={onChange}
-          />
-        </CollapsiblePanel>
-
-        <CollapsiblePanel
-          {...panelProps("absences")}
-          hint={
-            <>
-              Внесите периоды, когда вы были освобождены от службы с
-              сохранением места. Смены, попавшие в них, вычтутся из НОРМЫ —
-              именно этого чаще всего и не делают в табеле.
-            </>
-          }
-          summary={
-            profile.absences.length > 0
-              ? `внесено периодов: ${profile.absences.length}`
-              : "не внесено"
-          }
-        >
-          <AbsenceSection profile={profile} onChange={onChange} />
-        </CollapsiblePanel>
-
-        <CollapsiblePanel
-          {...panelProps("callouts")}
-          hint={
-            <>
-              Соревнования, сборы, резерв, праздничные мероприятия, выборы.
-              Это исполнение обязанностей, то есть служебное время (ч. 1
-              ст. 54 ФЗ-141, ст. 91 ТК РФ): часы прибавляются к
-              отработанному и норму не трогают. На графике такие сутки
-              помечены отдельно — видно, куда именно вызывали.
-              <span className="mt-2 block">
-                Вызовов на одни сутки может быть несколько: после смены
-                соревнования, а следом резерв. Вносите каждый отдельно —
-                часы складываются, а в клетке графика встанут все коды
-                сразу.
-              </span>
-            </>
-          }
-          summary={
-            profile.callouts.length > 0
-              ? `внесено: ${profile.callouts.length}`
-              : "не внесено"
-          }
-        >
-          <CalloutSection profile={profile} onChange={onChange} />
-        </CollapsiblePanel>
-
-        {/* Блок сверки выключен. Если он возвращается — раскомментировать
-            здесь и добавить "reconcile" обратно в PANEL_ORDER, иначе в
-            свёрнутой полоске появится значок, ведущий в никуда.
-
-        <CollapsiblePanel
-          {...panelProps("reconcile")}
-          hint={
-            <>
-              Впишите числа из выданного табеля. Пустое поле не
-              сравнивается — если какого-то числа в табеле нет, оставьте
-              его пустым.
-            </>
-          }
-          summary={
-            discrepancies === null
-              ? "сверка не проводилась"
-              : discrepancies.length === 0
-                ? "расхождений нет"
-                : `расхождений: ${discrepancies.length}`
-          }
-        >
-          <ReconcileSection discrepancies={discrepancies} onSubmit={setReportedRaw} />
-        </CollapsiblePanel>
-
-        */}
-
-        {/* Ответы анкеты. Стоят последними и закрыты: их задают однажды,
-            а открывают тогда, когда график на экране разошёлся с тем, что
-            висит в части, — то есть когда ошиблись здесь. */}
-        <CollapsiblePanel
-          {...panelProps("settings")}
-          hint={
-            <>
-              Те же вопросы, что в анкете при первом заходе. Любой ответ
-              меняется прямо здесь, и расчёт справа пересчитывается сразу —
-              заводить профиль заново, чтобы исправить караул, больше не
-              нужно.
-            </>
-          }
-          summary={`${weeklyNormOf(profile).hours.toFixed(0)} ч в неделю · ${profile.guardNumber}-й караул · ${profile.accountingYear}`}
-        >
-          <SettingsPanel profile={profile} onChange={onChange} />
-        </CollapsiblePanel>
-        </div>
-      </aside>
-
-      <div className="min-w-0 space-y-10">
+      {/* Поле справа под полоску значков: она висит поверх содержимого, и
+          без отступа под ней оказывались бы крайние клетки календаря. */}
+      <div className={cn("min-w-0 space-y-10", !wide && "pr-13")}>
       <header className="space-y-1">
         <h1 className="text-3xl leading-tight">{profile.displayName}</h1>
       </header>
@@ -522,6 +499,72 @@ export function Workspace({ profile, onChange, onForget }: WorkspaceProps) {
 
         <ProfileFooter profile={profile} onForget={onForget} />
       </div>
+
+      {/* Блок, вызванный из полоски. Ровно один: на телефоне открывать
+          сразу пять значило бы вернуть ту самую ленту сверху, из-за
+          которой полоска и появилась. */}
+      {!wide ? (
+        <Modal
+          open={openOnPhone !== null}
+          onClose={() => setPhonePanel(null)}
+          title={
+            <span className="flex items-center gap-2">
+              {openOnPhone ? <PanelIcon id={openOnPhone.id} /> : null}
+              {openOnPhone ? PANEL_META[openOnPhone.id].title : ""}
+              {openOnPhone?.hint ? <Hint>{openOnPhone.hint}</Hint> : null}
+            </span>
+          }
+        >
+          {openOnPhone?.body}
+        </Modal>
+      ) : null}
+    </div>
+  );
+}
+
+/**
+ * Полоска значков на телефоне.
+ *
+ * --- Почему справа и поверх содержимого ----------------------------------
+ *
+ * Раньше ниже `lg` все пять блоков просто вставали лентой над расчётом, и
+ * до первого числа приходилось пролистать пять закрытых крышек. Полоска
+ * занимает сорок пикселей у правого края и не отнимает у страницы верх.
+ *
+ * Справа, а не слева, и под кнопкой в шапке — по одной вертикали с
+ * действиями: там же, где «Сохранить в файл», и там же, где у телефона
+ * большой палец.
+ *
+ * --- Почему открывается один блок, а не вся колонка ----------------------
+ *
+ * Колонка целиком на экране в триста восемьдесят точек — это та же лента,
+ * только поверх содержимого. Значок называет блок, и открывать он обязан
+ * ровно его.
+ */
+function PhoneDock({
+  panels,
+  onOpen,
+}: {
+  panels: readonly { id: PanelId }[];
+  onOpen: (id: PanelId) => void;
+}) {
+  return (
+    <div
+      // `top-28` — сразу под шапкой: она высотой в шесть рем и растворяется
+      // к своему низу, поэтому полоска начинается ниже её края.
+      className={cn(
+        "fixed right-3 top-28 z-40 flex flex-col items-center gap-1",
+        "rounded-xl border border-rule bg-paper-raised p-1.5 shadow-lg",
+      )}
+    >
+      {panels.map(({ id }) => {
+        const { title, Icon } = PANEL_META[id];
+        return (
+          <RailButton key={id} label={title} onClick={() => onOpen(id)}>
+            <Icon aria-hidden className="size-4" />
+          </RailButton>
+        );
+      })}
     </div>
   );
 }
