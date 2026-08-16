@@ -17,7 +17,6 @@ import {
 import type { StoredProfile } from "../storage/profile";
 import { DayEditor } from "./day-editor";
 import { HeaderTools } from "./header-tools";
-import { SaveToFile } from "./save-to-file";
 import { NormNote, PeriodSummary } from "./period-summary";
 import { ProfileFooter } from "./profile-footer";
 import { CalendarNote } from "./year-calendar-editor";
@@ -147,6 +146,7 @@ export function Workspace({ profile, onChange, onForget }: WorkspaceProps) {
           периода — он живёт здесь. Тянуть его наверх значило бы поднять
           туда и выбор периода, то есть половину этого экрана. */}
       <SiteHeader
+        person={profile.displayName}
         tagline={`${profile.accountingYear} год / ${profile.guardNumber}-й караул`}
         tools={
           <HeaderTools
@@ -156,65 +156,36 @@ export function Workspace({ profile, onChange, onForget }: WorkspaceProps) {
             onChange={onChange}
           />
         }
-        action={<SaveToFile profile={profile} />}
       />
 
-      <main className="mx-auto w-full space-y-10 px-6 pb-12 pt-26 2xl:max-w-[2000px]">
-      {/* Две колонки с `xl`: слева итог, справа календарь.
+      <main className="mx-auto w-full px-6 pb-12 pt-26 2xl:max-w-[2000px]">
+      {/* Итог — закреплённой полосой, календарь — во всю ширину под ней.
           --------------------------------------------------------------
-          Итог занимает по ширине от силы четыреста точек, а календарь
-          берёт всё, что дадут. Пока они шли лентой сверху вниз, на
-          широком экране справа от чисел оставалось полторы тысячи точек
-          пустоты, а календарь при этом начинался за нижним краем окна:
-          человек, отметивший день, прокручивал наверх — посмотреть, что
-          стало с нормой, — и обратно.
-          Теперь и то и другое видно разом, а колонка с числами ещё и
-          закреплена: правка в календаре меняет норму на глазах.
-          Это не возвращение прежней боковой колонки: там слева стоял
-          ВВОД и отнимал ширину у сетки. Здесь слева ВЫВОД — то, ради
-          чего смотрят, — и уже он занимает место, которое иначе
-          пустовало. */}
-      <div className="grid gap-x-10 gap-y-10 xl:grid-cols-[24rem_minmax(0,1fr)] xl:items-start">
-      {/* Закреплённая колонка обязана помещаться в окно: на невысоком
-          экране без ограничения нижние числа оказались бы под краем и
-          недостижимы прокруткой — она уходит на страницу, а не в них.
-          Подсказки от этого не страдают: карточка знака вопроса
-          позиционируется от окна, а не от этого блока. */}
-      <div className="space-y-6 xl:sticky xl:top-26 xl:max-h-[calc(100svh-8rem)] xl:overflow-y-auto">
-      <header className="space-y-1">
-        <h1 className="text-3xl leading-tight">{profile.displayName}</h1>
-      </header>
-
-      <section aria-labelledby="summary" className="space-y-4">
-        <h2 id="summary" className="text-xl">
-          Как должно быть{" "}
-          {/* Период назван словами рядом с числами: в споре важно, какие
-              именно даты стоят за нормой, а не как называется период. */}
-          <span className="text-ink-muted">
-            за {formatPeriodRu(periodStart, periodEnd)}
-          </span>{" "}
-          {/* Вывод нормы — за знаком вопроса, как и остальные пояснения на
-              этой странице. Раньше он занимал под числами рамку в четыре
-              строки, и до переработки приходилось прокручивать через
-              статьи и приказы. */}
+          Числа и сетка нужны одновременно: человек отмечает день и тут
+          же смотрит, что стало с нормой. Колонкой слева это стоило
+          календарю четырёхсот точек ширины, а лентой сверху — прокрутки
+          назад через двенадцать сеток. Полоса не стоит ни того, ни
+          другого: она держится под шапкой, а сетка получает всю
+          страницу. */}
+      <PeriodSummary
+        calculation={calculation}
+        accountingYear={profile.accountingYear}
+        payTotal={pay?.primary.total ?? null}
+        periodLabel={formatPeriodRu(periodStart, periodEnd)}
+        hint={
+          /* Вывод нормы — за знаком вопроса, как и остальные пояснения на
+             этой странице. Раньше он занимал под числами рамку в четыре
+             строки, и до переработки приходилось прокручивать через
+             статьи и приказы. */
           <Hint label="Откуда взялась норма">
             <NormNote calculation={calculation} />
           </Hint>
-        </h2>
-        <PeriodSummary
-          calculation={calculation}
-          accountingYear={profile.accountingYear}
-          payTotal={pay?.primary.total ?? null}
-        />
-      </section>
-      </div>
+        }
+      />
 
+      <div className="space-y-10 pt-8">
       <CollapsibleSection
         title="Календарь"
-        // Рамка сверху у раздела в ленте отделяла его от предыдущего. В
-        // двух колонках он стоит рядом, а не под, и линия над ним
-        // оказалась бы чертой поперёк пустоты.
-        className="xl:border-t-0 xl:pt-0"
         hint={yearView === "calendar" ? <CalendarNote profile={profile} /> : undefined}
         defaultOpen
       >
@@ -231,9 +202,9 @@ export function Workspace({ profile, onChange, onForget }: WorkspaceProps) {
           onPickDay={setPickedDay}
         />
       </CollapsibleSection>
-      </div>
 
       <ProfileFooter profile={profile} onForget={onForget} />
+      </div>
 
       <DayEditor
         day={pickedDay}

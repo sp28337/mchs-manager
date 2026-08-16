@@ -1,6 +1,8 @@
-import type { ReactNode } from "react";
+import { ChevronDown } from "lucide-react";
+import { useState, type ReactNode } from "react";
 
 import { Hint } from "@/components/ui/hint";
+import { useMediaQuery } from "@/lib/hooks/use-media-query";
 import { cn } from "@/lib/utils/cn";
 
 import { atLeastZero, formatHours as hours, formatDays as days, type Decimal } from "../domain/decimal";
@@ -43,17 +45,32 @@ export function PeriodSummary({
   calculation,
   accountingYear,
   payTotal,
+  periodLabel,
+  hint,
 }: {
   calculation: PeriodCalculation;
   accountingYear: number;
   /** Деньги за переработку, если человек указал оклад. Разбор суммы — в
-   *  отдельном разделе; здесь она стоит рядом с часами, потому что это
-   *  тот же факт, названный второй раз. */
+   *  отдельном окне; здесь она стоит рядом с часами, потому что это тот
+   *  же факт, названный второй раз. */
   payTotal?: Decimal | null;
+  /** Даты периода словами: в споре важно, за какие именно числа расчёт. */
+  periodLabel: string;
+  /** Знак вопроса с выводом нормы. */
+  hint?: ReactNode;
 }) {
   const excluded = calculation.excludedHours.greaterThan(0);
   const overtime = calculation.overtimeHours.greaterThan(0);
+  const undertime = calculation.undertimeHours.greaterThan(0);
   const pending = pendingTransfers(accountingYear).length;
+
+  // Широкий экран показывает всё сразу; на узком остаются три главных
+  // числа, остальное открывается кнопкой. Порог в JS, а не классами:
+  // иначе те же числа пришлось бы вывести в разметку дважды, и программа
+  // чтения объявила бы каждое по два раза.
+  const wide = useMediaQuery("(min-width: 1024px)");
+  const [open, setOpen] = useState(false);
+  const showAll = wide || open;
 
   // Переработка, которая получилась бы при НЕуменьшенной норме. Считается
   // от базовой нормы напрямую, а не вычитанием исключённых часов из
@@ -64,123 +81,206 @@ export function PeriodSummary({
   );
 
   return (
-    <div className="space-y-5">
-      {pending > 0 ? (
-        // Не «календарь не опубликован» — эта формулировка досталась от
-        // серверной версии и человеку ничего не говорила. Названа
-        // конкретная недостача и её цена в часах.
-        //
-        // Ни рамки, ни цветной полоски слева: заметность даёт сама
-        // подложка другого тона, а полоска у края — украшение, доставшееся
-        // от чужих библиотек.
-        <p className="max-w-prose rounded-xl bg-signal-soft px-4 py-3 text-sm">
-          Норма может быть завышена на {pending * 8} часов: переносы новогодних
-          выходных на {accountingYear} год ещё не проставлены. Откройте
-          календарь года ниже и отметьте их по своему производственному
-          календарю.
-        </p>
-      ) : null}
+    <>
+      {/* Полоса стоит на месте, как шапка над ней. Числа нужны при каждой
+          правке в календаре: человек отмечает день в декабре и тут же
+          смотрит, что стало с нормой. Пока они были первым экраном, до
+          них приходилось прокручивать назад через двенадцать сеток —
+          именно в тот момент, когда важна точность. */}
+      {/* Щиток над полосой. Шапка залита бумагой только на верхнюю
+          половину, ниже она уходит в прозрачность, — и содержимое
+          страницы просвечивало сквозь неё полоской между шапкой и этой
+          панелью. Псевдоэлемент закрывает ровно эту половину: на своём
+          месте, до прокрутки, он приходится на пустое поле под шапкой и
+          не виден. */}
+      <div
+        className={cn(
+          // `relative` тут ставить нельзя: это то же свойство `position`,
+          // и оно отменило бы `sticky`. Липкий элемент и так задаёт
+          // систему координат для `absolute` внутри себя.
+          "sticky top-24 z-40 -mx-6 border-b border-rule bg-paper px-6 py-3",
+          "before:absolute before:inset-x-0 before:bottom-full",
+          "before:h-12 before:bg-paper before:content-['']",
+        )}
+      >
+        <div className="flex flex-wrap items-end gap-x-6 gap-y-3">
+          <div className="min-w-0">
+            <p className="font-display text-[11px] font-bold uppercase tracking-wide text-ink-muted">
+              Как должно быть за
+            </p>
+            <p className="flex items-center gap-1 whitespace-nowrap font-mono text-xs text-ink">
+              {periodLabel}
+              {hint}
+            </p>
+          </div>
 
-      {/* Сетка, а не строка: блок стоит в колонке шириной в двадцать
-          четыре рема, и числа в ней обязаны вставать друг под друга
-          ровно. Связок «≈» и «или» между ними больше нет — приблизительность
-          ушла внутрь самого числа, а «или» ничего не добавляло к подписи
-          «Выплата». */}
-      <dl className="grid grid-cols-2 gap-x-8 gap-y-5 sm:grid-cols-3 xl:grid-cols-2">
-        <Figure
-          value={hours(calculation.normHours)}
-          unit="ч"
-          caption="Норма к отработке"
-          emphatic
-        />
-        <Figure value={hours(calculation.actualHours)} unit="ч" caption="Отработано" />
-        <Figure
-          value={hours(calculation.overtimeHours)}
-          unit="ч"
-          caption="Переработка"
-          tone={overtime ? "verify" : undefined}
-        />
-        {overtime ? (
-          <Figure
-            value={`≈ ${days(calculation.overtimeHours)}`}
-            unit="суток"
-            caption="В сутках"
-            tone="verify"
-          />
-        ) : null}
-        {overtime && payTotal ? (
-          <Figure
-            value={formatMoneyAmount(payTotal)}
-            unit="₽"
-            caption="Выплата (до НДФЛ)"
-            tone="verify"
-          />
-        ) : null}
-        {calculation.undertimeHours.greaterThan(0) ? (
-          <Figure
-            value={hours(calculation.undertimeHours)}
-            unit="ч"
-            caption="Недоработка"
-            tone="signal"
-          />
-        ) : null}
-      </dl>
+          <dl className="flex flex-wrap items-end gap-x-6 gap-y-3">
+            <Figure
+              value={hours(calculation.normHours)}
+              unit="ч"
+              caption="Норма к отработке"
+              emphatic
+            />
+            <Figure
+              value={hours(calculation.actualHours)}
+              unit="ч"
+              caption="Отработано"
+            />
+            <Figure
+              value={hours(calculation.overtimeHours)}
+              unit="ч"
+              caption="Переработка"
+              tone={overtime ? "verify" : undefined}
+            />
+            {undertime ? (
+              <Figure
+                value={hours(calculation.undertimeHours)}
+                unit="ч"
+                caption="Недоработка"
+                tone="signal"
+              />
+            ) : null}
+            {showAll && overtime ? (
+              <Figure
+                value={`≈ ${days(calculation.overtimeHours)}`}
+                unit="суток"
+                caption="В сутках"
+                tone="verify"
+              />
+            ) : null}
+            {showAll && overtime && payTotal ? (
+              <Figure
+                value={formatMoneyAmount(payTotal)}
+                unit="₽"
+                caption="Выплата (до НДФЛ)"
+                tone="verify"
+              />
+            ) : null}
+          </dl>
 
-      {excluded ? (
-        // Цена чужой ошибки, названная числом. Без неё «считают неверно» —
-        // это спор; с ней — довод.
-        //
-        // Последствие у ошибки ДВА, и какое наступит — зависит от того,
-        // перекрыл ли факт неуменьшенную норму. Прежняя версия знала
-        // только про недоработку и в самом частом случае — когда человек
-        // всё равно переработал — печатала «недоработка 0,00 ч, которой
-        // нет». Число верное, фраза бессмысленная, а настоящая потеря
-        // (заниженная переработка) при этом не называлась вовсе.
-        <p className="max-w-prose rounded-xl bg-signal-soft px-4 py-3 text-sm">
-          {calculation.wrongNormUndertimeHours.greaterThan(0) ? (
-            <>
-              Если в вашем табеле норму НЕ уменьшили на эти часы, у вас
-              покажется недоработка{" "}
-              <span className="font-mono">
-                {hours(calculation.wrongNormUndertimeHours)}
-              </span>{" "}
-              ч, которой на самом деле нет.
-            </>
-          ) : (
-            <>
-              Если в вашем табеле норму НЕ уменьшили на эти часы, переработка
-              выйдет на{" "}
-              <span className="font-mono">
-                {hours(calculation.overtimeHours.minus(wrongOvertime))}
-              </span>{" "}
-              ч меньше действительной:{" "}
-              <span className="font-mono">{hours(wrongOvertime)}</span> ч вместо{" "}
-              <span className="font-mono">{hours(calculation.overtimeHours)}</span> ч.
-            </>
-          )}
-        </p>
-      ) : null}
+          {/* Кнопка появляется только там, где что-то спрятано. На широком
+              экране прятать нечего, и кнопка, ничего не открывающая, была
+              бы обманом. */}
+          {!wide ? (
+            <button
+              type="button"
+              onClick={() => setOpen((previous) => !previous)}
+              aria-expanded={open}
+              className={cn(
+                "ml-auto inline-flex h-8 shrink-0 cursor-pointer items-center gap-1.5",
+                "rounded-xl border border-rule px-2.5 text-xs text-ink-muted",
+                "transition-colors hover:bg-paper-sunken hover:text-ink",
+                "focus-visible:outline-2 focus-visible:outline-offset-2",
+                "focus-visible:outline-trace",
+              )}
+            >
+              {open ? "Свернуть" : "Подробнее"}
+              <ChevronDown
+                aria-hidden
+                className={cn("size-4 transition-transform", open && "rotate-180")}
+              />
+            </button>
+          ) : null}
+        </div>
 
-      <dl className="grid grid-cols-2 gap-x-8 gap-y-3 text-sm sm:grid-cols-3 xl:grid-cols-2">
-        <Small label="Смен по графику" value={String(calculation.scheduledShifts)} />
-        <Small label="Отработано смен" value={String(calculation.workedShifts)} />
-        <Small label="Пропущено по уважительной причине" value={String(calculation.absentShifts)} />
-        {/* Знак вопроса стоит у обоих чисел, а не абзацем под строкой:
-            оговорка у каждого из них своя причина посмотреть, и человек,
-            глядящий на ночные, не обязан догадываться, что примечание
-            внизу — про них тоже. */}
-        <Small
-          label="Ночные часы"
-          value={`${hours(calculation.nightHours)} ч`}
-          hint={<FactOnlyNote />}
-        />
-        <Small
-          label="Праздничные часы"
-          value={`${hours(calculation.holidayHours)} ч`}
-          hint={<FactOnlyNote />}
-        />
-      </dl>
-    </div>
+        {/* Мелкие итоги — одной строкой, как подпись месяца в календаре:
+            пять подписанных чисел столбиками занимали две строки полосы,
+            которая обязана быть тонкой. */}
+        {showAll ? (
+          <p className="mt-3 flex flex-wrap items-center gap-x-1.5 gap-y-1 border-t border-rule pt-2 text-xs text-ink-muted">
+            <Stat value={String(calculation.scheduledShifts)} label="смен по графику" />
+            <Stat value={String(calculation.workedShifts)} label="отработано" />
+            <Stat value={String(calculation.absentShifts)} label="пропущено" />
+            <Stat value={`${hours(calculation.nightHours)} ч`} label="ночных" />
+            <Stat value={`${hours(calculation.holidayHours)} ч`} label="праздничных" last />
+            <Hint label="Про ночные и праздничные часы">
+              <FactOnlyNote />
+            </Hint>
+          </p>
+        ) : null}
+      </div>
+
+      <div className="space-y-5 pt-6">
+        {pending > 0 ? (
+          // Не «календарь не опубликован» — эта формулировка досталась от
+          // серверной версии и человеку ничего не говорила. Названа
+          // конкретная недостача и её цена в часах.
+          //
+          // Ни рамки, ни цветной полоски слева: заметность даёт сама
+          // подложка другого тона, а полоска у края — украшение,
+          // доставшееся от чужих библиотек.
+          <p className="max-w-prose rounded-xl bg-signal-soft px-4 py-3 text-sm">
+            Норма может быть завышена на {pending * 8} часов: переносы новогодних
+            выходных на {accountingYear} год ещё не проставлены. Откройте
+            календарь года ниже и отметьте их по своему производственному
+            календарю.
+          </p>
+        ) : null}
+
+        {excluded ? (
+          // Цена чужой ошибки, названная числом. Без неё «считают неверно» —
+          // это спор; с ней — довод.
+          //
+          // Последствие у ошибки ДВА, и какое наступит — зависит от того,
+          // перекрыл ли факт неуменьшенную норму. Прежняя версия знала
+          // только про недоработку и в самом частом случае — когда человек
+          // всё равно переработал — печатала «недоработка 0,00 ч, которой
+          // нет». Число верное, фраза бессмысленная, а настоящая потеря
+          // (заниженная переработка) при этом не называлась вовсе.
+          //
+          // В полосу это не убрано намеренно: полоса — числа, а это довод,
+          // и читают его один раз.
+          <p className="max-w-prose rounded-xl bg-signal-soft px-4 py-3 text-sm">
+            {calculation.wrongNormUndertimeHours.greaterThan(0) ? (
+              <>
+                Если в вашем табеле норму НЕ уменьшили на эти часы, у вас
+                покажется недоработка{" "}
+                <span className="font-mono">
+                  {hours(calculation.wrongNormUndertimeHours)}
+                </span>{" "}
+                ч, которой на самом деле нет.
+              </>
+            ) : (
+              <>
+                Если в вашем табеле норму НЕ уменьшили на эти часы, переработка
+                выйдет на{" "}
+                <span className="font-mono">
+                  {hours(calculation.overtimeHours.minus(wrongOvertime))}
+                </span>{" "}
+                ч меньше действительной:{" "}
+                <span className="font-mono">{hours(wrongOvertime)}</span> ч вместо{" "}
+                <span className="font-mono">{hours(calculation.overtimeHours)}</span> ч.
+              </>
+            )}
+          </p>
+        ) : null}
+      </div>
+    </>
+  );
+}
+
+/**
+ * Число и его имя в строке мелких итогов.
+ *
+ * Имя стоит ПЕРЕД числом, и это не вкусовщина: «91 смен по графику» —
+ * ошибка согласования, а правильная форма зависит от последней цифры.
+ * Порядок «смен по графику 91» верен при любом числе и не требует
+ * склонять существительное в коде.
+ */
+function Stat({
+  value,
+  label,
+  last,
+}: {
+  value: string;
+  label: string;
+  last?: boolean;
+}) {
+  return (
+    <span className="whitespace-nowrap">
+      {label} <span className="font-mono text-ink">{value}</span>
+      {last ? "" : " /"}
+    </span>
   );
 }
 
@@ -261,35 +361,16 @@ function Figure({
       <dd
         className={cn(
           "whitespace-nowrap font-mono leading-none",
-          emphatic ? "text-3xl" : "text-2xl",
+          emphatic ? "text-xl sm:text-2xl" : "text-lg sm:text-xl",
           tone === "signal" && "text-signal",
           tone === "verify" && "text-verify  font-medium",
         )}
       >
         {value}
-        <span className="ml-1 text-base text-ink-muted">{unit}</span>
+        <span className="ml-1 text-xs text-ink-muted sm:text-sm">{unit}</span>
       </dd>
-      <dt className="text-xs text-ink-muted">{caption}</dt>
+      <dt className="text-[11px] leading-tight text-ink-muted">{caption}</dt>
     </div>
   );
 }
 
-function Small({
-  label,
-  value,
-  hint,
-}: {
-  label: string;
-  value: string;
-  hint?: ReactNode;
-}) {
-  return (
-    <div>
-      <dt className="flex items-center gap-1 text-xs text-ink-muted">
-        {label}
-        {hint ? <Hint label={`Про «${label.toLowerCase()}»`}>{hint}</Hint> : null}
-      </dt>
-      <dd className="whitespace-nowrap font-mono">{value}</dd>
-    </div>
-  );
-}
