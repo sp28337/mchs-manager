@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 
 import { CollapsibleSection } from "@/components/shared/collapsible-section";
+import { Hint } from "@/components/ui/hint";
 import { SiteHeader } from "@/components/shared/site-header";
 import { formatPeriodRu } from "../domain/format";
 import type { IsoDate } from "../domain/plain-date";
@@ -17,7 +18,7 @@ import type { StoredProfile } from "../storage/profile";
 import { DayEditor } from "./day-editor";
 import { HeaderTools } from "./header-tools";
 import { SaveToFile } from "./save-to-file";
-import { PeriodSummary } from "./period-summary";
+import { NormNote, PeriodSummary } from "./period-summary";
 import { ProfileFooter } from "./profile-footer";
 import { CalendarNote } from "./year-calendar-editor";
 import {
@@ -146,7 +147,7 @@ export function Workspace({ profile, onChange, onForget }: WorkspaceProps) {
           периода — он живёт здесь. Тянуть его наверх значило бы поднять
           туда и выбор периода, то есть половину этого экрана. */}
       <SiteHeader
-        tagline={`${profile.accountingYear} год · ${profile.guardNumber}-й караул`}
+        tagline={`${profile.accountingYear} год / ${profile.guardNumber}-й караул`}
         tools={
           <HeaderTools
             profile={profile}
@@ -170,7 +171,14 @@ export function Workspace({ profile, onChange, onForget }: WorkspaceProps) {
               именно даты стоят за нормой, а не как называется период. */}
           <span className="text-ink-muted">
             за {formatPeriodRu(periodStart, periodEnd)}
-          </span>
+          </span>{" "}
+          {/* Вывод нормы — за знаком вопроса, как и остальные пояснения на
+              этой странице. Раньше он занимал под числами рамку в четыре
+              строки, и до переработки приходилось прокручивать через
+              статьи и приказы. */}
+          <Hint label="Откуда взялась норма">
+            <NormNote calculation={calculation} />
+          </Hint>
         </h2>
         <PeriodSummary
           calculation={calculation}

@@ -248,7 +248,7 @@ function DayForm({
                   title={CALLOUT_LABELS[callout.kind]}
                   detail={
                     `${formatDateRu(callout.startsOn)} — ${formatDateRu(callout.endsOn)}` +
-                    ` · ${callout.hoursPerDay} ч/сут`
+                    `, ${callout.hoursPerDay} ч в сутки`
                   }
                   basis={CALLOUT_KIND_BASIS[callout.kind]}
                   onRemove={() =>

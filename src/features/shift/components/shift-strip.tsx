@@ -202,7 +202,7 @@ export function ShiftStrip({
             }
             meta={
               <>
-                {group.starts} см · {hours(group.workedHours)} ч
+                {group.starts} см / {hours(group.workedHours)} ч
                 {/* Раньше здесь стояло «· −8», и человек справедливо
                     прочитал это как «минус 8 часов». Число пропущенных
                     смен обязано быть подписано словом: приложение
@@ -210,13 +210,13 @@ export function ShiftStrip({
                     молча, и двусмысленность в его собственном итоге —
                     последнее, что тут допустимо. */}
                 {group.absentStarts > 0 ? (
-                  <span className="text-signal"> · пропущено {group.absentStarts}</span>
+                  <span className="text-signal"> / пропущено {group.absentStarts}</span>
                 ) : null}
                 {group.calloutHours.greaterThan(0) ? (
-                  <span className="text-trace"> · вызовы {hours(group.calloutHours)}</span>
+                  <span className="text-trace"> / вызовы {hours(group.calloutHours)}</span>
                 ) : null}
                 {group.nightHours.greaterThan(0) ? (
-                  <span className="text-ink-faint"> · ноч. {hours(group.nightHours)}</span>
+                  <span className="text-ink-faint"> / ноч. {hours(group.nightHours)}</span>
                 ) : null}
               </>
             }

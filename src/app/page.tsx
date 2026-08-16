@@ -198,7 +198,7 @@ export default function LandingPage() {
                 Открыть калькулятор
               </Link>
               <p className="text-sm text-ink-muted">
-                Бесплатно · без регистрации
+                Бесплатно / без регистрации
               </p>
             </div>
           </div>

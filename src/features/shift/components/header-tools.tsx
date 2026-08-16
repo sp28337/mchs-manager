@@ -115,10 +115,11 @@ export function HeaderTools({
               )}
             >
               <Icon aria-hidden className="size-4.5 shrink-0 text-ink-muted" />
-              {/* Ниже четырёхсот точек подпись уходит, а кнопка остаётся:
-                  в эту ширину три подписи и выгрузка не встают. Для
-                  программы чтения имя на месте — оно в `aria-label`. */}
-              <span className="max-xxs:hidden">{label}</span>
+              {/* Ниже `sm` подпись уходит, а кнопка остаётся: три подписи
+                  и выгрузка в такую ширину не встают, и шапка от них
+                  ломалась на две строки. Для программы чтения имя на
+                  месте — оно в `aria-label`. */}
+              <span className="max-sm:hidden">{label}</span>
             </button>
           );
         })}

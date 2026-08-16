@@ -1,3 +1,6 @@
+import type { ReactNode } from "react";
+
+import { Hint } from "@/components/ui/hint";
 import { cn } from "@/lib/utils/cn";
 
 import { atLeastZero, formatHours as hours, formatDays as days, type Decimal } from "../domain/decimal";
@@ -16,6 +19,25 @@ import type { PeriodCalculation } from "../domain/calculation";
  *
  * Стрелка от базовой нормы к норме к отработке показана явно: это и есть
  * действие, которое работодатель часто не совершает.
+ *
+ * --- Куда делись статьи и приказы ----------------------------------------
+ *
+ * Под числами стояли два абзаца в рамке — вывод нормы со ссылками на
+ * ст. 95 и 104 ТК РФ, письмо Роструда, приказ № 410. Всё это правда и
+ * всё это нужно, но не в тот момент, когда человек ищет глазами
+ * переработку: до неё приходилось прокручивать через полтора экрана
+ * права.
+ *
+ * Обоснование ушло за знак вопроса — туда же, куда на этой странице ушли
+ * остальные пояснения. Оно не удалено и не смягчено: раскрывается у того
+ * самого числа, к которому относится, и программе чтения экрана видно
+ * всегда.
+ *
+ * --- Что осталось на виду -------------------------------------------------
+ *
+ * Числа и ОДИН вывод: во что обойдётся неуменьшенная норма. Это не
+ * справка, а довод в споре, и прятать его за знаком вопроса значило бы
+ * спрятать то, ради чего страницу открыли.
  */
 export function PeriodSummary({
   calculation,
@@ -47,7 +69,11 @@ export function PeriodSummary({
         // Не «календарь не опубликован» — эта формулировка досталась от
         // серверной версии и человеку ничего не говорила. Названа
         // конкретная недостача и её цена в часах.
-        <p className="rounded-sm border-l-2 border-signal bg-signal-soft px-4 py-3 text-sm">
+        //
+        // Ни рамки, ни цветной полоски слева: заметность даёт сама
+        // подложка другого тона, а полоска у края — украшение, доставшееся
+        // от чужих библиотек.
+        <p className="max-w-prose rounded-xl bg-signal-soft px-4 py-3 text-sm">
           Норма может быть завышена на {pending * 8} часов: переносы новогодних
           выходных на {accountingYear} год ещё не проставлены. Откройте
           календарь года ниже и отметьте их по своему производственному
@@ -110,37 +136,6 @@ export function PeriodSummary({
         </div>
       </dl>
 
-      <div className="space-y-2 rounded-xl border border-rule bg-paper-raised p-4">
-        <h3 className="font-display text-xs font-bold uppercase tracking-wide text-ink-muted">
-          Откуда взялась норма
-        </h3>
-        <p className="max-w-prose text-sm">
-          {calculation.calendar.workingDays} рабочих дней по производственному
-          календарю × {hours(calculation.weeklyNorm.hours)} ч ÷ 5
-          {calculation.calendar.preHolidayDays > 0
-            ? ` − ${calculation.calendar.preHolidayDays} ч за предпраздничные дни (ст. 95 ТК РФ)`
-            : ""}{" "}
-          = <span className="font-mono">{hours(calculation.baseNormHours)}</span> ч.
-        </p>
-        <p className="text-xs text-ink-muted">
-          Недельная норма: {calculation.weeklyNorm.basis}. Норма периода —
-          ст. 104 ТК РФ.
-        </p>
-
-        {excluded ? (
-          <p className="max-w-prose border-t border-rule pt-2 text-sm">
-            Из неё исключено{" "}
-            <span className="font-mono">{hours(calculation.excludedHours)}</span> ч —
-            это {calculation.absentShifts} смен(ы) по графику, пришедшиеся на
-            отсутствие с сохранением места службы. Остаётся{" "}
-            <span className="font-mono">{hours(calculation.normHours)}</span> ч.
-            <span className="mt-1 block text-xs text-ink-muted">
-              Основание: письмо Роструда от 01.03.2010 № 550-6-1.
-            </span>
-          </p>
-        ) : null}
-      </div>
-
       {excluded ? (
         // Цена чужой ошибки, названная числом. Без неё «считают неверно» —
         // это спор; с ней — довод.
@@ -151,7 +146,7 @@ export function PeriodSummary({
         // всё равно переработал — печатала «недоработка 0,00 ч, которой
         // нет». Число верное, фраза бессмысленная, а настоящая потеря
         // (заниженная переработка) при этом не называлась вовсе.
-        <p className="max-w-prose rounded-r-xl rounded-l-sm border-l-2 border-signal bg-signal-soft px-4 py-3 text-sm">
+        <p className="max-w-prose rounded-xl bg-signal-soft px-4 py-3 text-sm">
           {calculation.wrongNormUndertimeHours.greaterThan(0) ? (
             <>
               Если в вашем табеле норму НЕ уменьшили на эти часы, у вас
@@ -180,19 +175,79 @@ export function PeriodSummary({
         <Small label="Смен по графику" value={String(calculation.scheduledShifts)} />
         <Small label="Отработано смен" value={String(calculation.workedShifts)} />
         <Small label="Пропущено по уважительной причине" value={String(calculation.absentShifts)} />
-        <Small label="Ночные часы" value={`${hours(calculation.nightHours)} ч`} />
-        <Small label="Праздничные часы" value={`${hours(calculation.holidayHours)} ч`} />
+        {/* Знак вопроса стоит у обоих чисел, а не абзацем под строкой:
+            оговорка у каждого из них своя причина посмотреть, и человек,
+            глядящий на ночные, не обязан догадываться, что примечание
+            внизу — про них тоже. */}
+        <Small
+          label="Ночные часы"
+          value={`${hours(calculation.nightHours)} ч`}
+          hint={<FactOnlyNote />}
+        />
+        <Small
+          label="Праздничные часы"
+          value={`${hours(calculation.holidayHours)} ч`}
+          hint={<FactOnlyNote />}
+        />
       </dl>
-
-      {calculation.holidayHours.greaterThan(0) || calculation.nightHours.greaterThan(0) ? (
-        <p className="max-w-prose text-xs text-ink-muted">
-          Ночные и праздничные часы показаны как факт. При суммированном учёте
-          в пределах нормы они дополнительным временем отдыха не компенсируются
-          (Приказ МЧС России от 24.09.2018 № 410, п. 14) — обещать здесь
-          доплату было бы неправдой.
-        </p>
-      ) : null}
     </div>
+  );
+}
+
+/**
+ * Откуда взялась норма — то, что стояло абзацами в рамке под числами.
+ *
+ * Живёт здесь, а не там, где показывается: текст обязан слово в слово
+ * следовать за расчётом, и разойтись с ним ему нельзя. Показывается
+ * знаком вопроса у заголовка периода — то есть у того самого числа, о
+ * котором говорит.
+ */
+export function NormNote({ calculation }: { calculation: PeriodCalculation }) {
+  return (
+    <>
+      <span className="block">
+        {calculation.calendar.workingDays} рабочих дней по производственному
+        календарю × {hours(calculation.weeklyNorm.hours)}&nbsp;ч ÷ 5
+        {calculation.calendar.preHolidayDays > 0
+          ? ` − ${calculation.calendar.preHolidayDays} ч за предпраздничные дни (ст. 95 ТК РФ)`
+          : ""}{" "}
+        = <span className="font-mono">{hours(calculation.baseNormHours)}</span>&nbsp;ч.
+      </span>
+
+      {calculation.excludedHours.greaterThan(0) ? (
+        <span className="mt-2 block">
+          Из неё исключено{" "}
+          <span className="font-mono">{hours(calculation.excludedHours)}</span>&nbsp;ч
+          — это {calculation.absentShifts} смен(ы) по графику, пришедшиеся на
+          отсутствие с сохранением места службы. Остаётся{" "}
+          <span className="font-mono">{hours(calculation.normHours)}</span>&nbsp;ч.
+          Основание: письмо Роструда от 01.03.2010 № 550-6-1.
+        </span>
+      ) : null}
+
+      <span className="mt-2 block text-ink-muted">
+        Недельная норма: {calculation.weeklyNorm.basis}. Норма периода —
+        ст. 104 ТК РФ.
+      </span>
+    </>
+  );
+}
+
+/**
+ * Почему ночные и праздничные часы здесь только названы.
+ *
+ * Обещать за них доплату было бы неправдой, и молчать об этом нельзя:
+ * человек, увидевший 664 часа ночных, сам достроит вывод, которого закон
+ * не даёт.
+ */
+function FactOnlyNote() {
+  return (
+    <>
+      Показаны как факт. При суммированном учёте в пределах нормы ночные и
+      праздничные часы дополнительным временем отдыха не компенсируются
+      (Приказ МЧС России от 24.09.2018 № 410, п. 14) — обещать здесь доплату
+      было бы неправдой.
+    </>
   );
 }
 
@@ -211,9 +266,11 @@ function Figure({
 }) {
   return (
     <div className="space-y-0.5">
+      {/* Число и его единица не разрываются переносом: «1796,00» на одной
+          строке и «ч» на следующей читается как другое число. */}
       <dd
         className={cn(
-          "font-mono leading-none",
+          "whitespace-nowrap font-mono leading-none",
           emphatic ? "text-3xl" : "text-2xl",
           tone === "signal" && "text-signal",
           tone === "verify" && "text-verify  font-medium",
@@ -227,11 +284,22 @@ function Figure({
   );
 }
 
-function Small({ label, value }: { label: string; value: string }) {
+function Small({
+  label,
+  value,
+  hint,
+}: {
+  label: string;
+  value: string;
+  hint?: ReactNode;
+}) {
   return (
     <div>
-      <dt className="text-xs text-ink-muted">{label}</dt>
-      <dd className="font-mono">{value}</dd>
+      <dt className="flex items-center gap-1 text-xs text-ink-muted">
+        {label}
+        {hint ? <Hint label={`Про «${label.toLowerCase()}»`}>{hint}</Hint> : null}
+      </dt>
+      <dd className="whitespace-nowrap font-mono">{value}</dd>
     </div>
   );
 }

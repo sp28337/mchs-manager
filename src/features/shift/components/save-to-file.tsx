@@ -21,8 +21,14 @@ export function SaveToFile({ profile }: { profile: StoredProfile }) {
     <Button
       type="button"
       variant="outline"
-      className="rounded-xl bg-paper-raised"
+      // Та же плашка, что у «В деньгах» и «Настроек» рядом: высота,
+      // скругление и кегль совпадают до единицы.
+      className="rounded-xl bg-paper-raised px-3 text-sm"
       size="sm"
+      // Ниже `sm` от кнопки остаётся значок, и без имени она стала бы для
+      // программы чтения безымянной.
+      aria-label="Сохранить в файл"
+      title="Сохранить в файл"
       onClick={() => {
         const blob = new Blob([exportProfile(profile)], { type: "application/json" });
         const url = URL.createObjectURL(blob);
@@ -33,10 +39,12 @@ export function SaveToFile({ profile }: { profile: StoredProfile }) {
         URL.revokeObjectURL(url);
       }}
     >
-      <div className="hidden xxs:block">Сохранить в файл</div>
-      <div className="xxs:hidden xs:block">
-        <Save className="size-5" />
-      </div>
+      {/* Значок стоит всегда, подпись — с той же ширины, что у соседних
+          кнопок шапки. Прежняя пара условий давала на 400–447 точках
+          подпись без значка, а дальше и то и другое: три разных вида
+          одной кнопки на трёх соседних ширинах. */}
+      <Save aria-hidden className="size-4.5 shrink-0 text-ink-muted" />
+      <span className="max-sm:hidden">Сохранить в файл</span>
     </Button>
   );
 }

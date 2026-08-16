@@ -43,12 +43,23 @@ import { cn } from "@/lib/utils/cn";
  * шапке знание о том, какие бывают страницы, — и однажды забыть его
  * обновить.
  *
- * Порог — `sm`: замером, при 640 точках знак, значки и кнопка выгрузки с
- * подписью занимают около шестисот, то есть впритык помещаются; ниже уже
- * нет.
+ * Порог — `md`: кнопки шапки перестали быть значками и получили подписи,
+ * и вместе с выгрузкой они занимают около пятисот точек. Название — ещё
+ * двести с небольшим; вдвоём они помещаются начиная с 768.
  *
  * Ссылка при этом не немая: подпись для программы чтения остаётся на
  * месте, просто перестаёт рисоваться.
+ *
+ * --- Почему строка не переносится ----------------------------------------
+ *
+ * Раньше строка была `flex-wrap`, и на промежуточных ширинах кнопки
+ * съезжали под название второй строкой — шапка высотой в шесть рем с
+ * содержимым, вылезающим за неё. Перенос убран совсем: ширины подобраны
+ * так, чтобы содержимое влезало на любом экране, а порядок сжатия задан
+ * заранее — сперва пропадает подпись у кнопок, потом название сайта.
+ * Единственное, что вправе сжиматься, — само название: на самых узких
+ * экранах оно переносится на третью строку внутри своей ссылки, но
+ * никогда не толкает кнопки вниз.
  *
  * --- Почему она не липкая ------------------------------------------------
  *
@@ -69,16 +80,16 @@ export interface SiteHeaderProps {
 export function SiteHeader({ tagline, action, tools, className }: SiteHeaderProps) {
   return (
     <header className={cn("fixed w-full z-100  bg-linear-to-b from-paper from-50% to-transparent h-24", className)}>
-      <div className="mx-auto flex w-full flex-wrap items-center gap-x-6 gap-y-3 pl-6 lg:pl-9 pr-6 py-3 h-24 2xl:max-w-[2000px]">
+      <div className="mx-auto flex h-24 w-full flex-nowrap items-center gap-x-4 py-3 pl-6 pr-6 sm:gap-x-6 lg:pl-9 2xl:max-w-[2000px]">
         <Link
           href="/"
-          className="group flex items-center gap-2.5 rounded-xs focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-trace"
+          className="group flex min-w-0 items-center gap-2.5 rounded-xs focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-trace"
         >
           <Logo className="size-7 shrink-0 text-signal" />
           {/* Название скрыто, но не удалено: `sr-only` оставляет его
               программе чтения, и ссылка домой не превращается в безымянную
               картинку. */}
-          <span className={cn("leading-none", tools && "max-sm:sr-only")}>
+          <span className={cn("min-w-0 leading-none", tools && "max-md:sr-only")}>
             <span className="block font-display text-black/80 dark:text-ink text-sm font-bold uppercase leading-tight tracking-wide group-hover:underline">
               {/* Пробел перед второй строкой намеренный: `block` делит
                   строки визуально, но в тексте они склеиваются, и
@@ -95,7 +106,9 @@ export function SiteHeader({ tagline, action, tools, className }: SiteHeaderProp
           </p>
         ) : null}
 
-        <div className="ml-auto flex min-w-0 items-center gap-3">
+        {/* Кнопки не сжимаются ни при какой ширине: сжатая кнопка — это
+            обрезанная подпись, а не выигранное место. Уступает название. */}
+        <div className="ml-auto flex shrink-0 items-center gap-2 sm:gap-3">
           {tools}
           {action}
         </div>
