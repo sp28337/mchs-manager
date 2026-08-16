@@ -87,10 +87,12 @@ export function RailButton({
   label,
   onClick,
   children,
+  className,
 }: {
   label: string;
   onClick: () => void;
   children: ReactNode;
+  className?: string;
 }) {
   return (
     <button
@@ -102,6 +104,7 @@ export function RailButton({
         "flex size-9 shrink-0 cursor-pointer items-center justify-center rounded-lg",
         "text-ink-faint transition-colors hover:bg-paper-sunken hover:text-ink",
         "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-trace",
+        className,
       )}
     >
       {children}
@@ -125,6 +128,19 @@ export function RailButton({
  * Значок называет блок, и открывать он обязан ровно его. Колонка целиком
  * на экране в триста восемьдесят точек — это та самая лента над расчётом,
  * из-за которой всё и затевалось, только поверх содержимого.
+ *
+ * --- Почему это одна обведённая группа, а не пять кнопок -----------------
+ *
+ * Рядом в шапке стоит «Сохранить в файл» — обведённая пилюля высотой в
+ * девять единиц. Пять голых значков возле неё выглядели как обрывки: у
+ * соседа есть край, у них нет. Общая рамка даёт им тот же край, ту же
+ * скруглённость и ту же подложку, и заодно говорит правду о существе
+ * дела — это один орган управления с пятью входами, а не пять независимых
+ * действий.
+ *
+ * Высота считается до пикселя: два по краю плюс восемь на кнопку плюс два
+ * — ровно девять единиц, как у соседней пилюли. Иначе в строке было бы
+ * два разных роста.
  */
 export function PanelDock({
   onOpen,
@@ -137,13 +153,21 @@ export function PanelDock({
     <div
       role="group"
       aria-label="Что вы вносите"
-      className={cn("flex items-center", className)}
+      className={cn(
+        "inline-flex h-9 items-center rounded-xl border border-rule-strong bg-paper-raised p-0.5",
+        className,
+      )}
     >
       {PANEL_ORDER.map((id) => {
         const { title, Icon } = PANEL_META[id];
         return (
-          <RailButton key={id} label={title} onClick={() => onOpen(id)}>
-            <Icon aria-hidden className="size-5" />
+          <RailButton
+            key={id}
+            label={title}
+            onClick={() => onOpen(id)}
+            className="size-8 text-ink-muted"
+          >
+            <Icon aria-hidden className="size-4.5" />
           </RailButton>
         );
       })}
