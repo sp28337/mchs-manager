@@ -161,7 +161,7 @@ export function CollapsiblePanel({
         ) : null}
         <span className="min-w-0 flex-1 space-y-0.5">
           <span className="flex items-center gap-1.5">
-            <span className="min-w-0 font-display text-xs font-bold uppercase tracking-wide text-ink">
+            <span className="min-w-0 font-display text-sm font-bold uppercase tracking-wide text-ink">
               {title}
             </span>
             {hint ? <Hint>{hint}</Hint> : null}

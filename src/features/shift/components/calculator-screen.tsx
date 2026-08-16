@@ -84,7 +84,7 @@ function SaveToFile({ profile }: { profile: StoredProfile }) {
     <Button
       type="button"
       variant="outline"
-      className="rounded-xl"
+      className="rounded-xl bg-paper-raised"
       size="sm"
       onClick={() => {
         const blob = new Blob([exportProfile(profile)], { type: "application/json" });

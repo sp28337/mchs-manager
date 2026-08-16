@@ -344,8 +344,8 @@ function DayCell({ day, records }: { day: IsoDate; records: readonly DayRecord[]
         // Хвост смены отличается от заступления бледностью, а не другим
         // цветом: это те же отработанные часы, и разный цвет читался бы как
         // разный род времени.
-        worked && shift.isShiftStart && "border-verify bg-verify-soft text-verify",
-        worked && !shift.isShiftStart && "border-verify/50 bg-verify-soft/50 text-verify",
+        worked && shift.isShiftStart && "border-verify/50 bg-verify/20 text-verify",
+        worked && !shift.isShiftStart && "border-verify/20 bg-verify/10 text-verify",
         shift?.absenceKind && ABSENCE_TONE[shift.absenceKind],
         // Вызов перебивает вид смены: он редок, и человек ищет глазами
         // именно его. Часы при этом не теряются — они в подписи и в итоге
