@@ -1,16 +1,6 @@
 "use client";
 
-import {
-  Banknote,
-  CalendarMinus2,
-  CalendarRange,
-  ClipboardCheck,
-  PanelLeftClose,
-  PanelLeftOpen,
-  Settings2,
-  Siren,
-  type LucideIcon,
-} from "lucide-react";
+import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -47,6 +37,14 @@ import {
   type AbsenceKind,
   type CalloutKind,
 } from "../schemas";
+import {
+  PANEL_META,
+  PANEL_ORDER,
+  PanelIcon,
+  RailButton,
+  panelDomId,
+  type PanelId,
+} from "./aside-panels";
 import { DateField } from "./date-field";
 import { OvertimePayCard } from "./overtime-pay-card";
 import { PeriodPicker, type StatutoryChoice } from "./period-picker";
@@ -81,8 +79,17 @@ import { YearView, type YearViewKind } from "./year-view";
  * внесённый отпуск сразу меняет норму справа, и человеку не нужно
  * запоминать, сколько было до.
  *
- * Ниже `lg` колонки нет: на телефоне она встала бы над содержимым, и это
- * была бы прежняя раскладка, только уже.
+ * --- Чем колонка заменена на телефоне ------------------------------------
+ *
+ * Ничем на самой странице: там её нет вовсе. Значки блоков переехали в
+ * шапку (`aside-panels`, `PanelDock`), и нажатие открывает ОДИН блок в
+ * окне — тот, который значок называет.
+ *
+ * Колонка на трёхсотвосьмидесяти точках была бы лентой закрытых крышек над
+ * расчётом: до первого числа пять нажатий. Плавающая полоска у правого
+ * края, которая была здесь до шапки, эту ленту убрала, но висела поверх
+ * содержимого и отнимала у календаря полосу справа. В шапке строка всё
+ * равно есть, и справа в ней пусто — название сайта там скрыто.
  *
  * --- Почему все блоки колонки сворачиваются ------------------------------
  *
@@ -118,51 +125,22 @@ import { YearView, type YearViewKind } from "./year-view";
 const ABSENCE_KINDS = Object.keys(ABSENCE_LABELS) as AbsenceKind[];
 const CALLOUT_KINDS = Object.keys(CALLOUT_LABELS) as CalloutKind[];
 
-/**
- * Блоки боковой колонки.
- *
- * Список объявлен один раз, потому что читается дважды: заголовками в
- * развёрнутой колонке и значками в свёрнутой полоске. Разойдись эти два
- * места — и полоска перестала бы отвечать на вопрос «где здесь вызовы».
- *
- * Значки выбраны по смыслу, а не по красоте: диапазон дат у периода,
- * купюра у денег, календарь с минусом у отсутствий (они вычитаются из
- * нормы), сирена у вызовов, планшет с галочкой у сверки.
- */
-type PanelId =
-  | "period"
-  | "pay"
-  | "absences"
-  | "callouts"
-  | "reconcile"
-  | "settings";
-
-const PANEL_META: Record<PanelId, { title: string; Icon: LucideIcon }> = {
-  period: { title: "Период", Icon: CalendarRange },
-  pay: { title: "Сколько это в деньгах", Icon: Banknote },
-  absences: { title: "Отпуска и больничные", Icon: CalendarMinus2 },
-  callouts: { title: "Вызовы помимо графика", Icon: Siren },
-  reconcile: { title: "Что написано в вашем табеле", Icon: ClipboardCheck },
-  settings: { title: "Настройки", Icon: Settings2 },
-};
-
-/**
- * Состав и порядок блоков задаёт список `panels` внутри самого экрана: там
- * же, где их содержимое, — иначе значок в полоске мог бы вести в блок,
- * которого в разметке нет. Настройки в нём стоят последними: их задают
- * однажды и почти не трогают, а остальное открывают при каждом разборе.
- */
-
-/** Опознаватель блока в разметке: по нему в блок уводится фокус. */
-const panelDomId = (id: PanelId) => `aside-panel-${id}`;
-
 export interface WorkspaceProps {
   profile: StoredProfile;
   onChange: (change: (previous: StoredProfile) => StoredProfile) => void;
   onForget: () => void;
+  /** Открытый блок колонки на телефоне — им распоряжается шапка. */
+  phonePanel: PanelId | null;
+  onPhonePanel: (id: PanelId | null) => void;
 }
 
-export function Workspace({ profile, onChange, onForget }: WorkspaceProps) {
+export function Workspace({
+  profile,
+  onChange,
+  onForget,
+  phonePanel,
+  onPhonePanel,
+}: WorkspaceProps) {
   const periods = accountingPeriodsOf(profile);
 
   // Умолчание — учётный период целиком: именно по его итогу определяется
@@ -219,7 +197,6 @@ export function Workspace({ profile, onChange, onForget }: WorkspaceProps) {
   // классами, потому что это разная РАЗМЕТКА, а не разные отступы; почему
   // это безопасно — в `useMediaQuery`.
   const wide = useMediaQuery("(min-width: 64rem)");
-  const [phonePanel, setPhonePanel] = useState<PanelId | null>(null);
 
   const [collapsed, setCollapsed] = useState(false);
   const [openPanels, setOpenPanels] = useState<Record<PanelId, boolean>>({
@@ -273,20 +250,25 @@ export function Workspace({ profile, onChange, onForget }: WorkspaceProps) {
   }
 
   /**
-   * Содержимое блоков — одним списком, потому что показывать его нужно в
-   * двух разных оболочках. На широком экране это столбец раскрывающихся
-   * карточек, на телефоне — по одному блоку в окне, вызванном из полоски
-   * значков. Описать блоки дважды значило бы завести две формы оклада с
-   * двумя независимыми состояниями и следить, чтобы они не разошлись.
+   * Содержимое блоков.
+   *
+   * Показывать его нужно в двух разных оболочках: на широком экране это
+   * столбец раскрывающихся карточек, на телефоне — по одному блоку в окне,
+   * вызванном значком из шапки. Описать блоки дважды значило бы завести
+   * две формы оклада с двумя независимыми состояниями и следить, чтобы они
+   * не разошлись.
+   *
+   * Порядок и состав задаёт не этот объект, а общий `PANEL_ORDER`: по нему
+   * же шапка рисует значки, и разойдись они — значок вёл бы в блок,
+   * которого на экране нет.
    */
-  const panels: readonly {
-    id: PanelId;
-    hint?: React.ReactNode;
-    summary?: React.ReactNode;
-    body: React.ReactNode;
-  }[] = [
-    {
-      id: "period",
+  const bodies: Partial<
+    Record<
+      PanelId,
+      { hint?: React.ReactNode; summary?: React.ReactNode; body: React.ReactNode }
+    >
+  > = {
+    period: {
       summary: formatPeriodRu(periodStart, periodEnd),
       body: (
         <PeriodPicker
@@ -305,8 +287,7 @@ export function Workspace({ profile, onChange, onForget }: WorkspaceProps) {
         />
       ),
     },
-    {
-      id: "pay",
+    pay: {
       summary: pay
         ? `${formatMoney(pay.primary.total)} за ${formatHours(calculation.overtimeHours)} ч`
         : "укажите оклад — посчитаем по приказу",
@@ -319,8 +300,7 @@ export function Workspace({ profile, onChange, onForget }: WorkspaceProps) {
         />
       ),
     },
-    {
-      id: "absences",
+    absences: {
       hint: (
         <>
           Внесите периоды, когда вы были освобождены от службы с сохранением
@@ -334,8 +314,7 @@ export function Workspace({ profile, onChange, onForget }: WorkspaceProps) {
           : "не внесено",
       body: <AbsenceSection profile={profile} onChange={onChange} />,
     },
-    {
-      id: "callouts",
+    callouts: {
       hint: (
         <>
           Соревнования, сборы, резерв, праздничные мероприятия, выборы. Это
@@ -356,8 +335,7 @@ export function Workspace({ profile, onChange, onForget }: WorkspaceProps) {
           : "не внесено",
       body: <CalloutSection profile={profile} onChange={onChange} />,
     },
-    {
-      id: "settings",
+    settings: {
       hint: (
         <>
           Те же вопросы, что в анкете при первом заходе. Любой ответ меняется
@@ -368,7 +346,20 @@ export function Workspace({ profile, onChange, onForget }: WorkspaceProps) {
       summary: `${weeklyNormOf(profile).hours.toFixed(0)} ч в неделю · ${profile.guardNumber}-й караул · ${profile.accountingYear}`,
       body: <SettingsPanel profile={profile} onChange={onChange} />,
     },
-  ];
+  };
+
+  /**
+   * Блоки в том порядке, в каком их показывает шапка.
+   *
+   * Блок из `PANEL_ORDER`, для которого здесь нет содержимого, просто не
+   * появится — и это лучше, чем пустая карточка. Обратный случай (описали
+   * содержимое, но забыли внести в порядок) тоже безобиден: блока не будет
+   * ни в колонке, ни в шапке, то есть нигде — как со сверкой сейчас.
+   */
+  const panels = PANEL_ORDER.flatMap((id) => {
+    const content = bodies[id];
+    return content ? [{ id, ...content }] : [];
+  });
 
   const openOnPhone = panels.find((panel) => panel.id === phonePanel) ?? null;
 
@@ -430,13 +421,11 @@ export function Workspace({ profile, onChange, onForget }: WorkspaceProps) {
             </div>
           )}
         </aside>
-      ) : (
-        <PhoneDock panels={panels} onOpen={setPhonePanel} />
-      )}
+      ) : null}
 
       {/* Поле справа под полоску значков: она висит поверх содержимого, и
           без отступа под ней оказывались бы крайние клетки календаря. */}
-      <div className={cn("min-w-0 space-y-10", !wide && "pr-13")}>
+      <div className="min-w-0 space-y-10">
       <header className="space-y-1">
         <h1 className="text-3xl leading-tight">{profile.displayName}</h1>
       </header>
@@ -506,7 +495,7 @@ export function Workspace({ profile, onChange, onForget }: WorkspaceProps) {
       {!wide ? (
         <Modal
           open={openOnPhone !== null}
-          onClose={() => setPhonePanel(null)}
+          onClose={() => onPhonePanel(null)}
           title={
             <span className="flex items-center gap-2">
               {openOnPhone ? <PanelIcon id={openOnPhone.id} /> : null}
@@ -519,93 +508,6 @@ export function Workspace({ profile, onChange, onForget }: WorkspaceProps) {
         </Modal>
       ) : null}
     </div>
-  );
-}
-
-/**
- * Полоска значков на телефоне.
- *
- * --- Почему справа и поверх содержимого ----------------------------------
- *
- * Раньше ниже `lg` все пять блоков просто вставали лентой над расчётом, и
- * до первого числа приходилось пролистать пять закрытых крышек. Полоска
- * занимает сорок пикселей у правого края и не отнимает у страницы верх.
- *
- * Справа, а не слева, и под кнопкой в шапке — по одной вертикали с
- * действиями: там же, где «Сохранить в файл», и там же, где у телефона
- * большой палец.
- *
- * --- Почему открывается один блок, а не вся колонка ----------------------
- *
- * Колонка целиком на экране в триста восемьдесят точек — это та же лента,
- * только поверх содержимого. Значок называет блок, и открывать он обязан
- * ровно его.
- */
-function PhoneDock({
-  panels,
-  onOpen,
-}: {
-  panels: readonly { id: PanelId }[];
-  onOpen: (id: PanelId) => void;
-}) {
-  return (
-    <div
-      // `top-28` — сразу под шапкой: она высотой в шесть рем и растворяется
-      // к своему низу, поэтому полоска начинается ниже её края.
-      className={cn(
-        "fixed right-3 top-28 z-40 flex flex-col items-center gap-1",
-        "rounded-xl border border-rule bg-paper-raised p-1.5 shadow-lg",
-      )}
-    >
-      {panels.map(({ id }) => {
-        const { title, Icon } = PANEL_META[id];
-        return (
-          <RailButton key={id} label={title} onClick={() => onOpen(id)}>
-            <Icon aria-hidden className="size-4" />
-          </RailButton>
-        );
-      })}
-    </div>
-  );
-}
-
-/** Значок блока — тот же в заголовке и в свёрнутой полоске. */
-function PanelIcon({ id }: { id: PanelId }) {
-  const { Icon } = PANEL_META[id];
-  return <Icon aria-hidden />;
-}
-
-/**
- * Кнопка в полоске значков и кнопка сворачивания колонки.
- *
- * Подпись обязательна и живёт в двух местах сразу: `aria-label` — для
- * программы чтения, `title` — для всплывающей подсказки браузера. В
- * свёрнутой полоске на экране нет ни одного слова, и без второй человек,
- * не узнавший значок, остаётся гадать.
- */
-function RailButton({
-  label,
-  onClick,
-  children,
-}: {
-  label: string;
-  onClick: () => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-label={label}
-      title={label}
-      className={cn(
-        "flex size-9 shrink-0 cursor-pointer items-center justify-center rounded-lg",
-        "text-ink-faint transition-colors hover:bg-paper-sunken hover:text-ink",
-        "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-trace",
-      )}
-    >
-      {children}
-    </button>
   );
 }
 

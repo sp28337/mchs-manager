@@ -22,8 +22,24 @@ import { cn } from "@/lib/utils/cn";
  *   отпусков. Кнопка, которая от этого спасает, обязана быть видна не
  *   только в подвале, докуда ещё нужно долистать.
  *
+ * Четвёртое появилось позже и только на узком экране — значки блоков
+ * боковой колонки (`tools`). На телефоне колонки нет, и войти в неё
+ * больше неоткуда; шапка для этого подходит по той же причине, по которой
+ * в ней стоит «Сохранить в файл»: она видна всегда.
+ *
  * Больше ничего. Разделов у сайта два, и меню из двух пунктов — это
  * не навигация, а украшение.
+ *
+ * --- Почему название пропадает на телефоне -------------------------------
+ *
+ * «Калькулятор переработки для пожарных» — это две строки, и в
+ * трёхсотвосьмидесяти точках они съедают половину шапки. Человек, который
+ * УЖЕ внутри калькулятора, названием не пользуется: домой его вернёт знак,
+ * а что это за сайт, он и так знает. Поэтому на узком экране остаётся
+ * только знак — и освободившееся место занимают значки блоков.
+ *
+ * Ссылка при этом не немая: подпись для программы чтения остаётся на
+ * месте, просто перестаёт рисоваться.
  *
  * --- Почему она не липкая ------------------------------------------------
  *
@@ -36,10 +52,12 @@ export interface SiteHeaderProps {
   tagline?: string;
   /** Главное действие страницы. */
   action?: ReactNode;
+  /** Значки блоков боковой колонки: только там, где колонки нет. */
+  tools?: ReactNode;
   className?: string;
 }
 
-export function SiteHeader({ tagline, action, className }: SiteHeaderProps) {
+export function SiteHeader({ tagline, action, tools, className }: SiteHeaderProps) {
   return (
     <header className={cn("fixed w-full z-100  bg-linear-to-b from-paper from-50% to-transparent h-24", className)}>
       <div className="mx-auto flex w-full flex-wrap items-center gap-x-6 gap-y-3 pl-6 lg:pl-9 pr-6 py-3 h-24 2xl:max-w-[2000px]">
@@ -47,8 +65,11 @@ export function SiteHeader({ tagline, action, className }: SiteHeaderProps) {
           href="/"
           className="group flex items-center gap-2.5 rounded-xs focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-trace"
         >
-          <Logo className="size-7 text-signal" />
-          <span className="leading-none">
+          <Logo className="size-7 shrink-0 text-signal" />
+          {/* Ниже `lg` название скрыто, но не удалено: `sr-only` оставляет
+              его программе чтения, и ссылка домой не превращается в
+              безымянную картинку. */}
+          <span className="leading-none max-lg:sr-only">
             <span className="block font-display text-black/80 dark:text-ink text-sm font-bold uppercase leading-tight tracking-wide group-hover:underline">
               {/* Пробел перед второй строкой намеренный: `block` делит
                   строки визуально, но в тексте они склеиваются, и
@@ -65,7 +86,8 @@ export function SiteHeader({ tagline, action, className }: SiteHeaderProps) {
           </p>
         ) : null}
 
-        <div className="ml-auto flex items-center gap-3">
+        <div className="ml-auto flex min-w-0 items-center gap-3">
+          {tools}
           {action}
         </div>
       </div>

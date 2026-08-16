@@ -1,8 +1,11 @@
 "use client";
 
+import { Save } from "lucide-react";
+import { useState } from "react";
+
 import { Button } from "@/components/ui/button";
 import { SiteHeader } from "@/components/shared/site-header";
-import { Save } from "lucide-react";
+import { PanelDock, type PanelId } from "./aside-panels";
 import { RegisterForm } from "./register-form";
 import { Workspace } from "./workspace";
 import { exportProfile, type StoredProfile } from "../storage/profile";
@@ -29,6 +32,12 @@ export function CalculatorScreen() {
 
   const profile = state.status === "ok" ? state.profile : null;
 
+  // Какой блок боковой колонки открыт на телефоне. Состояние живёт здесь,
+  // а не в рабочем экране, по простой причине: открывают блок значками из
+  // ШАПКИ, а шапка рисуется отсюда. Общий предок — единственное место, где
+  // кнопка и то, что она открывает, видят друг друга.
+  const [phonePanel, setPhonePanel] = useState<PanelId | null>(null);
+
   return (
     <>
       <SiteHeader
@@ -37,6 +46,10 @@ export function CalculatorScreen() {
             ? `${profile.accountingYear} год · ${profile.guardNumber}-й караул`
             : ""
         }
+        // Только там, где нет боковой колонки. Скрыто классами, а не
+        // условием: пять кнопок в разметке ничего не стоят, а условие
+        // потребовало бы знать ширину окна ещё и здесь.
+        tools={profile ? <PanelDock onOpen={setPhonePanel} className="lg:hidden" /> : null}
         action={profile ? <SaveToFile profile={profile} /> : null}
       />
 
@@ -48,7 +61,13 @@ export function CalculatorScreen() {
         <main className="mx-auto w-full 2xl:max-w-[2000px] space-y-10 px-6 pb-12 pt-26">
 
 
-          <Workspace profile={profile} onChange={update} onForget={forget} />
+          <Workspace
+            profile={profile}
+            onChange={update}
+            onForget={forget}
+            phonePanel={phonePanel}
+            onPhonePanel={setPhonePanel}
+          />
         </main>
       ) : (
         <main className="mx-auto w-full max-w-3xl space-y-10 px-6 pb-12 pt-22">
