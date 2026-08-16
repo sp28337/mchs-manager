@@ -124,10 +124,16 @@ interface MonthGroup {
 export function ShiftStrip({
   calculation,
   gridClassName,
+  dayNotes,
+  onPickDay,
 }: {
   calculation: PeriodCalculation;
   /** Раскладка месяцев: её задаёт масштаб, общий с календарём года. */
   gridClassName?: string;
+  /** Заметки к суткам: их наличие видно прямо в клетке. */
+  dayNotes: Readonly<Record<string, string>>;
+  /** Нажатие по клетке: открыть правку этих суток. */
+  onPickDay: (day: IsoDate) => void;
 }) {
   // На одни сутки может прийтись и смена, и вызов: человека вызвали на
   // соревнования в свой выходной или сняли со смены на выборы. Карта
@@ -215,7 +221,14 @@ export function ShiftStrip({
               </>
             }
             days={group.days}
-            renderDay={(day) => <DayCell day={day} records={byDay.get(day) ?? []} />}
+            renderDay={(day) => (
+              <DayCell
+                day={day}
+                records={byDay.get(day) ?? []}
+                note={dayNotes[day]}
+                onPick={() => onPickDay(day)}
+              />
+            )}
           />
         ))}
       </div>
@@ -283,7 +296,17 @@ function calloutMarks(kinds: readonly CalloutKind[]): string {
   return `${marks[0]}+${marks.length - 1}`;
 }
 
-function DayCell({ day, records }: { day: IsoDate; records: readonly DayRecord[] }) {
+function DayCell({
+  day,
+  records,
+  note,
+  onPick,
+}: {
+  day: IsoDate;
+  records: readonly DayRecord[];
+  note?: string;
+  onPick: () => void;
+}) {
   const date = dayOfMonth(day);
   const weekdayName = WEEKDAY_LABELS[weekday(day)] ?? "";
   // Родительный падеж, а не «2 март»: подпись читают вслух экранные
@@ -334,12 +357,21 @@ function DayCell({ day, records }: { day: IsoDate; records: readonly DayRecord[]
     record.calloutKind ? [record.calloutKind] : [],
   );
 
+  // Заметка названа в подписи, а не только помечена углом: угла незрячий
+  // читатель не увидит, а знать о записи ему нужно так же.
+  const full = note ? `${label}. Заметка: ${note}` : label;
+
   return (
-    <div
-      title={label}
+    <button
+      type="button"
+      title={full}
+      onClick={onPick}
       className={cn(
-        "flex min-w-0 flex-col items-center justify-center rounded-xs border py-0.5 leading-tight",
+        "relative flex w-full min-w-0 cursor-pointer flex-col items-center justify-center",
+        "rounded-xs border py-0.5 leading-tight",
         "lg:aspect-square lg:py-0",
+        "hover:border-ink focus-visible:outline-2 focus-visible:outline-offset-1",
+        "focus-visible:outline-trace",
         records.length === 0 && "border-rule text-ink-faint",
         // Хвост смены отличается от заступления бледностью, а не другим
         // цветом: это те же отработанные часы, и разный цвет читался бы как
@@ -357,7 +389,15 @@ function DayCell({ day, records }: { day: IsoDate; records: readonly DayRecord[]
         calloutKinds.length > 1 && "border-2",
       )}
     >
-      <span className="sr-only">{label}</span>
+      <span className="sr-only">{full}</span>
+      {/* Угол вместо цвета: цвет клетки уже занят видом суток, и второй
+          смысл на том же канале означал бы, что ни один не читается. */}
+      {note ? (
+        <span
+          aria-hidden
+          className="absolute right-0 top-0 size-0 border-l-4 border-t-4 border-l-transparent border-t-trace"
+        />
+      ) : null}
       {/* Кегль задан в `em`, а не в пикселях: клетка растёт и уменьшается
           вместе с масштабом сетки, и число обязано расти вместе с ней —
           иначе на крупном масштабе получается пустой квадрат с мелкой
@@ -383,7 +423,7 @@ function DayCell({ day, records }: { day: IsoDate; records: readonly DayRecord[]
               ? ABSENCE_MARK[shift.absenceKind]
               : hours(workedHours).replace(",00", "")}
       </span>
-    </div>
+    </button>
   );
 }
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { X } from "lucide-react";
-import { useEffect, useRef, type ReactNode } from "react";
+import { useEffect, useId, useRef, type ReactNode } from "react";
 
 import { cn } from "@/lib/utils/cn";
 
@@ -48,6 +48,11 @@ export function Modal({
   className?: string;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
+  // Опознаватель заголовка выдаётся, а не пишется руками: окон на
+  // странице бывает несколько сразу — разбор суммы открывается изнутри
+  // окна «Сколько это в деньгах», — и одинаковый `id` у двух заголовков
+  // это и недопустимая разметка, и `aria-labelledby`, указывающий не туда.
+  const titleId = useId();
 
   useEffect(() => {
     const dialog = ref.current;
@@ -80,7 +85,7 @@ export function Modal({
       onClick={(event) => {
         if (event.target === ref.current) onClose();
       }}
-      aria-labelledby="modal-title"
+      aria-labelledby={titleId}
       className={cn(
         "m-auto w-[min(44rem,calc(100vw-2rem))] max-h-[min(85dvh,52rem)]",
         "rounded-xl border border-rule bg-paper p-0 text-ink",
@@ -90,7 +95,7 @@ export function Modal({
       )}
     >
       <header className="flex items-start gap-4 border-b border-rule px-5 py-4">
-        <h2 id="modal-title" className="min-w-0 flex-1 text-lg leading-snug">
+        <h2 id={titleId} className="min-w-0 flex-1 text-lg leading-snug">
           {title}
         </h2>
         <button

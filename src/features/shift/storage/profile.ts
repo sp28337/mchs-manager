@@ -139,6 +139,22 @@ export const storedProfileSchema = z.object({
   callouts: z.array(calloutSchema).max(200).default([]),
   /** Правки производственного календаря: дата → тип дня. */
   calendarOverrides: z.record(isoDate, dayType),
+  /**
+   * Заметки к суткам: дата → текст.
+   *
+   * Расчёт их не читает и читать не должен — это память человека, а не
+   * данные: «звонил начкару, обещал отгул», «подменял Петрова». Спор о
+   * табеле идёт через полгода после событий, и без такой записи человек не
+   * вспомнит, почему в этот день у него стоит вызов.
+   *
+   * Хранятся отдельно от отпусков и вызовов, а не полем внутри них,
+   * потому что заметка бывает нужна и на дне, где ничего не отмечено, — и
+   * потому что отпуск это период, а заметка всегда про конкретные сутки.
+   *
+   * Необязательное с умолчанием: профили, сохранённые до появления
+   * заметок, обязаны читаться как есть.
+   */
+  dayNotes: z.record(isoDate, z.string().max(500)).default({}),
   reported: reportedSchema.nullable(),
   savedAt: z.string(),
 });
@@ -173,6 +189,7 @@ export function createProfile(input: NewProfileInput): StoredProfile {
     absences: [],
     callouts: [],
     calendarOverrides: {},
+    dayNotes: {},
     reported: null,
     savedAt: new Date().toISOString(),
   };

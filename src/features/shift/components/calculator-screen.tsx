@@ -1,14 +1,9 @@
 "use client";
 
-import { Save } from "lucide-react";
-import { useState } from "react";
-
 import { Button } from "@/components/ui/button";
 import { SiteHeader } from "@/components/shared/site-header";
-import { PanelDock, type PanelId } from "./aside-panels";
 import { RegisterForm } from "./register-form";
 import { Workspace } from "./workspace";
-import { exportProfile, type StoredProfile } from "../storage/profile";
 import { useProfile } from "../storage/use-profile";
 
 /**
@@ -26,48 +21,29 @@ import { useProfile } from "../storage/use-profile";
  * Что показать — анкету или расчёт — известно только из `localStorage`, а
  * его на сервере нет. Отрисовать на сервере догадку и заменить её в
  * браузере значило бы мигнуть человеку анкетой поверх готового расчёта.
+ *
+ * --- Почему шапку рисует не этот экран, а рабочий ------------------------
+ *
+ * У расчёта в шапке стоят настройки и деньги, а деньгам нужен расчёт
+ * ВЫБРАННОГО периода — он живёт в рабочем экране вместе с выбором. Поднять
+ * его сюда значило бы поднять сюда и половину рабочего экрана. Поэтому
+ * рабочий экран отдаёт шапку и содержимое разом, а здесь остаются шапки
+ * двух других состояний, где в них ничего, кроме знака, и нет.
  */
 export function CalculatorScreen() {
   const { state, save, update, forget } = useProfile();
 
-  const profile = state.status === "ok" ? state.profile : null;
-
-  // Какой блок боковой колонки открыт на телефоне. Состояние живёт здесь,
-  // а не в рабочем экране, по простой причине: открывают блок значками из
-  // ШАПКИ, а шапка рисуется отсюда. Общий предок — единственное место, где
-  // кнопка и то, что она открывает, видят друг друга.
-  const [phonePanel, setPhonePanel] = useState<PanelId | null>(null);
+  if (state.status === "ok") {
+    return <Workspace profile={state.profile} onChange={update} onForget={forget} />;
+  }
 
   return (
     <>
-      <SiteHeader
-        tagline={
-          profile
-            ? `${profile.accountingYear} год · ${profile.guardNumber}-й караул`
-            : ""
-        }
-        // Только там, где нет боковой колонки. Скрыто классами, а не
-        // условием: пять кнопок в разметке ничего не стоят, а условие
-        // потребовало бы знать ширину окна ещё и здесь.
-        tools={profile ? <PanelDock onOpen={setPhonePanel} className="lg:hidden" /> : null}
-        action={profile ? <SaveToFile profile={profile} /> : null}
-      />
+      <SiteHeader />
 
       {state.status === "loading" ? (
         <main className="mx-auto w-full max-w-4xl px-6 pb-12 pt-26 xl:max-w-6xl 2xl:max-w-7xl">
           <p className="text-sm text-ink-muted">Открываем ваш профиль…</p>
-        </main>
-      ) : profile ? (
-        <main className="mx-auto w-full 2xl:max-w-[2000px] space-y-10 px-6 pb-12 pt-26">
-
-
-          <Workspace
-            profile={profile}
-            onChange={update}
-            onForget={forget}
-            phonePanel={phonePanel}
-            onPhonePanel={setPhonePanel}
-          />
         </main>
       ) : (
         <main className="mx-auto w-full max-w-3xl space-y-10 px-6 pb-12 pt-22">
@@ -88,40 +64,6 @@ export function CalculatorScreen() {
         </main>
       )}
     </>
-  );
-}
-
-/**
- * Выгрузка профиля прямо из шапки.
- *
- * Хранилище браузера — единственное место, где живут данные, и очистка
- * кэша стирает год внесённых отпусков. Такую кнопку нельзя держать только
- * в подвале, докуда нужно долистать двенадцать календарных сеток.
- */
-function SaveToFile({ profile }: { profile: StoredProfile }) {
-  return (
-    <Button
-      type="button"
-      variant="outline"
-      className="rounded-xl bg-paper-raised"
-      size="sm"
-      onClick={() => {
-        const blob = new Blob([exportProfile(profile)], { type: "application/json" });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement("a");
-        link.href = url;
-        link.download = `табель-${profile.accountingYear}-караул-${profile.guardNumber}.json`;
-        link.click();
-        URL.revokeObjectURL(url);
-      }}
-    >
-      <div className="hidden xxs:block">
-        Сохранить в файл
-      </div>
-      <div className="xxs:hidden xs:block">
-        <Save className="size-5"/>
-      </div>
-    </Button>
   );
 }
 
