@@ -160,6 +160,27 @@ export function Workspace({ profile, onChange, onForget }: WorkspaceProps) {
       />
 
       <main className="mx-auto w-full space-y-10 px-6 pb-12 pt-26 2xl:max-w-[2000px]">
+      {/* Две колонки с `xl`: слева итог, справа календарь.
+          --------------------------------------------------------------
+          Итог занимает по ширине от силы четыреста точек, а календарь
+          берёт всё, что дадут. Пока они шли лентой сверху вниз, на
+          широком экране справа от чисел оставалось полторы тысячи точек
+          пустоты, а календарь при этом начинался за нижним краем окна:
+          человек, отметивший день, прокручивал наверх — посмотреть, что
+          стало с нормой, — и обратно.
+          Теперь и то и другое видно разом, а колонка с числами ещё и
+          закреплена: правка в календаре меняет норму на глазах.
+          Это не возвращение прежней боковой колонки: там слева стоял
+          ВВОД и отнимал ширину у сетки. Здесь слева ВЫВОД — то, ради
+          чего смотрят, — и уже он занимает место, которое иначе
+          пустовало. */}
+      <div className="grid gap-x-10 gap-y-10 xl:grid-cols-[24rem_minmax(0,1fr)] xl:items-start">
+      {/* Закреплённая колонка обязана помещаться в окно: на невысоком
+          экране без ограничения нижние числа оказались бы под краем и
+          недостижимы прокруткой — она уходит на страницу, а не в них.
+          Подсказки от этого не страдают: карточка знака вопроса
+          позиционируется от окна, а не от этого блока. */}
+      <div className="space-y-6 xl:sticky xl:top-26 xl:max-h-[calc(100svh-8rem)] xl:overflow-y-auto">
       <header className="space-y-1">
         <h1 className="text-3xl leading-tight">{profile.displayName}</h1>
       </header>
@@ -186,9 +207,14 @@ export function Workspace({ profile, onChange, onForget }: WorkspaceProps) {
           payTotal={pay?.primary.total ?? null}
         />
       </section>
+      </div>
 
       <CollapsibleSection
         title="Календарь"
+        // Рамка сверху у раздела в ленте отделяла его от предыдущего. В
+        // двух колонках он стоит рядом, а не под, и линия над ним
+        // оказалась бы чертой поперёк пустоты.
+        className="xl:border-t-0 xl:pt-0"
         hint={yearView === "calendar" ? <CalendarNote profile={profile} /> : undefined}
         defaultOpen
       >
@@ -205,6 +231,7 @@ export function Workspace({ profile, onChange, onForget }: WorkspaceProps) {
           onPickDay={setPickedDay}
         />
       </CollapsibleSection>
+      </div>
 
       <ProfileFooter profile={profile} onForget={onForget} />
 

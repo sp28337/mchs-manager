@@ -81,7 +81,12 @@ export function PeriodSummary({
         </p>
       ) : null}
 
-      <dl className="flex flex-wrap gap-x-10 gap-y-5">
+      {/* Сетка, а не строка: блок стоит в колонке шириной в двадцать
+          четыре рема, и числа в ней обязаны вставать друг под друга
+          ровно. Связок «≈» и «или» между ними больше нет — приблизительность
+          ушла внутрь самого числа, а «или» ничего не добавляло к подписи
+          «Выплата». */}
+      <dl className="grid grid-cols-2 gap-x-8 gap-y-5 sm:grid-cols-3 xl:grid-cols-2">
         <Figure
           value={hours(calculation.normHours)}
           unit="ч"
@@ -89,51 +94,36 @@ export function PeriodSummary({
           emphatic
         />
         <Figure value={hours(calculation.actualHours)} unit="ч" caption="Отработано" />
-        <div className="flex gap-6 flex-wrap">
+        <Figure
+          value={hours(calculation.overtimeHours)}
+          unit="ч"
+          caption="Переработка"
+          tone={overtime ? "verify" : undefined}
+        />
+        {overtime ? (
           <Figure
-            value={hours(calculation.overtimeHours)}
-            unit="ч"
-            caption="Переработка"
-            tone={overtime ? "verify" : undefined}
+            value={`≈ ${days(calculation.overtimeHours)}`}
+            unit="суток"
+            caption="В сутках"
+            tone="verify"
           />
-          {overtime ? (
-            <>
-              <div className="flex items-center text-2xl">
-                ≈ 
-              </div>
-              {/* <span className="font-mono text-2xl text-verify">
-                {days(calculation.overtimeHours)} суток
-              </span> */}
-              <Figure
-                value={days(calculation.overtimeHours)}
-                unit="суток"
-                caption="В сутках"
-                tone={overtime ? "verify" : undefined}
-              />
-              {payTotal ? (
-                <div className="flex gap-6">
-                  <span className="flex items-center font-semibold">
-                    или
-                  </span>
-                  <Figure
-                    value={formatMoneyAmount(payTotal)}
-                    unit="₽"
-                    caption="Выплата (до НДФЛ)"
-                    tone="verify"
-                  />
-                </div>
-              ) : null}
-            </>
-          ) : null}
-          {calculation.undertimeHours.greaterThan(0) ? (
-            <Figure
-              value={hours(calculation.undertimeHours)}
-              unit="ч"
-              caption="Недоработка"
-              tone="signal"
-            />
-          ) : null}
-        </div>
+        ) : null}
+        {overtime && payTotal ? (
+          <Figure
+            value={formatMoneyAmount(payTotal)}
+            unit="₽"
+            caption="Выплата (до НДФЛ)"
+            tone="verify"
+          />
+        ) : null}
+        {calculation.undertimeHours.greaterThan(0) ? (
+          <Figure
+            value={hours(calculation.undertimeHours)}
+            unit="ч"
+            caption="Недоработка"
+            tone="signal"
+          />
+        ) : null}
       </dl>
 
       {excluded ? (
@@ -171,7 +161,7 @@ export function PeriodSummary({
         </p>
       ) : null}
 
-      <dl className="flex flex-wrap gap-x-8 gap-y-2 text-sm">
+      <dl className="grid grid-cols-2 gap-x-8 gap-y-3 text-sm sm:grid-cols-3 xl:grid-cols-2">
         <Small label="Смен по графику" value={String(calculation.scheduledShifts)} />
         <Small label="Отработано смен" value={String(calculation.workedShifts)} />
         <Small label="Пропущено по уважительной причине" value={String(calculation.absentShifts)} />
