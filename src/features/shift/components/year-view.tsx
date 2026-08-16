@@ -4,17 +4,23 @@ import { CalendarCog, CalendarDays, ZoomIn, ZoomOut } from "lucide-react";
 import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import { Hint } from "@/components/ui/hint";
 import { Segmented, SegmentedItem } from "@/components/ui/segmented";
 import { Select } from "@/components/ui/select";
 import { cn } from "@/lib/utils/cn";
 
 import type { PeriodCalculation } from "../domain/calculation";
 import type { IsoDate } from "../domain/plain-date";
-import type { AccountingPeriodKind } from "../domain/value-objects";
+import {
+  VIEWABLE_PERIODS,
+  isAccountingPeriod,
+  type AccountingPeriodKind,
+} from "../domain/value-objects";
+import { DAY_TYPE_EFFECT, DAY_TYPE_LABELS, type DayType } from "../schemas";
 import type { StoredProfile } from "../storage/profile";
 import { MONTH_NAMES } from "./month-names";
 import { ShiftStrip } from "./shift-strip";
-import { YearCalendarEditor } from "./year-calendar-editor";
+import { DAY_TYPES, YearCalendarEditor } from "./year-calendar-editor";
 
 /**
  * Год на сетке: график смен и производственный календарь на одном месте.
@@ -35,11 +41,18 @@ import { YearCalendarEditor } from "./year-calendar-editor";
  * чем управляет: год, полугодие, квартал и месяц выбираются над самой
  * сеткой.
  *
- * --- Почему периоды сегментами, а месяц списком --------------------------
+ * --- Почему период одним списком -----------------------------------------
  *
- * Видов периода два-три, и они взаимоисключающие: сегменты показывают все
- * сразу и сразу говорят, какой занят. Месяцев тринадцать вместе с «весь
- * период» — сегментами это лента в пол-экрана, поэтому список.
+ * Сначала здесь стояли сегменты «3 месяца / 6 месяцев / Год» и отдельный
+ * список «который из них». Два органа управления ради одного выбора: чтобы
+ * попасть в третий квартал, нужно было нажать сегмент и потом выбрать
+ * номер. Отрезков всего семь — четыре квартала, два полугодия и год, — и
+ * они прекрасно живут одним списком, где выбор делается за одно движение.
+ *
+ * Квартал показан и сотруднику, хотя учётным периодом у него не является
+ * (Приказ № 308 п. 2). Смотреть на квартал ему нужно по той же причине,
+ * по которой нужен месяц, — найти, где разошлось; разницу говорит подпись
+ * под списком, а не запрет.
  *
  * --- Зачем масштаб --------------------------------------------------------
  *
@@ -51,6 +64,14 @@ import { YearCalendarEditor } from "./year-calendar-editor";
  *
  * Масштаб общий у обеих сеток: они читаются вперемежку, и разный масштаб
  * означал бы скачок размера при каждом переключении.
+ *
+ * --- Почему кисть календаря тоже здесь -----------------------------------
+ *
+ * Она стояла под сеткой вместе с формой диапазона. Но пометка дня — это
+ * два действия подряд: выбрать, чем помечать, и щёлкнуть по числу. Держать
+ * их по разные стороны двенадцати месяцев значило заставлять человека
+ * прокручивать между каждой парой. Кисть — орган управления сеткой, и её
+ * место там же, где остальные.
  */
 
 /**
@@ -74,12 +95,14 @@ const SCALES = [
 /** Три месяца в ряд — то, как блок выглядел до появления масштаба. */
 const DEFAULT_SCALE = 1;
 
-/** Подпись вида периода — числом месяцев, как на настенном календаре. */
-const KIND_LABELS: Record<AccountingPeriodKind, string> = {
-  quarter: "3 месяца",
-  half_year: "6 месяцев",
-  year: "Год",
-};
+/**
+ * Порядок отрезков в списке — от широкого к узкому.
+ *
+ * Первым стоит год: это самый частый учётный период, и он же умолчание
+ * экрана. Дальше сужение — полугодия, кварталы: список читается как
+ * «насколько мелко смотрим».
+ */
+const PERIOD_ORDER: readonly AccountingPeriodKind[] = [...VIEWABLE_PERIODS].reverse();
 
 export type YearViewKind = "shifts" | "calendar";
 
@@ -98,13 +121,24 @@ export interface StatutoryChoice {
   index: number;
 }
 
+/** Все отрезки списком: четыре квартала, два полугодия и год. */
+function allParts(): StatutoryChoice[] {
+  return PERIOD_ORDER.flatMap((kind) =>
+    Array.from({ length: 12 / monthsIn(kind) }, (_, index) => ({ kind, index })),
+  );
+}
+
+/** Значение пункта списка: вид и номер в одной строке. */
+function partValue(choice: StatutoryChoice): string {
+  return `${choice.kind}:${choice.index}`;
+}
+
 export function YearView({
   profile,
   calculation,
   view,
   onViewChange,
   onChange,
-  periods,
   statutory,
   onStatutory,
   month,
@@ -116,7 +150,6 @@ export function YearView({
   view: YearViewKind;
   onViewChange: (view: YearViewKind) => void;
   onChange: (change: (previous: StoredProfile) => StoredProfile) => void;
-  periods: readonly AccountingPeriodKind[];
   statutory: StatutoryChoice;
   onStatutory: (choice: StatutoryChoice) => void;
   /** Месяц внутри периода или `null` — «весь период». */
@@ -125,14 +158,30 @@ export function YearView({
   onPickDay: (day: IsoDate) => void;
 }) {
   const [scale, setScale] = useState(DEFAULT_SCALE);
+  // Чем помечать день в календаре. Состояние экрана, а не данных: оно
+  // живёт здесь, потому что кисть стоит в этой панели, а красит в сетке
+  // ниже.
+  const [brush, setBrush] = useState<DayType>("weekend");
 
   const step = SCALES[scale] ?? SCALES[DEFAULT_SCALE];
-  const grid = cn("grid gap-x-6 gap-y-5", step.grid, step.text);
+  // Отступ по краям на телефоне: месяц во всю ширину экрана растягивался
+  // на двенадцать громоздких блоков подряд. Вместе с полем самой страницы
+  // получается примерно четыре пятых ширины экрана — месяц снова похож на
+  // страницу календаря, а клетка остаётся достаточно крупной, чтобы по
+  // ней попасть пальцем.
+  const grid = cn("grid gap-x-6 gap-y-5 max-sm:px-[5%]", step.grid, step.text);
 
   const span = monthsIn(statutory.kind);
   const first = statutory.index * span;
   const monthsAvailable = Array.from({ length: span }, (_, offset) => first + offset);
-  const parts = 12 / span;
+
+  // Список делится по признаку, который человеку важен: что из этого его
+  // учётный период по приказу, а что — просто отрезок для сверки.
+  const parts = allParts();
+  const lawful = parts.filter((part) => isAccountingPeriod(part.kind, profile.employmentKind));
+  const viewOnly = parts.filter(
+    (part) => !isAccountingPeriod(part.kind, profile.employmentKind),
+  );
 
   return (
     <div className="space-y-4">
@@ -147,7 +196,11 @@ export function YearView({
               onClick={() => onViewChange("shifts")}
             >
               <CalendarDays aria-hidden />
-              График смен
+              {/* «График смен» на телефоне съедает всю строку, а рядом
+                  стоит «Календарь» — второго графика тут нет, и слово
+                  «смен» ничего не различает. */}
+              <span className="hidden sm:inline">График смен</span>
+              <span className="sm:hidden">График</span>
             </SegmentedItem>
             <SegmentedItem
               active={view === "calendar"}
@@ -200,44 +253,54 @@ export function YearView({
         </div>
 
         <div className="flex flex-wrap items-center gap-2 border-t border-rule pt-3">
-          {/* Длина учётного периода. Виды берутся из приказа: сотруднику
-              полугодие или год, работнику ещё и квартал. */}
-          <Segmented label="Длина учётного периода">
-            {periods.map((kind) => (
-              <SegmentedItem
-                key={kind}
-                active={statutory.kind === kind}
-                onClick={() => {
-                  onStatutory({ kind, index: 0 });
-                  onMonth(null);
-                }}
-              >
-                {KIND_LABELS[kind]}
-              </SegmentedItem>
-            ))}
-          </Segmented>
+          <span className="font-display text-[11px] font-bold uppercase tracking-wide text-ink-muted">
+            Период
+          </span>
 
-          {/* Который по счёту — только когда их несколько: у года выбирать
-              не из чего, и список из одного пункта был бы обманом. */}
-          {parts > 1 ? (
-            <Select
-              aria-label="Который период"
-              className="h-9 w-auto rounded-xl"
-              value={statutory.index}
-              onChange={(event) => {
-                onStatutory({ kind: statutory.kind, index: Number(event.target.value) });
-                // Месяц сбрасывается вместе с периодом: он выбирался из
-                // месяцев прежнего и в новый может не входить.
-                onMonth(null);
-              }}
-            >
-              {Array.from({ length: parts }, (_, index) => (
-                <option key={index} value={index}>
-                  {partLabel(statutory.kind, index, profile.accountingYear)}
+          {/* Один список на все семь отрезков. Учётные периоды человека
+              стоят первой группой, остальные — второй, и подпись группы
+              говорит, чем они отличаются, не запрещая на них смотреть. */}
+          <Select
+            aria-label="Период"
+            className="h-9 w-auto rounded-xl"
+            value={partValue(statutory)}
+            onChange={(event) => {
+              const [kind, index] = event.target.value.split(":");
+              onStatutory({
+                kind: kind as AccountingPeriodKind,
+                index: Number(index),
+              });
+              // Месяц сбрасывается вместе с периодом: он выбирался из
+              // месяцев прежнего и в новый может не входить.
+              onMonth(null);
+            }}
+          >
+            <optgroup label="Учётный период">
+              {lawful.map((part) => (
+                <option key={partValue(part)} value={partValue(part)}>
+                  {partLabel(part.kind, part.index, profile.accountingYear)}
                 </option>
               ))}
-            </Select>
-          ) : null}
+            </optgroup>
+            {viewOnly.length > 0 ? (
+              <optgroup label="Только для сверки">
+                {viewOnly.map((part) => (
+                  <option key={partValue(part)} value={partValue(part)}>
+                    {partLabel(part.kind, part.index, profile.accountingYear)}
+                  </option>
+                ))}
+              </optgroup>
+            ) : null}
+          </Select>
+
+          <Hint label="Чем учётный период отличается от отрезка для сверки">
+            Переработка определяется по итогу УЧЁТНОГО периода (ст. 104 ТК
+            РФ): у сотрудника ФПС ГПС это полугодие или год (Приказ № 308
+            п. 2), у работника по трудовому договору — ещё и квартал (Приказ
+            № 307 п. 7). Остальные отрезки списка и месяц ниже переработку не
+            определяют, но по ним удобно искать, в каком именно месяце расчёт
+            разошёлся с выданным табелем.
+          </Hint>
 
           <Select
             aria-label="Месяц внутри периода"
@@ -260,6 +323,39 @@ export function YearView({
             {profile.accountingYear}
           </span>
         </div>
+
+        {/* Кисть календаря — в той же панели, что и всё остальное
+            управление сеткой, и только когда календарь показан: у графика
+            смен красить нечего. */}
+        {view === "calendar" ? (
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-t border-rule pt-3">
+            <span className="font-display text-[11px] font-bold uppercase tracking-wide text-ink-muted">
+              Чем помечать
+            </span>
+            {/* На телефоне четыре подписи в строку не помещаются, а
+                сокращать «предпраздничный» нельзя — это название из ст. 95
+                ТК РФ. Поэтому полоса переносится на вторую строку, а не
+                уезжает вбок: выбранное положение обязано быть видно, иначе
+                человек красит, не зная чем. */}
+            <Segmented
+              label="Чем помечать день"
+              className="max-sm:h-auto max-sm:flex-wrap max-sm:gap-1"
+            >
+              {DAY_TYPES.map((type) => (
+                <SegmentedItem
+                  key={type}
+                  active={brush === type}
+                  onClick={() => setBrush(type)}
+                >
+                  {DAY_TYPE_LABELS[type]}
+                </SegmentedItem>
+              ))}
+            </Segmented>
+            <p className="min-w-0 text-[11px] text-ink-muted" aria-live="polite">
+              {DAY_TYPE_EFFECT[brush]}. Щёлкните по числу.
+            </p>
+          </div>
+        ) : null}
       </div>
 
       {/* Сетка стоит здесь, и над ней — только панель управления,
@@ -274,7 +370,12 @@ export function YearView({
           onPickDay={onPickDay}
         />
       ) : (
-        <YearCalendarEditor profile={profile} onChange={onChange} gridClassName={grid} />
+        <YearCalendarEditor
+          profile={profile}
+          onChange={onChange}
+          gridClassName={grid}
+          brush={brush}
+        />
       )}
     </div>
   );

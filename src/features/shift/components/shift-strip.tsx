@@ -367,9 +367,11 @@ function DayCell({
       title={full}
       onClick={onPick}
       className={cn(
-        "relative flex w-full min-w-0 cursor-pointer flex-col items-center justify-center",
-        "rounded-xs border py-0.5 leading-tight",
-        "lg:aspect-square lg:py-0",
+        "relative flex aspect-square w-full min-w-0 cursor-pointer flex-col",
+        "items-center justify-center rounded-xs border leading-tight",
+        // Квадрат на любой ширине, а не только на большом экране. На
+        // телефоне клетка была вытянутым прямоугольником — сетка не
+        // читалась как календарь, к которому человек привык.
         "hover:border-ink focus-visible:outline-2 focus-visible:outline-offset-1",
         "focus-visible:outline-trace",
         records.length === 0 && "border-rule text-ink-faint",

@@ -69,21 +69,28 @@ import { MonthGrid, WEEKDAY_LABELS } from "./month-grid";
  * «Открыть календарь».
  */
 
-const DAY_TYPES: DayType[] = ["working", "pre_holiday", "holiday", "weekend"];
+export const DAY_TYPES: DayType[] = ["working", "pre_holiday", "holiday", "weekend"];
 
 export interface YearCalendarEditorProps {
   profile: StoredProfile;
   onChange: (change: (previous: StoredProfile) => StoredProfile) => void;
   /** Раскладка месяцев: её задаёт масштаб, общий с графиком смен. */
   gridClassName?: string;
+  /**
+   * Чем помечать день. Выбирается в панели НАД сеткой вместе с остальным
+   * управлением ею: пометка — это два движения подряд, выбрать кисть и
+   * щёлкнуть по числу, и держать их по разные стороны двенадцати месяцев
+   * значило прокручивать между каждой парой.
+   */
+  brush: DayType;
 }
 
 export function YearCalendarEditor({
   profile,
   onChange,
   gridClassName,
+  brush,
 }: YearCalendarEditorProps) {
-  const [brush, setBrush] = useState<DayType>("weekend");
   const [range, setRange] = useState<{ from: IsoDate | null; to: IsoDate | null }>({
     from: null,
     to: null,
@@ -160,36 +167,12 @@ export function YearCalendarEditor({
 
       {pending.length > 0 ? <PendingNotice pending={pending} /> : null}
 
-      {/* Инструменты правки — под сеткой, а не над ней. Так они не
-          сдвигают её при переключении с графика, и порядок совпадает с
-          порядком действий: сперва человек нашёл в сетке день, из-за
-          которого пришёл, и только потом выбирает, чем его пометить. */}
+      {/* Под сеткой остался только диапазон. Кисть переехала в панель над
+          сеткой, к остальному управлению ею; здесь же — то, что нужно
+          редко и не при каждом щелчке: разметить сразу неделю каникул. */}
       <div className="space-y-4 rounded-sm border border-rule bg-paper-raised p-4">
-        <fieldset className="space-y-2">
-          <legend className="font-display text-xs font-bold uppercase tracking-wide text-ink-muted">
-            Чем помечать
-          </legend>
-          <div className="flex flex-wrap gap-2">
-            {DAY_TYPES.map((type) => (
-              <Button
-                key={type}
-                type="button"
-                size="sm"
-                variant={brush === type ? "default" : "outline"}
-                aria-pressed={brush === type}
-                onClick={() => setBrush(type)}
-              >
-                {DAY_TYPE_LABELS[type]}
-              </Button>
-            ))}
-          </div>
-          <p className="max-w-prose text-xs text-ink-muted" aria-live="polite">
-            {DAY_TYPE_EFFECT[brush]}. Щёлкните по числу в календаре выше.
-          </p>
-        </fieldset>
-
         <form
-          className="flex flex-wrap items-start gap-3 border-t border-rule pt-4"
+          className="flex flex-wrap items-start gap-3"
           onSubmit={(event) => {
             event.preventDefault();
             if (range.from && range.to) paint(range.from, range.to, brush);
@@ -219,9 +202,12 @@ export function YearCalendarEditor({
           >
             Назначить диапазон
           </Button>
+          {/* Кисть выбирается наверху, а красит здесь — значит, здесь она
+              должна быть названа. Иначе человек нажимает «Назначить
+              диапазон», не видя, чем именно. */}
           <p className="mt-[1.375rem] max-w-xs text-xs text-ink-muted">
-            Диапазон удобнее для длительного перерыва; отдельный день быстрее отметить
-            щелчком.
+            Отметит все дни диапазона как «{DAY_TYPE_LABELS[brush].toLowerCase()}» —
+            вид выбирается над календарём. Отдельный день быстрее отметить щелчком.
           </p>
         </form>
       </div>
@@ -322,8 +308,7 @@ function DayButton({ item, onPaint }: { item: CalendarDay; onPaint: () => void }
       aria-label={label}
       onClick={onPaint}
       className={cn(
-        "relative flex w-full min-w-0 cursor-pointer flex-col items-center justify-center rounded-xs border py-0.5 leading-tight",
-        "lg:aspect-square lg:py-0",
+        "relative flex aspect-square w-full min-w-0 cursor-pointer flex-col items-center justify-center rounded-xs border leading-tight",
         "hover:border-ink focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-trace",
         DAY_TYPE_TONE[item.dayType],
       )}

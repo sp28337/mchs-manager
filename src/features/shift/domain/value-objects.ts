@@ -48,6 +48,32 @@ export const ACCOUNTING_PERIODS: Record<EmploymentKind, readonly AccountingPerio
   civilian: ["quarter", "half_year", "year"],
 };
 
+/**
+ * Отрезки, которые можно ПОСМОТРЕТЬ, — не то же, что учётный период.
+ *
+ * Сотруднику квартал учётным периодом не является: Приказ № 308 п. 2
+ * оставляет ему полугодие или год. Но посмотреть на квартал ему нужно по
+ * той же причине, по которой нужен месяц, — найти, где именно разошлось с
+ * табелем. Запретить показ значило бы отнять способ искать ради того,
+ * чтобы не сказать вслух, что квартал у него не учётный.
+ *
+ * Поэтому список смотровых отрезков один на всех, а разницу называет
+ * `isAccountingPeriod` — и называет словами там, где человек выбирает.
+ */
+export const VIEWABLE_PERIODS: readonly AccountingPeriodKind[] = [
+  "quarter",
+  "half_year",
+  "year",
+];
+
+/** Является ли отрезок учётным периодом ЭТОГО человека по приказу. */
+export function isAccountingPeriod(
+  kind: AccountingPeriodKind,
+  employment: EmploymentKind,
+): boolean {
+  return ACCOUNTING_PERIODS[employment].includes(kind);
+}
+
 /** Номер караула: при дежурстве сутки через трое их ровно четыре. */
 export type GuardNumber = 1 | 2 | 3 | 4;
 

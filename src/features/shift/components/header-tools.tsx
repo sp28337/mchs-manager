@@ -37,9 +37,18 @@ import { SettingsPanel } from "./settings-panel";
 
 type ToolId = "settings" | "pay";
 
-const TOOL_META: Record<ToolId, { title: string; Icon: LucideIcon }> = {
-  settings: { title: "Настройки", Icon: Settings2 },
-  pay: { title: "Сколько это в деньгах", Icon: Banknote },
+/**
+ * Подпись на кнопке и заголовок окна — разные строки.
+ *
+ * На кнопке в шапке нужно короткое имя: рядом стоит «Сохранить в файл», и
+ * три подписи в строку помещаются только короткими. В заголовке окна,
+ * наоборот, место есть, и там вопрос называется целиком — «Сколько это в
+ * деньгах» отвечает человеку, что он открыл, а «В деньгах» на пустом окне
+ * читалось бы обрывком.
+ */
+const TOOL_META: Record<ToolId, { label: string; title: string; Icon: LucideIcon }> = {
+  settings: { label: "Настройки", title: "Настройки", Icon: Settings2 },
+  pay: { label: "В деньгах", title: "Сколько это в деньгах", Icon: Banknote },
 };
 
 const TOOL_ORDER: readonly ToolId[] = ["pay", "settings"];
@@ -73,35 +82,43 @@ export function HeaderTools({
 
   return (
     <>
-      {/* Одна обведённая группа, а не отдельные кнопки: рядом стоит
-          «Сохранить в файл» такой же высоты и с такой же рамкой, и голые
-          значки возле неё выглядели бы обрывками. Высота считается до
-          пикселя — два по краю, восемь на кнопку, два. */}
+      {/* Отдельные кнопки той же формы, что «Калькулятор» на лендинге и
+          «Сохранить в файл» рядом: скруглённая плашка в девять единиц
+          высотой со значком и подписью. Голые значки в обведённой группе,
+          стоявшие здесь раньше, требовали угадывать, что за ними, — а
+          угадывать в шапке нечего, места на слово хватает.
+
+          Заливки нет: чернилами залито главное действие страницы, и три
+          тёмных пятна подряд не оставили бы в шапке ничего главного. */}
       <div
         role="group"
         aria-label="Настройки и расчёт"
-        className={cn(
-          "inline-flex h-9 items-center rounded-xl border border-rule-strong bg-paper-raised p-0.5",
-          className,
-        )}
+        className={cn("flex items-center gap-2", className)}
       >
         {TOOL_ORDER.map((id) => {
-          const { title, Icon } = TOOL_META[id];
+          const { label, title, Icon } = TOOL_META[id];
           return (
             <button
               key={id}
               type="button"
               onClick={() => setOpen(id)}
+              // Имя кнопки — полное, а не то, что на ней написано: «В
+              // деньгах» вслух ничего не значит.
               aria-label={title}
               title={title}
               className={cn(
-                "flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-lg",
-                "text-ink-muted transition-colors hover:bg-paper-sunken hover:text-ink",
-                "focus-visible:outline-2 focus-visible:-outline-offset-2",
+                "inline-flex h-9 shrink-0 cursor-pointer items-center gap-2 rounded-xl",
+                "border border-rule-strong bg-paper-raised px-3 text-sm font-medium",
+                "text-ink transition-colors hover:bg-paper-sunken",
+                "focus-visible:outline-2 focus-visible:outline-offset-2",
                 "focus-visible:outline-trace",
               )}
             >
-              <Icon aria-hidden className="size-4.5" />
+              <Icon aria-hidden className="size-4.5 shrink-0 text-ink-muted" />
+              {/* Ниже четырёхсот точек подпись уходит, а кнопка остаётся:
+                  в эту ширину три подписи и выгрузка не встают. Для
+                  программы чтения имя на месте — оно в `aria-label`. */}
+              <span className="max-xxs:hidden">{label}</span>
             </button>
           );
         })}

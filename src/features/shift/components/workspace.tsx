@@ -190,7 +190,6 @@ export function Workspace({ profile, onChange, onForget }: WorkspaceProps) {
           view={yearView}
           onViewChange={setYearView}
           onChange={onChange}
-          periods={periods}
           statutory={statutory}
           onStatutory={setStatutory}
           month={month}
