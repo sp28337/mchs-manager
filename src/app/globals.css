@@ -207,8 +207,57 @@
     border-color: var(--fps-rule);
   }
 
+  /* Место под полосу прокрутки держится всегда.
+     ------------------------------------------------------------------
+     Модальное окно снимает прокрутку страницы, полоса исчезает — и всё
+     содержимое разъезжается вправо на её ширину. Скачок в тот момент,
+     когда человек только нажал кнопку, читается как сбой.
+     `scrollbar-gutter: stable` резервирует эту полосу у корня документа
+     независимо от того, нужна она сейчас или нет: прокрутка появляется и
+     исчезает, а ширина колонки не меняется ни на пиксель. */
   html {
     color-scheme: light;
+    scrollbar-gutter: stable;
+  }
+
+  /* Полосы прокрутки — тонкие и без подложки.
+     ------------------------------------------------------------------
+     Тонкая полоса не отнимает у календаря ширину и не спорит с сеткой
+     месяцев. Дорожка прозрачна: серый жёлоб во всю высоту страницы —
+     линия, которая ничего не значит, а бегунок и без неё виден.
+     Правила продублированы для двух семейств браузеров: `scrollbar-*`
+     понимает Firefox, `::-webkit-scrollbar` — Chrome и Safari. */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--fps-rule-strong) transparent;
+  }
+
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  /* Прозрачная рамка вместе с `background-clip` — единственный способ
+     сделать бегунок тоньше жёлоба: сама полоса обязана остаться
+     достаточно широкой, чтобы по ней попадали курсором. */
+  ::-webkit-scrollbar-thumb {
+    background: var(--fps-rule-strong);
+    border: 3px solid transparent;
+    background-clip: padding-box;
+    border-radius: 9999px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--fps-ink-faint);
+    background-clip: padding-box;
+  }
+
+  ::-webkit-scrollbar-corner {
+    background: transparent;
   }
 
   html.dark {
@@ -534,30 +583,5 @@
   select,
   textarea {
     font-size: 1rem;
-  }
-}
-
-
-@layer utilities {
-  .scrollbar-aside {
-    scrollbar-width: thin;
-    scrollbar-color: var(--color-rule-strong) transparent;
-  }
-
-  .scrollbar-aside::-webkit-scrollbar {
-    width: 6px;
-  }
-
-  .scrollbar-aside::-webkit-scrollbar-track {
-    background: transparent;
-  }
-
-  .scrollbar-aside::-webkit-scrollbar-thumb {
-    background: var(--color-rule-strong);
-    border-radius: 9999px;
-  }
-
-  .scrollbar-aside::-webkit-scrollbar-thumb:hover {
-    background: var(--color-ink-faint);
   }
 }

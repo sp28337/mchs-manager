@@ -32,6 +32,11 @@ import { cn } from "@/lib/utils/cn";
  * телефоне это выглядит так, будто закрылось не то. Прокрутка снимается
  * на время показа и возвращается ровно та, что была: чужое значение
  * `overflow` тут перетирать нельзя — его мог поставить кто-то ещё.
+ *
+ * Снятая прокрутка убирает полосу, а вместе с ней — её ширину, и страница
+ * на фоне разъезжается вправо. Место под полосу держит
+ * `scrollbar-gutter: stable` у корня документа; где этого свойства нет,
+ * ширина добирается полем справа. Подробности — у самого эффекта.
  */
 export function Modal({
   open,
@@ -65,9 +70,28 @@ export function Modal({
   useEffect(() => {
     if (!open) return;
     const previous = document.body.style.overflow;
+    const previousPadding = document.body.style.paddingRight;
+
+    // Место под исчезающую полосу прокрутки.
+    //
+    // Обычно его держит `scrollbar-gutter: stable` у корня документа
+    // (`globals.css`): полоса пропадает, а ширина колонки не меняется. Там,
+    // где свойства нет (Safari до 18.2), приходится добирать шириной поля —
+    // иначе страница на фоне разъезжается вправо в тот момент, когда
+    // человек только нажал кнопку.
+    //
+    // Одно И другое одновременно было бы двойной компенсацией и сдвигом в
+    // обратную сторону, поэтому поле добавляется только при отсутствии
+    // поддержки.
+    const gutter = CSS.supports("scrollbar-gutter: stable");
+    const bar = window.innerWidth - document.documentElement.clientWidth;
+
     document.body.style.overflow = "hidden";
+    if (!gutter && bar > 0) document.body.style.paddingRight = `${bar}px`;
+
     return () => {
       document.body.style.overflow = previous;
+      document.body.style.paddingRight = previousPadding;
     };
   }, [open]);
 
