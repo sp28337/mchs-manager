@@ -154,10 +154,15 @@ export function YearCalendarEditor({
               title={name}
               meta={edited > 0 ? <span className="text-ink">правок: {edited}</span> : null}
               days={items.map((item) => item.day)}
-              renderDay={(day) => {
+              joined
+              renderDay={(day, corners) => {
                 const item = byDay.get(day);
                 return item ? (
-                  <DayButton item={item} onPaint={() => paint(day, day, brush)} />
+                  <DayButton
+                    item={item}
+                    corners={corners}
+                    onPaint={() => paint(day, day, brush)}
+                  />
                 ) : null;
               }}
             />
@@ -292,7 +297,16 @@ export function CalendarNote({ profile }: { profile: StoredProfile }) {
   );
 }
 
-function DayButton({ item, onPaint }: { item: CalendarDay; onPaint: () => void }) {
+function DayButton({
+  item,
+  corners,
+  onPaint,
+}: {
+  item: CalendarDay;
+  /** Скругления углов: их знает сетка, а не клетка. */
+  corners: string;
+  onPaint: () => void;
+}) {
   const date = dayOfMonth(item.day);
   const month = (MONTH_NAMES[monthIndex(item.day)] ?? "").toLowerCase();
   const weekdayName = WEEKDAY_LABELS[weekday(item.day)] ?? "";
@@ -308,8 +322,16 @@ function DayButton({ item, onPaint }: { item: CalendarDay; onPaint: () => void }
       aria-label={label}
       onClick={onPaint}
       className={cn(
-        "relative flex aspect-square w-full min-w-0 cursor-pointer flex-col items-center justify-center rounded-xs border leading-tight",
-        "hover:border-ink focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-trace",
+        "relative flex aspect-square w-full min-w-0 cursor-pointer flex-col",
+        "items-center justify-center leading-tight",
+        // Обводкой внутрь, а не рамкой: клетки стоят вплотную, и рамка
+        // сдвинула бы соседей.
+        "hover:outline-2 hover:-outline-offset-2 hover:outline-ink/40",
+        "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-trace",
+        corners,
+        // Рамки нет ни у одного дня: тип дня различается подложкой и
+        // буквой. Триста шестьдесят пять контуров на год — это решётка,
+        // за которой не видно ни праздников, ни правок.
         DAY_TYPE_TONE[item.dayType],
       )}
     >

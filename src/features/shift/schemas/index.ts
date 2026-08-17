@@ -111,7 +111,9 @@ export const DAY_TYPE_EFFECT: Record<DayType, string> = {
 };
 
 export const DAY_TYPE_TONE: Record<DayType, string> = {
-  working: "border-rule bg-paper text-ink",
+  // Рабочий день — подложка, а не белое поле: в сомкнутой сетке месяц
+  // выглядит одной плашкой, и день цвета страницы был бы в ней дырой.
+  working: "border-rule bg-paper-raised text-ink",
   pre_holiday: "border-trace bg-trace-soft text-trace",
   holiday: "border-signal bg-signal-soft text-signal",
   weekend: "border-rule-strong bg-paper-sunken text-ink-muted",

@@ -221,11 +221,13 @@ export function ShiftStrip({
               </>
             }
             days={group.days}
-            renderDay={(day) => (
+            joined
+            renderDay={(day, corners) => (
               <DayCell
                 day={day}
                 records={byDay.get(day) ?? []}
                 note={dayNotes[day]}
+                corners={corners}
                 onPick={() => onPickDay(day)}
               />
             )}
@@ -300,11 +302,14 @@ function DayCell({
   day,
   records,
   note,
+  corners,
   onPick,
 }: {
   day: IsoDate;
   records: readonly DayRecord[];
   note?: string;
+  /** Скругления углов: их знает сетка, а не клетка. */
+  corners: string;
   onPick: () => void;
 }) {
   const date = dayOfMonth(day);
@@ -367,24 +372,31 @@ function DayCell({
       title={full}
       onClick={onPick}
       className={cn(
-        "relative flex aspect-square w-full min-w-0 cursor-pointer flex-col",
-        "items-center justify-center rounded-xs border leading-tight",
         // Квадрат на любой ширине, а не только на большом экране. На
         // телефоне клетка была вытянутым прямоугольником — сетка не
         // читалась как календарь, к которому человек привык.
-        "hover:border-ink focus-visible:outline-2 focus-visible:outline-offset-1",
+        "relative flex aspect-square w-full min-w-0 cursor-pointer flex-col",
+        "items-center justify-center leading-tight",
+        // Подсветка и фокус — обводкой внутрь, а не рамкой: рамка сдвинула
+        // бы содержимое соседних клеток, которые теперь стоят вплотную.
+        "hover:outline-2 hover:-outline-offset-2 hover:outline-ink/40",
+        "focus-visible:outline-2 focus-visible:-outline-offset-2",
         "focus-visible:outline-trace",
-        records.length === 0 && "border-rule text-ink-faint",
+        corners,
+        // Обычные сутки — без рамки вовсе: их в месяце три четверти, и
+        // тридцать рамок вокруг пустых клеток читались громче, чем смены
+        // между ними. Отличает их от бумаги подложка, а не контур.
+        records.length === 0 && "bg-paper-raised text-ink-faint",
         // Хвост смены отличается от заступления бледностью, а не другим
         // цветом: это те же отработанные часы, и разный цвет читался бы как
         // разный род времени.
-        worked && shift.isShiftStart && "border-verify/50 bg-verify/20 text-verify",
-        worked && !shift.isShiftStart && "border-verify/20 bg-verify/10 text-verify",
-        shift?.absenceKind && ABSENCE_TONE[shift.absenceKind],
+        worked && shift.isShiftStart && "border border-verify/50 bg-verify/20 text-verify",
+        worked && !shift.isShiftStart && "border border-verify/20 bg-verify/10 text-verify",
+        shift?.absenceKind && cn("border", ABSENCE_TONE[shift.absenceKind]),
         // Вызов перебивает вид смены: он редок, и человек ищет глазами
         // именно его. Часы при этом не теряются — они в подписи и в итоге
         // месяца.
-        calloutKinds.length > 0 && "border-trace bg-trace-soft text-trace",
+        calloutKinds.length > 0 && "border border-trace bg-trace-soft text-trace",
         // Несколько вызовов в одни сутки видно и без чтения кодов: рамка
         // становится плотнее. Это единственные сутки, где человеку нужно
         // навести курсор, — пусть они сами просят об этом.
