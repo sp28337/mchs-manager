@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils/cn";
 import type { PeriodCalculation } from "../domain/calculation";
 import type { IsoDate } from "../domain/plain-date";
 import type { StoredProfile } from "../storage/profile";
+import { LiveModeSwitch } from "./live-mode";
 import { PeriodPicker, type StatutoryChoice } from "./period-picker";
 import { ShiftStrip } from "./shift-strip";
 import { YearCalendarEditor } from "./year-calendar-editor";
@@ -165,6 +166,10 @@ export function YearView({
             month={month}
             onMonth={onMonth}
           />
+
+          {/* Тумблер здесь, а не только в настройках: он меняет то, что
+              нарисовано в сетке, — значит, стоит там, где на это смотрят. */}
+          <LiveModeSwitch profile={profile} onChange={onChange} />
 
           <div className="ml-auto hidden items-center gap-1 lg:flex">
             <span className="mr-1 font-display text-[11px] font-bold uppercase tracking-wide text-ink-muted">

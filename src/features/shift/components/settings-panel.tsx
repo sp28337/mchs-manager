@@ -24,6 +24,7 @@ import {
   weeklyNormGroundOfProfile,
 } from "../model/derive";
 import type { StoredProfile } from "../storage/profile";
+import { LiveModeSwitch } from "./live-mode";
 
 /**
  * Ответы анкеты, которые можно переспросить.
@@ -115,6 +116,17 @@ export function SettingsPanel({
 
   return (
     <div className="space-y-4">
+      {/* Режим стоит первым: он меняет не одну величину, а то, за какой
+          отрезок считается всё остальное. */}
+      <div className="space-y-1.5 border-b border-rule pb-4">
+        <LiveModeSwitch profile={profile} onChange={onChange} />
+        <p className="text-xs text-ink-muted">
+          {profile.liveMode
+            ? "Расчёт идёт от первой смены по сегодняшний день."
+            : "Расчёт идёт за весь выбранный период целиком."}
+        </p>
+      </div>
+
       <Field
         id={nameId}
         label="Как к вам обращаться"

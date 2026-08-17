@@ -21,7 +21,7 @@ import {
   type OvertimePayEstimate,
 } from "../domain/overtime-pay";
 import { calendarFactsFor, type DayType } from "../domain/production-calendar";
-import type { IsoDate } from "../domain/plain-date";
+import { addDays, type IsoDate } from "../domain/plain-date";
 import {
   ACCOUNTING_PERIODS,
   deriveWeeklyNorm,
@@ -218,6 +218,43 @@ export function monthBounds(year: number, month: number) {
     periodStart: `${year}-${pad(month + 1)}-01` as IsoDate,
     periodEnd: `${nextYear}-${pad(nextMonth + 1)}-01` as IsoDate,
   };
+}
+
+/**
+ * Границы «по сегодня»: тот же период, но обрезанный живым временем.
+ *
+ * --- Зачем это -----------------------------------------------------------
+ *
+ * Учётный период — год или полугодие, и его итог станет известен только
+ * в конце. А человек ведёт табель СЕЙЧАС: ему нужно знать, сколько
+ * переработки набежало к сегодняшнему дню, — иначе весь расчёт до декабря
+ * показывает норму, которую он ещё не должен был отработать, и «недоработку»
+ * в сотни часов.
+ *
+ * --- Почему начало тоже сдвигается ---------------------------------------
+ *
+ * От первой смены. До неё человек в этом карауле не служил, и часы за те
+ * сутки не его: включать их в норму значит требовать отработать время до
+ * приёма на службу.
+ *
+ * --- Почему конец — завтра ------------------------------------------------
+ *
+ * Правая граница периода в этом расчёте ИСКЛЮЧАЮЩАЯ: `2026-02-01` значит
+ * «по 31 января». Чтобы сегодняшние сутки вошли целиком, границей ставится
+ * следующий день.
+ */
+export function liveBounds(
+  bounds: { periodStart: IsoDate; periodEnd: IsoDate },
+  firstShiftDate: IsoDate,
+  today: IsoDate,
+): { periodStart: IsoDate; periodEnd: IsoDate } {
+  const start =
+    firstShiftDate > bounds.periodStart ? firstShiftDate : bounds.periodStart;
+  const tomorrow = addDays(today, 1);
+  const end = tomorrow < bounds.periodEnd ? tomorrow : bounds.periodEnd;
+  // Период, целиком лежащий в будущем, обрезать не во что: пусть остаётся
+  // пустым отрезком в своём начале, а не отрицательным.
+  return { periodStart: start, periodEnd: end < start ? start : end };
 }
 
 export function statutoryBounds(

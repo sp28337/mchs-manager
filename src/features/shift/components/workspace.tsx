@@ -5,10 +5,11 @@ import { useMemo, useState } from "react";
 import { Hint } from "@/components/ui/hint";
 import { SiteHeader } from "@/components/shared/site-header";
 import { formatPeriodRu } from "../domain/format";
-import type { IsoDate } from "../domain/plain-date";
+import { todayIso, type IsoDate } from "../domain/plain-date";
 import {
   accountingPeriodsOf,
   calculateFor,
+  liveBounds,
   monthBounds,
   overtimePayFor,
   statutoryBounds,
@@ -116,10 +117,18 @@ export function Workspace({ profile, onChange, onForget }: WorkspaceProps) {
   // период — вернуться к нему можно было, только вспомнив, какой он был.
   const [month, setMonth] = useState<number | null>(null);
 
-  const { periodStart, periodEnd } =
+  const chosen =
     month === null
       ? statutoryBounds(profile.accountingYear, statutory.kind, statutory.index)
       : monthBounds(profile.accountingYear, month);
+
+  // Режим «веду табель» обрезает выбранный отрезок живым временем: от
+  // первой смены по сегодня. Сегодняшний день берётся один раз за
+  // отрисовку — переживать полночь странице не приходится, её открывают
+  // и закрывают в тот же день.
+  const { periodStart, periodEnd } = profile.liveMode
+    ? liveBounds(chosen, profile.firstShiftDate, todayIso())
+    : chosen;
 
   const calculation = useMemo(
     () => calculateFor(profile, periodStart, periodEnd),

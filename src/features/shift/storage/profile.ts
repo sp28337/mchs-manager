@@ -155,6 +155,14 @@ export const storedProfileSchema = z.object({
    * заметок, обязаны читаться как есть.
    */
   dayNotes: z.record(isoDate, z.string().max(500)).default({}),
+  /**
+   * Режим «веду табель»: расчёт обрезается по сегодняшний день.
+   *
+   * Хранится в профиле, а не в состоянии экрана: человек ведёт табель
+   * месяцами, и заново включать режим при каждом открытии страницы
+   * значило бы каждый раз показывать ему итог, которого он не просил.
+   */
+  liveMode: z.boolean().default(false),
   reported: reportedSchema.nullable(),
   savedAt: z.string(),
 });
@@ -190,6 +198,7 @@ export function createProfile(input: NewProfileInput): StoredProfile {
     callouts: [],
     calendarOverrides: {},
     dayNotes: {},
+    liveMode: false,
     reported: null,
     savedAt: new Date().toISOString(),
   };
