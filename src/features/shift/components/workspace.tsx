@@ -3,7 +3,6 @@
 import { useMemo, useState } from "react";
 
 import { CollapsibleSection } from "@/components/shared/collapsible-section";
-import { Hint } from "@/components/ui/hint";
 import { SiteHeader } from "@/components/shared/site-header";
 import { formatPeriodRu } from "../domain/format";
 import type { IsoDate } from "../domain/plain-date";
@@ -17,7 +16,7 @@ import {
 import type { StoredProfile } from "../storage/profile";
 import { DayEditor } from "./day-editor";
 import { HeaderTools } from "./header-tools";
-import { NormNote, PeriodSummary } from "./period-summary";
+import { PeriodExtras, PeriodFigures } from "./period-summary";
 import { ProfileFooter } from "./profile-footer";
 import { CalendarNote } from "./year-calendar-editor";
 import {
@@ -148,42 +147,26 @@ export function Workspace({ profile, onChange, onForget }: WorkspaceProps) {
       <SiteHeader
         person={profile.displayName}
         tagline={`${profile.accountingYear} год / ${profile.guardNumber}-й караул`}
-        tools={
-          <HeaderTools
-            profile={profile}
+        summary={
+          <PeriodFigures
             calculation={calculation}
-            pay={pay}
-            onChange={onChange}
+            payTotal={pay?.primary.total ?? null}
+            periodLabel={formatPeriodRu(periodStart, periodEnd)}
           />
         }
       />
 
-      <main className="mx-auto w-full px-6 pb-12 pt-26 2xl:max-w-[2000px]">
-      {/* Итог — закреплённой полосой, календарь — во всю ширину под ней.
-          --------------------------------------------------------------
-          Числа и сетка нужны одновременно: человек отмечает день и тут
-          же смотрит, что стало с нормой. Колонкой слева это стоило
-          календарю четырёхсот точек ширины, а лентой сверху — прокрутки
-          назад через двенадцать сеток. Полоса не стоит ни того, ни
-          другого: она держится под шапкой, а сетка получает всю
-          страницу. */}
-      <PeriodSummary
+      {/* Отступ сверху — под высоту шапки, и она о двух ступенях: на узком
+          экране числа переносятся под имя и шапка выше на рем. */}
+      <main className="mx-auto w-full px-6 pb-12 pt-30 md:pt-26 2xl:max-w-[2000px]">
+      <PeriodExtras
         calculation={calculation}
         accountingYear={profile.accountingYear}
         payTotal={pay?.primary.total ?? null}
         periodLabel={formatPeriodRu(periodStart, periodEnd)}
-        hint={
-          /* Вывод нормы — за знаком вопроса, как и остальные пояснения на
-             этой странице. Раньше он занимал под числами рамку в четыре
-             строки, и до переработки приходилось прокручивать через
-             статьи и приказы. */
-          <Hint label="Откуда взялась норма">
-            <NormNote calculation={calculation} />
-          </Hint>
-        }
       />
 
-      <div className="space-y-10 pt-8">
+      <div className="space-y-10 pt-6">
       <CollapsibleSection
         title="Календарь"
         hint={yearView === "calendar" ? <CalendarNote profile={profile} /> : undefined}
@@ -200,6 +183,17 @@ export function Workspace({ profile, onChange, onForget }: WorkspaceProps) {
           month={month}
           onMonth={setMonth}
           onPickDay={setPickedDay}
+          // Настройки, деньги и выгрузка стоят слева в панели управления
+          // сеткой, а не в шапке: шапку целиком заняли числа, а эти три
+          // кнопки нужны реже любого из них.
+          tools={
+            <HeaderTools
+              profile={profile}
+              calculation={calculation}
+              pay={pay}
+              onChange={onChange}
+            />
+          }
         />
       </CollapsibleSection>
 
