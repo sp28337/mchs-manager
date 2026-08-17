@@ -58,21 +58,14 @@ export const ACCOUNTING_PERIODS: Record<EmploymentKind, readonly AccountingPerio
  * чтобы не сказать вслух, что квартал у него не учётный.
  *
  * Поэтому список смотровых отрезков один на всех, а разницу называет
- * `isAccountingPeriod` — и называет словами там, где человек выбирает.
+ * пояснение у списка выбора (`PeriodPicker`) — словами и один раз, а не
+ * пометкой на половине пунктов.
  */
 export const VIEWABLE_PERIODS: readonly AccountingPeriodKind[] = [
   "quarter",
   "half_year",
   "year",
 ];
-
-/** Является ли отрезок учётным периодом ЭТОГО человека по приказу. */
-export function isAccountingPeriod(
-  kind: AccountingPeriodKind,
-  employment: EmploymentKind,
-): boolean {
-  return ACCOUNTING_PERIODS[employment].includes(kind);
-}
 
 /** Номер караула: при дежурстве сутки через трое их ровно четыре. */
 export type GuardNumber = 1 | 2 | 3 | 4;

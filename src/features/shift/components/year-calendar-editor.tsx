@@ -1,8 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 
-import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils/cn";
 
 import { formatDateRu } from "../domain/format";
@@ -14,13 +13,13 @@ import {
 } from "../domain/production-calendar";
 import type { StoredProfile } from "../storage/profile";
 import {
+  DAY_TYPES,
   DAY_TYPE_EFFECT,
   DAY_TYPE_LABELS,
   DAY_TYPE_MARK,
   DAY_TYPE_TONE,
   type DayType,
 } from "../schemas";
-import { DateField } from "./date-field";
 import { MONTH_NAMES } from "./month-names";
 import { MonthGrid, WEEKDAY_LABELS } from "./month-grid";
 
@@ -53,10 +52,20 @@ import { MonthGrid, WEEKDAY_LABELS } from "./month-grid";
  * сам, а что взято из закона: при разборе с начальником это разные по весу
  * утверждения, и стирать между ними границу нельзя.
  *
- * --- Правки сохраняются сразу -------------------------------------------
+ * --- Как правится день --------------------------------------------------
  *
- * Кнопки «Сохранить» здесь нет и быть не должно: запись идёт в браузер, а
- * не по сети, и отдельный шаг сохранения означал бы только возможность
+ * Так же, как в графике смен: нажатие по числу открывает окно этих суток,
+ * и вид дня выбирается там — вместе с заметкой и отметками об отпуске.
+ *
+ * Раньше здесь была кисть («чем помечать») и форма диапазона под сеткой.
+ * Кисть — скрытое состояние: щёлкнув по дню, человек получал то, что
+ * выбрал когда-то раньше, и не всегда помнил, что именно. Форма диапазона
+ * требовала набирать две даты рядом с календарём, в котором эти даты уже
+ * видны. Обе дороги вели туда же, куда ведёт нажатие по дню, — и остались
+ * только третья.
+ *
+ * Правка сохраняется сразу, кнопки «Сохранить» здесь нет: запись идёт в
+ * браузер, а не по сети, и отдельный шаг означал бы только возможность
  * потерять правку, закрыв вкладку.
  *
  * --- Почему он больше не сворачивается сам ------------------------------
@@ -69,33 +78,24 @@ import { MonthGrid, WEEKDAY_LABELS } from "./month-grid";
  * «Открыть календарь».
  */
 
-export const DAY_TYPES: DayType[] = ["working", "pre_holiday", "holiday", "weekend"];
-
 export interface YearCalendarEditorProps {
   profile: StoredProfile;
   onChange: (change: (previous: StoredProfile) => StoredProfile) => void;
   /** Раскладка месяцев: её задаёт масштаб, общий с графиком смен. */
   gridClassName?: string;
-  /**
-   * Чем помечать день. Выбирается в панели НАД сеткой вместе с остальным
-   * управлением ею: пометка — это два движения подряд, выбрать кисть и
-   * щёлкнуть по числу, и держать их по разные стороны двенадцати месяцев
-   * значило прокручивать между каждой парой.
-   */
-  brush: DayType;
+  /** Заметки к суткам: их наличие видно прямо в клетке, как в графике. */
+  dayNotes: Readonly<Record<string, string>>;
+  /** Нажатие по клетке: открыть правку этих суток. */
+  onPickDay: (day: IsoDate) => void;
 }
 
 export function YearCalendarEditor({
   profile,
   onChange,
   gridClassName,
-  brush,
+  dayNotes,
+  onPickDay,
 }: YearCalendarEditorProps) {
-  const [range, setRange] = useState<{ from: IsoDate | null; to: IsoDate | null }>({
-    from: null,
-    to: null,
-  });
-
   const year = profile.accountingYear;
   const overrides = profile.calendarOverrides;
 
@@ -111,16 +111,6 @@ export function YearCalendarEditor({
   const overrideCount = Object.keys(overrides).length;
   const pending = pendingTransfers(year).filter((day) => overrides[day] === undefined);
 
-  function paint(from: IsoDate, to: IsoDate, dayType: DayType) {
-    const [start, end] = from <= to ? [from, to] : [to, from];
-    onChange((previous) => {
-      const next = { ...previous.calendarOverrides };
-      for (const item of days) {
-        if (item.day >= start && item.day <= end) next[item.day] = dayType;
-      }
-      return { ...previous, calendarOverrides: next };
-    });
-  }
 
   const byMonth = new Map<number, CalendarDay[]>();
   for (const item of days) {
@@ -161,7 +151,8 @@ export function YearCalendarEditor({
                   <DayButton
                     item={item}
                     corners={corners}
-                    onPaint={() => paint(day, day, brush)}
+                    note={dayNotes[day]}
+                    onPick={() => onPickDay(day)}
                   />
                 ) : null;
               }}
@@ -171,51 +162,6 @@ export function YearCalendarEditor({
       </div>
 
       {pending.length > 0 ? <PendingNotice pending={pending} /> : null}
-
-      {/* Под сеткой остался только диапазон. Кисть переехала в панель над
-          сеткой, к остальному управлению ею; здесь же — то, что нужно
-          редко и не при каждом щелчке: разметить сразу неделю каникул. */}
-      <div className="space-y-4 rounded-sm border border-rule bg-paper-raised p-4">
-        <form
-          className="flex flex-wrap items-start gap-3"
-          onSubmit={(event) => {
-            event.preventDefault();
-            if (range.from && range.to) paint(range.from, range.to, brush);
-          }}
-        >
-          <DateField
-            label="С даты"
-            name="from"
-            required
-            min={`${year}-01-01`}
-            max={`${year}-12-31`}
-            onChange={(value) => setRange((previous) => ({ ...previous, from: value }))}
-          />
-          <DateField
-            label="По дату включительно"
-            name="to"
-            required
-            min={`${year}-01-01`}
-            max={`${year}-12-31`}
-            onChange={(value) => setRange((previous) => ({ ...previous, to: value }))}
-          />
-          <Button
-            type="submit"
-            variant="outline"
-            className="mt-[1.375rem]"
-            disabled={!range.from || !range.to}
-          >
-            Назначить диапазон
-          </Button>
-          {/* Кисть выбирается наверху, а красит здесь — значит, здесь она
-              должна быть названа. Иначе человек нажимает «Назначить
-              диапазон», не видя, чем именно. */}
-          <p className="mt-[1.375rem] max-w-xs text-xs text-ink-muted">
-            Отметит все дни диапазона как «{DAY_TYPE_LABELS[brush].toLowerCase()}» —
-            вид выбирается над календарём. Отдельный день быстрее отметить щелчком.
-          </p>
-        </form>
-      </div>
 
       <dl className="flex flex-wrap gap-x-6 gap-y-2 text-xs">
         {DAY_TYPES.map((type) => (
@@ -236,7 +182,7 @@ export function YearCalendarEditor({
         ))}
         <div className="flex items-center gap-2">
           <dt className="relative flex size-6 shrink-0 items-center justify-center rounded-xs border border-rule">
-            <span aria-hidden className="absolute -right-px -top-px size-1.5 rounded-full bg-ink" />
+            <span aria-hidden className="absolute -left-px -top-px size-1.5 rounded-full bg-ink" />
           </dt>
           <dd className="text-ink-muted">Изменено вами</dd>
         </div>
@@ -292,7 +238,8 @@ export function CalendarNote({ profile }: { profile: StoredProfile }) {
         </>
       )}{" "}
       Если ваш производственный календарь всё-таки отличается, поправьте здесь:
-      ошибка в одном дне — это 8 часов нормы. Инструменты правки — под сеткой.
+      ошибка в одном дне — это 8 часов нормы. Нажмите по числу — в окне этих
+      суток выбирается вид дня.
     </>
   );
 }
@@ -300,12 +247,14 @@ export function CalendarNote({ profile }: { profile: StoredProfile }) {
 function DayButton({
   item,
   corners,
-  onPaint,
+  note,
+  onPick,
 }: {
   item: CalendarDay;
   /** Скругления углов: их знает сетка, а не клетка. */
   corners: string;
-  onPaint: () => void;
+  note?: string;
+  onPick: () => void;
 }) {
   const date = dayOfMonth(item.day);
   const month = (MONTH_NAMES[monthIndex(item.day)] ?? "").toLowerCase();
@@ -313,14 +262,15 @@ function DayButton({
 
   const label =
     `${date} ${month}, ${weekdayName} — ${DAY_TYPE_LABELS[item.dayType].toLowerCase()}` +
-    (item.source === "override" ? ", изменено вами" : "");
+    (item.source === "override" ? ", изменено вами" : "") +
+    (note ? `. Заметка: ${note}` : "");
 
   return (
     <button
       type="button"
       title={label}
       aria-label={label}
-      onClick={onPaint}
+      onClick={onPick}
       className={cn(
         "relative flex aspect-square w-full min-w-0 cursor-pointer flex-col",
         "items-center justify-center leading-tight",
@@ -349,7 +299,15 @@ function DayButton({
         // же канале означал бы, что ни один не читается.
         <span
           aria-hidden
-          className="absolute -right-px -top-px size-1.5 rounded-full bg-ink"
+          className="absolute -left-px -top-px size-1.5 rounded-full bg-ink"
+        />
+      ) : null}
+      {/* Заметка помечается тем же углом, что в графике: одна пометка на
+          обе сетки, иначе её пришлось бы искать по-разному. */}
+      {note ? (
+        <span
+          aria-hidden
+          className="absolute right-0 top-0 size-0 border-l-4 border-t-4 border-l-transparent border-t-trace"
         />
       ) : null}
     </button>

@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 
-import { CollapsibleSection } from "@/components/shared/collapsible-section";
+import { Hint } from "@/components/ui/hint";
 import { SiteHeader } from "@/components/shared/site-header";
 import { formatPeriodRu } from "../domain/format";
 import type { IsoDate } from "../domain/plain-date";
@@ -178,11 +178,20 @@ export function Workspace({ profile, onChange, onForget }: WorkspaceProps) {
       />
 
       <div className="space-y-10">
-      <CollapsibleSection
-        title="Календарь"
-        hint={yearView === "calendar" ? <CalendarNote profile={profile} /> : undefined}
-        defaultOpen
-      >
+      {/* Календарь не сворачивается. Крышка над ним была наследством от
+          времён, когда на странице стояло пять разделов и двенадцать сеток
+          отодвигали всё остальное вниз. Теперь ниже только подвал, а сетка
+          — то, ради чего экран открыт: закрывать её значит закрывать
+          страницу. */}
+      <section aria-labelledby="calendar-heading" className="space-y-4">
+        <h2 id="calendar-heading" className="flex items-center gap-2 text-xl">
+          Календарь
+          {yearView === "calendar" ? (
+            <Hint label="Про производственный календарь">
+              <CalendarNote profile={profile} />
+            </Hint>
+          ) : null}
+        </h2>
         <YearView
           profile={profile}
           calculation={calculation}
@@ -195,7 +204,7 @@ export function Workspace({ profile, onChange, onForget }: WorkspaceProps) {
           onMonth={setMonth}
           onPickDay={setPickedDay}
         />
-      </CollapsibleSection>
+      </section>
 
       <ProfileFooter profile={profile} onForget={onForget} />
       </div>

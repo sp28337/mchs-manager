@@ -126,6 +126,10 @@ export function Hint({
           className={cn(
             "fixed z-50 block rounded-sm border border-rule-strong bg-paper-raised",
             "px-3 py-2 text-xs leading-relaxed text-ink shadow-lg",
+            // Знак вопроса часто стоит в подписи, набранной прописными и
+            // разряженной, — и карточка наследовала это, превращая абзац
+            // в крик. Собственная типографика, а не родительская.
+            "normal-case tracking-normal",
           )}
         >
           {children}

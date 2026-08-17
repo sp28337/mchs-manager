@@ -91,6 +91,15 @@ export const ABSENCE_EFFECT: Record<AbsenceKind, string> = {
     "норма не меняется, а пропущенная смена уменьшает переработку — отгул и есть её погашение",
 };
 
+/**
+ * Порядок видов дня в списках: от «входит в норму» к «не входит».
+ *
+ * Один на все места, где день выбирают или объясняют, — иначе легенда и
+ * список в окне правки разошлись бы порядком, и человек искал бы в одном
+ * то, что запомнил из другого.
+ */
+export const DAY_TYPES: DayType[] = ["working", "pre_holiday", "holiday", "weekend"];
+
 export const DAY_TYPE_LABELS: Record<DayType, string> = {
   working: "Рабочий",
   pre_holiday: "Предпраздничный",

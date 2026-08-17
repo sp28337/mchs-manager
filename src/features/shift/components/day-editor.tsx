@@ -12,13 +12,18 @@ import { Select } from "@/components/ui/select";
 import { parseHours } from "../domain/decimal";
 import { formatDateRu, formatDayMonthRu } from "../domain/format";
 import type { IsoDate } from "../domain/plain-date";
+import { statutoryCalendar } from "../domain/production-calendar";
 import { ABSENCE_KIND_BASIS, CALLOUT_KIND_BASIS } from "../domain/value-objects";
 import {
   ABSENCE_EFFECT,
   ABSENCE_LABELS,
   CALLOUT_LABELS,
+  DAY_TYPES,
+  DAY_TYPE_EFFECT,
+  DAY_TYPE_LABELS,
   type AbsenceKind,
   type CalloutKind,
+  type DayType,
 } from "../schemas";
 import type { StoredProfile } from "../storage/profile";
 import { DateField } from "./date-field";
@@ -41,6 +46,23 @@ import { DateField } from "./date-field";
  * Отпуск и больничный — периоды, и спрашивать их конец обязательно.
  * Вызов на соревнования тоже бывает на несколько суток, но чаще на одни, и
  * поле подставлено тем же днём: согласиться быстрее, чем набрать.
+ *
+ * --- Почему вид дня тоже здесь -------------------------------------------
+ *
+ * Производственный календарь правится тем же движением: нашёл день,
+ * нажал, сказал, чем он был. Раньше для этого была отдельная механика —
+ * кисть над сеткой и форма диапазона под ней, — то есть на один и тот же
+ * вопрос «что в этих сутках» отвечали в двух разных местах двумя разными
+ * способами.
+ *
+ * Вид дня спрашивается на обеих сетках, а не только в календаре: сутки
+ * одни и те же, и человек, нашедший спорную смену в графике, не должен
+ * переключать вид, чтобы поправить праздник под ней.
+ *
+ * Совпадение с законом не хранится: выбрав то, что и так следует из
+ * ст. 112 и 95 ТК РФ, человек снимает правку, а не добавляет ещё одну, —
+ * иначе счётчик «ваших правок» врал бы, а с ним и вес его утверждений в
+ * споре.
  *
  * --- Почему заметка здесь же ---------------------------------------------
  *
@@ -103,9 +125,15 @@ function DayForm({
   onClose: () => void;
 }) {
   const choiceId = useId();
+  const dayTypeId = useId();
   const hoursId = useId();
   const noteId = useId();
 
+  // Вид дня по закону — то, с чем сравнивается выбор человека.
+  const lawful = statutoryCalendar(profile.accountingYear).get(day) ?? "working";
+  const effective = profile.calendarOverrides[day] ?? lawful;
+
+  const [dayType, setDayType] = useState<DayType>(effective);
   const [choice, setChoice] = useState<DayChoice>("none");
   const [endsOn, setEndsOn] = useState<IsoDate | null>(day);
   const [hours, setHours] = useState(DEFAULT_CALLOUT_HOURS);
@@ -125,6 +153,19 @@ function DayForm({
   const isAbsence = kind?.[0] === "absence";
   const isCallout = kind?.[0] === "callout";
 
+  /**
+   * Вид дня в производственном календаре.
+   *
+   * Совпал с законом — правка снимается: список «ваших правок» должен
+   * содержать только то, что человек утверждает вопреки закону.
+   */
+  function saveDayType(next: StoredProfile): StoredProfile {
+    const calendarOverrides = { ...next.calendarOverrides };
+    if (dayType === lawful) delete calendarOverrides[day];
+    else calendarOverrides[day] = dayType;
+    return { ...next, calendarOverrides };
+  }
+
   function saveNote(next: StoredProfile, text: string): StoredProfile {
     const dayNotes = { ...next.dayNotes };
     // Пустая заметка не хранится: иначе профиль обрастал бы пустыми
@@ -138,7 +179,7 @@ function DayForm({
     const target = day;
 
     if (choice === "none") {
-      onChange((previous) => saveNote(previous, note));
+      onChange((previous) => saveDayType(saveNote(previous, note)));
       onClose();
       return;
     }
@@ -167,6 +208,7 @@ function DayForm({
       }
 
       onChange((previous) =>
+        saveDayType(
         saveNote(
           {
             ...previous,
@@ -176,6 +218,7 @@ function DayForm({
             ],
           },
           note,
+        ),
         ),
       );
       onClose();
@@ -191,6 +234,7 @@ function DayForm({
       }
       const calloutKind = (kind?.[1] ?? "competition") as CalloutKind;
       onChange((previous) =>
+        saveDayType(
         saveNote(
           {
             ...previous,
@@ -206,6 +250,7 @@ function DayForm({
             ],
           },
           note,
+        ),
         ),
       );
       onClose();
@@ -262,6 +307,30 @@ function DayForm({
             </ul>
           </section>
         ) : null}
+
+        {/* Вид дня стоит первым: он есть у каждых суток, тогда как
+            отпуск и вызов — исключение. */}
+        <div className="space-y-1.5">
+          <Label htmlFor={dayTypeId}>Что это за день по календарю</Label>
+          <Select
+            id={dayTypeId}
+            value={dayType}
+            onChange={(event) => setDayType(event.target.value as DayType)}
+          >
+            {DAY_TYPES.map((type) => (
+              <option key={type} value={type}>
+                {DAY_TYPE_LABELS[type]}
+                {type === lawful ? " — по закону" : ""}
+              </option>
+            ))}
+          </Select>
+          <p className="text-xs text-ink-muted" aria-live="polite">
+            {DAY_TYPE_EFFECT[dayType]}.
+            {dayType === lawful
+              ? " Это и есть значение по закону."
+              : ` По закону здесь ${DAY_TYPE_LABELS[lawful].toLowerCase()} — ваша правка это переопределит.`}
+          </p>
+        </div>
 
         <div className="space-y-1.5">
           <Label htmlFor={choiceId}>Что в этот день</Label>
