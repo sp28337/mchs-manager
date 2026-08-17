@@ -127,18 +127,6 @@ export function PeriodSummary({
  * деньги и сами даты уходят в строку мелких итогов под ними: полоса
  * обязана оставаться тонкой, а прятать их за кнопку значило бы требовать
  * нажатия там, где хватает взгляда строкой ниже.
- *
- * --- Почему числа стоят плашкой ------------------------------------------
- *
- * Голым рядом они висели в воздухе: пять величин подряд, ничем не
- * ограниченных, читались как случайно оказавшиеся рядом. Плашка отвечает
- * на «где кончается итог и начинается страница», а разделители — на «где
- * кончается одно число и начинается другое».
- *
- * Оформление взято у кнопок рабочего экрана — та же рамка, та же подложка,
- * то же скругление. Не для красоты: итог и кнопки стоят на одной странице
- * в двух строках друг под другом, и два разных вида плашки на таком
- * расстоянии читались бы как две разные системы.
  */
 function PeriodFigures({
   calculation,
@@ -159,12 +147,8 @@ function PeriodFigures({
   const excluded = calculation.excludedHours.greaterThan(0);
 
   return (
-    <dl
-      className={cn(
-        "flex min-w-0 max-w-full flex-wrap items-stretch overflow-hidden",
-        "divide-x divide-rule rounded-xl border border-rule-strong bg-paper-raised",
-      )}
-    >
+    <div className="flex min-w-0 items-end gap-x-5">
+      <dl className="flex min-w-0 items-end gap-x-5">
         <Figure
           value={hours(calculation.normHours)}
           unit="ч"
@@ -191,15 +175,11 @@ function PeriodFigures({
         ) : null}
 
         {showAll && overtime ? (
-          // «≈» стоит в той же ячейке, что и число: это знак при нём, а не
-          // шестая величина, и отдельной клеткой он читался бы как заголовок
-          // пустого столбца.
-          <div className="flex items-center gap-x-3 px-4 py-2">
-            <span aria-hidden className="text-xl text-ink-faint sm:text-2xl">
+          <div className="flex items-center gap-x-5">
+            <span className="text-2xl">
               ≈
             </span>
             <Figure
-              bare
               value={`${days(calculation.overtimeHours)}`}
               unit="суток"
               caption="В сутках"
@@ -215,7 +195,9 @@ function PeriodFigures({
             tone="verify"
           />
         ) : null}
-    </dl>
+        
+      </dl>
+    </div>
   );
 }
 
@@ -424,7 +406,6 @@ function Figure({
   emphatic,
   tone,
   hint,
-  bare,
 }: {
   value: string;
   unit: string;
@@ -432,11 +413,9 @@ function Figure({
   emphatic?: boolean;
   tone?: "signal" | "verify";
   hint?: ReactNode;
-  /** Без своего поля: величина стоит внутри чужой ячейки плашки. */
-  bare?: boolean;
 }) {
   return (
-    <div className={cn("min-w-0", bare ? "" : "px-4 py-2")}>
+    <div className="min-w-0">
       {/* Число и его единица не разрываются переносом: «1796,00» на одной
           строке и «ч» на следующей читается как другое число. */}
       <dd
