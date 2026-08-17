@@ -1,7 +1,7 @@
 "use client";
 
 import { CalendarCog, CalendarDays, ZoomIn, ZoomOut } from "lucide-react";
-import { useState, type ReactNode } from "react";
+import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Hint } from "@/components/ui/hint";
@@ -144,7 +144,6 @@ export function YearView({
   month,
   onMonth,
   onPickDay,
-  tools,
 }: {
   profile: StoredProfile;
   calculation: PeriodCalculation;
@@ -157,8 +156,6 @@ export function YearView({
   month: number | null;
   onMonth: (month: number | null) => void;
   onPickDay: (day: IsoDate) => void;
-  /** Кнопки рабочего экрана: стоят слева, в одном уровне с панелью. */
-  tools?: ReactNode;
 }) {
   const [scale, setScale] = useState(DEFAULT_SCALE);
   // Чем помечать день в календаре. Состояние экрана, а не данных: оно
@@ -198,13 +195,6 @@ export function YearView({
           линейками, а не фоном. */}
       <div className="space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          {/* Кнопки и переключатель вида — одной группой слева, вплотную:
-              `justify-between` растащил бы их по краям, и кнопки уехали
-              бы от сетки, которой они не управляют, к масштабу, которым
-              они не являются. */}
-          <div className="flex flex-wrap items-center gap-3">
-          {tools}
-
           <Segmented label="Что показывать на сетке">
             <SegmentedItem
               active={view === "shifts"}
@@ -226,7 +216,6 @@ export function YearView({
               <span className="sm:hidden">Календарь</span>
             </SegmentedItem>
           </Segmented>
-          </div>
 
           <div className="hidden items-center gap-1 lg:flex">
             <span className="mr-1 font-display text-[11px] font-bold uppercase tracking-wide text-ink-muted">

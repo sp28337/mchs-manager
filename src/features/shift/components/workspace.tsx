@@ -16,7 +16,7 @@ import {
 import type { StoredProfile } from "../storage/profile";
 import { DayEditor } from "./day-editor";
 import { HeaderTools } from "./header-tools";
-import { PeriodExtras, PeriodFigures } from "./period-summary";
+import { PeriodSummary } from "./period-summary";
 import { ProfileFooter } from "./profile-footer";
 import { CalendarNote } from "./year-calendar-editor";
 import {
@@ -145,28 +145,39 @@ export function Workspace({ profile, onChange, onForget }: WorkspaceProps) {
           периода — он живёт здесь. Тянуть его наверх значило бы поднять
           туда и выбор периода, то есть половину этого экрана. */}
       <SiteHeader
-        person={profile.displayName}
         tagline={`${profile.accountingYear} год / ${profile.guardNumber}-й караул`}
-        summary={
-          <PeriodFigures
+        tools={
+          <HeaderTools
+            profile={profile}
             calculation={calculation}
-            payTotal={pay?.primary.total ?? null}
-            periodLabel={formatPeriodRu(periodStart, periodEnd)}
+            pay={pay}
+            onChange={onChange}
           />
         }
       />
 
-      {/* Отступ сверху — под высоту шапки, и она о двух ступенях: на узком
-          экране числа переносятся под имя и шапка выше на рем. */}
-      <main className="mx-auto w-full px-6 pb-12 pt-30 md:pt-26 2xl:max-w-[2000px]">
-      <PeriodExtras
+      <main className="mx-auto w-full px-6 pb-12 pt-26 2xl:max-w-[2000px]">
+      {/* Поле под именем — не про воздух: полоса с числами закрывает над
+          собой двенадцать точек бумаги (щиток в `PeriodSummary`, он гасит
+          просвет под шапкой), и без этого зазора щиток лёг бы прямо на
+          имя. */}
+      <header className="pb-12">
+        <h1 className="text-3xl leading-tight">{profile.displayName}</h1>
+      </header>
+
+      {/* Итог — закреплённой полосой, календарь — во всю ширину под ней.
+          Числа и сетка нужны одновременно: человек отмечает день и тут же
+          смотрит, что стало с нормой. Колонкой слева это стоило календарю
+          четырёхсот точек ширины, а лентой сверху — прокрутки назад через
+          двенадцать сеток. */}
+      <PeriodSummary
         calculation={calculation}
         accountingYear={profile.accountingYear}
         payTotal={pay?.primary.total ?? null}
         periodLabel={formatPeriodRu(periodStart, periodEnd)}
       />
 
-      <div className="space-y-10 pt-6">
+      <div className="space-y-10 pt-8">
       <CollapsibleSection
         title="Календарь"
         hint={yearView === "calendar" ? <CalendarNote profile={profile} /> : undefined}
@@ -183,17 +194,6 @@ export function Workspace({ profile, onChange, onForget }: WorkspaceProps) {
           month={month}
           onMonth={setMonth}
           onPickDay={setPickedDay}
-          // Настройки, деньги и выгрузка стоят слева в панели управления
-          // сеткой, а не в шапке: шапку целиком заняли числа, а эти три
-          // кнопки нужны реже любого из них.
-          tools={
-            <HeaderTools
-              profile={profile}
-              calculation={calculation}
-              pay={pay}
-              onChange={onChange}
-            />
-          }
         />
       </CollapsibleSection>
 

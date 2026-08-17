@@ -1,6 +1,7 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { ChevronDown } from "lucide-react";
+import { useState, type ReactNode } from "react";
 
 import { Hint } from "@/components/ui/hint";
 import { useMediaQuery } from "@/lib/hooks/use-media-query";
@@ -25,17 +26,17 @@ import type { PeriodCalculation } from "../domain/calculation";
  * идёт именно об их соотношении. Свести всё к «переработка: 24 ч»
  * значило бы спрятать то самое место, где расходятся расчёты.
  *
- * --- Почему числа стоят в шапке ------------------------------------------
+ * --- Почему числа держатся на месте --------------------------------------
  *
  * Они нужны при каждой правке в календаре: человек отмечает день в
- * декабре и тут же смотрит, что стало с нормой. Сначала они были первым
- * экраном страницы, и до них приходилось прокручивать назад через
- * двенадцать сеток; потом — отдельной закреплённой полосой под шапкой, и
- * это стоило странице двух закреплённых строк вместо одной.
+ * декабре и тут же смотрит, что стало с нормой. Пока они были первым
+ * экраном страницы, до них приходилось прокручивать назад через
+ * двенадцать сеток — именно в тот момент, когда важна точность.
  *
- * Теперь они в самой шапке, на месте названия сайта. Название там было
- * единственным, что не нужно человеку НА рабочем экране: он уже пришёл
- * куда хотел, а вернуться домой можно по знаку слева.
+ * Поэтому это полоса, закреплённая под шапкой. В саму шапку числа тоже
+ * пробовали переселить, но там они вытесняли название сайта и на узком
+ * экране ломали строку надвое; своя полоса обходится одной строкой и
+ * ничего у шапки не отнимает.
  *
  * --- Куда делись статьи и приказы ----------------------------------------
  *
@@ -51,32 +52,127 @@ import type { PeriodCalculation } from "../domain/calculation";
  */
 
 /**
- * Числа для шапки: даты периода и главные величины.
+ * Итог периода: закреплённая полоса под шапкой.
+ *
+ * Полоса обязана быть тонкой — она отнимает высоту у календаря, — поэтому
+ * внутри всё в одну-две строки: числа и подписанная строка мелких итогов.
+ */
+export function PeriodSummary({
+  calculation,
+  accountingYear,
+  payTotal,
+  periodLabel,
+}: {
+  calculation: PeriodCalculation;
+  accountingYear: number;
+  payTotal?: Decimal | null;
+  periodLabel: string;
+}) {
+  // Широкий экран показывает всё сразу; на узком остаются три главных
+  // числа, остальное открывается кнопкой — полоса не вправе съедать
+  // четверть телефонного экрана. Порог в JS, а не классами: иначе те же
+  // числа пришлось бы вывести в разметку дважды, и программа чтения
+  // объявила бы каждое по два раза.
+  const wide = useMediaQuery("(min-width: 1024px)");
+  const [open, setOpen] = useState(false);
+  const showAll = wide || open;
+
+  return (
+    <>
+      {/* Щиток над полосой. Шапка залита бумагой только на верхнюю
+          половину, ниже она уходит в прозрачность, — и содержимое
+          страницы просвечивало сквозь неё полоской между шапкой и этой
+          панелью. Псевдоэлемент закрывает ровно эту половину: на своём
+          месте, до прокрутки, он приходится на пустое поле под шапкой и
+          не виден.
+
+          `relative` тут ставить нельзя: это то же свойство `position`, и
+          оно отменило бы `sticky`. Липкий элемент и так задаёт систему
+          координат для `absolute` внутри себя. */}
+      <div
+        className={cn(
+          "sticky top-24 z-40 -mx-6 border-b border-rule bg-paper px-6 py-3",
+          "before:absolute before:inset-x-0 before:bottom-full",
+          "before:h-12 before:bg-paper before:content-['']",
+        )}
+      >
+        <div className="flex flex-wrap items-end gap-x-6 gap-y-3">
+          <PeriodFigures
+            calculation={calculation}
+            payTotal={payTotal}
+            periodLabel={periodLabel}
+            showAll={showAll}
+          />
+
+          {/* Кнопка появляется только там, где что-то спрятано. На широком
+              экране прятать нечего, и кнопка, ничего не открывающая, была
+              бы обманом. */}
+          {!wide ? (
+            <button
+              type="button"
+              onClick={() => setOpen((previous) => !previous)}
+              aria-expanded={open}
+              className={cn(
+                "ml-auto inline-flex h-8 shrink-0 cursor-pointer items-center gap-1.5",
+                "rounded-xl border border-rule px-2.5 text-xs text-ink-muted",
+                "transition-colors hover:bg-paper-sunken hover:text-ink",
+                "focus-visible:outline-2 focus-visible:outline-offset-2",
+                "focus-visible:outline-trace",
+              )}
+            >
+              {open ? "Свернуть" : "Подробнее"}
+              <ChevronDown
+                aria-hidden
+                className={cn("size-4 transition-transform", open && "rotate-180")}
+              />
+            </button>
+          ) : null}
+        </div>
+
+        {showAll ? (
+          <PeriodExtras
+            calculation={calculation}
+            payTotal={payTotal}
+            periodLabel={periodLabel}
+            wide={wide}
+          />
+        ) : null}
+      </div>
+
+      <PendingNotice accountingYear={accountingYear} />
+    </>
+  );
+}
+
+/**
+ * Числа: даты периода и главные величины.
  *
  * На узком экране остаются три числа — норма, факт, переработка. Сутки,
- * деньги и сами даты уходят строкой под шапку (`PeriodExtras`): в шапке
- * для них нет места, а прятать их за кнопку значило бы требовать нажатия
- * там, где хватает взгляда ниже.
+ * деньги и сами даты уходят в строку мелких итогов под ними: полоса
+ * обязана оставаться тонкой, а прятать их за кнопку значило бы требовать
+ * нажатия там, где хватает взгляда строкой ниже.
  */
-export function PeriodFigures({
+function PeriodFigures({
   calculation,
   payTotal,
   periodLabel,
+  showAll,
 }: {
   calculation: PeriodCalculation;
   /** Деньги за переработку, если человек указал оклад. */
   payTotal?: Decimal | null;
   /** Даты периода словами: в споре важно, за какие именно числа расчёт. */
   periodLabel: string;
+  /** Показывать ли всё, а не только три главных числа. */
+  showAll: boolean;
 }) {
   const overtime = calculation.overtimeHours.greaterThan(0);
   const undertime = calculation.undertimeHours.greaterThan(0);
   const excluded = calculation.excludedHours.greaterThan(0);
-  const wide = useMediaQuery("(min-width: 768px)");
 
   return (
-    <div className="flex min-w-0 items-end gap-x-5 max-md:w-full">
-      {wide ? (
+    <div className="flex min-w-0 items-end gap-x-5">
+      {showAll ? (
         <div className="shrink-0 border-r border-rule pr-5">
           <p className="font-display text-[10px] font-bold uppercase tracking-wide text-ink-muted">
             Как должно быть за
@@ -120,7 +216,7 @@ export function PeriodFigures({
             tone="signal"
           />
         ) : null}
-        {wide && overtime ? (
+        {showAll && overtime ? (
           <Figure
             value={`≈ ${days(calculation.overtimeHours)}`}
             unit="суток"
@@ -128,7 +224,7 @@ export function PeriodFigures({
             tone="verify"
           />
         ) : null}
-        {wide && overtime && payTotal ? (
+        {showAll && overtime && payTotal ? (
           <Figure
             value={formatMoneyAmount(payTotal)}
             unit="₽"
@@ -142,31 +238,29 @@ export function PeriodFigures({
 }
 
 /**
- * Мелкие итоги строкой под шапкой.
+ * Мелкие итоги — второй строкой полосы.
  *
  * Одной строкой, как подпись месяца в календаре: пять подписанных
  * столбиков занимали две строки там, где хватает одной. На узком экране
  * сюда же приходят даты периода, сутки и деньги — всё, что не влезло в
- * шапку.
+ * первую строку.
  */
-export function PeriodExtras({
+function PeriodExtras({
   calculation,
-  accountingYear,
   payTotal,
   periodLabel,
+  wide,
 }: {
   calculation: PeriodCalculation;
-  accountingYear: number;
   payTotal?: Decimal | null;
   periodLabel: string;
+  /** На широком экране даты и деньги уже стоят числами выше. */
+  wide: boolean;
 }) {
   const overtime = calculation.overtimeHours.greaterThan(0);
-  const pending = pendingTransfers(accountingYear).length;
-  const wide = useMediaQuery("(min-width: 768px)");
 
   return (
-    <div className="space-y-4">
-      <p className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-ink-muted">
+      <p className="mt-3 flex flex-wrap items-center gap-x-1.5 gap-y-1 border-t border-rule pt-2 text-xs text-ink-muted">
         {!wide ? (
           <span className="whitespace-nowrap">
             за <span className="font-mono text-ink">{periodLabel}</span>{" "}
@@ -188,21 +282,29 @@ export function PeriodExtras({
           <FactOnlyNote />
         </Hint>
       </p>
+  );
+}
 
-      {pending > 0 ? (
-        // Не «календарь не опубликован» — эта формулировка досталась от
-        // серверной версии и человеку ничего не говорила. Названа
-        // конкретная недостача и её цена в часах.
-        //
-        // Единственное, что здесь осталось карточкой: это не пояснение, а
-        // недоделанное дело, и оно требует действия в календаре ниже.
-        <p className="max-w-prose rounded-xl bg-signal-soft px-4 py-3 text-sm">
-          Норма может быть завышена на {pending * 8} часов: переносы новогодних
-          выходных на {accountingYear} год ещё не проставлены. Откройте календарь
-          года ниже и отметьте их по своему производственному календарю.
-        </p>
-      ) : null}
-    </div>
+/**
+ * Названная цена непроставленного переноса.
+ *
+ * Единственное, что осталось карточкой в потоке страницы: это не
+ * пояснение, а недоделанное дело, и оно требует действия в календаре
+ * ниже. В полосе ему не место — полоса это числа.
+ */
+function PendingNotice({ accountingYear }: { accountingYear: number }) {
+  const pending = pendingTransfers(accountingYear).length;
+  if (pending === 0) return null;
+
+  return (
+    // Не «календарь не опубликован» — эта формулировка досталась от
+    // серверной версии и человеку ничего не говорила. Названа конкретная
+    // недостача и её цена в часах.
+    <p className="mt-6 max-w-prose rounded-xl bg-signal-soft px-4 py-3 text-sm">
+      Норма может быть завышена на {pending * 8} часов: переносы новогодних
+      выходных на {accountingYear} год ещё не проставлены. Откройте календарь
+      года ниже и отметьте их по своему производственному календарю.
+    </p>
   );
 }
 
