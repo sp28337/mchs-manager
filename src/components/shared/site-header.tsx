@@ -76,8 +76,8 @@ export interface SiteHeaderProps {
 
 export function SiteHeader({ tagline, action, tools, className }: SiteHeaderProps) {
   return (
-    <header className={cn("fixed w-full z-100  bg-linear-to-b from-paper from-50% to-transparent h-24", className)}>
-      <div className="mx-auto flex h-24 w-full flex-nowrap items-center gap-x-4 py-3 pl-6 pr-6 sm:gap-x-6 lg:pl-9 2xl:max-w-[2000px]">
+    <header className={cn("fixed w-full z-100  bg-paper", className)}>
+      <div className="mx-auto flex h-16 w-full flex-nowrap items-center gap-x-4 py-3 px-6 sm:gap-x-6 2xl:max-w-[2000px]">
         <Link
           href="/"
           className="group flex min-w-0 items-center gap-2.5 rounded-xs focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-trace"
@@ -86,7 +86,7 @@ export function SiteHeader({ tagline, action, tools, className }: SiteHeaderProp
           {/* Название скрыто, но не удалено: `sr-only` оставляет его
               программе чтения, и ссылка домой не превращается в безымянную
               картинку. */}
-          <span className={cn("min-w-0 leading-none", tools && "max-md:sr-only")}>
+          <span className={cn("min-w-0 leading-none", tools)}>
             <span className="block font-display text-black/80 dark:text-ink text-sm font-bold uppercase leading-tight tracking-wide group-hover:underline">
               {/* Пробел перед второй строкой намеренный: `block` делит
                   строки визуально, но в тексте они склеиваются, и

@@ -45,7 +45,7 @@ export function CollapsibleSection({
   className?: string;
 }) {
   return (
-    <details open={defaultOpen} className={cn("group border-t border-rule pt-4", className)}>
+    <details open={defaultOpen} className={cn("group", className)}>
       <summary
         className={cn(
           "flex cursor-pointer list-none flex-wrap items-baseline gap-x-3",

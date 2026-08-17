@@ -73,7 +73,7 @@ export function PeriodSummary({
   // четверть телефонного экрана. Порог в JS, а не классами: иначе те же
   // числа пришлось бы вывести в разметку дважды, и программа чтения
   // объявила бы каждое по два раза.
-  const wide = useMediaQuery("(min-width: 1024px)");
+  const wide = useMediaQuery("(min-width: 560px)");
   const [open, setOpen] = useState(false);
   const showAll = wide || open;
 
@@ -89,14 +89,19 @@ export function PeriodSummary({
           `relative` тут ставить нельзя: это то же свойство `position`, и
           оно отменило бы `sticky`. Липкий элемент и так задаёт систему
           координат для `absolute` внутри себя. */}
+        {/* <PeriodExtras
+          calculation={calculation}
+          payTotal={payTotal}
+          periodLabel={periodLabel}
+          wide={wide}
+        /> */}
       <div
         className={cn(
-          "sticky top-24 z-40 -mx-6 border-b border-rule bg-paper px-6 py-3",
-          "before:absolute before:inset-x-0 before:bottom-full",
-          "before:h-12 before:bg-paper before:content-['']",
+          "sticky top-24 z-40 -mx-6 -translate-y-8",
+          "",
         )}
       >
-        <div className="flex flex-wrap items-end gap-x-6 gap-y-3">
+        <div className="flex items-end gap-x-6 gap-y-3 bg-paper px-6 pb-3">
           <PeriodFigures
             calculation={calculation}
             payTotal={payTotal}
@@ -107,36 +112,7 @@ export function PeriodSummary({
           {/* Кнопка появляется только там, где что-то спрятано. На широком
               экране прятать нечего, и кнопка, ничего не открывающая, была
               бы обманом. */}
-          {!wide ? (
-            <button
-              type="button"
-              onClick={() => setOpen((previous) => !previous)}
-              aria-expanded={open}
-              className={cn(
-                "ml-auto inline-flex h-8 shrink-0 cursor-pointer items-center gap-1.5",
-                "rounded-xl border border-rule px-2.5 text-xs text-ink-muted",
-                "transition-colors hover:bg-paper-sunken hover:text-ink",
-                "focus-visible:outline-2 focus-visible:outline-offset-2",
-                "focus-visible:outline-trace",
-              )}
-            >
-              {open ? "Свернуть" : "Подробнее"}
-              <ChevronDown
-                aria-hidden
-                className={cn("size-4 transition-transform", open && "rotate-180")}
-              />
-            </button>
-          ) : null}
         </div>
-
-        {showAll ? (
-          <PeriodExtras
-            calculation={calculation}
-            payTotal={payTotal}
-            periodLabel={periodLabel}
-            wide={wide}
-          />
-        ) : null}
       </div>
 
       <PendingNotice accountingYear={accountingYear} />
@@ -172,26 +148,14 @@ function PeriodFigures({
 
   return (
     <div className="flex min-w-0 items-end gap-x-5">
-      {showAll ? (
-        <div className="shrink-0 border-r border-rule pr-5">
-          <p className="font-display text-[10px] font-bold uppercase tracking-wide text-ink-muted">
-            Как должно быть за
-          </p>
-          <p className="flex items-center gap-1 whitespace-nowrap font-mono text-[11px]">
-            {periodLabel}
-            <NormHint calculation={calculation} />
-          </p>
-        </div>
-      ) : null}
-
       <dl className="flex min-w-0 items-end gap-x-5">
         <Figure
           value={hours(calculation.normHours)}
           unit="ч"
-          caption="Норма к отработке"
+          caption="Норма"
           emphatic
         />
-        <Figure value={hours(calculation.actualHours)} unit="ч" caption="Отработано" />
+        <Figure value={hours(calculation.actualHours)} unit="ч" caption="Фактически" />
         <Figure
           value={hours(calculation.overtimeHours)}
           unit="ч"
@@ -200,13 +164,6 @@ function PeriodFigures({
           // Довод про неуменьшенную норму — у того числа, которое от неё
           // зависит. Он стоял отдельной карточкой во весь абзац, и её
           // читают один раз, а место она занимала всегда.
-          hint={
-            excluded ? (
-              <Hint label="Если норму не уменьшили">
-                <WrongNormNote calculation={calculation} />
-              </Hint>
-            ) : undefined
-          }
         />
         {undertime ? (
           <Figure
@@ -216,13 +173,19 @@ function PeriodFigures({
             tone="signal"
           />
         ) : null}
+
         {showAll && overtime ? (
-          <Figure
-            value={`≈ ${days(calculation.overtimeHours)}`}
-            unit="суток"
-            caption="В сутках"
-            tone="verify"
-          />
+          <div className="flex items-center gap-x-5">
+            <span className="text-2xl">
+              ≈
+            </span>
+            <Figure
+              value={`${days(calculation.overtimeHours)}`}
+              unit="суток"
+              caption="В сутках"
+              tone="verify"
+            />
+          </div>
         ) : null}
         {showAll && overtime && payTotal ? (
           <Figure
@@ -232,6 +195,7 @@ function PeriodFigures({
             tone="verify"
           />
         ) : null}
+        
       </dl>
     </div>
   );
@@ -245,45 +209,39 @@ function PeriodFigures({
  * сюда же приходят даты периода, сутки и деньги — всё, что не влезло в
  * первую строку.
  */
-function PeriodExtras({
-  calculation,
-  payTotal,
-  periodLabel,
-  wide,
-}: {
-  calculation: PeriodCalculation;
-  payTotal?: Decimal | null;
-  periodLabel: string;
-  /** На широком экране даты и деньги уже стоят числами выше. */
-  wide: boolean;
-}) {
-  const overtime = calculation.overtimeHours.greaterThan(0);
+// function PeriodExtras({
+//   calculation,
+//   payTotal,
+//   periodLabel,
+//   wide,
+// }: {
+//   calculation: PeriodCalculation;
+//   payTotal?: Decimal | null;
+//   periodLabel: string;
+//   /** На широком экране даты и деньги уже стоят числами выше. */
+//   wide: boolean;
+// }) {
+//   const overtime = calculation.overtimeHours.greaterThan(0);
 
-  return (
-      <p className="mt-3 flex flex-wrap items-center gap-x-1.5 gap-y-1 border-t border-rule pt-2 text-xs text-ink-muted">
-        {!wide ? (
-          <span className="whitespace-nowrap">
-            за <span className="font-mono text-ink">{periodLabel}</span>{" "}
-            <NormHint calculation={calculation} /> /
-          </span>
-        ) : null}
-        {!wide && overtime ? (
-          <Stat value={`≈ ${days(calculation.overtimeHours)}`} label="в сутках" />
-        ) : null}
-        {!wide && overtime && payTotal ? (
-          <Stat value={`${formatMoneyAmount(payTotal)} ₽`} label="выплата до НДФЛ" />
-        ) : null}
-        <Stat value={String(calculation.scheduledShifts)} label="смен по графику" />
-        <Stat value={String(calculation.workedShifts)} label="отработано" />
-        <Stat value={String(calculation.absentShifts)} label="пропущено" />
-        <Stat value={`${hours(calculation.nightHours)} ч`} label="ночных" />
-        <Stat value={`${hours(calculation.holidayHours)} ч`} label="праздничных" last />
-        <Hint label="Про ночные и праздничные часы">
-          <FactOnlyNote />
-        </Hint>
-      </p>
-  );
-}
+//   return (
+//       <p className="flex flex-wrap items-center gap-x-1.5 -translate-y-7.5 gap-y-1 text-xs text-ink-muted">
+//         {/* {!wide && overtime ? (
+//           <Stat value={`≈ ${days(calculation.overtimeHours)}`} label="в сутках" />
+//         ) : null}
+//         {!wide && overtime && payTotal ? (
+//           <Stat value={`${formatMoneyAmount(payTotal)} ₽`} label="выплата до НДФЛ" />
+//         ) : null} */}
+//         <Stat value={String(calculation.scheduledShifts)} label="смен по графику" />
+//         <Stat value={String(calculation.workedShifts)} label="отработано" />
+//         <Stat value={String(calculation.absentShifts)} label="пропущено" />
+//         <Stat value={`${hours(calculation.nightHours)} ч`} label="ночных" />
+//         <Stat value={`${hours(calculation.holidayHours)} ч`} label="праздничных" last />
+//         <Hint label="Про ночные и праздничные часы">
+//           <FactOnlyNote />
+//         </Hint>
+//       </p>
+//   );
+// }
 
 /**
  * Названная цена непроставленного переноса.

@@ -177,7 +177,7 @@ export function Workspace({ profile, onChange, onForget }: WorkspaceProps) {
         periodLabel={formatPeriodRu(periodStart, periodEnd)}
       />
 
-      <div className="space-y-10 pt-8">
+      <div className="space-y-10">
       <CollapsibleSection
         title="Календарь"
         hint={yearView === "calendar" ? <CalendarNote profile={profile} /> : undefined}

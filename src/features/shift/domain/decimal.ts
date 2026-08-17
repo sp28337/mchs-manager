@@ -76,7 +76,7 @@ export function atLeastZero(value: Decimal): Decimal {
  * дают 5,333333…, и такое число в доводе выглядит несерьёзно.
  */
 export function formatHours(value: Decimal | number | string): string {
-  return new Dec(value).toFixed(2).replace(".", ",");
+  return new Dec(value).toFixed(1).replace(".", ",");
 }
 
 export function formatDays(hours: Decimal): string {
