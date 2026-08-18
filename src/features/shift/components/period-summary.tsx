@@ -1,7 +1,7 @@
 "use client";
 
 import { ChevronDown } from "lucide-react";
-import { useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 
 import { Hint } from "@/components/ui/hint";
 import { useMediaQuery } from "@/lib/hooks/use-media-query";
@@ -101,7 +101,7 @@ export function PeriodSummary({
           "",
         )}
       >
-        <div className="flex items-end gap-x-6 gap-y-3 bg-paper px-6 pb-3">
+        <div className="flex items-end gap-x-6 bg-paper px-6 pb-3">
           <PeriodFigures
             calculation={calculation}
             payTotal={payTotal}
@@ -109,14 +109,109 @@ export function PeriodSummary({
             showAll={showAll}
           />
 
-          {/* Кнопка появляется только там, где что-то спрятано. На широком
-              экране прятать нечего, и кнопка, ничего не открывающая, была
-              бы обманом. */}
+          <MinorFigures calculation={calculation} />
         </div>
       </div>
 
       <PendingNotice accountingYear={accountingYear} />
     </>
+  );
+}
+
+/**
+ * Мелкие итоги — продолжением той же строки, если для них есть место.
+ *
+ * --- Почему по замеру, а не по ширине экрана ------------------------------
+ *
+ * Строка главных чисел не одной ширины: недоработка появляется не всегда,
+ * выплата — только с окладом, а сами числа бывают четырёхзначными. Любой
+ * порог вроде «показывать с 1280» на одном профиле оставил бы пустоту, а
+ * на другом полез бы за край.
+ *
+ * Поэтому решает не экран, а свободное место: остаток строки измеряется
+ * наблюдателем размера, и итоги показываются, когда помещаются целиком с
+ * запасом. Круга здесь нет — блок стоит вне потока (`absolute`) и всегда
+ * одного размера, а прячется невидимостью, поэтому его появление ничего
+ * не двигает и нового замера не вызывает.
+ *
+ * --- Почему не переносом на вторую строку --------------------------------
+ *
+ * Полоса закреплена под шапкой и отнимает высоту у календаря. Вторая
+ * строка в ней стоит дороже, чем пять чисел, которые нужны редко: их
+ * всегда можно посмотреть в подписи месяца.
+ */
+function MinorFigures({ calculation }: { calculation: PeriodCalculation }) {
+  const tail = useRef<HTMLDivElement>(null);
+  const probe = useRef<HTMLDivElement>(null);
+  const [fits, setFits] = useState(false);
+
+  useEffect(() => {
+    const room = tail.current;
+    const content = probe.current;
+    if (!room || !content) return;
+
+    // Состояние ставится только из наблюдателя, а не тут же в эффекте:
+    // `ResizeObserver` вызывает обработчик сразу при подписке, так что
+    // первый замер всё равно случится, и лишней отрисовки не будет.
+    const observer = new ResizeObserver(() => {
+      // Двадцать четыре точки — тот же зазор, что между числами: без
+      // запаса итоги прилипали бы к правому краю окна.
+      setFits(content.scrollWidth + 24 <= room.clientWidth);
+    });
+    observer.observe(room);
+    observer.observe(content);
+    return () => observer.disconnect();
+  }, []);
+
+  return (
+    <div ref={tail} className="relative min-w-0 flex-1 self-stretch">
+      <div
+        ref={probe}
+        aria-hidden={!fits}
+        className={cn(
+          "absolute bottom-0 left-0 flex items-end gap-x-5 whitespace-nowrap",
+          "border-l border-rule pl-5",
+          fits ? "" : "invisible",
+        )}
+      >
+        <Minor value={String(calculation.scheduledShifts)} caption="Смен по графику" />
+        <Minor value={String(calculation.workedShifts)} caption="Отработано смен" />
+        <Minor value={String(calculation.absentShifts)} caption="Пропущено" />
+        <Minor value={`${hours(calculation.nightHours)} ч`} caption="Ночные часы" />
+        <Minor
+          value={`${hours(calculation.holidayHours)} ч`}
+          caption="Праздничные часы"
+          hint={
+            <Hint label="Про ночные и праздничные часы">
+              <FactOnlyNote />
+            </Hint>
+          }
+        />
+      </div>
+    </div>
+  );
+}
+
+/** Мелкий итог: то же построение, что у главного числа, но вполголоса. */
+function Minor({
+  value,
+  caption,
+  hint,
+}: {
+  value: string;
+  caption: string;
+  hint?: ReactNode;
+}) {
+  return (
+    <div className="min-w-0">
+      <dd className="whitespace-nowrap font-mono text-sm leading-none text-ink">
+        {value}
+      </dd>
+      <dt className="flex items-center gap-1 whitespace-nowrap text-[11px] leading-tight text-ink-muted">
+        {caption}
+        {hint}
+      </dt>
+    </div>
   );
 }
 
@@ -147,7 +242,7 @@ function PeriodFigures({
   const excluded = calculation.excludedHours.greaterThan(0);
 
   return (
-    <div className="flex min-w-0 items-end gap-x-5">
+    <div className="flex min-w-0 shrink-0 items-end gap-x-5">
       <dl className="flex min-w-0 items-end gap-x-5">
         <Figure
           value={hours(calculation.normHours)}
