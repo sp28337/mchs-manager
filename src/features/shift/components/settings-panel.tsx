@@ -23,8 +23,11 @@ import {
   weeklyNormGroundFacts,
   weeklyNormGroundOfProfile,
 } from "../model/derive";
+import type { PeriodCalculation } from "../domain/calculation";
+import type { OvertimePayEstimate } from "../domain/overtime-pay";
 import type { StoredProfile } from "../storage/profile";
 import { LiveModeSwitch } from "./live-mode";
+import { OvertimePayCard } from "./overtime-pay-card";
 
 /**
  * Ответы анкеты, которые можно переспросить.
@@ -84,9 +87,13 @@ function yearsAround(year: number): number[] {
 
 export function SettingsPanel({
   profile,
+  calculation,
+  pay,
   onChange,
 }: {
   profile: StoredProfile;
+  calculation: PeriodCalculation;
+  pay: OvertimePayEstimate | null;
   onChange: (change: (previous: StoredProfile) => StoredProfile) => void;
 }) {
   const nameId = useId();
@@ -375,6 +382,26 @@ export function SettingsPanel({
           ))}
         </Select>
       </Field>
+
+      {/* Оклад — такой же ответ анкеты, как караул или дата первой смены,
+          и место ему здесь, а не в собственной кнопке шапки. Отличие у
+          него одно: без него расчёт работает целиком, и об этом сказано
+          прямо у заголовка — иначе пустое поле читается как незаконченная
+          настройка. */}
+      <section className="space-y-3 border-t border-rule pt-4">
+        <h3 className="flex flex-wrap items-baseline gap-x-2 font-display text-xs font-bold uppercase tracking-wide text-ink-muted">
+          Сколько это в деньгах
+          <span className="font-sans text-[11px] font-normal normal-case tracking-normal text-ink-faint">
+            необязательно — часы считаются и без оклада
+          </span>
+        </h3>
+        <OvertimePayCard
+          profile={profile}
+          calculation={calculation}
+          pay={pay}
+          onChange={onChange}
+        />
+      </section>
     </div>
   );
 }
