@@ -79,6 +79,18 @@ export function formatHours(value: Decimal | number | string): string {
   return new Dec(value).toFixed(1).replace(".", ",");
 }
 
+/**
+ * Часы без нулевого хвоста: «16», но «15,5».
+ *
+ * Для клетки календаря, где число стоит без подписи и без единицы: «16,0»
+ * в квадрате шириной в сорок точек читается как два числа, а десятая доля
+ * у целой смены не значит ничего. Там, где часы стоят в итоге рядом с «ч»,
+ * хвост остаётся — в столбце сумм важно, что все числа одной формы.
+ */
+export function formatHoursTrim(value: Decimal | number | string): string {
+  return formatHours(value).replace(/,0$/, "");
+}
+
 export function formatDays(hours: Decimal): string {
   return hours
     .dividedBy(24)

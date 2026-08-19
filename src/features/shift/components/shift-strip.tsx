@@ -3,7 +3,12 @@ import type { ReactNode } from "react";
 import { cn } from "@/lib/utils/cn";
 
 import type { DayRecord, PeriodCalculation } from "../domain/calculation";
-import { ZERO, formatHours as hours, type Decimal } from "../domain/decimal";
+import {
+  ZERO,
+  formatHours as hours,
+  formatHoursTrim as hoursTrim,
+  type Decimal,
+} from "../domain/decimal";
 import {
   datesInRange,
   dayOfMonth,
@@ -240,7 +245,15 @@ export function ShiftStrip({
           вообще бывает в клетке»: смена, пропуск, вызов, — и внутри
           группы человек уже ищет свой случай. Прежняя сплошная строка
           заставляла перебирать всё подряд. */}
-      <div className="space-y-4 border-t border-rule xl:border-none pt-4 xl:pt-0 xl:max-w-70 xl:w-full xl:flex xl:flex-col xl:gap-6">
+      {/* На широком экране легенда стоит колонкой слева и держится на
+          месте, как числа над ней: `sticky` под самой полосой итога (её
+          низ — 122 точки, отсюда 128). Иначе, доведя календарь до
+          сентября, человек читает клетку «СБ» и уже не помнит, что она
+          значит, — легенда уехала за верхний край.
+
+          `self-start` обязателен: в строке `flex` элемент по умолчанию
+          растянут на всю высоту сетки, и прилипать ему просто некуда. */}
+      <div className="space-y-4 border-t border-rule xl:border-none pt-4 xl:pt-0 xl:max-w-70 xl:w-full xl:flex xl:flex-col xl:gap-6 xl:sticky xl:top-32 xl:self-start">
         <LegendGroup title="Смены по графику">
           <Legend
             className="border-verify/25 bg-verify/30 text-verify"
@@ -334,26 +347,29 @@ function DayCell({
   //
   // Подпись называет и то, чего в клетке не видно: ночные часы и куда
   // именно вызывали. Именно эти две вещи чаще всего расходятся с табелем.
+  // Числа в подписи — те же, что в клетке: целые часы без нулевого
+  // хвоста. Иначе диктор произносит «шестнадцать целых ноль десятых» там,
+  // где на экране написано «16».
   const parts: string[] = [];
   if (shift) {
     parts.push(
       shift.absenceKind
         ? `${shift.isShiftStart ? "смена по графику" : "продолжение смены"}, ${ABSENCE_LABELS[shift.absenceKind]}`
-        : `${shift.isShiftStart ? "заступление" : "продолжение смены"}, ${hours(shift.hours)} ч` +
+        : `${shift.isShiftStart ? "заступление" : "продолжение смены"}, ${hoursTrim(shift.hours)} ч` +
             (shift.nightHours.greaterThan(0)
-              ? `, из них ночных ${hours(shift.nightHours)}`
+              ? `, из них ночных ${hoursTrim(shift.nightHours)}`
               : ""),
     );
   }
   for (const callout of callouts) {
     if (callout.calloutKind) {
-      parts.push(`${CALLOUT_LABELS[callout.calloutKind]}, ${hours(callout.hours)} ч`);
+      parts.push(`${CALLOUT_LABELS[callout.calloutKind]}, ${hoursTrim(callout.hours)} ч`);
     }
   }
   // Итог суток называется, когда слагаемых больше одного: спор идёт именно
   // о том, всё ли посчитано, и сумма отвечает на это прямо.
   if (parts.length > 1 && workedHours.greaterThan(0)) {
-    parts.push(`всего за сутки ${hours(workedHours)} ч`);
+    parts.push(`всего за сутки ${hoursTrim(workedHours)} ч`);
   }
   const label = `${where} — ${parts.length > 0 ? parts.join("; ") : "свободные сутки"}`;
 
@@ -425,7 +441,7 @@ function DayCell({
               ? "В"
               : shift?.absenceKind
                 ? ABSENCE_MARK[shift.absenceKind]
-                : hours(workedHours).replace(",00", "")}
+                : hoursTrim(workedHours)}
         </span>
       </div>
     </button>
