@@ -163,7 +163,10 @@ export function YearCalendarEditor({
 
       {pending.length > 0 ? <PendingNotice pending={pending} /> : null}
 
-      <div className="xl:max-w-70 xl:w-full">
+      {/* Легенда держится на месте вместе с числами: тот же приём, что в
+          графике смен, — `sticky` под полосой итога и `self-start`, иначе
+          растянутому элементу прилипать некуда. */}
+      <div className="xl:max-w-70 xl:w-full xl:sticky xl:top-32 xl:self-start">
         <dl className="flex flex-wrap gap-x-6 gap-y-2 text-xs xl:flex-col">
           {DAY_TYPES.map((type) => (
             <div key={type} className="flex items-center gap-2">
