@@ -65,10 +65,6 @@ import { TimeField } from "./time-field";
  */
 
 const GUARDS = [1, 2, 3, 4] as const;
-/** Год берётся с запасом в обе стороны: спорят и за прошлые годы. */
-function yearsAround(year: number): number[] {
-  return Array.from({ length: 9 }, (_, index) => year - 5 + index);
-}
 
 export function SettingsPanel({
   profile,
@@ -81,7 +77,6 @@ export function SettingsPanel({
   const normId = useId();
   const guardId = useId();
   const startId = useId();
-  const yearId = useId();
 
   const ground = weeklyNormGroundOfProfile(profile);
 
@@ -230,41 +225,13 @@ export function SettingsPanel({
         />
       </Field>
 
-      <Field
-        id={yearId}
-        label="Учётный год"
-        hint={
-          <>
-            Меняет год у графика и производственного календаря.
-            <span className="mt-2 block">
-              Дата вашей смены при этом остаётся прежней: цикл
-              четырёхдневный и одинаков в обе стороны, поэтому по смене
-              этого года график прошлого строится сам.
-            </span>
-            <span className="mt-2 block">
-              Внесённые отпуска, вызовы и правки календаря остаются на своих
-              датах: это то, что было, и переезжать вслед за годом они не
-              должны. В новом году они просто окажутся за пределами периода.
-            </span>
-          </>
-        }
-      >
-        <Select
-          id={yearId}
-          value={profile.accountingYear}
-          onChange={(event) => {
-            const accountingYear = Number(event.target.value);
-            onChange((previous) => ({ ...previous, accountingYear }));
-          }}
-        >
-          {yearsAround(profile.accountingYear).map((year) => (
-            <option key={year} value={year}>
-              {year} год
-            </option>
-          ))}
-        </Select>
-      </Field>
-
+      {/* Учётного года здесь больше нет.
+          -------------------------------------------------------------
+          Он стоял списком рядом с караулом и нормой, то есть выглядел
+          свойством человека. Год не свойство: это то, ЗА ЧТО смотрим —
+          тот же вопрос, что «полугодие или март». Поэтому он переехал в
+          окно выбора периода, к отрезкам и месяцам, и меняется там же,
+          где на него смотрят. */}
     </div>
   );
 }

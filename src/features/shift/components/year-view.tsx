@@ -183,8 +183,16 @@ export function YearView({
 
           {/* Период стоит в одной строке с видом сетки: и то и другое
               отвечает на вопрос «что я сейчас вижу». */}
+          {/* Учётный год записывается прямо в профиль, а не хранится
+              состоянием экрана: человек, вернувшийся к прошлогоднему
+              расчёту через день, должен найти его там же, где оставил.
+              Отдельного свойства у `YearView` для этого не нужно —
+              обновление профиля здесь уже есть. */}
           <PeriodPicker
             accountingYear={profile.accountingYear}
+            onAccountingYear={(accountingYear) =>
+              onChange((previous) => ({ ...previous, accountingYear }))
+            }
             statutory={statutory}
             onStatutory={onStatutory}
             month={month}

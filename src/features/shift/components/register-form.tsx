@@ -84,14 +84,12 @@ export function RegisterForm({ onCreated }: RegisterFormProps) {
 
   const nameId = useId();
   const normId = useId();
-  const yearId = useId();
   const startId = useId();
 
 
   function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
-    const year = Number(form.get("year") ?? CURRENT_YEAR);
 
     if (parseTimeOfDay(startTime) === null) {
       setError("Время развода — в формате ЧЧ:ММ, например 08:00.");
@@ -108,7 +106,10 @@ export function RegisterForm({ onCreated }: RegisterFormProps) {
           ...weeklyNormGroundFacts(ground),
           guardNumber: guard,
           firstShiftDate: knownShift,
-          accountingYear: year,
+          // Год не спрашивается: заводят профиль, чтобы посмотреть текущий,
+          // а сменить его можно там, где на него и смотрят — в окне выбора
+          // периода над календарём.
+          accountingYear: CURRENT_YEAR,
           shiftStartTime: startTime,
         }),
       );
@@ -238,19 +239,6 @@ export function RegisterForm({ onCreated }: RegisterFormProps) {
               итоги и число ночных на стыке месяцев. Продолжительность смены — 24 часа, не
               включая время смены караулов (Приказ № 308 п. 3, № 307 п. 8).
             </p>
-          </div>
-
-          <div className="space-y-1.5">
-            <Label htmlFor={yearId}>Учётный год</Label>
-            <Input
-              id={yearId}
-              name="year"
-              type="number"
-              min={2000}
-              max={2100}
-              defaultValue={CURRENT_YEAR}
-              className="w-32"
-            />
           </div>
 
           <Button type="submit" className="w-full max-w-md">
