@@ -27,6 +27,7 @@ import type { PeriodCalculation } from "../domain/calculation";
 import type { OvertimePayEstimate } from "../domain/overtime-pay";
 import type { StoredProfile } from "../storage/profile";
 import { LiveModeSwitch } from "./live-mode";
+import { TimeField } from "./time-field";
 import { OvertimePayCard } from "./overtime-pay-card";
 
 /**
@@ -331,18 +332,12 @@ export function SettingsPanel({
           </>
         }
       >
-        <Input
+        <TimeField
           id={startId}
-          type="time"
           value={profile.shiftStartTime}
-          onChange={(event) => {
-            const shiftStartTime = event.target.value;
-            // Полупустое время браузер отдаёт пустой строкой, и записать её
-            // значило бы сломать расчёт на середине набора.
-            if (shiftStartTime === "") return;
-            onChange((previous) => ({ ...previous, shiftStartTime }));
-          }}
-          className="w-32 font-mono"
+          onChange={(shiftStartTime) =>
+            onChange((previous) => ({ ...previous, shiftStartTime }))
+          }
         />
       </Field>
 

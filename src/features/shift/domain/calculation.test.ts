@@ -290,9 +290,19 @@ describe("полный расчёт", () => {
 
   test("смена через границу суток делит свои часы", () => {
     // При разводе в 08:30 смена с 30 марта отдаёт 30-му 15,5 часа, а 31-му
-    // 8,5.
-    const firstDay = march([], { periodStart: "2026-03-30", periodEnd: "2026-03-31" });
-    const secondDay = march([], { periodStart: "2026-03-31", periodEnd: "2026-04-01" });
+    // 8,5. Время развода задано здесь явно, а не взято из умолчания:
+    // проверяется деление часов, и менять эти числа вслед за чужим
+    // умолчанием пришлось бы при каждой его правке.
+    const firstDay = march([], {
+      periodStart: "2026-03-30",
+      periodEnd: "2026-03-31",
+      shiftStartTime: "08:30",
+    });
+    const secondDay = march([], {
+      periodStart: "2026-03-31",
+      periodEnd: "2026-04-01",
+      shiftStartTime: "08:30",
+    });
 
     expect(firstDay.shifts.at(-1)?.startedOn).toBe("2026-03-30");
     expect(firstDay.actualHours.toString()).toBe("15.5"); // с 08:30 до полуночи
@@ -331,6 +341,9 @@ describe("полный расчёт", () => {
       periodStart: "2026-01-01",
       periodEnd: "2026-07-01",
       cycle: { guard: 4, firstShiftDate: "2026-01-02" },
+      // Развод задан явно: проверяется, какому месяцу достаются часы, а не
+      // то, какое время стоит в умолчании.
+      shiftStartTime: "08:30",
       weekly: norm(),
       calendar: { workingDays: 118, preHolidayDays: 2 },
       absences: [],

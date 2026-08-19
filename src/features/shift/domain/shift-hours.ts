@@ -54,7 +54,7 @@ const NIGHT_WINDOWS: readonly (readonly [number, number])[] = [
  * (№ 308 п. 3, № 307 п. 8). Зашить сюда одно значение значило бы выдать
  * чужой распорядок за всеобщий.
  */
-export const DEFAULT_SHIFT_START = "08:30";
+export const DEFAULT_SHIFT_START = "08:00";
 
 const TIME_PATTERN = /^([01]\d|2[0-3]):([0-5]\d)$/;
 
@@ -66,7 +66,11 @@ export function parseTimeOfDay(value: string): number | null {
 }
 
 export function shiftStartMinute(value: string | undefined): number {
-  return parseTimeOfDay(value ?? DEFAULT_SHIFT_START) ?? 510;
+  return (
+    parseTimeOfDay(value ?? DEFAULT_SHIFT_START) ??
+    parseTimeOfDay(DEFAULT_SHIFT_START) ??
+    0
+  );
 }
 
 /** Часть смены, пришедшаяся на одни календарные сутки. */

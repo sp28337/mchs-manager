@@ -31,12 +31,12 @@ describe("время развода", () => {
     expect(parseTimeOfDay("")).toBeNull();
   });
 
-  test("умолчание — 08:30", () => {
-    expect(DEFAULT_SHIFT_START).toBe("08:30");
-    expect(shiftStartMinute(undefined)).toBe(510);
+  test("умолчание — 08:00", () => {
+    expect(DEFAULT_SHIFT_START).toBe("08:00");
+    expect(shiftStartMinute(undefined)).toBe(480);
     // Неразбираемое значение не должно ронять расчёт: профиль мог прийти из
     // файла, а без часов считать нечего.
-    expect(shiftStartMinute("ерунда")).toBe(510);
+    expect(shiftStartMinute("ерунда")).toBe(480);
   });
 });
 

@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils/cn";
 
 import { DEFAULT_SHIFT_START, parseTimeOfDay } from "../domain/shift-hours";
+import { TimeField } from "./time-field";
 import { createProfile, importProfile, type StoredProfile } from "../storage/profile";
 import {
   CONDITIONS_LABELS,
@@ -259,18 +260,17 @@ export function RegisterForm({ onCreated }: RegisterFormProps) {
 
           <div className="space-y-1.5">
             <Label htmlFor={startId}>Время смены караулов</Label>
-            <Input
+            <TimeField
               id={startId}
-              type="time"
               value={startTime}
-              onChange={(event) => setStartTime(event.target.value)}
-              className="w-32 font-mono"
+              onChange={setStartTime}
               aria-describedby={`${startId}-hint`}
             />
             <p id={`${startId}-hint`} className="max-w-md text-xs text-ink-muted">
               Отсюда считается, как смена делится между сутками. При смене караулов в 
-              08:30 сутки заступления получают 15,5 часа (из них 2 ночныe), а следующие — 8,5 (из них 6 ночные). Ошибка здесь сдвигает месячные итоги и число
-              ночных на стыке месяцев. Продолжительность смены — 24 часа, не
+              08:00 сутки заступления получают 16 часов (из них 2 ночных), а
+              следующие — 8 (из них 6 ночных). Ошибка здесь сдвигает месячные
+              итоги и число ночных на стыке месяцев. Продолжительность смены — 24 часа, не
               включая время смены караулов (Приказ № 308 п. 3, № 307 п. 8).
             </p>
           </div>
