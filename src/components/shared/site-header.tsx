@@ -92,15 +92,20 @@ export function SiteHeader({ tagline, action, tools, className }: SiteHeaderProp
                   программа чтения произносит «переработкидля». */}
               График{" "}
               <span className="text-ink-muted">1/3</span>
+              {/* {tagline ? (
+                <p className="hidden max-w-xs border-l border-rule pl-6 text-xs text-ink-muted lg:block">
+                  {tagline}
+                </p>
+              ) : null} */}
             </span>
           </span>
         </Link>
-
+{/* 
         {tagline ? (
           <p className="hidden max-w-xs border-l border-rule pl-6 text-xs text-ink-muted lg:block">
             {tagline}
           </p>
-        ) : null}
+        ) : null} */}
 
         {/* Кнопки не сжимаются ни при какой ширине: сжатая кнопка — это
             обрезанная подпись, а не выигранное место. Уступает название. */}

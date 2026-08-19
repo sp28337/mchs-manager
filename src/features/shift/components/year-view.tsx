@@ -168,16 +168,14 @@ export function YearView({
               {/* «График смен» на телефоне съедает всю строку, а рядом
                   стоит «Календарь» — второго графика тут нет, и слово
                   «смен» ничего не различает. */}
-              <span className="hidden sm:inline">График смен</span>
-              <span className="sm:hidden">График</span>
+              <span className="inline">График</span>
             </SegmentedItem>
             <SegmentedItem
               active={view === "calendar"}
               onClick={() => onViewChange("calendar")}
             >
               <CalendarCog aria-hidden />
-              <span className="hidden sm:inline">Производственный календарь</span>
-              <span className="sm:hidden">Календарь</span>
+              <span className="inline">Календарь</span>
             </SegmentedItem>
           </Segmented>
 
