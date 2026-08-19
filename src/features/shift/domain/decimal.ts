@@ -91,14 +91,65 @@ export function formatHoursTrim(value: Decimal | number | string): string {
   return formatHours(value).replace(/,0$/, "");
 }
 
+/**
+ * Часы в сутках дежурства.
+ *
+ * Двадцать четыре — это продолжительность смены (Приказ № 308 п. 3, № 307
+ * п. 8), а не астрономические сутки: «переработка в сутках» отвечает на
+ * вопрос «сколько смен я отдежурил сверх нормы», и мерить её чем-то другим
+ * бессмысленно.
+ *
+ * Число стоит здесь, а не берётся из `SHIFT_DURATION_HOURS`: этот модуль —
+ * основание для всего остального, включая сам домен, и обратной зависимости
+ * у него быть не может.
+ */
+const HOURS_IN_SHIFT = 24;
+
 export function formatDays(hours: Decimal): string {
   return hours
-    .dividedBy(24)
+    .dividedBy(HOURS_IN_SHIFT)
     .toDecimalPlaces(1)
     .toNumber()
     .toLocaleString("ru-RU", {
       maximumFractionDigits: 1,
     });
+}
+
+/** Часы, разложенные на целые сутки и остаток. */
+export interface DaysAndHours {
+  days: number;
+  hours: Decimal;
+}
+
+/**
+ * Часы как «сутки и часы»: 212 → 8 суток и 20 часов.
+ *
+ * Вместо «8,8 суток». Десятая доля суток — это два часа с четвертью, и
+ * пересчитывать её в голове человеку приходится ровно тогда, когда он
+ * собрался что-то с этой переработкой делать: отгул берут сменами и
+ * часами, а не десятыми долями.
+ */
+export function splitIntoDays(value: Decimal): DaysAndHours {
+  const days = value.dividedToIntegerBy(HOURS_IN_SHIFT);
+  return { days: days.toNumber(), hours: value.minus(days.times(HOURS_IN_SHIFT)) };
+}
+
+/**
+ * «Сутки» при числе: 1 сутки, 8 суток, 21 сутки.
+ *
+ * У слова нет единственного числа, и форма зависит от последней цифры —
+ * кроме одиннадцати, где она обманывает.
+ */
+export function daysWord(days: number): string {
+  return days % 10 === 1 && days % 100 !== 11 ? "сутки" : "суток";
+}
+
+/** То же одной строкой — для подписей, где разметки нет. */
+export function formatDaysAndHours(value: Decimal): string {
+  const { days, hours } = splitIntoDays(value);
+  if (days === 0) return `${formatHoursTrim(hours)} ч`;
+  if (hours.isZero()) return `${days} ${daysWord(days)}`;
+  return `${days} ${daysWord(days)} ${formatHoursTrim(hours)} ч`;
 }
 
 /** Разбор числа, введённого человеком: и «168,5», и «168.5». */

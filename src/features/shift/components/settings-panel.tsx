@@ -6,6 +6,7 @@ import { Hint } from "@/components/ui/hint";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 
 import {
   WEEKLY_NORM_GROUNDS,
@@ -91,6 +92,23 @@ export function SettingsPanel({
           {profile.liveMode
             ? "Расчёт идёт с начала периода по сегодняшний день."
             : "Расчёт идёт за весь выбранный период целиком."}
+        </p>
+      </div>
+
+      {/* Мера переработки — рядом с режимом, а не среди вопросов о человеке:
+          и то и другое меняет не расчёт, а то, каким его показать. */}
+      <div className="space-y-1.5 border-b border-rule pb-4">
+        <Switch
+          checked={profile.overtimeInDays}
+          onChange={(overtimeInDays) =>
+            onChange((previous) => ({ ...previous, overtimeInDays }))
+          }
+          label="Переработка в сутках"
+        />
+        <p className="text-xs text-ink-muted">
+          {profile.overtimeInDays
+            ? "Показывается сменами и часами: «8 суток 20 ч». Сутки — это смена, 24 часа (Приказ № 308 п. 3, № 307 п. 8)."
+            : "Показывается часами: «212,0 ч»."}
         </p>
       </div>
 

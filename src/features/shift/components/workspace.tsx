@@ -121,8 +121,8 @@ export function Workspace({ profile, onChange, onForget }: WorkspaceProps) {
       ? statutoryBounds(profile.accountingYear, statutory.kind, statutory.index)
       : monthBounds(profile.accountingYear, month);
 
-  // Режим «веду табель» обрезает выбранный отрезок живым временем: от
-  // первой смены по сегодня. Сегодняшний день берётся один раз за
+  // Режим «веду табель» обрезает выбранный отрезок живым временем: по
+  // сегодняшний день включительно. Сегодняшний день берётся один раз за
   // отрисовку — переживать полночь странице не приходится, её открывают
   // и закрывают в тот же день.
   const { periodStart, periodEnd } = profile.liveMode
@@ -148,9 +148,9 @@ export function Workspace({ profile, onChange, onForget }: WorkspaceProps) {
   return (
     <>
       {/* Шапка рисуется отсюда, а не с экрана вокруг: в ней стоят
-          настройки и расчёт денег, а им нужен `calculation` выбранного
-          периода — он живёт здесь. Тянуть его наверх значило бы поднять
-          туда и выбор периода, то есть половину этого экрана. */}
+          настройки и выгрузка профиля, а им нужен профиль вместе с
+          выбранным периодом — он живёт здесь. Тянуть его наверх значило бы
+          поднять туда и выбор периода, то есть половину этого экрана. */}
       <SiteHeader
         tagline={`${profile.accountingYear} год / ${profile.guardNumber}-й караул`}
         tools={
@@ -176,6 +176,7 @@ export function Workspace({ profile, onChange, onForget }: WorkspaceProps) {
         calculation={calculation}
         accountingYear={profile.accountingYear}
         periodLabel={formatPeriodRu(periodStart, periodEnd)}
+        overtimeInDays={profile.overtimeInDays}
       />
 
       <div className="space-y-10">

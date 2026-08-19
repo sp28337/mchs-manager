@@ -152,6 +152,18 @@ export const storedProfileSchema = z.object({
    * значило бы каждый раз показывать ему итог, которого он не просил.
    */
   liveMode: z.boolean().default(false),
+  /**
+   * Показывать переработку сменами и часами, а не часами.
+   *
+   * Хранится в профиле, а не в состоянии экрана, по той же причине, что и
+   * режим «веду табель»: это не разовый взгляд, а то, в чём человек привык
+   * считать. Заново переключать это при каждом открытии страницы значило бы
+   * каждый раз показывать ему число в чужой мере.
+   *
+   * Необязательное с умолчанием: профили, сохранённые до появления
+   * переключателя, обязаны читаться как есть.
+   */
+  overtimeInDays: z.boolean().default(false),
   reported: reportedSchema.nullable(),
   savedAt: z.string(),
 });
@@ -186,6 +198,7 @@ export function createProfile(input: NewProfileInput): StoredProfile {
     calendarOverrides: {},
     dayNotes: {},
     liveMode: false,
+    overtimeInDays: false,
     reported: null,
     savedAt: new Date().toISOString(),
   };

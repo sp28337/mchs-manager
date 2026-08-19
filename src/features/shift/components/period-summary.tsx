@@ -4,13 +4,14 @@ import { ChevronDown } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 
 import { Hint } from "@/components/ui/hint";
-import { useMediaQuery } from "@/lib/hooks/use-media-query";
 import { cn } from "@/lib/utils/cn";
 
 import {
   atLeastZero,
+  daysWord,
   formatHours as hours,
-  formatDays as days,
+  formatHoursTrim as hoursTrim,
+  splitIntoDays,
   type Decimal,
 } from "../domain/decimal";
 import { pendingTransfers } from "../domain/production-calendar";
@@ -60,19 +61,14 @@ export function PeriodSummary({
   calculation,
   accountingYear,
   periodLabel,
+  overtimeInDays,
 }: {
   calculation: PeriodCalculation;
   accountingYear: number;
   periodLabel: string;
+  /** В чём показывать переработку: в часах или сменами и часами. */
+  overtimeInDays: boolean;
 }) {
-  // Широкий экран показывает всё сразу; на узком остаются три главных
-  // числа, остальное открывается кнопкой — полоса не вправе съедать
-  // четверть телефонного экрана. Порог в JS, а не классами: иначе те же
-  // числа пришлось бы вывести в разметку дважды, и программа чтения
-  // объявила бы каждое по два раза.
-  const wide = useMediaQuery("(min-width: 560px)");
-  const [open, setOpen] = useState(false);
-  const showAll = wide || open;
 
   return (
     <>
@@ -101,7 +97,7 @@ export function PeriodSummary({
           <PeriodFigures
             calculation={calculation}
             periodLabel={periodLabel}
-            showAll={showAll}
+            inDays={overtimeInDays}
           />
 
           <MinorFigures calculation={calculation} />
@@ -221,31 +217,31 @@ function Minor({
 function PeriodFigures({
   calculation,
   periodLabel,
-  showAll,
+  inDays,
 }: {
   calculation: PeriodCalculation;
   /** Даты периода словами: в споре важно, за какие именно числа расчёт. */
   periodLabel: string;
-  /** Показывать ли всё, а не только три главных числа. */
-  showAll: boolean;
+  /** Переработку — сменами и часами, а не часами. */
+  inDays: boolean;
 }) {
   const overtime = calculation.overtimeHours.greaterThan(0);
   const undertime = calculation.undertimeHours.greaterThan(0);
-  const excluded = calculation.excludedHours.greaterThan(0);
 
   return (
     <div className="flex min-w-0 shrink-0 items-end gap-x-5">
       <dl className="flex min-w-0 items-end gap-x-5">
         <Figure
-          value={hours(calculation.normHours)}
-          unit="ч"
+          parts={[{ value: hours(calculation.normHours), unit: "ч" }]}
           caption="Норма"
           emphatic
         />
-        <Figure value={hours(calculation.actualHours)} unit="ч" caption="Фактически" />
         <Figure
-          value={hours(calculation.overtimeHours)}
-          unit="ч"
+          parts={[{ value: hours(calculation.actualHours), unit: "ч" }]}
+          caption="Фактически"
+        />
+        <Figure
+          parts={overtimeParts(calculation.overtimeHours, inDays)}
           caption="Переработка"
           tone={overtime ? "verify" : undefined}
           // Довод про неуменьшенную норму — у того числа, которое от неё
@@ -254,30 +250,47 @@ function PeriodFigures({
         />
         {undertime ? (
           <Figure
-            value={hours(calculation.undertimeHours)}
-            unit="ч"
+            parts={overtimeParts(calculation.undertimeHours, inDays)}
             caption="Недоработка"
             tone="signal"
           />
         ) : null}
-
-        {showAll && overtime ? (
-          <div className="flex items-center gap-x-5">
-            <span className="text-2xl">
-              ≈
-            </span>
-            <Figure
-              value={`${days(calculation.overtimeHours)}`}
-              unit="суток"
-              caption="В сутках"
-              tone="verify"
-            />
-          </div>
-        ) : null}
-                
       </dl>
     </div>
   );
+}
+
+/**
+ * Переработка — часами или сменами, по выбору человека.
+ *
+ * --- Почему выбор, а не оба сразу ----------------------------------------
+ *
+ * Оба и стояли: «212,0 ч Переработка ≈ 8,8 суток В сутках» — четыре числа
+ * и знак приблизительности ради одной величины, и половина строки на то,
+ * чтобы сказать её дважды. При этом «8,8 суток» само требовало пересчёта:
+ * десятая доля суток это два часа с четвертью, а отгул берут сменами и
+ * часами.
+ *
+ * Теперь величина одна, и мера у неё та, в которой человек привык считать:
+ * либо «212,0 ч», либо «8 суток 20 ч».
+ *
+ * --- Почему недоработка в той же мере ------------------------------------
+ *
+ * Она такая же разница часов, только с другим знаком, и показывать её в
+ * другой мере значило бы предложить сравнивать несравнимое.
+ */
+function overtimeParts(value: Decimal, inDays: boolean): FigurePart[] {
+  if (!inDays) return [{ value: hours(value), unit: "ч" }];
+
+  const { days: whole, hours: rest } = splitIntoDays(value);
+  const parts: FigurePart[] = [];
+  if (whole > 0) parts.push({ value: String(whole), unit: daysWord(whole) });
+  // Ровные сутки не тянут за собой «0 ч», но и пустой строки не бывает:
+  // меньше смены — значит просто часы.
+  if (!rest.isZero() || whole === 0) {
+    parts.push({ value: hoursTrim(rest), unit: "ч" });
+  }
+  return parts;
 }
 
 /**
@@ -473,16 +486,26 @@ function FactOnlyNote() {
   );
 }
 
+/**
+ * Величина числом с единицей — и, если нужно, не одним.
+ *
+ * Пар бывает две: переработка в сутках это «8 суток 20 ч», и остаток от
+ * смены такое же число, как сами сутки. Оформлять его иначе значило бы
+ * сказать, что он менее настоящий.
+ */
+export interface FigurePart {
+  value: string;
+  unit: string;
+}
+
 function Figure({
-  value,
-  unit,
+  parts,
   caption,
   emphatic,
   tone,
   hint,
 }: {
-  value: string;
-  unit: string;
+  parts: readonly FigurePart[];
   caption: string;
   emphatic?: boolean;
   tone?: "signal" | "verify";
@@ -500,8 +523,12 @@ function Figure({
           tone === "verify" && "text-verify font-medium",
         )}
       >
-        {value}
-        <span className="ml-1 text-xs text-ink-muted sm:text-sm">{unit}</span>
+        {parts.map((part, index) => (
+          <span key={part.unit} className={index > 0 ? "ml-2" : undefined}>
+            {part.value}
+            <span className="ml-1 text-xs text-ink-muted sm:text-sm">{part.unit}</span>
+          </span>
+        ))}
       </dd>
       <dt className="flex items-center gap-1 whitespace-nowrap text-[11px] leading-tight text-ink-muted">
         {caption}

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { parseHours, toDecimal } from "./decimal";
+import { Dec, formatDaysAndHours, parseHours, splitIntoDays, toDecimal } from "./decimal";
 
 /**
  * Разбор пользовательского ввода не имеет права бросать исключение.
@@ -40,5 +40,40 @@ describe("разбор чисел из ввода человека", () => {
     expect(parseHours("7.5")?.toString()).toBe("7.5");
     expect(parseHours("  8  ")?.toString()).toBe("8");
     expect(parseHours("")).toBeNull();
+  });
+});
+
+/**
+ * Переработка в сутках показывается сменами и часами, а не десятой долей
+ * суток: отгул берут сменами и часами, и «8,8 суток» человеку приходится
+ * пересчитывать в голове ровно тогда, когда он собрался что-то с этой
+ * переработкой делать.
+ */
+describe("часы в сутках дежурства", () => {
+  it("раскладываются на смены и остаток", () => {
+    expect(splitIntoDays(new Dec(212))).toEqual({ days: 8, hours: new Dec(20) });
+    expect(formatDaysAndHours(new Dec(212))).toBe("8 суток 20 ч");
+  });
+
+  it("ровные сутки не тянут за собой ноль часов", () => {
+    expect(formatDaysAndHours(new Dec(192))).toBe("8 суток");
+  });
+
+  it("меньше смены — просто часы", () => {
+    expect(formatDaysAndHours(new Dec(20))).toBe("20 ч");
+    expect(formatDaysAndHours(new Dec(0))).toBe("0 ч");
+  });
+
+  it("остаток сохраняет половины часа", () => {
+    expect(formatDaysAndHours(new Dec("30.5"))).toBe("1 сутки 6,5 ч");
+  });
+
+  it("слово согласуется с числом", () => {
+    // Единственного числа у слова нет, и форма зависит от последней цифры
+    // — кроме одиннадцати, где она обманывает.
+    expect(formatDaysAndHours(new Dec(24))).toBe("1 сутки");
+    expect(formatDaysAndHours(new Dec(24 * 2))).toBe("2 суток");
+    expect(formatDaysAndHours(new Dec(24 * 11))).toBe("11 суток");
+    expect(formatDaysAndHours(new Dec(24 * 21))).toBe("21 сутки");
   });
 });
