@@ -167,7 +167,9 @@ export interface NewProfileInput {
   northernLocality: boolean;
   disabilityGroupIorII: boolean;
   guardNumber: number;
+  /** Любые сутки, в которые караул заступал или заступит. */
   firstShiftDate: IsoDate;
+  accountingYear: number;
   shiftStartTime: string;
 }
 
@@ -175,11 +177,10 @@ export function createProfile(input: NewProfileInput): StoredProfile {
   return {
     schemaVersion: SCHEMA_VERSION,
     ...input,
-    // Учётный год берётся из даты первой смены, а не спрашивается
-    // отдельно: первая смена караула лежит в первых четырёх сутках года
-    // по определению цикла, и спрашивать год вдобавок значило бы дать
-    // возможность их рассогласовать.
-    accountingYear: Number(input.firstShiftDate.slice(0, 4)),
+    // Учётный год приходит ответом, а не выводится из даты смены. Выводился:
+    // смена спрашивалась «первая в году» и лежала в первых четырёх сутках
+    // января по определению цикла, так что год у неё был тот самый. Теперь
+    // смена любая — хоть августовская, — и год из неё уже не следует.
     absences: [],
     callouts: [],
     calendarOverrides: {},

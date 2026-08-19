@@ -23,7 +23,7 @@ function march(absences: AbsencePeriod[] = []) {
   return calculatePeriod({
     periodStart: "2026-03-01",
     periodEnd: "2026-04-01",
-    cycle: { guard: 1, firstShiftDate: "2026-01-01" },
+    cycle: { guard: 1, knownShiftDate: "2026-01-01" },
     weekly: WEEKLY,
     calendar: { workingDays: 21, preHolidayDays: 0 },
     absences,

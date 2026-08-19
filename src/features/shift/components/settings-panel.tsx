@@ -17,6 +17,7 @@ import {
   weeklyNormGroundOfProfile,
 } from "../model/derive";
 import type { StoredProfile } from "../storage/profile";
+import { DateField } from "./date-field";
 import { LiveModeSwitch } from "./live-mode";
 import { TimeField } from "./time-field";
 
@@ -44,9 +45,9 @@ import { TimeField } from "./time-field";
  * Свёрнутый список показывает текущий ответ одной строкой, и это ровно то,
  * что нужно, чтобы его проверить.
  *
- * Исключений два, и оба вынужденные: имя — свободная строка, а время
- * развода — время. Списком из тысячи четырёхсот сорока минут его не
- * выбирают.
+ * Исключений три, и все вынужденные: имя — свободная строка, время развода
+ * — время (списком из тысячи четырёхсот сорока минут его не выбирают), а
+ * дата смены — дата: в году их триста шестьдесят пять.
  *
  * --- Почему норма выбирается вместе с основанием -------------------------
  *
@@ -79,12 +80,10 @@ export function SettingsPanel({
   const nameId = useId();
   const normId = useId();
   const guardId = useId();
-  const firstShiftId = useId();
   const startId = useId();
   const yearId = useId();
 
   const ground = weeklyNormGroundOfProfile(profile);
-  const firstShiftDay = Number(profile.firstShiftDate.slice(-2));
 
 
   return (
@@ -95,7 +94,7 @@ export function SettingsPanel({
         <LiveModeSwitch profile={profile} onChange={onChange} />
         <p className="text-xs text-ink-muted">
           {profile.liveMode
-            ? "Расчёт идёт от первой смены по сегодняшний день."
+            ? "Расчёт идёт с начала периода по сегодняшний день."
             : "Расчёт идёт за весь выбранный период целиком."}
         </p>
       </div>
@@ -170,8 +169,8 @@ export function SettingsPanel({
         hint={
           <>
             Номер караула сам по себе цикл не задаёт — его задаёт вместе с
-            датой первой смены. Если график на экране разошёлся с тем, что
-            висит в части, проверьте сначала эти два поля.
+            датой смены. Если график на экране разошёлся с тем, что висит в
+            части, проверьте сначала эти два поля.
           </>
         }
       >
@@ -191,35 +190,20 @@ export function SettingsPanel({
         </Select>
       </Field>
 
-      <Field
-        id={firstShiftId}
-        label="Первая смена караула в году"
-        hint={
-          <>
-            Цикл «сутки через трое» четырёхдневный, поэтому первая смена
-            обязательно приходится на одни из первых четырёх суток года. Пятое
-            января — это уже вторая смена какого-то из караулов.
-          </>
-        }
-      >
-        <Select
-          id={firstShiftId}
-          value={firstShiftDay}
-          onChange={(event) => {
-            const day = Number(event.target.value);
-            onChange((previous) => ({
-              ...previous,
-              firstShiftDate: `${previous.accountingYear}-01-0${day}`,
-            }));
-          }}
-        >
-          {GUARDS.map((day) => (
-            <option key={day} value={day}>
-              {day} января
-            </option>
-          ))}
-        </Select>
-      </Field>
+      {/* Любая смена, а не первая в году: цикл четырёхдневный и одинаков в
+          обе стороны, поэтому одна известная дата задаёт весь график —
+          хоть завтрашняя. Здесь стоял список «1—4 января», то есть вопрос
+          о дате, которую человек не помнит, а вычисляет. */}
+      <DateField
+        label="Любая ваша смена"
+        name="knownShift"
+        defaultValue={profile.firstShiftDate}
+        hint="Та, в которой вы уверены. Остальной график достроится от неё в обе стороны."
+        onChange={(value) => {
+          if (value === null) return;
+          onChange((previous) => ({ ...previous, firstShiftDate: value }));
+        }}
+      />
 
       <Field
         id={startId}
@@ -251,8 +235,12 @@ export function SettingsPanel({
         label="Учётный год"
         hint={
           <>
-            Меняет год у графика и производственного календаря — вместе с
-            датой первой смены.
+            Меняет год у графика и производственного календаря.
+            <span className="mt-2 block">
+              Дата вашей смены при этом остаётся прежней: цикл
+              четырёхдневный и одинаков в обе стороны, поэтому по смене
+              этого года график прошлого строится сам.
+            </span>
             <span className="mt-2 block">
               Внесённые отпуска, вызовы и правки календаря остаются на своих
               датах: это то, что было, и переезжать вслед за годом они не
@@ -266,13 +254,7 @@ export function SettingsPanel({
           value={profile.accountingYear}
           onChange={(event) => {
             const accountingYear = Number(event.target.value);
-            onChange((previous) => ({
-              ...previous,
-              accountingYear,
-              // Дата первой смены обязана переехать вместе с годом: иначе
-              // цикл караула считался бы от прошлогоднего января.
-              firstShiftDate: `${accountingYear}-01-${previous.firstShiftDate.slice(-2)}`,
-            }));
+            onChange((previous) => ({ ...previous, accountingYear }));
           }}
         >
           {yearsAround(profile.accountingYear).map((year) => (

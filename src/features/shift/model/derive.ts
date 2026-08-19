@@ -133,7 +133,11 @@ export function calculateFor(
     periodEnd,
     cycle: {
       guard: profile.guardNumber as GuardNumber,
-      firstShiftDate: profile.firstShiftDate,
+      // Хранилище зовёт это поле `firstShiftDate` с тех пор, когда
+      // спрашивали именно первую смену года. Смысл теперь другой — любая
+      // известная смена, — но переименовывать ключ значило бы сломать
+      // сохранённые файлы профилей ради названия.
+      knownShiftDate: profile.firstShiftDate,
     },
     weekly: weeklyNormOf(profile),
     calendar: { workingDays: facts.workingDays, preHolidayDays: facts.preHolidayDays },
@@ -169,11 +173,16 @@ export function monthBounds(year: number, month: number) {
  * показывает норму, которую он ещё не должен был отработать, и «недоработку»
  * в сотни часов.
  *
- * --- Почему начало тоже сдвигается ---------------------------------------
+ * --- Почему начало НЕ сдвигается ------------------------------------------
  *
- * От первой смены. До неё человек в этом карауле не служил, и часы за те
- * сутки не его: включать их в норму значит требовать отработать время до
- * приёма на службу.
+ * Сдвигалось: до первой смены человек в карауле не служил, и часы за те
+ * сутки были не его. Держалось это на том, что названная дата — начало
+ * службы в этом графике.
+ *
+ * Теперь человек называет ЛЮБУЮ свою смену, в том числе завтрашнюю, и о
+ * начале службы приложение не знает ничего. Обрезать период по такой дате
+ * значило бы выбросить из расчёта весь год до неё — то есть по ответу
+ * «завтра я заступаю» показать пустой табель.
  *
  * --- Почему конец — завтра ------------------------------------------------
  *
@@ -183,11 +192,9 @@ export function monthBounds(year: number, month: number) {
  */
 export function liveBounds(
   bounds: { periodStart: IsoDate; periodEnd: IsoDate },
-  firstShiftDate: IsoDate,
   today: IsoDate,
 ): { periodStart: IsoDate; periodEnd: IsoDate } {
-  const start =
-    firstShiftDate > bounds.periodStart ? firstShiftDate : bounds.periodStart;
+  const start = bounds.periodStart;
   const tomorrow = addDays(today, 1);
   const end = tomorrow < bounds.periodEnd ? tomorrow : bounds.periodEnd;
   // Период, целиком лежащий в будущем, обрезать не во что: пусть остаётся

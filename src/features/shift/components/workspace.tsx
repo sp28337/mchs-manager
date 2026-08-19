@@ -126,7 +126,7 @@ export function Workspace({ profile, onChange, onForget }: WorkspaceProps) {
   // отрисовку — переживать полночь странице не приходится, её открывают
   // и закрывают в тот же день.
   const { periodStart, periodEnd } = profile.liveMode
-    ? liveBounds(chosen, profile.firstShiftDate, todayIso())
+    ? liveBounds(chosen, todayIso())
     : chosen;
 
   const calculation = useMemo(

@@ -9,6 +9,8 @@ import { Select } from "@/components/ui/select";
 import { cn } from "@/lib/utils/cn";
 
 import { DEFAULT_SHIFT_START, parseTimeOfDay } from "../domain/shift-hours";
+import { todayIso, type IsoDate } from "../domain/plain-date";
+import { DateField } from "./date-field";
 import { TimeField } from "./time-field";
 import { createProfile, importProfile, type StoredProfile } from "../storage/profile";
 import {
@@ -32,8 +34,8 @@ import { ThemeToggle } from "@/components/ui/theme-toggle";
  * * условия труда, пол в северной местности и инвалидность I-II группы
  *   сокращают неделю до 36 или 35 часов — это до 5 часов нормы в неделю,
  *   больше двухсот часов в год;
- * * караул и дата его первой смены задают график: без них неизвестно, в
- *   какие сутки человек заступал.
+ * * караул и любая известная его смена задают график: без них неизвестно,
+ *   в какие сутки человек заступал.
  *
  * Ни фамилии в паспортном смысле, ни табельного номера, ни подразделения
  * не спрашивается: расчёту они не нужны, а собирать то, что не нужно, —
@@ -46,12 +48,23 @@ import { ThemeToggle } from "@/components/ui/theme-toggle";
  * больничных — сведения о здоровье, — и отправлять их наружу означало бы
  * ровно тот риск, от которого человек сюда и пришёл.
  *
- * --- Почему дата первой смены, а не только номер караула ----------------
+ * --- Почему дата смены, а не только номер караула -----------------------
  *
  * Номер караула сам по себе цикл не задаёт. В одной части первый караул
  * заступает 1 января, в другой — третьего, и «караул № 1» в них дежурит
- * в разные сутки. Дата первой смены — единственное, что привязывает цикл
- * к календарю.
+ * в разные сутки. Дата заступления — единственное, что привязывает цикл к
+ * календарю.
+ *
+ * --- Почему любая смена, а не первая в году ------------------------------
+ *
+ * Спрашивали первую смену года — одни из первых четырёх суток января, — и
+ * человек отвечал не тем, что знает, а тем, что вычислил: отсчитывал
+ * четвёрками назад от смены, которую помнит. Ошибка в этом отсчёте
+ * сдвигает весь график на сутки, и заметна она не сразу.
+ *
+ * Цикл четырёхдневный и одинаков в обе стороны, поэтому любая известная
+ * смена задаёт его целиком — хоть завтрашняя. Отсчёт назад делает
+ * приложение.
  */
 
 const CURRENT_YEAR = new Date().getUTCFullYear();
@@ -63,7 +76,9 @@ export interface RegisterFormProps {
 export function RegisterForm({ onCreated }: RegisterFormProps) {
   const [ground, setGround] = useState<WeeklyNormGround>("base");
   const [guard, setGuard] = useState(1);
-  const [firstShiftDay, setFirstShiftDay] = useState(1);
+  // Умолчание — сегодня: это единственная дата, о которой точно известно,
+  // что человек её помнит. Свою смену он от неё и отмерит.
+  const [knownShift, setKnownShift] = useState<IsoDate>(todayIso());
   const [startTime, setStartTime] = useState(DEFAULT_SHIFT_START);
   const [error, setError] = useState<string | null>(null);
 
@@ -92,7 +107,8 @@ export function RegisterForm({ onCreated }: RegisterFormProps) {
           // признаки, которые из него следуют, расставлены по профилю здесь.
           ...weeklyNormGroundFacts(ground),
           guardNumber: guard,
-          firstShiftDate: `${year}-01-0${firstShiftDay}`,
+          firstShiftDate: knownShift,
+          accountingYear: year,
           shiftStartTime: startTime,
         }),
       );
@@ -175,13 +191,7 @@ export function RegisterForm({ onCreated }: RegisterFormProps) {
                   type="button"
                   variant={guard === number ? "default" : "outline"}
                   aria-pressed={guard === number}
-                  onClick={() => {
-                    setGuard(number);
-                    // Чаще всего номер караула и есть день его первой смены,
-                    // поэтому подставляется он — но остаётся изменяемым: в
-                    // части нумерация может быть другой.
-                    setFirstShiftDay(number);
-                  }}
+                  onClick={() => setGuard(number)}
                 >
                   {number}-й
                 </Button>
@@ -189,29 +199,29 @@ export function RegisterForm({ onCreated }: RegisterFormProps) {
             </div>
           </fieldset>
 
-          <fieldset className="space-y-2">
-            <legend className="font-display text-xs font-bold uppercase tracking-wide text-ink-muted">
-              Первая смена караула в году
-            </legend>
-            <div className="flex flex-wrap gap-2">
-              {[1, 2, 3, 4].map((day) => (
-                <Button
-                  key={day}
-                  type="button"
-                  variant={firstShiftDay === day ? "default" : "outline"}
-                  aria-pressed={firstShiftDay === day}
-                  onClick={() => setFirstShiftDay(day)}
-                >
-                  {day} января
-                </Button>
-              ))}
-            </div>
-            <p className="max-w-md text-xs text-ink-muted">
-              Цикл «сутки через трое» четырёхдневный, поэтому первая смена
-              обязательно приходится на одни из первых четырёх суток года.
-              Пятое января — это уже вторая смена какого-то из караулов.
-            </p>
-          </fieldset>
+          {/* Спрашивается любая смена, а не первая в году.
+              -------------------------------------------------------------
+              Здесь стояли четыре кнопки — «1 января», «2 января», «3», «4»
+              — и человек выбирал из них дату, которой не помнит: первое
+              января это не событие, а вычисление, и он проделывал его в
+              голове, отсчитывая четвёрками назад от смены, которую знает.
+
+              Цикл четырёхдневный и одинаков в обе стороны, поэтому любая
+              известная смена задаёт его целиком. Отсчёт назад делает
+              приложение — оно в арифметике не ошибается. */}
+          <DateField
+            label="Любая ваша смена"
+            name="knownShift"
+            required
+            defaultValue={knownShift}
+            onChange={(value) => setKnownShift(value ?? knownShift)}
+            hint="Та, в которой вы уверены: ближайшая или последняя. Остальной график приложение достроит от неё в обе стороны."
+          />
+          <p className="-mt-4 max-w-md text-xs text-ink-muted">
+            Номер караула цикл не задаёт: в одной части первый караул
+            заступает 1 января, в другой — третьего. Привязывает график к
+            календарю именно дата.
+          </p>
 
           <div className="space-y-1.5">
             <Label htmlFor={startId}>Время смены караулов</Label>
