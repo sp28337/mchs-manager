@@ -5,6 +5,7 @@ import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Segmented, SegmentedItem } from "@/components/ui/segmented";
+import { useMediaQuery } from "@/lib/hooks/use-media-query";
 import { cn } from "@/lib/utils/cn";
 
 import type { PeriodCalculation } from "../domain/calculation";
@@ -84,8 +85,21 @@ const SCALES = [
   { columns: 6, grid: "grid-cols-1 sm:grid-cols-2 lg:grid-cols-6", text: "text-[11px]" },
 ] as const;
 
-/** Три месяца в ряд — то, как блок выглядел до появления масштаба. */
-const DEFAULT_SCALE = 1;
+/**
+ * Умолчание масштаба — по тому, есть ли чем его менять.
+ *
+ * Кнопки масштаба стоят только на широком экране (`lg`): на телефоне
+ * месяцы всё равно идут в одну-две колонки, и регулировать там нечего.
+ * Значит, там, где менять НЕЛЬЗЯ, сетка обязана сразу быть самой
+ * компактной — иначе человек остаётся с раскладкой, которая ему не
+ * подходит, и без способа это исправить.
+ *
+ * Там, где менять можно, умолчание на ступень крупнее: шесть месяцев в
+ * ряд на тысяче точек дают клетку в два десятка пикселей, и открывать
+ * экран на ней значило бы заставить первым делом нажать «крупнее».
+ */
+const SMALLEST_SCALE = SCALES.length - 1;
+const DEFAULT_ZOOMABLE_SCALE = SCALES.length - 2;
 
 export type YearViewKind = "shifts" | "calendar";
 
@@ -113,9 +127,19 @@ export function YearView({
   onMonth: (month: number | null) => void;
   onPickDay: (day: IsoDate) => void;
 }) {
-  const [scale, setScale] = useState(DEFAULT_SCALE);
+  // Кнопки масштаба появляются с `lg` — тем же порогом, что и колонки в
+  // сетке. Условие продублировано здесь, а не выведено из классов: узнать
+  // из Tailwind, применился ли `lg:`, нельзя.
+  const zoomable = useMediaQuery("(min-width: 1024px)");
 
-  const step = SCALES[scale] ?? SCALES[DEFAULT_SCALE];
+  // Выбор человека, пока его не было — `null`. Так умолчание остаётся
+  // живым: окно расширили до кнопок масштаба — раскладка стала крупнее
+  // сама, а не осталась той, что сложилась на узком экране. Как только
+  // человек нажал кнопку, его выбор перестаёт слушать ширину.
+  const [chosen, setChosen] = useState<number | null>(null);
+  const scale = chosen ?? (zoomable ? DEFAULT_ZOOMABLE_SCALE : SMALLEST_SCALE);
+
+  const step = SCALES[scale] ?? SCALES[1]!;
   // Отступ по краям на телефоне: месяц во всю ширину экрана растягивался
   // на двенадцать громоздких блоков подряд. Вместе с полем самой страницы
   // получается примерно четыре пятых ширины экрана — месяц снова похож на
@@ -182,7 +206,7 @@ export function YearView({
               className="rounded-xl"
               aria-label="Крупнее: меньше месяцев в ряду"
               disabled={scale === 0}
-              onClick={() => setScale((previous) => Math.max(0, previous - 1))}
+              onClick={() => setChosen(Math.max(0, scale - 1))}
             >
               <ZoomIn aria-hidden />
             </Button>
@@ -192,10 +216,8 @@ export function YearView({
               variant="ghost"
               className="rounded-xl"
               aria-label="Мельче: больше месяцев в ряду"
-              disabled={scale === SCALES.length - 1}
-              onClick={() =>
-                setScale((previous) => Math.min(SCALES.length - 1, previous + 1))
-              }
+              disabled={scale === SMALLEST_SCALE}
+              onClick={() => setChosen(Math.min(SMALLEST_SCALE, scale + 1))}
             >
               <ZoomOut aria-hidden />
             </Button>
