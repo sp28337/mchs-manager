@@ -64,9 +64,9 @@ export const ABSENCE_LABELS: Record<AbsenceKind, string> = {
   annual_leave: "Отпуск",
   sick_leave: "Больничный",
   study_leave: "Учебный отпуск",
-  unpaid_leave: "Отпуск без сохранения",
-  business_trip: "Командировка",
-  other_excused: "Иное освобождение",
+  // unpaid_leave: "Отпуск без сохранения",
+  // business_trip: "Командировка",
+  // other_excused: "Иное освобождение",
   time_off_in_lieu: "Отгул за переработку",
 };
 
@@ -76,7 +76,7 @@ export const CALLOUT_LABELS: Record<CalloutKind, string> = {
   reserve: "Резерв",
   public_event: "Праздничное мероприятие",
   elections: "Выборы",
-  other_callout: "Иной вызов",
+  // other_callout: "Иной вызов",
 };
 
 /** Что вид отсутствия или вызова ДЕЛАЕТ с расчётом. */
@@ -84,9 +84,9 @@ export const ABSENCE_EFFECT: Record<AbsenceKind, string> = {
   annual_leave: "часы по норме за эти дни исключаются из нормы",
   sick_leave: "часы по норме за эти дни исключаются из нормы",
   study_leave: "часы по норме за эти дни исключаются из нормы",
-  unpaid_leave: "часы по норме за эти дни исключаются из нормы",
-  business_trip: "часы по норме за эти дни исключаются из нормы",
-  other_excused: "часы по норме за эти дни исключаются из нормы",
+  // unpaid_leave: "часы по норме за эти дни исключаются из нормы",
+  // business_trip: "часы по норме за эти дни исключаются из нормы",
+  // other_excused: "часы по норме за эти дни исключаются из нормы",
   time_off_in_lieu:
     "норма не меняется, а пропущенная смена уменьшает переработку — отгул и есть её погашение",
 };

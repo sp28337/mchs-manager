@@ -121,7 +121,7 @@ export function YearCalendarEditor({
   }
 
   return (
-    <section aria-labelledby="calendar" className="space-y-4">
+    <section aria-labelledby="calendar" className="space-y-4 xl:flex xl:flex-row-reverse xl:gap-4">
       {/* Сетка идёт ПЕРВОЙ и ничего над собой не имеет — в этом весь
           смысл. Календарь показывается на месте графика по нажатию
           кнопки, и всё, что стояло бы выше сетки, сдвигало бы её вниз:
@@ -163,46 +163,48 @@ export function YearCalendarEditor({
 
       {pending.length > 0 ? <PendingNotice pending={pending} /> : null}
 
-      <dl className="flex flex-wrap gap-x-6 gap-y-2 text-xs">
-        {DAY_TYPES.map((type) => (
-          <div key={type} className="flex items-center gap-2">
-            <dt
-              className={cn(
-                "flex size-6 shrink-0 items-center justify-center rounded-xs border font-mono text-[10px]",
-                DAY_TYPE_TONE[type],
-              )}
-            >
-              {DAY_TYPE_MARK[type]}
+      <div className="xl:max-w-70 xl:w-full">
+        <dl className="flex flex-wrap gap-x-6 gap-y-2 text-xs xl:flex-col">
+          {DAY_TYPES.map((type) => (
+            <div key={type} className="flex items-center gap-2">
+              <dt
+                className={cn(
+                  "flex size-6 shrink-0 items-center justify-center rounded-sm border font-mono text-[10px]",
+                  DAY_TYPE_TONE[type],
+                )}
+              >
+                {DAY_TYPE_MARK[type]}
+              </dt>
+              <dd>
+                <span className="font-medium">{DAY_TYPE_LABELS[type]}</span>
+                {/* <span className="text-ink-muted"> — {DAY_TYPE_EFFECT[type]}</span> */}
+              </dd>
+            </div>
+          ))}
+          <div className="flex items-center gap-2">
+            <dt className="relative flex size-6 shrink-0 items-center justify-center rounded-sm border border-rule">
+              <span aria-hidden className="absolute -left-px -top-px size-1.5 rounded-full bg-ink" />
             </dt>
-            <dd>
-              <span className="font-medium">{DAY_TYPE_LABELS[type]}</span>
-              <span className="text-ink-muted"> — {DAY_TYPE_EFFECT[type]}</span>
-            </dd>
+            <dd className="text-ink-muted">Изменено вами</dd>
           </div>
-        ))}
-        <div className="flex items-center gap-2">
-          <dt className="relative flex size-6 shrink-0 items-center justify-center rounded-xs border border-rule">
-            <span aria-hidden className="absolute -left-px -top-px size-1.5 rounded-full bg-ink" />
-          </dt>
-          <dd className="text-ink-muted">Изменено вами</dd>
-        </div>
-      </dl>
+        </dl>
 
-      <div className="flex flex-wrap items-center gap-4 border-t border-rule pt-4">
-        <p className="text-sm text-ink-muted" aria-live="polite">
-          Ваших правок: {overrideCount}. Расчёт выше уже их учитывает.
-        </p>
-        {overrideCount > 0 ? (
-          <button
-            type="button"
-            className="text-xs text-ink-muted underline underline-offset-2 hover:text-signal"
-            onClick={() =>
-              onChange((previous) => ({ ...previous, calendarOverrides: {} }))
-            }
-          >
-            Вернуть календарь по закону
-          </button>
-        ) : null}
+        <div className="flex flex-wrap items-center gap-4 border-t border-rule pt-4 mt-4">
+          <p className="text-sm text-ink-muted" aria-live="polite">
+            Ваших правок: {overrideCount}
+          </p>
+          {overrideCount > 0 ? (
+            <button
+              type="button"
+              className="text-xs text-ink-muted underline underline-offset-2 hover:text-signal"
+              onClick={() =>
+                onChange((previous) => ({ ...previous, calendarOverrides: {} }))
+              }
+            >
+              Вернуть календарь по закону
+            </button>
+          ) : null}
+        </div>
       </div>
     </section>
   );
@@ -272,44 +274,52 @@ function DayButton({
       aria-label={label}
       onClick={onPick}
       className={cn(
-        "relative flex aspect-square w-full min-w-0 cursor-pointer flex-col",
-        "items-center justify-center leading-tight",
-        // Обводкой внутрь, а не рамкой: клетки стоят вплотную, и рамка
-        // сдвинула бы соседей.
-        "hover:outline-2 hover:-outline-offset-2 hover:outline-ink/40",
-        "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-trace",
+        "relative flex aspect-square w-full min-w-0 cursor-pointer flex-col bg-paper-raised",
         corners,
-        // Рамки нет ни у одного дня: тип дня различается подложкой и
-        // буквой. Триста шестьдесят пять контуров на год — это решётка,
-        // за которой не видно ни праздников, ни правок.
-        DAY_TYPE_TONE[item.dayType],
       )}
     >
-      {/* Кегль в `em`: клетка следует за масштабом сетки, и число вместе
-          с ней. То же решение, что в клетке графика, — иначе при
-          переключении между сетками менялся бы размер цифр. */}
-      <span aria-hidden className="font-mono text-[1em]">
-        {date}
-      </span>
-      <span aria-hidden className="font-mono text-[0.75em]">
-        {DAY_TYPE_MARK[item.dayType]}
-      </span>
-      {item.source === "override" ? (
-        // Точка, а не цвет: цвет уже занят типом дня, и второй смысл на том
-        // же канале означал бы, что ни один не читается.
-        <span
-          aria-hidden
-          className="absolute -left-px -top-px size-1.5 rounded-full bg-ink"
-        />
-      ) : null}
-      {/* Заметка помечается тем же углом, что в графике: одна пометка на
-          обе сетки, иначе её пришлось бы искать по-разному. */}
-      {note ? (
-        <span
-          aria-hidden
-          className="absolute right-0 top-0 size-0 border-l-4 border-t-4 border-l-transparent border-t-trace"
-        />
-      ) : null}
+      <div className={
+        cn(
+          "relative flex aspect-square w-full min-w-0 cursor-pointer flex-col",
+          "items-center justify-center leading-tight",
+          // Обводкой внутрь, а не рамкой: клетки стоят вплотную, и рамка
+          // сдвинула бы соседей.
+          "hover:outline-2 hover:-outline-offset-2 hover:outline-ink/40 rounded-md",
+          "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-trace",
+
+          // Рамки нет ни у одного дня: тип дня различается подложкой и
+          // буквой. Триста шестьдесят пять контуров на год — это решётка,
+          // за которой не видно ни праздников, ни правок.
+          DAY_TYPE_TONE[item.dayType],
+          "flex flex-col"
+        )}
+      >
+        {/* Кегль в `em`: клетка следует за масштабом сетки, и число вместе
+            с ней. То же решение, что в клетке графика, — иначе при
+            переключении между сетками менялся бы размер цифр. */}
+        <span aria-hidden className="font-mono text-[1em]">
+          {date}
+        </span>
+        <span aria-hidden className="font-mono text-[0.75em]">
+          {DAY_TYPE_MARK[item.dayType]}
+        </span>
+        {item.source === "override" ? (
+          // Точка, а не цвет: цвет уже занят типом дня, и второй смысл на том
+          // же канале означал бы, что ни один не читается.
+          <span
+            aria-hidden
+            className="absolute -left-px -top-px size-1.5 rounded-full bg-ink"
+          />
+        ) : null}
+        {/* Заметка помечается тем же углом, что в графике: одна пометка на
+            обе сетки, иначе её пришлось бы искать по-разному. */}
+        {note ? (
+          <span
+            aria-hidden
+            className="absolute right-0 top-0 size-0 border-l-4 border-t-4 border-l-transparent border-t-trace"
+          />
+        ) : null}
+      </div>
     </button>
   );
 }

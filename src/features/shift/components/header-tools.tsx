@@ -102,7 +102,7 @@ export function HeaderTools({
               title={title}
               className={cn(
                 "inline-flex h-9 shrink-0 cursor-pointer items-center gap-2 rounded-xl",
-                "border border-rule-strong bg-paper-raised px-3 text-sm font-medium",
+                "bg-paper-raised px-3 text-sm font-medium",
                 "text-ink transition-colors hover:bg-paper-sunken",
                 "focus-visible:outline-2 focus-visible:outline-offset-2",
                 "focus-visible:outline-trace",

@@ -35,8 +35,8 @@
 
 :root {
   /* -- Поверхности ------------------------------------------------------ */
-  --fps-paper: #f4f5f3;
-  --fps-paper-raised: #ffffff;
+  --fps-paper: #ffffff;
+  --fps-paper-raised: #f4f5f3;
   --fps-paper-sunken: #e9ebe7;
 
   /* -- Чернила ---------------------------------------------------------- */
@@ -51,7 +51,7 @@
   /* -- Смысловые -------------------------------------------------------- */
   --fps-signal: #c4400f;
   --fps-signal-soft: #fbeae3;
-  --fps-verify: #0b5f54;
+  --fps-verify: #45a352;
   --fps-verify-soft: #dfeeeb;
   --fps-trace: #4144b0;
   --fps-trace-soft: #e8e8f8;
@@ -98,9 +98,9 @@
    ради которой выбраны. Контраст проверен по WCAG 2.2 (1.4.3, 4.5:1 для
    текста, 3:1 для границ и состояний). */
 .dark {
-  --fps-paper: #101216;
-  --fps-paper-raised: #171a1f;
-  --fps-paper-sunken: #0a0c0f;
+  --fps-paper: #1f2023;
+  --fps-paper-raised: #2a2c2f;
+  --fps-paper-sunken: #161612;
 
   --fps-ink: #e8eae6;
   --fps-ink-muted: #a3a9b0;
@@ -111,7 +111,7 @@
 
   --fps-signal: #db0e17;
   --fps-signal-soft: #2a1710;
-  --fps-verify: #3ddcc0;
+  --fps-verify: #45a352;
   --fps-verify-soft: #0a2220;
   --fps-trace: #9a9df3;
   --fps-trace-soft: #191a2e;

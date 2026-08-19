@@ -56,10 +56,10 @@ export function Switch({
         aria-hidden
         className={cn(
           "relative inline-flex h-6 w-9 shrink-0 items-center rounded-full",
-          "border transition-colors",
+          "transition-colors",
           checked
-            ? "border-verify bg-verify/25"
-            : "border-rule-strong bg-paper-sunken group-hover:border-ink-muted",
+            ? "bg-verify/25"
+            : "bg-paper-sunken group-hover:border-ink-muted",
         )}
       >
         <span

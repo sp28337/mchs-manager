@@ -52,11 +52,11 @@ export function LiveModeSwitch({
       <Switch
         checked={profile.liveMode}
         onChange={(liveMode) => onChange((previous) => ({ ...previous, liveMode }))}
-        label="Веду табель"
+        label="Онлайн"
       />
-      <Hint label="Что значит «веду табель»">
+      {/* <Hint label="Что значит «веду табель»">
         <LiveModeNote />
-      </Hint>
+      </Hint> */}
     </span>
   );
 }

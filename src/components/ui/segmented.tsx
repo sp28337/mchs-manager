@@ -37,8 +37,8 @@ export function Segmented({
       role="group"
       aria-label={label}
       className={cn(
-        "inline-flex h-9 items-center gap-0.5 rounded-xl border border-rule",
-        "bg-paper-sunken p-0.5",
+        "inline-flex h-9 items-center gap-0.5 rounded-xl",
+        "bg-paper-sunken",
         className,
       )}
     >
@@ -64,7 +64,7 @@ export function SegmentedItem({
       aria-pressed={active}
       onClick={onClick}
       className={cn(
-        "inline-flex h-8 shrink-0 cursor-pointer items-center justify-center gap-1.5",
+        "inline-flex h-9 shrink-0 cursor-pointer items-center justify-center gap-1.5",
         "whitespace-nowrap rounded-lg px-3 text-xs font-medium transition-colors",
         "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-trace",
         "[&_svg]:size-4 [&_svg]:shrink-0",

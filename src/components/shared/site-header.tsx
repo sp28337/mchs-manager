@@ -87,12 +87,12 @@ export function SiteHeader({ tagline, action, tools, className }: SiteHeaderProp
               программе чтения, и ссылка домой не превращается в безымянную
               картинку. */}
           <span className={cn("min-w-0 leading-none", tools)}>
-            <span className="block font-display text-black/80 dark:text-ink text-sm font-bold uppercase leading-tight tracking-wide group-hover:underline">
+            <span className="block font-display text-black/80 dark:text-ink text-xl font-bold uppercase leading-tight tracking-wide group-hover:underline">
               {/* Пробел перед второй строкой намеренный: `block` делит
                   строки визуально, но в тексте они склеиваются, и
                   программа чтения произносит «переработкидля». */}
-              Калькулятор переработки{" "}
-              <span className="block text-ink-muted">для пожарных</span>
+              График{" "}
+              <span className="text-ink-muted">1/3</span>
             </span>
           </span>
         </Link>

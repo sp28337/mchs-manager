@@ -121,7 +121,7 @@ export function YearView({
   // получается примерно четыре пятых ширины экрана — месяц снова похож на
   // страницу календаря, а клетка остаётся достаточно крупной, чтобы по
   // ней попасть пальцем.
-  const grid = cn("grid gap-x-6 gap-y-5 max-sm:px-[5%]", step.grid, step.text);
+  const grid = cn("grid gap-x-6 gap-y-5 max-sm:px-[5%] flex-1", step.grid, step.text);
 
   return (
     <div className="space-y-4">
@@ -178,7 +178,7 @@ export function YearView({
             <Button
               type="button"
               size="icon"
-              variant="outline"
+              variant="ghost"
               className="rounded-xl"
               aria-label="Крупнее: меньше месяцев в ряду"
               disabled={scale === 0}
@@ -189,7 +189,7 @@ export function YearView({
             <Button
               type="button"
               size="icon"
-              variant="outline"
+              variant="ghost"
               className="rounded-xl"
               aria-label="Мельче: больше месяцев в ряду"
               disabled={scale === SCALES.length - 1}
@@ -199,15 +199,6 @@ export function YearView({
             >
               <ZoomOut aria-hidden />
             </Button>
-            {/* Что именно изменилось, названо числом, а не «средний
-                масштаб»: на экране это ровно число месяцев в ряду, и по
-                нему человек сразу видит, докуда ещё можно тянуть. */}
-            <span
-              aria-live="polite"
-              className="ml-1 w-20 font-mono text-[11px] text-ink-muted"
-            >
-              по {step.columns} в ряд
-            </span>
           </div>
         </div>
 

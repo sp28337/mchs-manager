@@ -86,18 +86,18 @@ export type AbsenceKind =
   | "annual_leave"
   | "sick_leave"
   | "study_leave"
-  | "unpaid_leave"
-  | "business_trip"
-  | "other_excused"
+  // | "unpaid_leave"
+  // | "business_trip"
+  // | "other_excused"
   | "time_off_in_lieu";
 
 export const ABSENCE_KIND_BASIS: Record<AbsenceKind, string> = {
   annual_leave: "ст. 63 ФЗ-141; ст. 114 ТК РФ",
   sick_leave: "ст. 65 ФЗ-141; ст. 183 ТК РФ",
   study_leave: "ст. 173-177 ТК РФ",
-  unpaid_leave: "ст. 64 ФЗ-141; ст. 128 ТК РФ",
-  business_trip: "ст. 166-168 ТК РФ",
-  other_excused: "письмо Роструда от 01.03.2010 № 550-6-1",
+  // unpaid_leave: "ст. 64 ФЗ-141; ст. 128 ТК РФ",
+  // business_trip: "ст. 166-168 ТК РФ",
+  // other_excused: "письмо Роструда от 01.03.2010 № 550-6-1",
   time_off_in_lieu: "ст. 55 ФЗ-141; ст. 152, 153 ТК РФ",
 };
 
@@ -119,9 +119,9 @@ export const ABSENCE_REDUCES_NORM: Record<AbsenceKind, boolean> = {
   annual_leave: true,
   sick_leave: true,
   study_leave: true,
-  unpaid_leave: true,
-  business_trip: true,
-  other_excused: true,
+  // unpaid_leave: true,
+  // business_trip: true,
+  // other_excused: true,
   time_off_in_lieu: false,
 };
 
@@ -140,7 +140,7 @@ export type CalloutKind =
   | "reserve"
   | "public_event"
   | "elections"
-  | "other_callout";
+  // | "other_callout";
 
 export const CALLOUT_KIND_BASIS: Record<CalloutKind, string> = {
   competition: "ч. 1 ст. 54 ФЗ-141; ст. 91 ТК РФ",
@@ -148,7 +148,7 @@ export const CALLOUT_KIND_BASIS: Record<CalloutKind, string> = {
   reserve: "ч. 1 ст. 54 ФЗ-141; ст. 91 ТК РФ",
   public_event: "ч. 1 ст. 54 ФЗ-141; ст. 91 ТК РФ",
   elections: "ч. 1 ст. 54 ФЗ-141; ст. 91 ТК РФ",
-  other_callout: "ч. 1 ст. 54 ФЗ-141; ст. 91 ТК РФ",
+  // other_callout: "ч. 1 ст. 54 ФЗ-141; ст. 91 ТК РФ",
 };
 
 // --------------------------------------------------------------- норма
