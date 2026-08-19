@@ -47,17 +47,25 @@ import { DateField } from "./date-field";
  * Вызов на соревнования тоже бывает на несколько суток, но чаще на одни, и
  * поле подставлено тем же днём: согласиться быстрее, чем набрать.
  *
- * --- Почему вид дня тоже здесь -------------------------------------------
+ * --- Почему вопрос зависит от сетки --------------------------------------
  *
- * Производственный календарь правится тем же движением: нашёл день,
- * нажал, сказал, чем он был. Раньше для этого была отдельная механика —
- * кисть над сеткой и форма диапазона под ней, — то есть на один и тот же
- * вопрос «что в этих сутках» отвечали в двух разных местах двумя разными
- * способами.
+ * Вопросов в этих сутках два, и они про разное. «Что это за день по
+ * календарю» — про календарь ПРОИЗВОДСТВЕННЫЙ, общий для всей страны:
+ * праздник, предпраздничный, выходной. «Что в этот день» — про самого
+ * человека: отпуск, больничный, вызов.
  *
- * Вид дня спрашивается на обеих сетках, а не только в календаре: сутки
- * одни и те же, и человек, нашедший спорную смену в графике, не должен
- * переключать вид, чтобы поправить праздник под ней.
+ * Сначала оба стояли в окне всегда, на какой бы сетке ни нажали, — по
+ * рассуждению «сутки одни и те же». На экране это вышло иначе: человек,
+ * пришедший отметить отпуск, первым видел список видов дня, к отпуску
+ * никакого отношения не имеющий, и должен был через него перешагнуть.
+ * Причём с риском: список показывает текущее значение, и достаточно
+ * задеть его, чтобы записать правку производственного календаря,
+ * собираясь внести больничный.
+ *
+ * Поэтому вопрос задаёт та сетка, на которой нажали, — она и есть выбор
+ * человека: на производственном календаре спрашивается вид дня, на
+ * графике смен — что в этот день было. Переключатель сеток стоит прямо
+ * над ними, и переход от одного вопроса к другому — одно нажатие.
  *
  * Совпадение с законом не хранится: выбрав то, что и так следует из
  * ст. 112 и 95 ТК РФ, человек снимает правку, а не добавляет ещё одну, —
@@ -70,6 +78,10 @@ import { DateField } from "./date-field";
  * отгул» — это то, что человек помнит сегодня и не вспомнит потом, и
  * место для этого одно: те сутки, о которых речь. Расчёт заметку не
  * читает, она не влияет ни на один час.
+ *
+ * Заметка спрашивается на обеих сетках — в отличие от двух вопросов выше,
+ * она не про календарь и не про службу, а про память, и день для неё
+ * один и тот же, с какой бы сетки его ни открыли.
  */
 
 /** Что человек выбирает в списке: ничего, отсутствие или вызов. */
@@ -81,15 +93,25 @@ const CALLOUT_KINDS = Object.keys(CALLOUT_LABELS) as CalloutKind[];
 /** Часы вызова по умолчанию: смена целиком бывает реже, чем полдня. */
 const DEFAULT_CALLOUT_HOURS = "8";
 
+/**
+ * О чём спрашивать в этих сутках.
+ *
+ * Совпадает с видом сетки, а не задаётся отдельно: спрашивается то, о чём
+ * сетка и есть.
+ */
+export type DayEditorKind = "calendar" | "shifts";
+
 export interface DayEditorProps {
   /** День, по которому нажали. `null` — окно закрыто. */
   day: IsoDate | null;
+  /** С какой сетки открыли: она и решает, о чём спрашивать. */
+  kind: DayEditorKind;
   profile: StoredProfile;
   onChange: (change: (previous: StoredProfile) => StoredProfile) => void;
   onClose: () => void;
 }
 
-export function DayEditor({ day, profile, onChange, onClose }: DayEditorProps) {
+export function DayEditor({ day, kind, profile, onChange, onClose }: DayEditorProps) {
   return (
     <Modal
       open={day !== null}
@@ -104,6 +126,7 @@ export function DayEditor({ day, profile, onChange, onClose }: DayEditorProps) {
         <DayForm
           key={day}
           day={day}
+          kind={kind}
           profile={profile}
           onChange={onChange}
           onClose={onClose}
@@ -115,11 +138,13 @@ export function DayEditor({ day, profile, onChange, onClose }: DayEditorProps) {
 
 function DayForm({
   day,
+  kind,
   profile,
   onChange,
   onClose,
 }: {
   day: IsoDate;
+  kind: DayEditorKind;
   profile: StoredProfile;
   onChange: (change: (previous: StoredProfile) => StoredProfile) => void;
   onClose: () => void;
@@ -149,17 +174,23 @@ function DayForm({
     (item) => item.startsOn <= day && day <= item.endsOn,
   );
 
-  const kind = choice === "none" ? null : choice.split(":");
-  const isAbsence = kind?.[0] === "absence";
-  const isCallout = kind?.[0] === "callout";
+  const parts = choice === "none" ? null : choice.split(":");
+  const isAbsence = parts?.[0] === "absence";
+  const isCallout = parts?.[0] === "callout";
 
   /**
    * Вид дня в производственном календаре.
    *
    * Совпал с законом — правка снимается: список «ваших правок» должен
    * содержать только то, что человек утверждает вопреки закону.
+   *
+   * На сетке графика вид дня не спрашивается, и записывать здесь нечего:
+   * значение в состоянии осталось бы тем, каким его показал закон, и
+   * «правка» сводилась бы к перезаписи дня самим собой. Поэтому вне
+   * календаря профиль возвращается неизменным.
    */
   function saveDayType(next: StoredProfile): StoredProfile {
+    if (kind !== "calendar") return next;
     const calendarOverrides = { ...next.calendarOverrides };
     if (dayType === lawful) delete calendarOverrides[day];
     else calendarOverrides[day] = dayType;
@@ -191,7 +222,7 @@ function DayForm({
     }
 
     if (isAbsence) {
-      const absenceKind = (kind?.[1] ?? "annual_leave") as AbsenceKind;
+      const absenceKind = (parts?.[1] ?? "annual_leave") as AbsenceKind;
       // Пересекающиеся отсутствия запрещены: смена, попавшая и в отпуск,
       // и в больничный, вычлась бы из нормы дважды — 48 часов за одни
       // сутки.
@@ -232,7 +263,7 @@ function DayForm({
         setError("Часы в сутки — число от 0 до 24, например 8 или 4,5.");
         return;
       }
-      const calloutKind = (kind?.[1] ?? "competition") as CalloutKind;
+      const calloutKind = (parts?.[1] ?? "competition") as CalloutKind;
       onChange((previous) =>
         saveDayType(
         saveNote(
@@ -267,8 +298,12 @@ function DayForm({
 
         {/* Что на этих сутках уже стоит. Показано до формы: человек чаще
             открывает день, чтобы посмотреть или убрать, чем чтобы
-            добавить ещё одно. */}
-        {absence || callouts.length > 0 ? (
+            добавить ещё одно.
+
+            Только на сетке смен, там же, где это и вносят: кнопка
+            «Удалить» без стоящего рядом способа добавить — половина
+            механики, оставленная в чужом окне. */}
+        {kind === "shifts" && (absence || callouts.length > 0) ? (
           <section className="space-y-2">
             <h3 className="font-display text-xs font-bold uppercase tracking-wide text-ink-muted">
               Уже отмечено
@@ -308,8 +343,10 @@ function DayForm({
           </section>
         ) : null}
 
-        {/* Вид дня стоит первым: он есть у каждых суток, тогда как
-            отпуск и вызов — исключение. */}
+        {/* Вид дня — вопрос производственного календаря, и спрашивается
+            он там же, где календарь: на сетке графика этому списку взяться
+            неоткуда. */}
+        {kind === "calendar" ? (
         <div className="space-y-1.5">
           <Label htmlFor={dayTypeId}>Что это за день по календарю</Label>
           <Select
@@ -331,7 +368,11 @@ function DayForm({
               : ` По закону здесь ${DAY_TYPE_LABELS[lawful].toLowerCase()} — ваша правка это переопределит.`}
           </p>
         </div>
+        ) : null}
 
+        {/* Отпуск, больничный и вызов — про самого человека, и место им на
+            сетке его смен. */}
+        {kind === "shifts" ? (
         <div className="space-y-1.5">
           <Label htmlFor={choiceId}>Что в этот день</Label>
           <Select
@@ -360,7 +401,7 @@ function DayForm({
           </Select>
           {isAbsence ? (
             <p className="text-xs text-ink-muted" aria-live="polite">
-              {ABSENCE_EFFECT[(kind?.[1] ?? "annual_leave") as AbsenceKind]}
+              {ABSENCE_EFFECT[(parts?.[1] ?? "annual_leave") as AbsenceKind]}
             </p>
           ) : null}
           {isCallout ? (
@@ -370,6 +411,7 @@ function DayForm({
             </p>
           ) : null}
         </div>
+        ) : null}
 
         {/* Вторая дата и часы появляются только у того, чему они нужны:
             пустые поля «на всякий случай» человек читает как обязательные. */}

@@ -210,8 +210,13 @@ export function Workspace({ profile, onChange, onForget }: WorkspaceProps) {
       <ProfileFooter profile={profile} onForget={onForget} />
       </div>
 
+      {/* О чём спросить в открытых сутках, решает сетка, с которой по ним
+          нажали: на производственном календаре — вид дня, на графике смен
+          — отпуск, больничный или вызов. Состояние это уже есть здесь
+          (`yearView`), и второго источника правды заводить не нужно. */}
       <DayEditor
         day={pickedDay}
+        kind={yearView === "calendar" ? "calendar" : "shifts"}
         profile={profile}
         onChange={onChange}
         onClose={() => setPickedDay(null)}
