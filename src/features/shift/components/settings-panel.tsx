@@ -8,27 +8,17 @@ import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 
 import {
+  WEEKLY_NORM_GROUNDS,
   WEEKLY_NORM_GROUND_LABELS,
   type WeeklyNormGround,
 } from "../domain/value-objects";
 import {
-  EMPLOYMENT_HINT,
-  EMPLOYMENT_LABELS,
-  GENDER_LABELS,
-  type EmploymentKind,
-  type Gender,
-} from "../schemas";
-import {
-  weeklyNormGroundAvailable,
   weeklyNormGroundFacts,
   weeklyNormGroundOfProfile,
 } from "../model/derive";
-import type { PeriodCalculation } from "../domain/calculation";
-import type { OvertimePayEstimate } from "../domain/overtime-pay";
 import type { StoredProfile } from "../storage/profile";
 import { LiveModeSwitch } from "./live-mode";
 import { TimeField } from "./time-field";
-import { OvertimePayCard } from "./overtime-pay-card";
 
 /**
  * Ответы анкеты, которые можно переспросить.
@@ -74,13 +64,6 @@ import { OvertimePayCard } from "./overtime-pay-card";
  */
 
 const GUARDS = [1, 2, 3, 4] as const;
-const NORM_GROUNDS: readonly WeeklyNormGround[] = [
-  "base",
-  "harmful",
-  "northern",
-  "disability",
-];
-
 /** Год берётся с запасом в обе стороны: спорят и за прошлые годы. */
 function yearsAround(year: number): number[] {
   return Array.from({ length: 9 }, (_, index) => year - 5 + index);
@@ -88,18 +71,12 @@ function yearsAround(year: number): number[] {
 
 export function SettingsPanel({
   profile,
-  calculation,
-  pay,
   onChange,
 }: {
   profile: StoredProfile;
-  calculation: PeriodCalculation;
-  pay: OvertimePayEstimate | null;
   onChange: (change: (previous: StoredProfile) => StoredProfile) => void;
 }) {
   const nameId = useId();
-  const employmentId = useId();
-  const genderId = useId();
   const normId = useId();
   const guardId = useId();
   const firstShiftId = useId();
@@ -109,18 +86,6 @@ export function SettingsPanel({
   const ground = weeklyNormGroundOfProfile(profile);
   const firstShiftDay = Number(profile.firstShiftDate.slice(-2));
 
-  /**
-   * Смена того, КТО человек, может обесценить выбранное основание: у
-   * мужчины нет северного сокращения, у сотрудника — сокращения по
-   * инвалидности. Оставить основание как есть значило бы хранить признак,
-   * который расчёт всё равно не применит, и показывать в настройках норму,
-   * которой в расчёте нет.
-   */
-  function withValidGround(next: StoredProfile): StoredProfile {
-    const current = weeklyNormGroundOfProfile(next);
-    if (weeklyNormGroundAvailable(current, next)) return next;
-    return { ...next, ...weeklyNormGroundFacts("base") };
-  }
 
   return (
     <div className="space-y-4">
@@ -156,64 +121,6 @@ export function SettingsPanel({
         />
       </Field>
 
-      <Field
-        id={employmentId}
-        label="Кто вы"
-        hint={
-          <>
-            {EMPLOYMENT_HINT.attested}
-            <span className="mt-2 block">{EMPLOYMENT_HINT.civilian}</span>
-            <span className="mt-2 block">
-              От этого зависит и длина учётного периода: сотруднику — полугодие
-              или год, работнику — ещё и квартал.
-            </span>
-          </>
-        }
-      >
-        <Select
-          id={employmentId}
-          value={profile.employmentKind}
-          onChange={(event) => {
-            const employmentKind = event.target.value as EmploymentKind;
-            onChange((previous) =>
-              withValidGround({ ...previous, employmentKind }),
-            );
-          }}
-        >
-          {(Object.keys(EMPLOYMENT_LABELS) as EmploymentKind[]).map((kind) => (
-            <option key={kind} value={kind}>
-              {EMPLOYMENT_LABELS[kind]}
-            </option>
-          ))}
-        </Select>
-      </Field>
-
-      <Field
-        id={genderId}
-        label="Пол"
-        hint={
-          <>
-            Влияет в одном случае: женщинам на Крайнем Севере и в приравненных
-            местностях положена 36-часовая неделя (Приказ № 308 п. 1, Приказ
-            № 307 п. 4).
-          </>
-        }
-      >
-        <Select
-          id={genderId}
-          value={profile.gender}
-          onChange={(event) => {
-            const gender = event.target.value as Gender;
-            onChange((previous) => withValidGround({ ...previous, gender }));
-          }}
-        >
-          {(Object.keys(GENDER_LABELS) as Gender[]).map((value) => (
-            <option key={value} value={value}>
-              {GENDER_LABELS[value]}
-            </option>
-          ))}
-        </Select>
-      </Field>
 
       <Field
         id={normId}
@@ -249,9 +156,7 @@ export function SettingsPanel({
             onChange((previous) => ({ ...previous, ...facts }));
           }}
         >
-          {NORM_GROUNDS.filter((option) =>
-            weeklyNormGroundAvailable(option, profile),
-          ).map((option) => (
+          {WEEKLY_NORM_GROUNDS.map((option) => (
             <option key={option} value={option}>
               {WEEKLY_NORM_GROUND_LABELS[option]}
             </option>
@@ -378,25 +283,6 @@ export function SettingsPanel({
         </Select>
       </Field>
 
-      {/* Оклад — такой же ответ анкеты, как караул или дата первой смены,
-          и место ему здесь, а не в собственной кнопке шапки. Отличие у
-          него одно: без него расчёт работает целиком, и об этом сказано
-          прямо у заголовка — иначе пустое поле читается как незаконченная
-          настройка. */}
-      <section className="space-y-3 border-t border-rule pt-4">
-        <h3 className="flex flex-wrap items-baseline gap-x-2 font-display text-xs font-bold uppercase tracking-wide text-ink-muted">
-          Сколько это в деньгах
-          <span className="font-sans text-[11px] font-normal normal-case tracking-normal text-ink-faint">
-            необязательно — часы считаются и без оклада
-          </span>
-        </h3>
-        <OvertimePayCard
-          profile={profile}
-          calculation={calculation}
-          pay={pay}
-          onChange={onChange}
-        />
-      </section>
     </div>
   );
 }

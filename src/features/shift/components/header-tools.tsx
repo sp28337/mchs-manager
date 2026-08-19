@@ -6,8 +6,6 @@ import { useState } from "react";
 import { Modal } from "@/components/ui/modal";
 import { cn } from "@/lib/utils/cn";
 
-import type { PeriodCalculation } from "../domain/calculation";
-import type { OvertimePayEstimate } from "../domain/overtime-pay";
 import type { StoredProfile } from "../storage/profile";
 import { saveProfileToFile } from "./save-to-file";
 import { SettingsPanel } from "./settings-panel";
@@ -23,9 +21,9 @@ import { SettingsPanel } from "./settings-panel";
  *
  * Из того, что в ней стояло, почти всё нашло себе место ближе к делу:
  * период переехал в панель над сеткой, которой он и управляет, отпуска и
- * вызовы вносятся нажатием по самому дню, а оклад ушёл в настройки — это
- * такой же ответ анкеты, как караул или дата первой смены. В шапке
- * осталось два действия: открыть настройки и выгрузить профиль в файл.
+ * вызовы вносятся нажатием по самому дню, а ответы анкеты — караул, дата
+ * первой смены, норма — ушли в настройки. В шапке осталось два действия:
+ * открыть настройки и выгрузить профиль в файл.
  *
  * --- Почему в окне, а не выпадающим списком ------------------------------
  *
@@ -68,14 +66,10 @@ const LABELS_FROM = "hidden xs:inline";
 
 export function HeaderTools({
   profile,
-  calculation,
-  pay,
   onChange,
   className,
 }: {
   profile: StoredProfile;
-  calculation: PeriodCalculation;
-  pay: OvertimePayEstimate | null;
   onChange: (change: (previous: StoredProfile) => StoredProfile) => void;
   className?: string;
 }) {
@@ -125,12 +119,7 @@ export function HeaderTools({
           </span>
         }
       >
-        <SettingsPanel
-          profile={profile}
-          calculation={calculation}
-          pay={pay}
-          onChange={onChange}
-        />
+        <SettingsPanel profile={profile} onChange={onChange} />
       </Modal>
     </>
   );

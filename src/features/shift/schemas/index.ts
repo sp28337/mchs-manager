@@ -10,8 +10,6 @@ export type {
   AbsenceKind,
   CalloutKind,
   AccountingPeriodKind,
-  EmploymentKind,
-  Gender,
   GuardNumber,
   WeeklyNorm,
   WorkingConditions,
@@ -25,24 +23,8 @@ import type {
   AbsenceKind,
   CalloutKind,
   AccountingPeriodKind,
-  EmploymentKind,
-  Gender,
-  WorkingConditions,
 } from "../domain/value-objects";
 import type { DayType } from "../domain/production-calendar";
-
-export const EMPLOYMENT_LABELS: Record<EmploymentKind, string> = {
-  attested: "Аттестованный сотрудник ФПС ГПС",
-  civilian: "Вольнонаёмный работник",
-};
-
-/** Чем различие важно — а не просто как называется. */
-export const EMPLOYMENT_HINT: Record<EmploymentKind, string> = {
-  attested:
-    "Служба по ФЗ-141. Режим сменной службы — Приказ МЧС России от 24.04.2026 № 308.",
-  civilian:
-    "Работа по трудовому договору. Режим сменной работы — Приказ МЧС России от 24.04.2026 № 307.",
-};
 
 export const ACCOUNTING_PERIOD_LABELS: Record<AccountingPeriodKind, string> = {
   quarter: "квартал",
@@ -50,15 +32,9 @@ export const ACCOUNTING_PERIOD_LABELS: Record<AccountingPeriodKind, string> = {
   year: "год",
 };
 
-export const GENDER_LABELS: Record<Gender, string> = {
-  male: "Мужской",
-  female: "Женский",
-};
-
-export const CONDITIONS_LABELS: Record<WorkingConditions, string> = {
-  normal: "Обычные",
-  harmful_or_dangerous: "Вредные (3-4 степень) или опасные",
-};
+/* Подписи условий труда исчезли вместе с вопросом о них: условия больше не
+   спрашиваются отдельным полем, а следуют из выбранного основания нормы
+   (`WEEKLY_NORM_GROUND_LABELS` в домене). */
 
 export const ABSENCE_LABELS: Record<AbsenceKind, string> = {
   annual_leave: "Отпуск",

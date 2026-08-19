@@ -5,20 +5,18 @@ import { useId, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select } from "@/components/ui/select";
 import { cn } from "@/lib/utils/cn";
 
 import { DEFAULT_SHIFT_START, parseTimeOfDay } from "../domain/shift-hours";
 import { TimeField } from "./time-field";
 import { createProfile, importProfile, type StoredProfile } from "../storage/profile";
 import {
-  CONDITIONS_LABELS,
-  EMPLOYMENT_HINT,
-  EMPLOYMENT_LABELS,
-  GENDER_LABELS,
-  type EmploymentKind,
-  type Gender,
-  type WorkingConditions,
-} from "../schemas";
+  WEEKLY_NORM_GROUNDS,
+  WEEKLY_NORM_GROUND_LABELS,
+  type WeeklyNormGround,
+} from "../domain/value-objects";
+import { weeklyNormGroundFacts } from "../model/derive";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 
 /**
@@ -63,29 +61,17 @@ export interface RegisterFormProps {
 }
 
 export function RegisterForm({ onCreated }: RegisterFormProps) {
-  const [employment, setEmployment] = useState<EmploymentKind>("attested");
-  const [gender, setGender] = useState<Gender>("male");
-  const [conditions, setConditions] = useState<WorkingConditions>("normal");
-  const [northern, setNorthern] = useState(false);
-  const [disability, setDisability] = useState(false);
+  const [ground, setGround] = useState<WeeklyNormGround>("base");
   const [guard, setGuard] = useState(1);
   const [firstShiftDay, setFirstShiftDay] = useState(1);
   const [startTime, setStartTime] = useState(DEFAULT_SHIFT_START);
   const [error, setError] = useState<string | null>(null);
 
   const nameId = useId();
+  const normId = useId();
   const yearId = useId();
   const startId = useId();
 
-  // Северное сокращение спрашивается только у женщин: оба приказа
-  // (№ 308 п. 1 и № 307 п. 4) говорят именно о них. Задать вопрос
-  // мужчине значило бы спросить о том, что ни на что не повлияет.
-  const northernApplies = gender === "female";
-
-  // Инвалидность I или II группы даёт 35 часов только работнику
-  // (Приказ № 307 п. 5). Приказ № 308 такого пункта не знает: службу в
-  // ФПС ГПС инвалид I или II группы не проходит.
-  const disabilityApplies = employment === "civilian";
 
   function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -93,7 +79,7 @@ export function RegisterForm({ onCreated }: RegisterFormProps) {
     const year = Number(form.get("year") ?? CURRENT_YEAR);
 
     if (parseTimeOfDay(startTime) === null) {
-      setError("Время развода — в формате ЧЧ:ММ, например 08:30.");
+      setError("Время развода — в формате ЧЧ:ММ, например 08:00.");
       return;
     }
 
@@ -102,11 +88,9 @@ export function RegisterForm({ onCreated }: RegisterFormProps) {
       onCreated(
         createProfile({
           displayName: String(form.get("displayName") ?? "").trim() || "Пожарный",
-          employmentKind: employment,
-          gender,
-          workingConditions: conditions,
-          northernLocality: northernApplies && northern,
-          disabilityGroupIorII: disabilityApplies && disability,
+          // Норма приходит одним ответом: человек выбрал основание, а
+          // признаки, которые из него следуют, расставлены по профилю здесь.
+          ...weeklyNormGroundFacts(ground),
           guardNumber: guard,
           firstShiftDate: `${year}-01-0${firstShiftDay}`,
           shiftStartTime: startTime,
@@ -143,71 +127,42 @@ export function RegisterForm({ onCreated }: RegisterFormProps) {
             </p>
           </div>
 
-          <Choice
-            legend="Кто вы"
-            value={employment}
-            options={["attested", "civilian"] as const}
-            labels={EMPLOYMENT_LABELS}
-            hints={EMPLOYMENT_HINT}
-            onChange={setEmployment}
-          />
+          {/* Одно поле вместо четырёх.
+              -------------------------------------------------------------
+              Раньше здесь спрашивали, сотрудник человек или работник,
+              мужчина или женщина, каковы условия труда и есть ли
+              инвалидность, — и по четырём ответам приложение РЕШАЛО за
+              него, какая у него норма. Решение это не всегда верное (круг
+              северных местностей у сотрудника шире), а ошибка в нём тихая:
+              подставляется другое число, и человек об этом не узнаёт.
 
-          <Choice
-            legend="Пол"
-            value={gender}
-            options={["male", "female"] as const}
-            labels={GENDER_LABELS}
-            onChange={setGender}
-            hint="Влияет в одном случае: женщинам на Крайнем Севере и в приравненных местностях положена 36-часовая неделя (Приказ № 308 п. 1, Приказ № 307 п. 4)."
-          />
-
-          <Choice
-            legend="Условия службы или труда"
-            value={conditions}
-            options={["normal", "harmful_or_dangerous"] as const}
-            labels={CONDITIONS_LABELS}
-            onChange={setConditions}
-            hint="По результатам специальной оценки. Вредные 3-4 степени или опасные дают 36 часов в неделю вместо 40 (Приказ № 308 п. 1, Приказ № 307 п. 6)."
-          />
-
-          {northernApplies ? (
-            <label className="flex max-w-md items-start gap-2 text-sm cursor-pointer">
-              <input
-                type="checkbox"
-                checked={northern}
-                onChange={(event) => setNorthern(event.target.checked)}
-                className="mt-1"
-              />
-              <span>
-                {employment === "attested"
-                  ? "Служу в районе Крайнего Севера, приравненной или иной местности с неблагоприятными условиями"
-                  : "Работаю в районе Крайнего Севера или приравненной местности"}
-                <span className="block text-xs text-ink-muted">
-                  {employment === "attested"
-                    ? "Приказ МЧС России № 308 п. 1 (ч. 4 ст. 54 ФЗ-141): 36 часов в неделю. Круг местностей шире, чем в Трудовом кодексе, — в него входят и отдалённые."
-                    : "Приказ МЧС России № 307 п. 4 (ст. 320 ТК РФ): 36 часов в неделю."}
-                </span>
-              </span>
-            </label>
-          ) : null}
-
-          {disabilityApplies ? (
-            <label className="flex max-w-md items-start gap-2 text-sm cursor-pointer">
-              <input
-                type="checkbox"
-                checked={disability}
-                onChange={(event) => setDisability(event.target.checked)}
-                className="mt-1"
-              />
-              <span>
-                Инвалидность I или II группы
-                <span className="block text-xs text-ink-muted">
-                  Приказ МЧС России № 307 п. 5 (абз. 4 ч. 1 ст. 92 ТК РФ): 35 часов
-                  в неделю — самая короткая из возможных норм.
-                </span>
-              </span>
-            </label>
-          ) : null}
+              Норму человек знает из своего приказа. Поэтому вопрос теперь
+              прямой, а приложение отвечает основанием — статьёй, которой
+              выбор можно подтвердить. */}
+          <div className="space-y-1.5">
+            <Label htmlFor={normId}>Норма часов в неделю</Label>
+            <Select
+              id={normId}
+              value={ground}
+              onChange={(event) => setGround(event.target.value as WeeklyNormGround)}
+              aria-describedby={`${normId}-hint`}
+            >
+              {WEEKLY_NORM_GROUNDS.map((option) => (
+                <option key={option} value={option}>
+                  {WEEKLY_NORM_GROUND_LABELS[option]}
+                </option>
+              ))}
+            </Select>
+            <p id={`${normId}-hint`} className="max-w-md text-xs text-ink-muted">
+              Норма периода считается из недельной (ст. 104 ТК РФ), и ошибка
+              здесь меняет весь расчёт. Сорок часов — общий случай; тридцать
+              шесть дают вредные 3-4 степени либо опасные условия (Приказ
+              № 308 п. 1, № 307 п. 6) и работа в районах Крайнего Севера,
+              приравненных и других местностях с неблагоприятными условиями
+              (№ 308 п. 1, № 307 п. 4); тридцать пять — инвалидность I или II
+              группы (абз. 4 ч. 1 ст. 92 ТК РФ).
+            </p>
+          </div>
 
           <fieldset className="space-y-2">
             <legend className="font-display text-xs font-bold uppercase tracking-wide text-ink-muted">
@@ -365,51 +320,5 @@ function ImportBlock({ onImported }: { onImported: (profile: StoredProfile) => v
         </span>
       </div>
     </section>
-  );
-}
-
-function Choice<T extends string>({
-  legend,
-  value,
-  options,
-  labels,
-  hints,
-  hint,
-  onChange,
-}: {
-  legend: string;
-  value: T;
-  options: readonly T[];
-  labels: Record<T, string>;
-  hints?: Record<T, string>;
-  hint?: string;
-  onChange: (next: T) => void;
-}) {
-  return (
-    <fieldset className="space-y-2">
-      <legend className="font-display text-xs font-bold uppercase tracking-wide text-ink-muted">
-        {legend}
-      </legend>
-      <div className="space-y-2">
-        {options.map((option) => (
-          <label key={option} className="flex max-w-md items-start gap-2 text-sm cursor-pointer">
-            <input
-              type="radio"
-              name={legend}
-              checked={value === option}
-              onChange={() => onChange(option)}
-              className="mt-1"
-            />
-            <span>
-              {labels[option]}
-              {hints ? (
-                <span className="block text-xs text-ink-muted">{hints[option]}</span>
-              ) : null}
-            </span>
-          </label>
-        ))}
-      </div>
-      {hint ? <p className="max-w-md text-xs text-ink-muted">{hint}</p> : null}
-    </fieldset>
   );
 }

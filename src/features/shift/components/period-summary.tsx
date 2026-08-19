@@ -13,7 +13,6 @@ import {
   formatDays as days,
   type Decimal,
 } from "../domain/decimal";
-import { formatMoneyAmount } from "../domain/overtime-pay";
 import { pendingTransfers } from "../domain/production-calendar";
 import type { PeriodCalculation } from "../domain/calculation";
 
@@ -60,12 +59,10 @@ import type { PeriodCalculation } from "../domain/calculation";
 export function PeriodSummary({
   calculation,
   accountingYear,
-  payTotal,
   periodLabel,
 }: {
   calculation: PeriodCalculation;
   accountingYear: number;
-  payTotal?: Decimal | null;
   periodLabel: string;
 }) {
   // Широкий экран показывает всё сразу; на узком остаются три главных
@@ -91,7 +88,6 @@ export function PeriodSummary({
           координат для `absolute` внутри себя. */}
         {/* <PeriodExtras
           calculation={calculation}
-          payTotal={payTotal}
           periodLabel={periodLabel}
           wide={wide}
         /> */}
@@ -104,7 +100,6 @@ export function PeriodSummary({
         <div className="flex items-end gap-x-6 bg-paper px-6 pb-3">
           <PeriodFigures
             calculation={calculation}
-            payTotal={payTotal}
             periodLabel={periodLabel}
             showAll={showAll}
           />
@@ -124,9 +119,9 @@ export function PeriodSummary({
  * --- Почему по замеру, а не по ширине экрана ------------------------------
  *
  * Строка главных чисел не одной ширины: недоработка появляется не всегда,
- * выплата — только с окладом, а сами числа бывают четырёхзначными. Любой
- * порог вроде «показывать с 1280» на одном профиле оставил бы пустоту, а
- * на другом полез бы за край.
+ * подпись периода бывает и «2026 год», и «1-е полугодие», а сами числа
+ * бывают четырёхзначными. Любой порог вроде «показывать с 1280» на одном
+ * профиле оставил бы пустоту, а на другом полез бы за край.
  *
  * Поэтому решает не экран, а свободное место: остаток строки измеряется
  * наблюдателем размера, и итоги показываются, когда помещаются целиком с
@@ -218,20 +213,17 @@ function Minor({
 /**
  * Числа: даты периода и главные величины.
  *
- * На узком экране остаются три числа — норма, факт, переработка. Сутки,
- * деньги и сами даты уходят в строку мелких итогов под ними: полоса
- * обязана оставаться тонкой, а прятать их за кнопку значило бы требовать
- * нажатия там, где хватает взгляда строкой ниже.
+ * На узком экране остаются три числа — норма, факт, переработка. Сутки и
+ * сами даты уходят в строку мелких итогов под ними: полоса обязана
+ * оставаться тонкой, а прятать их за кнопку значило бы требовать нажатия
+ * там, где хватает взгляда строкой ниже.
  */
 function PeriodFigures({
   calculation,
-  payTotal,
   periodLabel,
   showAll,
 }: {
   calculation: PeriodCalculation;
-  /** Деньги за переработку, если человек указал оклад. */
-  payTotal?: Decimal | null;
   /** Даты периода словами: в споре важно, за какие именно числа расчёт. */
   periodLabel: string;
   /** Показывать ли всё, а не только три главных числа. */
@@ -282,15 +274,7 @@ function PeriodFigures({
             />
           </div>
         ) : null}
-        {showAll && overtime && payTotal ? (
-          <Figure
-            value={formatMoneyAmount(payTotal)}
-            unit="₽"
-            caption="Выплата (до НДФЛ)"
-            tone="verify"
-          />
-        ) : null}
-        
+                
       </dl>
     </div>
   );
@@ -301,19 +285,17 @@ function PeriodFigures({
  *
  * Одной строкой, как подпись месяца в календаре: пять подписанных
  * столбиков занимали две строки там, где хватает одной. На узком экране
- * сюда же приходят даты периода, сутки и деньги — всё, что не влезло в
- * первую строку.
+ * сюда же приходят даты периода и сутки — всё, что не влезло в первую
+ * строку.
  */
 // function PeriodExtras({
 //   calculation,
-//   payTotal,
 //   periodLabel,
 //   wide,
 // }: {
 //   calculation: PeriodCalculation;
-//   payTotal?: Decimal | null;
 //   periodLabel: string;
-//   /** На широком экране даты и деньги уже стоят числами выше. */
+//   /** На широком экране даты уже стоят числами выше. */
 //   wide: boolean;
 // }) {
 //   const overtime = calculation.overtimeHours.greaterThan(0);
@@ -322,9 +304,6 @@ function PeriodFigures({
 //       <p className="flex flex-wrap items-center gap-x-1.5 -translate-y-7.5 gap-y-1 text-xs text-ink-muted">
 //         {/* {!wide && overtime ? (
 //           <Stat value={`≈ ${days(calculation.overtimeHours)}`} label="в сутках" />
-//         ) : null}
-//         {!wide && overtime && payTotal ? (
-//           <Stat value={`${formatMoneyAmount(payTotal)} ₽`} label="выплата до НДФЛ" />
 //         ) : null} */}
 //         <Stat value={String(calculation.scheduledShifts)} label="смен по графику" />
 //         <Stat value={String(calculation.workedShifts)} label="отработано" />

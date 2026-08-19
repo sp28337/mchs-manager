@@ -96,8 +96,6 @@ const reportedSchema = z.object({
 export const storedProfileSchema = z.object({
   schemaVersion: z.literal(SCHEMA_VERSION),
   displayName: z.string().min(1).max(200),
-  employmentKind: z.enum(["attested", "civilian"]),
-  gender: z.enum(["male", "female"]),
   workingConditions: z.enum(["normal", "harmful_or_dangerous"]),
   northernLocality: z.boolean(),
   disabilityGroupIorII: z.boolean(),
@@ -115,23 +113,14 @@ export const storedProfileSchema = z.object({
     .string()
     .regex(/^([01]\d|2[0-3]):[0-5]\d$/, "время в формате ЧЧ:ММ")
     .default(DEFAULT_SHIFT_START),
-  /**
-   * Месячная база для расчёта денег за переработку, в рублях, строкой.
-   *
-   * Строкой по той же причине, что и часы: число с плавающей точкой в
-   * JSON превращает 30000.50 в 30000.499999999996 за один круг записи и
-   * чтения, а речь о деньгах.
-   *
-   * Пустая строка — «не указано», и это рабочее состояние: блок с
-   * суммой просто не показывается. Что именно сюда кладут, зависит от
-   * категории — должностной оклад сотрудника или заработная плата
-   * работника вместе с выплатами; знание об этом живёт в интерфейсе и в
-   * `domain/overtime-pay.ts`, а не в схеме хранения.
-   *
-   * Необязательное с умолчанием: профили, сохранённые до появления
-   * расчёта денег, обязаны читаться как есть.
-   */
-  monthlyPayBase: z.string().max(20).default(""),
+  /* Здесь стояли `employmentKind`, `gender` и `monthlyPayBase` — статус,
+     пол и месячная база для расчёта выплаты. Все три ушли вместе с
+     расчётом денег и с вопросами, по которым приложение РЕШАЛО за
+     человека его норму.
+
+     Схема нестрогая, и это ровно тот случай, ради которого: профили,
+     сохранённые до удаления, читаются как есть — лишние ключи молча
+     отбрасываются, и год внесённых отпусков переносить заново не нужно. */
   accountingYear: z.number().int().min(2000).max(2100),
   absences: z.array(absenceSchema).max(200),
   /** Необязательное с умолчанием: профили, сохранённые до появления
@@ -174,8 +163,6 @@ export type ReportedFigures = z.infer<typeof reportedSchema>;
 
 export interface NewProfileInput {
   displayName: string;
-  employmentKind: StoredProfile["employmentKind"];
-  gender: StoredProfile["gender"];
   workingConditions: StoredProfile["workingConditions"];
   northernLocality: boolean;
   disabilityGroupIorII: boolean;
@@ -193,7 +180,6 @@ export function createProfile(input: NewProfileInput): StoredProfile {
     // по определению цикла, и спрашивать год вдобавок значило бы дать
     // возможность их рассогласовать.
     accountingYear: Number(input.firstShiftDate.slice(0, 4)),
-    monthlyPayBase: "",
     absences: [],
     callouts: [],
     calendarOverrides: {},

@@ -15,8 +15,6 @@ import { deriveWeeklyNorm } from "./value-objects";
 import { addDays, weekday, type IsoDate } from "./plain-date";
 
 const WEEKLY = deriveWeeklyNorm({
-  employment: "attested",
-  gender: "male",
   conditions: "normal",
   northernLocality: false,
 });

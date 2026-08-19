@@ -11,7 +11,6 @@ import {
   calculateFor,
   liveBounds,
   monthBounds,
-  overtimePayFor,
   statutoryBounds,
 } from "../model/derive";
 import type { StoredProfile } from "../storage/profile";
@@ -37,7 +36,7 @@ import {
  * --- Что стоит в боковой колонке и почему именно это --------------------
  *
  * Слева — ВВОД, справа — ВЫВОД. Слева человек говорит приложению, что он
- * знает: какой период смотрим, какой у него оклад, когда он был в отпуске,
+ * знает: какой период смотрим, какая у него норма, когда он был в отпуске,
  * куда его вызывали и что написано в выданном табеле. Справа приложение
  * отвечает: вот норма, вот график, вот производственный календарь.
  *
@@ -101,7 +100,7 @@ export interface WorkspaceProps {
 }
 
 export function Workspace({ profile, onChange, onForget }: WorkspaceProps) {
-  const periods = accountingPeriodsOf(profile);
+  const periods = accountingPeriodsOf();
 
   // Умолчание — учётный период целиком: именно по его итогу определяется
   // переработка (ст. 104 ТК РФ), и открывать экран на месяце значило бы
@@ -135,7 +134,6 @@ export function Workspace({ profile, onChange, onForget }: WorkspaceProps) {
     [profile, periodStart, periodEnd],
   );
 
-  const pay = useMemo(() => overtimePayFor(profile, calculation), [profile, calculation]);
 
   // Что показано на сетке года. Живёт здесь, а не в самой сетке, потому
   // что от этого зависят заголовок и подпись раздела вокруг неё.
@@ -156,12 +154,7 @@ export function Workspace({ profile, onChange, onForget }: WorkspaceProps) {
       <SiteHeader
         tagline={`${profile.accountingYear} год / ${profile.guardNumber}-й караул`}
         tools={
-          <HeaderTools
-            profile={profile}
-            calculation={calculation}
-            pay={pay}
-            onChange={onChange}
-          />
+          <HeaderTools profile={profile} onChange={onChange} />
         }
       />
 
@@ -182,7 +175,6 @@ export function Workspace({ profile, onChange, onForget }: WorkspaceProps) {
       <PeriodSummary
         calculation={calculation}
         accountingYear={profile.accountingYear}
-        payTotal={pay?.primary.total ?? null}
         periodLabel={formatPeriodRu(periodStart, periodEnd)}
       />
 

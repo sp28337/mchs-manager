@@ -15,17 +15,11 @@ import {
   type CalloutPeriod,
   type PeriodCalculation,
 } from "../domain/calculation";
-import {
-  calculateOvertimePay,
-  parseMoney,
-  type OvertimePayEstimate,
-} from "../domain/overtime-pay";
 import { calendarFactsFor, type DayType } from "../domain/production-calendar";
 import { addDays, type IsoDate } from "../domain/plain-date";
 import {
   ACCOUNTING_PERIODS,
   deriveWeeklyNorm,
-  weeklyNormGroundApplies,
   weeklyNormGroundOf,
   weeklyNormGroundToFacts,
   type AccountingPeriodKind,
@@ -39,15 +33,12 @@ import { overridesOf, type StoredProfile } from "../storage/profile";
 /**
  * Профиль на языке домена.
  *
- * Хранилище называет поля своими именами (`employmentKind`,
- * `workingConditions`), домен — своими. Перевод собран здесь один раз,
- * потому что нужен уже трижды: для нормы, для её основания и для проверки,
- * какие основания человеку вообще доступны.
+ * Хранилище называет поля своими именами (`workingConditions`), домен —
+ * своими. Перевод собран здесь один раз, потому что нужен дважды: для
+ * нормы и для её основания.
  */
 export function weeklyNormInputOf(profile: StoredProfile): WeeklyNormInput {
   return {
-    employment: profile.employmentKind,
-    gender: profile.gender,
     conditions: profile.workingConditions,
     northernLocality: profile.northernLocality,
     disabilityGroupIorII: profile.disabilityGroupIorII,
@@ -89,26 +80,10 @@ export function weeklyNormGroundOfProfile(profile: StoredProfile): WeeklyNormGro
   return weeklyNormGroundOf(weeklyNormInputOf(profile));
 }
 
-/** Доступно ли основание этому человеку. */
-export function weeklyNormGroundAvailable(
-  ground: WeeklyNormGround,
-  profile: StoredProfile,
-): boolean {
-  return weeklyNormGroundApplies(ground, weeklyNormInputOf(profile));
-}
 
-/**
- * Учётные периоды, разрешённые приказом именно этому человеку.
- *
- * Квартал предлагается только работникам (Приказ № 307 п. 7); сотруднику
- * Приказ № 308 п. 2 оставляет полугодие или год. Показывать сотруднику
- * квартал значило бы предлагать период, в котором его переработку считать
- * нельзя, — а именно по итогу учётного периода она и определяется.
- */
-export function accountingPeriodsOf(
-  profile: StoredProfile,
-): readonly AccountingPeriodKind[] {
-  return ACCOUNTING_PERIODS[profile.employmentKind];
+/** Учётные периоды: все три, выбор за человеком. */
+export function accountingPeriodsOf(): readonly AccountingPeriodKind[] {
+  return ACCOUNTING_PERIODS;
 }
 
 export function calloutPeriodsOf(profile: StoredProfile): CalloutPeriod[] {
@@ -171,43 +146,6 @@ export function calculateFor(
   });
 }
 
-/**
- * Деньги за переработку периода, если человек указал базу.
- *
- * Норма берётся ГОДОВАЯ, а не за период: часовая ставка по п. 105 приказа
- * № 539 считается «по производственному календарю на данный календарный
- * год». При полугодовом учётном периоде подстановка нормы периода удвоила
- * бы ставку — и сумму вместе с ней.
- *
- * Правки календаря, внесённые человеком, в годовую норму попадают: если
- * он проставил перенос выходных, ставка обязана считаться по тому же
- * календарю, что и всё остальное.
- */
-export function overtimePayFor(
-  profile: StoredProfile,
-  calculation: PeriodCalculation,
-): OvertimePayEstimate | null {
-  const base = parseMoney(profile.monthlyPayBase);
-  if (base === null) return null;
-
-  const year = profile.accountingYear;
-  const yearFacts = calendarFactsFor(
-    `${year}-01-01` as IsoDate,
-    `${year + 1}-01-01` as IsoDate,
-    overridesByYear(profile),
-  );
-
-  return calculateOvertimePay({
-    employment: profile.employmentKind,
-    base: { amount: base },
-    annualNormHours: baseNormHours(weeklyNormOf(profile), {
-      workingDays: yearFacts.workingDays,
-      preHolidayDays: yearFacts.preHolidayDays,
-    }),
-    workingDaysInPeriod: calculation.calendar.workingDays,
-    overtimeHours: calculation.overtimeHours,
-  });
-}
 
 const pad = (value: number) => String(value).padStart(2, "0");
 

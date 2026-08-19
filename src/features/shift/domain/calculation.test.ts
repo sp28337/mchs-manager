@@ -40,8 +40,6 @@ const MARCH_WORKING: ReadonlySet<IsoDate> = new Set(
 
 function norm(overrides: Partial<WeeklyNormInput> = {}): WeeklyNorm {
   return deriveWeeklyNorm({
-    employment: "attested",
-    gender: "male",
     conditions: "normal",
     northernLocality: false,
     ...overrides,
@@ -56,58 +54,42 @@ describe("недельная норма", () => {
     expect(norm().basis).toContain("308");
   });
 
-  test("вредность даёт тридцать шесть и служащему, и работнику", () => {
-    // Сокращает неделю обоим, но по разным пунктам, и основание обязано
-    // это различать: человек понесёт его начальнику.
-    const attested = norm({ conditions: "harmful_or_dangerous" });
-    const civilian = norm({ employment: "civilian", conditions: "harmful_or_dangerous" });
+  test("вредность даёт тридцать шесть по обоим приказам", () => {
+    // Сокращает неделю и сотруднику, и работнику, но по разным пунктам, и
+    // основание обязано называть оба: приложение больше не знает, кто из
+    // них человек, а он понесёт эту ссылку начальнику.
+    const harmful = norm({ conditions: "harmful_or_dangerous" });
 
-    expect(attested.hours.toString()).toBe("36");
-    expect(civilian.hours.toString()).toBe("36");
-    expect(attested.basis).toContain("308");
-    expect(attested.basis).toContain("ФЗ-141");
-    expect(civilian.basis).toContain("307");
-    expect(civilian.basis).toContain("92 ТК РФ");
+    expect(harmful.hours.toString()).toBe("36");
+    expect(harmful.basis).toContain("308");
+    expect(harmful.basis).toContain("ФЗ-141");
+    expect(harmful.basis).toContain("307");
+    expect(harmful.basis).toContain("92 ТК РФ");
   });
 
-  test("северянки получают тридцать шесть по обоим приказам", () => {
-    // Приказ № 308 п. 1 даёт сокращение и СОТРУДНИЦАМ — по ч. 4 ст. 54
-    // ФЗ-141, а не только работницам по ст. 320 ТК РФ.
-    const attested = norm({ gender: "female", northernLocality: true });
-    const civilian = norm({
-      employment: "civilian",
-      gender: "female",
-      northernLocality: true,
-    });
+  test("северное основание даёт тридцать шесть по обоим приказам", () => {
+    // Приказ № 308 п. 1 сокращает неделю по ч. 4 ст. 54 ФЗ-141, Приказ
+    // № 307 п. 4 — по ст. 320 ТК РФ. Круг местностей у них разный (у
+    // сотрудника шире и включает отдалённые), поэтому решает не приложение,
+    // а сам человек: он выбрал основание, приложение назвало статьи.
+    const northern = norm({ northernLocality: true });
 
-    expect(attested.hours.toString()).toBe("36");
-    expect(civilian.hours.toString()).toBe("36");
-    expect(attested.basis).toContain("ч. 4 ст. 54 ФЗ-141");
-    expect(civilian.basis).toContain("320 ТК РФ");
+    expect(northern.hours.toString()).toBe("36");
+    expect(northern.basis).toContain("ч. 4 ст. 54 ФЗ-141");
+    expect(northern.basis).toContain("320 ТК РФ");
   });
 
-  test("северное сокращение не распространяется на мужчин", () => {
-    // Оба приказа говорят о женщинах. Распространить сокращение на всех
-    // значило бы занизить норму — то есть выдумать переработку.
-    expect(norm({ gender: "male", northernLocality: true }).hours.toString()).toBe("40");
-  });
-
-  test("инвалидность даёт тридцать пять и только работникам", () => {
-    const civilian = norm({ employment: "civilian", disabilityGroupIorII: true });
-    expect(civilian.hours.toString()).toBe("35");
-    expect(civilian.basis).toContain("307 п. 5");
-
-    // Приказ № 308 такого пункта не содержит, и это не пробел: службу в
-    // ФПС ГПС инвалид I или II группы не проходит.
-    const attested = norm({ employment: "attested", disabilityGroupIorII: true });
-    expect(attested.hours.toString()).toBe("40");
+  test("инвалидность даёт тридцать пять", () => {
+    const disabled = norm({ disabilityGroupIorII: true });
+    expect(disabled.hours.toString()).toBe("35");
+    expect(disabled.basis).toContain("307 п. 5");
+    expect(disabled.basis).toContain("92 ТК РФ");
   });
 
   test("инвалидность сильнее вредности", () => {
-    // 35 короче 36. Проверь вредность первой — и работник с инвалидностью
+    // 35 короче 36. Проверь вредность первой — и человек с инвалидностью
     // во вредных условиях получил бы 36 вместо 35.
     const both = norm({
-      employment: "civilian",
       disabilityGroupIorII: true,
       conditions: "harmful_or_dangerous",
     });
@@ -117,8 +99,6 @@ describe("недельная норма", () => {
   test("сокращения не складываются", () => {
     // Два основания по 36 часов дают 36, а не 32.
     const both = norm({
-      employment: "civilian",
-      gender: "female",
       northernLocality: true,
       conditions: "harmful_or_dangerous",
     });
