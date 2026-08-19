@@ -67,12 +67,25 @@ import { TimeField } from "./time-field";
 
 const GUARDS = [1, 2, 3, 4] as const;
 
+/**
+ * Зачем открыта панель.
+ *
+ * `settings` — правка живого профиля. `create` — первое заполнение, из окна
+ * «Создать профиль»: вопросы те же, а вот два тумблера сверху — нет. Они
+ * меняют не расчёт, а то, каким его показать, и человеку, который ещё не
+ * видел ни одного числа, отвечать на них нечем: «расчёт идёт за весь
+ * выбранный период» сказано о периоде, которого пока не существует.
+ */
+export type SettingsPanelPurpose = "settings" | "create";
+
 export function SettingsPanel({
   profile,
   onChange,
+  purpose = "settings",
 }: {
   profile: StoredProfile;
   onChange: (change: (previous: StoredProfile) => StoredProfile) => void;
+  purpose?: SettingsPanelPurpose;
 }) {
   const nameId = useId();
   const normId = useId();
@@ -84,33 +97,38 @@ export function SettingsPanel({
 
   return (
     <div className="space-y-4">
-      {/* Режим стоит первым: он меняет не одну величину, а то, за какой
-          отрезок считается всё остальное. */}
-      <div className="space-y-1.5 border-b border-rule pb-4">
-        <LiveModeSwitch profile={profile} onChange={onChange} />
-        <p className="text-xs text-ink-muted">
-          {profile.liveMode
-            ? "Расчёт идёт с начала периода по сегодняшний день."
-            : "Расчёт идёт за весь выбранный период целиком."}
-        </p>
-      </div>
+      {purpose === "settings" ? (
+        <>
+          {/* Режим стоит первым: он меняет не одну величину, а то, за какой
+              отрезок считается всё остальное. */}
+          <div className="space-y-1.5 border-b border-rule pb-4">
+            <LiveModeSwitch profile={profile} onChange={onChange} />
+            <p className="text-xs text-ink-muted">
+              {profile.liveMode
+                ? "Расчёт идёт с начала периода по сегодняшний день."
+                : "Расчёт идёт за весь выбранный период целиком."}
+            </p>
+          </div>
 
-      {/* Мера переработки — рядом с режимом, а не среди вопросов о человеке:
-          и то и другое меняет не расчёт, а то, каким его показать. */}
-      <div className="space-y-1.5 border-b border-rule pb-4">
-        <Switch
-          checked={profile.overtimeInDays}
-          onChange={(overtimeInDays) =>
-            onChange((previous) => ({ ...previous, overtimeInDays }))
-          }
-          label="Переработка в сутках"
-        />
-        <p className="text-xs text-ink-muted">
-          {profile.overtimeInDays
-            ? "Показывается сменами и часами: «8 суток 20 ч». Сутки — это смена, 24 часа (Приказ № 308 п. 3, № 307 п. 8)."
-            : "Показывается часами: «212,0 ч»."}
-        </p>
-      </div>
+          {/* Мера переработки — рядом с режимом, а не среди вопросов о
+              человеке: и то и другое меняет не расчёт, а то, каким его
+              показать. */}
+          <div className="space-y-1.5 border-b border-rule pb-4">
+            <Switch
+              checked={profile.overtimeInDays}
+              onChange={(overtimeInDays) =>
+                onChange((previous) => ({ ...previous, overtimeInDays }))
+              }
+              label="Переработка в сутках"
+            />
+            <p className="text-xs text-ink-muted">
+              {profile.overtimeInDays
+                ? "Показывается сменами и часами: «8 суток 20 ч». Сутки — это смена, 24 часа (Приказ № 308 п. 3, № 307 п. 8)."
+                : "Показывается часами: «212,0 ч»."}
+            </p>
+          </div>
+        </>
+      ) : null}
 
       <Field
         id={nameId}
@@ -125,6 +143,9 @@ export function SettingsPanel({
         <Input
           id={nameId}
           maxLength={200}
+          // Подсказка в поле нужна не настройкам, а окну «Создать профиль»:
+          // там оно пустое, и человек видит, чего от него хотят.
+          placeholder="Например: Сергей Генадьевич"
           value={profile.displayName}
           onChange={(event) => {
             const displayName = event.target.value;

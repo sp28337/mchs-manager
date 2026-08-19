@@ -3,68 +3,49 @@
 import { useId, useState } from "react";
 
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select } from "@/components/ui/select";
+import { Modal } from "@/components/ui/modal";
+import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { cn } from "@/lib/utils/cn";
 
-import { DEFAULT_SHIFT_START, parseTimeOfDay } from "../domain/shift-hours";
-import { todayIso, type IsoDate } from "../domain/plain-date";
-import { DateField } from "./date-field";
-import { TimeField } from "./time-field";
-import { createProfile, importProfile, type StoredProfile } from "../storage/profile";
-import {
-  WEEKLY_NORM_GROUNDS,
-  WEEKLY_NORM_GROUND_LABELS,
-  type WeeklyNormGround,
-} from "../domain/value-objects";
+import { DEFAULT_SHIFT_START } from "../domain/shift-hours";
+import { todayIso } from "../domain/plain-date";
 import { weeklyNormGroundFacts } from "../model/derive";
-import { ThemeToggle } from "@/components/ui/theme-toggle";
+import { createProfile, importProfile, type StoredProfile } from "../storage/profile";
+import { SettingsPanel } from "./settings-panel";
 
 /**
- * Регистрация.
+ * Экран без профиля: приглашение и окно с вопросами.
  *
- * --- Почему спрашивается именно это ------------------------------------
+ * --- Почему окно, а не страница с формой --------------------------------
  *
- * Каждое поле здесь меняет ЧИСЛО в расчёте, и ни одно не задано «для
- * анкеты»:
+ * Здесь была своя страница-анкета: те же вопросы, но собственной вёрсткой
+ * — караул кнопками, норма списком с абзацем пояснения под ним, время
+ * развода отдельным полем. Настройки спрашивают то же самое, и две формы
+ * на одни вопросы неизбежно расходятся: пояснение поправили в одной, а
+ * человек читает другую.
  *
- * * основание (служба или трудовой договор) решает, каким законом
- *   считается время;
- * * условия труда, пол в северной местности и инвалидность I-II группы
- *   сокращают неделю до 36 или 35 часов — это до 5 часов нормы в неделю,
- *   больше двухсот часов в год;
- * * караул и любая известная его смена задают график: без них неизвестно,
- *   в какие сутки человек заступал.
+ * Теперь вопросы одни, в одном компоненте (`SettingsPanel`), и открываются
+ * так же, как из шапки, — окном. Разница только в заголовке: «Создать
+ * профиль» вместо «Настройки», и внизу кнопка, которой профиль заводится.
  *
- * Ни фамилии в паспортном смысле, ни табельного номера, ни подразделения
- * не спрашивается: расчёту они не нужны, а собирать то, что не нужно, —
- * значит хранить чужие данные без причины.
+ * --- Почему окно открыто сразу ------------------------------------------
  *
- * --- Куда всё это уходит ------------------------------------------------
+ * Человек пришёл на страницу калькулятора: ему нужен расчёт, а расчёт
+ * начинается с ответов. Показать сначала страницу с кнопкой «заполнить»
+ * значило бы поставить лишнее нажатие перед единственным возможным
+ * действием.
  *
- * Никуда. Ответы записываются в хранилище браузера и остаются на этом
- * устройстве; сервера у приложения нет. Здесь спрашивают об инвалидности и
- * больничных — сведения о здоровье, — и отправлять их наружу означало бы
- * ровно тот риск, от которого человек сюда и пришёл.
+ * Закрыть окно при этом можно — за ним остаётся то, ради чего его стоит
+ * закрыть: возврат профиля из файла. Кнопка «Заполнить профиль» открывает
+ * окно снова.
  *
- * --- Почему дата смены, а не только номер караула -----------------------
+ * --- Почему черновик, а не поля по одному -------------------------------
  *
- * Номер караула сам по себе цикл не задаёт. В одной части первый караул
- * заступает 1 января, в другой — третьего, и «караул № 1» в них дежурит
- * в разные сутки. Дата заступления — единственное, что привязывает цикл к
- * календарю.
- *
- * --- Почему любая смена, а не первая в году ------------------------------
- *
- * Спрашивали первую смену года — одни из первых четырёх суток января, — и
- * человек отвечал не тем, что знает, а тем, что вычислил: отсчитывал
- * четвёрками назад от смены, которую помнит. Ошибка в этом отсчёте
- * сдвигает весь график на сутки, и заметна она не сразу.
- *
- * Цикл четырёхдневный и одинаков в обе стороны, поэтому любая известная
- * смена задаёт его целиком — хоть завтрашняя. Отсчёт назад делает
- * приложение.
+ * `SettingsPanel` правит профиль, а не набор полей. Поэтому здесь лежит
+ * готовый профиль с умолчаниями, панель правит его, а кнопка сохраняет.
+ * Заодно исчезает разнобой умолчаний: то, что подставлено в черновике, и
+ * есть то, что человек увидит в настройках потом.
  */
 
 const CURRENT_YEAR = new Date().getUTCFullYear();
@@ -73,46 +54,36 @@ export interface RegisterFormProps {
   onCreated: (profile: StoredProfile) => void;
 }
 
+/** Профиль, каким он будет, если человек не тронет ни одного поля. */
+function blankProfile(): StoredProfile {
+  return createProfile({
+    displayName: "",
+    // Норма приходит одним ответом: человек выбирает основание, а признаки,
+    // которые из него следуют, раскладываются по профилю здесь.
+    ...weeklyNormGroundFacts("base"),
+    guardNumber: 1,
+    // Сегодня — единственная дата, о которой точно известно, что человек её
+    // помнит. Свою смену он отмерит от неё.
+    firstShiftDate: todayIso(),
+    accountingYear: CURRENT_YEAR,
+    shiftStartTime: DEFAULT_SHIFT_START,
+  });
+}
+
 export function RegisterForm({ onCreated }: RegisterFormProps) {
-  const [ground, setGround] = useState<WeeklyNormGround>("base");
-  const [guard, setGuard] = useState(1);
-  // Умолчание — сегодня: это единственная дата, о которой точно известно,
-  // что человек её помнит. Свою смену он от неё и отмерит.
-  const [knownShift, setKnownShift] = useState<IsoDate>(todayIso());
-  const [startTime, setStartTime] = useState(DEFAULT_SHIFT_START);
+  const [draft, setDraft] = useState<StoredProfile>(blankProfile);
+  const [open, setOpen] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const nameId = useId();
-  const normId = useId();
-  const startId = useId();
-
-
-  function submit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const form = new FormData(event.currentTarget);
-
-    if (parseTimeOfDay(startTime) === null) {
-      setError("Время развода — в формате ЧЧ:ММ, например 08:00.");
-      return;
-    }
-
+  function submit() {
     setError(null);
     try {
-      onCreated(
-        createProfile({
-          displayName: String(form.get("displayName") ?? "").trim() || "Пожарный",
-          // Норма приходит одним ответом: человек выбрал основание, а
-          // признаки, которые из него следуют, расставлены по профилю здесь.
-          ...weeklyNormGroundFacts(ground),
-          guardNumber: guard,
-          firstShiftDate: knownShift,
-          // Год не спрашивается: заводят профиль, чтобы посмотреть текущий,
-          // а сменить его можно там, где на него и смотрят — в окне выбора
-          // периода над календарём.
-          accountingYear: CURRENT_YEAR,
-          shiftStartTime: startTime,
-        }),
-      );
+      // Пустое имя — не ошибка: обращение нужно человеку, а не расчёту, и
+      // отказывать в графике из-за незаполненной строки было бы придиркой.
+      onCreated({
+        ...draft,
+        displayName: draft.displayName.trim() || "Пожарный",
+      });
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Не удалось сохранить профиль.");
     }
@@ -121,133 +92,30 @@ export function RegisterForm({ onCreated }: RegisterFormProps) {
   return (
     <>
       <div className="space-y-8">
-        <form className="space-y-7" onSubmit={submit}>
-          {error ? (
-            <p className="rounded-sm border-l-2 border-signal bg-signal-soft px-4 py-3 text-sm">
-              {error}
-            </p>
-          ) : null}
-
-          <div className="space-y-1.5">
-            <Label htmlFor={nameId}>Как к вам обращаться</Label>
-            <Input
-              id={nameId}
-              name="displayName"
-              maxLength={200}
-              placeholder="Например: Сергей Генадьевич"
-              className="max-w-md"
-              aria-describedby={`${nameId}-hint`}
-            />
-            <p id={`${nameId}-hint`} className="max-w-md text-xs text-ink-muted">
-              Только для обращения. Фамилия, табельный номер и подразделение не
-              нужны — расчёт от них не зависит, и мы их не спрашиваем.
-            </p>
-          </div>
-
-          {/* Одно поле вместо четырёх.
-              -------------------------------------------------------------
-              Раньше здесь спрашивали, сотрудник человек или работник,
-              мужчина или женщина, каковы условия труда и есть ли
-              инвалидность, — и по четырём ответам приложение РЕШАЛО за
-              него, какая у него норма. Решение это не всегда верное (круг
-              северных местностей у сотрудника шире), а ошибка в нём тихая:
-              подставляется другое число, и человек об этом не узнаёт.
-
-              Норму человек знает из своего приказа. Поэтому вопрос теперь
-              прямой, а приложение отвечает основанием — статьёй, которой
-              выбор можно подтвердить. */}
-          <div className="space-y-1.5">
-            <Label htmlFor={normId}>Норма часов в неделю</Label>
-            <Select
-              id={normId}
-              value={ground}
-              onChange={(event) => setGround(event.target.value as WeeklyNormGround)}
-              aria-describedby={`${normId}-hint`}
-            >
-              {WEEKLY_NORM_GROUNDS.map((option) => (
-                <option key={option} value={option}>
-                  {WEEKLY_NORM_GROUND_LABELS[option]}
-                </option>
-              ))}
-            </Select>
-            <p id={`${normId}-hint`} className="max-w-md text-xs text-ink-muted">
-              Норма периода считается из недельной (ст. 104 ТК РФ), и ошибка
-              здесь меняет весь расчёт. Сорок часов — общий случай; тридцать
-              шесть дают вредные 3-4 степени либо опасные условия (Приказ
-              № 308 п. 1, № 307 п. 6) и работа в районах Крайнего Севера,
-              приравненных и других местностях с неблагоприятными условиями
-              (№ 308 п. 1, № 307 п. 4); тридцать пять — инвалидность I или II
-              группы (абз. 4 ч. 1 ст. 92 ТК РФ).
-            </p>
-          </div>
-
-          <fieldset className="space-y-2">
-            <legend className="font-display text-xs font-bold uppercase tracking-wide text-ink-muted">
-              Ваш караул
-            </legend>
-            <div className="flex flex-wrap gap-2">
-              {[1, 2, 3, 4].map((number) => (
-                <Button
-                  key={number}
-                  type="button"
-                  variant={guard === number ? "default" : "outline"}
-                  aria-pressed={guard === number}
-                  onClick={() => setGuard(number)}
-                >
-                  {number}-й
-                </Button>
-              ))}
-            </div>
-          </fieldset>
-
-          {/* Спрашивается любая смена, а не первая в году.
-              -------------------------------------------------------------
-              Здесь стояли четыре кнопки — «1 января», «2 января», «3», «4»
-              — и человек выбирал из них дату, которой не помнит: первое
-              января это не событие, а вычисление, и он проделывал его в
-              голове, отсчитывая четвёрками назад от смены, которую знает.
-
-              Цикл четырёхдневный и одинаков в обе стороны, поэтому любая
-              известная смена задаёт его целиком. Отсчёт назад делает
-              приложение — оно в арифметике не ошибается. */}
-          <DateField
-            label="Любая ваша смена"
-            name="knownShift"
-            required
-            defaultValue={knownShift}
-            onChange={(value) => setKnownShift(value ?? knownShift)}
-            hint="Та, в которой вы уверены: ближайшая или последняя. Остальной график приложение достроит от неё в обе стороны."
-          />
-          <p className="-mt-4 max-w-md text-xs text-ink-muted">
-            Номер караула цикл не задаёт: в одной части первый караул
-            заступает 1 января, в другой — третьего. Привязывает график к
-            календарю именно дата.
+        {error ? (
+          <p className="max-w-prose rounded-sm border-l-2 border-signal bg-signal-soft px-4 py-3 text-sm">
+            {error}
           </p>
+        ) : null}
 
-          <div className="space-y-1.5">
-            <Label htmlFor={startId}>Время смены караулов</Label>
-            <TimeField
-              id={startId}
-              value={startTime}
-              onChange={setStartTime}
-              aria-describedby={`${startId}-hint`}
-            />
-            <p id={`${startId}-hint`} className="max-w-md text-xs text-ink-muted">
-              Отсюда считается, как смена делится между сутками. При смене караулов в 
-              08:00 сутки заступления получают 16 часов (из них 2 ночных), а
-              следующие — 8 (из них 6 ночных). Ошибка здесь сдвигает месячные
-              итоги и число ночных на стыке месяцев. Продолжительность смены — 24 часа, не
-              включая время смены караулов (Приказ № 308 п. 3, № 307 п. 8).
-            </p>
-          </div>
-
-          <Button type="submit" className="w-full max-w-md">
-            Построить мой график
-          </Button>
-        </form>
+        <Button type="button" onClick={() => setOpen(true)}>
+          Заполнить профиль
+        </Button>
 
         <ImportBlock onImported={onCreated} />
       </div>
+
+      <Modal open={open} onClose={() => setOpen(false)} title="Создать профиль">
+        <div className="space-y-5">
+          <SettingsPanel profile={draft} onChange={setDraft} purpose="create" />
+          <div className="border-t border-rule pt-4">
+            <Button type="button" className="w-full" onClick={submit}>
+              Построить мой график
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
       <footer className="flex justify-center pt-8 pb-8 md:ml-auto md:pb-2">
         <ThemeToggle/>
       </footer>

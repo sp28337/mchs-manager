@@ -140,12 +140,12 @@ export function DateField({
       <input type="hidden" name={name} value={valid ? parsed : ""} />
 
       {hint ? (
-        <p id={hintId} className="max-w-44 text-xs text-ink-muted">
+        <p id={hintId} className="max-w-xs text-xs text-ink-muted">
           {hint}
         </p>
       ) : null}
       {problem ? (
-        <p id={errorId} role="alert" className="max-w-44 text-xs text-signal">
+        <p id={errorId} role="alert" className="max-w-xs text-xs text-signal">
           {problem}
         </p>
       ) : null}
