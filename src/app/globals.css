@@ -426,131 +426,76 @@
 }
 
 /* ==========================================================================
-   ТАБЕЛЬ НА ПЕРВОМ ЭКРАНЕ — фон, который чертится.
+   СНИМОК ГОДА НА ПЕРВОМ ЭКРАНЕ.
 
-   Разметка слоя — в `components/shared/tabel-backdrop.tsx`, там же описано,
-   почему это именно табель и почему он рисуется, а не проявляется. Здесь —
-   только то, как он выглядит и как движется.
+   Фон первого экрана — не рисунок и не абстракция, а сам продукт: снимок
+   годовой сетки из расчёта (`public/hero-grid-*.webp`, снят с рабочего
+   экрана). Человеку показывают то, что он получит, ещё до нажатия кнопки.
 
-   Анимация целиком на CSS: она обязана начаться с первым кадром страницы, а
-   не после гидратации. Каждому элементу задана инлайновая переменная `--d`
-   — его задержка; правило одно на всех.
+   Три вещи делают из снимка фон, а не картинку:
+
+   * НАКЛОН. Поворот по трём осям с перспективой — плоскость уходит вглубь,
+     и сетка перестаёт спорить с текстом за первый план.
+   * МАСКА. Края растворяются в прозрачность: снимок нигде не обрывается
+     линией, поэтому у экрана нет второй рамки помимо страницы.
+   * ПРИГЛУШЕНИЕ. Прозрачность и лёгкое размытие: разобрать в фоне цифры
+     нельзя, и это правильно — их читают в расчёте, а не здесь.
+
+   Слой не участвует ни в наведении, ни в чтении с экрана: он `aria-hidden`
+   в разметке и `pointer-events: none` здесь.
    ========================================================================== */
 
-/* Прозрачность держится переменными, а не значениями в правилах: на тёмном
-   фоне тонкая светлая линия при той же альфе почти пропадает, поэтому в
-   тёмной теме значения выше. Слева слой уведён почти в ноль маской — под
-   заголовком документа быть не должно, он там мешает читать. */
-.tabel-backdrop {
-  --tabel-rule: 0.16;
-  --tabel-text: 0.2;
-  --tabel-fill: 0.17;
-  --tabel-visibility: 1;
+.hero-shot {
+  position: absolute;
+  top: -6%;
+  right: -14%;
+  width: 78%;
+  min-width: 40rem;
+  pointer-events: none;
+  transform-origin: 100% 0;
+  transform: perspective(1800px) rotateX(16deg) rotateY(-18deg) rotate(4deg) scale(1.06);
+  opacity: 0.46;
+  filter: blur(0.3px);
 
-  --tabel-mask: linear-gradient(to right, transparent 6%, rgb(0 0 0 / 0.26) 32%, #000 68%);
-  mask-image: var(--tabel-mask);
-  -webkit-mask-image: var(--tabel-mask);
+  /* Две маски сразу: овал гасит края во все стороны, а линейная уводит в
+     ноль левую половину — там стоит заголовок, и текст поверх сетки не
+     читается. `intersect` оставляет только то, что попало в обе. */
+  --shot-mask-oval: radial-gradient(
+    ellipse 50% 52% at 54% 46%,
+    #000 18%,
+    rgb(0 0 0 / 0.5) 50%,
+    transparent 80%
+  );
+  --shot-mask-side: linear-gradient(
+    to right,
+    transparent 0%,
+    rgb(0 0 0 / 0.35) 26%,
+    #000 58%
+  );
+  mask-image: var(--shot-mask-oval), var(--shot-mask-side);
+  mask-composite: intersect;
+  -webkit-mask-image: var(--shot-mask-oval), var(--shot-mask-side);
+  -webkit-mask-composite: source-in;
 }
 
-.dark .tabel-backdrop {
-  --tabel-rule: 0.14;
-  --tabel-text: 0.18;
-  --tabel-fill: 0.15;
+/* На светлой теме тот же снимок светлее фона страницы, и при той же
+   прозрачности он лезет вперёд. */
+:root:not(.dark) .hero-shot {
+  opacity: 0.42;
 }
 
-/* До широкого экрана документу негде отойти от текста: он неизбежно
-   оказывается прямо под заголовком. Значит, отходить должен не он, а его
-   заметность — общий множитель и маска, уводящая левую половину в ноль.
-   Множитель отдельной переменной, чтобы не переопределять каждое значение
-   дважды: правило `.dark .tabel-backdrop` специфичнее и всё равно выиграло
-   бы у переопределения в медиазапросе. */
+/* На узком экране снимок уходит вниз и за правый край: наклон там не
+   читается, а место под текст нужнее. Порог тот же, с которого заголовок
+   перестаёт помещаться в одну-две строки. */
 @media (width < 64rem) {
-  .tabel-backdrop {
-    --tabel-visibility: 0.72;
-    --tabel-mask: linear-gradient(to right, transparent 10%, rgb(0 0 0 / 0.18) 42%, #000 78%);
-  }
-}
-
-.tabel-lines {
-  opacity: calc(var(--tabel-rule) * var(--tabel-visibility));
-}
-
-.tabel-ink {
-  opacity: calc(var(--tabel-text) * var(--tabel-visibility));
-  font-family: var(--font-sans);
-}
-
-.tabel-data {
-  opacity: calc(var(--tabel-fill) * var(--tabel-visibility));
-}
-
-.tabel-title {
-  font-family: var(--font-display);
-  font-size: 34px;
-  font-weight: 700;
-  letter-spacing: 0.3em;
-}
-
-.tabel-subtitle {
-  font-size: 13px;
-  letter-spacing: 0.04em;
-}
-
-.tabel-field {
-  font-size: 13px;
-}
-
-.tabel-caption {
-  letter-spacing: 0.01em;
-}
-
-/* Рисование. `pathLength="1"` в разметке нормирует длину любого пути к
-   единице — поэтому одного `stroke-dasharray: 1` хватает и на рамку в
-   2700 единиц, и на штрих в 20. */
-.tabel-draw {
-  stroke-dasharray: 1;
-  stroke-dashoffset: 1;
-  animation: tabel-draw 620ms cubic-bezier(0.32, 0.06, 0.2, 1) var(--d, 0s) forwards;
-}
-
-/* Внешний контур — один путь на все четыре стороны, и ведут его дольше:
-   перо обходит рамку, а не выкладывает её из отрезков. */
-.tabel-frame {
-  animation-duration: 880ms;
-}
-
-/* Текст не рисуется — он проступает. Буквы, которые «пишутся» штрихом,
-   выглядят как эффект; документ, который проявляется, — как документ. */
-.tabel-fade {
-  opacity: 0;
-  animation: tabel-fade 520ms ease-out var(--d, 0s) forwards;
-}
-
-@keyframes tabel-draw {
-  to {
-    stroke-dashoffset: 0;
-  }
-}
-
-@keyframes tabel-fade {
-  to {
-    opacity: 1;
-  }
-}
-
-/* Единственный случай, когда анимации быть не должно: человек попросил
-   систему не двигать картинку. Общее правило выше сжимает длительности до
-   0.01ms, но НЕ трогает задержки — без этого блока он три секунды смотрел
-   бы на пустое место, а потом получил бы рывок. */
-@media (prefers-reduced-motion: reduce) {
-  .tabel-draw {
-    animation: none;
-    stroke-dashoffset: 0;
-  }
-
-  .tabel-fade {
-    animation: none;
-    opacity: 1;
+  .hero-shot {
+    top: auto;
+    bottom: -4%;
+    right: -46%;
+    width: 130%;
+    min-width: 0;
+    opacity: 0.3;
+    transform: perspective(1200px) rotateX(12deg) rotateY(-14deg) rotate(3deg);
   }
 }
 
