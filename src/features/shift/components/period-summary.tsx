@@ -288,12 +288,12 @@ function MainPlate({
       )}
     >
       <Figure
-        parts={[{ value: hours(calculation.normHours), unit: "ч" }]}
+        parts={[{ value: hoursTrim(calculation.normHours), unit: "ч" }]}
         caption="Норма периода"
         emphatic
       />
       <Figure
-        parts={[{ value: hours(calculation.actualHours), unit: "ч" }]}
+        parts={[{ value: hoursTrim(calculation.actualHours), unit: "ч" }]}
         caption="Фактически"
       />
       <Figure
@@ -332,7 +332,7 @@ function MainPlate({
  * другой мере значило бы предложить сравнивать несравнимое.
  */
 function overtimeParts(value: Decimal, inDays: boolean): FigurePart[] {
-  if (!inDays) return [{ value: hours(value), unit: "ч" }];
+  if (!inDays) return [{ value: hoursTrim(value), unit: "ч" }];
 
   const { days: whole, hours: rest } = splitIntoDays(value);
   const parts: FigurePart[] = [];
@@ -583,7 +583,11 @@ function Figure({
         ))}
       </dd>
       <dt className="flex h-3.5 items-center justify-center gap-1 whitespace-nowrap text-[11px] leading-tight text-ink-muted">
-        <span className="sm:after:content-[':']">
+        {/* Двоеточие принадлежит строчной записи «Норма периода: 1972 ч»,
+            которая стоит на средних экранах. Там, где подпись снова
+            уходит под число, двоеточию не к чему прицепиться — и оно
+            снимается вместе со строчной раскладкой. */}
+        <span className="sm:after:content-[':'] lg:after:content-none">
           {caption}
         </span>
         {hint}
