@@ -190,9 +190,9 @@ function minorItems(calculation: PeriodCalculation): MinorItem[] {
     { value: String(calculation.scheduledShifts), caption: "Смен по графику" },
     { value: String(calculation.workedShifts), caption: "Отработано смен" },
     { value: String(calculation.absentShifts), caption: "Пропущено" },
-    { value: hours(calculation.nightHours), unit: "ч", caption: "Ночные часы" },
+    { value: hoursTrim(calculation.nightHours), unit: "ч", caption: "Ночные часы" },
     {
-      value: hours(calculation.holidayHours),
+      value: hoursTrim(calculation.holidayHours),
       unit: "ч",
       caption: "Праздничные часы",
       // hint: (
@@ -209,9 +209,11 @@ function minorItems(calculation: PeriodCalculation): MinorItem[] {
  * своей плашке.
  *
  * Единица измерения остаётся при числе, хотя подпись под ним и повторяет
- * её словом. Без «ч» ряд из «92», «92», «0», «734,0», «96,0» выглядит
- * пятью числами одной природы, тогда как первые три — это смены, а
- * последние два — часы.
+ * её словом. Без «ч» ряд из «92», «92», «0», «734», «96» выглядит пятью
+ * числами одной природы, тогда как первые три — это смены, а последние
+ * два — часы. Нулевого хвоста при этом нет ни у тех, ни у других: ноль
+ * после запятой ничего не уточняет, а показывать его только в двух
+ * плашках из пяти значило бы делать вид, что там точность выше.
  */
 function MinorPlate({
   value,
