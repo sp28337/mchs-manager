@@ -1,6 +1,16 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ChevronDown } from "lucide-react";
+import {
+  ArrowRight,
+  CalendarCog,
+  CalendarDays,
+  ChevronDown,
+  Plane,
+  Scale,
+  ShieldCheck,
+  Siren,
+  type LucideIcon,
+} from "lucide-react";
 
 import { SiteHeader } from "@/components/shared/site-header";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
@@ -16,12 +26,23 @@ import { cn } from "@/lib/utils/cn";
  * решается конкретной нормой, данные никуда не уходят. Всё остальное —
  * лишний экран между вопросом и ответом.
  *
- * --- Почему первый экран — снимок расчёта ---------------------------------
+ * --- Как устроен первый экран ---------------------------------------------
  *
- * Раньше фоном чертился нарисованный табель: красиво и ничего не говорит о
- * продукте. Теперь на фоне сам продукт — снимок годовой сетки, наклонённый
- * и растворённый по краям (`.hero-shot` в `globals.css`). Числа в нём не
- * читаются намеренно: их читают в расчёте.
+ * Слева текст, справа снимок расчёта: не фон под словами, а предмет рядом
+ * с ними. Текстовая колонка ограничена половиной ширины именно поэтому —
+ * буквам и снимку делить одно место нельзя, иначе снимок приходится
+ * гасить до неразличимости, и он перестаёт что-либо показывать.
+ *
+ * Порядок сверху вниз: чем занята страница (чипы), что она делает
+ * (заголовок), одна строка сути, что человек получит (три числа из
+ * настоящего расчёта), куда нажать (кнопки).
+ *
+ * --- Почему сигнальный цвет в заголовке -----------------------------------
+ *
+ * Правило приложения — «сигнальный цвет не украшает»: в рабочих экранах он
+ * появляется только там, где что-то требует решения. Здесь он взят как
+ * ЗНАК, а не как сигнал: тот же красный, что в логотипе, и стоит он на том
+ * слове, ради которого страницу открыли. Рабочих экранов это не касается.
  *
  * --- Почему это серверный компонент ---------------------------------------
  *
@@ -70,23 +91,37 @@ const SAMPLE: [value: string, caption: string, verify?: boolean][] = [
   ["220 ч", "Переработка", true],
 ];
 
-/** Что делает приложение. По одному-двум предложениям на пункт. */
-const WHAT: [title: string, text: string][] = [
+/** Что делает приложение. Шесть карточек, по одному предложению в каждой. */
+const FEATURES: [Icon: LucideIcon, title: string, text: string][] = [
   [
-    "Строит график караула",
+    CalendarDays,
+    "График караула",
     "Номер караула и одна ваша смена — хоть завтрашняя. Остальной год достроится сам, в обе стороны.",
   ],
   [
-    "Считает норму периода",
-    "40, 36 или 35 часов в неделю по производственному календарю. Предпраздничные дни короче на час, календарь правится по дням.",
+    Scale,
+    "Норма периода",
+    "40, 36 или 35 часов в неделю по производственному календарю. Приложение назовёт пункт приказа при каждой.",
   ],
   [
-    "Учитывает отсутствия",
-    "Отпуск и больничный уменьшают норму, отгул за переработку — нет. Вызовы прибавляются к отработанному.",
+    Plane,
+    "Отпуска и больничные",
+    "Уменьшают норму, а не отработанное. Отгул за переработку — не уменьшает: он ею уже погашен.",
   ],
   [
-    "Показывает итог",
-    "Норма, факт и переработка за квартал, полугодие или год. Ночные и праздничные — отдельно, переработка в часах или сменах.",
+    Siren,
+    "Вызовы сверх графика",
+    "Соревнования, сборы, резерв, мероприятия и выборы прибавляются к отработанным часам.",
+  ],
+  [
+    CalendarCog,
+    "Календарь под правку",
+    "Переносы бывают спорными. Праздничный, предпраздничный и выходной день ставятся вручную.",
+  ],
+  [
+    ShieldCheck,
+    "Ничего не уходит с устройства",
+    "Расчёт идёт в браузере, сервера нет. Профиль хранится на устройстве и выгружается в файл.",
   ],
 ];
 
@@ -220,9 +255,9 @@ export default function LandingPage() {
         {/* ------------------------------------------------------ первый экран */}
         {/* `hero-band` (в `globals.css`) выводит экран за колонку `main` —
             ровно настолько, насколько это не съедает поле у края окна.
-            `isolate` держит слои внутри: снимок лежит под текстом и не
+            `isolate` держит слои внутри: снимок лежит своим слоем и не
             спорит ни с шапкой, ни со страницей. */}
-        <section className="hero-band relative isolate flex min-h-[86lvh] flex-col justify-center border-b border-rule pt-15">
+        <section className="hero-band relative isolate flex min-h-[84lvh] flex-col justify-center border-b border-rule pt-15">
           {/* Сцена задаёт перспективу, плита — наклон: точка схода тогда
               одна на весь экран и стоит там, где стоит читатель, у левого
               края. Плита уходит от него вправо и вглубь.
@@ -251,23 +286,62 @@ export default function LandingPage() {
             </div>
           </div>
 
-          <div className="space-y-7">
-            <p className="font-mono text-xs uppercase tracking-widest text-ink-faint">
-              Сутки через трое
-            </p>
+          {/* Половина ширины на широком экране: вторая половина занята
+              снимком, и заезжать на него текстом нельзя. */}
+          {/* Ширина колонки идёт двумя ступенями: на 1024 три кнопки в
+              48% не помещаются и ломаются на две строки, а на 1280 и
+              шире их ряд свободно встаёт в одну. */}
+          <div className="space-y-6 lg:max-w-[62%] xl:max-w-[48%]">
+            <div className="rise flex flex-wrap items-center gap-2">
+              <span className="rounded-xl bg-paper-raised px-3 py-1.5 font-mono text-xs text-ink-muted">
+                Сутки через трое
+              </span>
+              <a
+                href="#minus"
+                className="inline-flex items-center gap-1.5 rounded-xl bg-signal-soft px-3 py-1.5 text-xs font-medium text-signal no-underline hover:opacity-90"
+              >
+                Минус 24 часа за отпуск
+                <ArrowRight aria-hidden className="size-3.5" />
+              </a>
+            </div>
 
-            <h1 className="max-w-3xl text-3xl leading-[1.1] sm:text-5xl lg:text-6xl">
-              Переработка при графике сутки через трое
+            {/* Переносы расставлены руками, а не отданы автоматике: при
+                свободном переносе на широком экране последней строкой
+                остаётся одно слово «трое», и заголовок разваливается.
+                Неразрывные пробелы держат предлог при своём слове, а
+                «через трое» — вместе на узком экране.
+
+                Чем крупнее кегль, тем плотнее строки: интерлиньяж 0,92 и
+                чуть отрицательный трекинг. Отрицательный «чуть» — PT Sans
+                Narrow и без того узкий, сильное сжатие слепит буквы. */}
+            <h1 className="rise rise-2 text-4xl leading-[0.92] tracking-[-0.01em] text-balance sm:text-5xl lg:text-6xl">
+              <span className="block text-signal">Переработка</span>
+              при&nbsp;графике
+              <br className="hidden lg:inline" /> сутки через&nbsp;трое
             </h1>
 
-            <p className="max-w-md text-lg text-ink-muted sm:max-w-xl">
-              Норма по производственному календарю. Отпуск уменьшает норму, а не
-              отработанные часы.
+            <p className="rise rise-3 max-w-prose text-lg leading-snug text-ink-muted text-pretty">
+              Норма по&nbsp;производственному календарю. Отпуск уменьшает норму,
+              а&nbsp;не&nbsp;отработанные часы.
             </p>
+
+            <div className="rise rise-4 space-y-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <ToCalculator>Открыть калькулятор</ToCalculator>
+                <SecondaryLink href="#what">Что считает</SecondaryLink>
+                <SecondaryLink href="#law">На чём основано</SecondaryLink>
+              </div>
+              {/* Строка снятия возражения у самой кнопки: до неё доходят
+                  те, кто уже готов нажать, и именно там появляется
+                  вопрос «а что попросят взамен». */}
+              <p className="text-xs text-ink-faint">
+                Без регистрации. Данные остаются на устройстве.
+              </p>
+            </div>
 
             {/* Три числа в том же виде, что и в расчёте: первый экран
                 показывает результат, а не обещает его. */}
-            <div className="space-y-2">
+            <div className="rise rise-5 space-y-2 pt-2">
               <dl className="flex flex-wrap gap-2">
                 {SAMPLE.map(([value, caption, verify]) => (
                   <div
@@ -292,12 +366,35 @@ export default function LandingPage() {
                 1-й караул, 2026 год, 40-часовая неделя
               </p>
             </div>
-
-            <div className="flex flex-wrap items-center gap-4 pt-1">
-              <ToCalculator>Открыть калькулятор</ToCalculator>
-              <p className="text-sm text-ink-muted">Бесплатно, без регистрации</p>
-            </div>
           </div>
+        </section>
+
+        {/* --------------------------------------------------------- что делает */}
+        <section aria-labelledby="what" className="space-y-5 border-b border-rule py-14">
+          <h2 id="what" className="text-2xl md:text-4xl">
+            Что делает приложение
+          </h2>
+          <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            {FEATURES.map(([Icon, title, text]) => (
+              <li key={title} className="space-y-3 rounded-xl bg-paper-raised p-5">
+                {/* Значки нейтральные. Шесть сигнальных плиток подряд
+                    превратили бы красный в оформление, а он на этой
+                    странице стоит ровно дважды: на слове в заголовке и на
+                    чипе с тем, ради чего сюда пришли. */}
+                <span className="flex size-10 items-center justify-center rounded-xl bg-paper-sunken">
+                  <Icon aria-hidden className="size-5 text-ink-muted" />
+                </span>
+                <h3 className="font-display text-base font-bold uppercase tracking-wide">
+                  {title}
+                </h3>
+                <p className="text-sm text-ink-muted">{text}</p>
+              </li>
+            ))}
+          </ul>
+          <p className="max-w-prose text-sm text-ink-muted">
+            Сверяете с табелем вы сами: приложение даёт число и норму, по которой
+            оно получено.
+          </p>
         </section>
 
         {/* ---------------------------------------------------------- минус 24 */}
@@ -332,27 +429,6 @@ export default function LandingPage() {
           <p className="max-w-prose text-sm text-ink-muted">
             Письмо Роструда № 550-6-1 от 01.03.2010: часы, которые не нужно было
             отрабатывать по уважительной причине, исключаются из нормы периода.
-          </p>
-        </section>
-
-        {/* --------------------------------------------------------- что делает */}
-        <section aria-labelledby="what" className="space-y-5 border-b border-rule py-14">
-          <h2 id="what" className="text-2xl md:text-4xl">
-            Что делает приложение
-          </h2>
-          <ul className="grid gap-2 sm:grid-cols-2">
-            {WHAT.map(([title, text]) => (
-              <li key={title} className="space-y-1.5 rounded-xl bg-paper-raised p-5">
-                <h3 className="font-display text-base font-bold uppercase tracking-wide">
-                  {title}
-                </h3>
-                <p className="text-sm text-ink-muted">{text}</p>
-              </li>
-            ))}
-          </ul>
-          <p className="max-w-prose text-sm text-ink-muted">
-            Сверяете с табелем вы сами: приложение даёт число и норму, по которой
-            оно получено.
           </p>
         </section>
 
@@ -470,14 +546,7 @@ export default function LandingPage() {
                 inLanguage: "ru-RU",
                 isAccessibleForFree: true,
                 offers: { "@type": "Offer", price: "0", priceCurrency: "RUB" },
-                featureList: [
-                  "График караула сутки через трое на год от одной известной смены",
-                  "Норма учётного периода по производственному календарю",
-                  "Производственный календарь с правкой по дням",
-                  "Исключение отпусков и больничных из нормы",
-                  "Ночные и праздничные часы отдельным итогом",
-                  "Переработка в часах или сменах",
-                ],
+                featureList: FEATURES.map(([, title, text]) => `${title}: ${text}`),
               },
               {
                 "@type": "FAQPage",
@@ -517,5 +586,30 @@ function ToCalculator({
     >
       {children}
     </Link>
+  );
+}
+
+/** Второстепенная кнопка первого экрана: переход к разделу этой же страницы. */
+function SecondaryLink({
+  href,
+  children,
+}: {
+  href: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <a
+      href={href}
+      className={cn(
+        // Высота как у главной кнопки — 44 точки, меньше нельзя пальцем.
+        // Мельче только подпись и поля: рядом с «Открыть калькулятор» это
+        // второй голос, а не второй такой же.
+        "inline-flex h-11 shrink-0 items-center rounded-xl bg-paper-raised px-4 text-sm",
+        "font-medium text-ink no-underline hover:bg-paper-sunken",
+        "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-trace",
+      )}
+    >
+      {children}
+    </a>
   );
 }
