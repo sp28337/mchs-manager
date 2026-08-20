@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import {
-  ArrowRight,
   CalendarCog,
   CalendarDays,
   ChevronDown,
@@ -12,6 +11,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
+import { HeroCalendar, type HeroFigure } from "@/components/landing/hero-calendar";
 import { SiteHeader } from "@/components/shared/site-header";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { cn } from "@/lib/utils/cn";
@@ -85,10 +85,10 @@ export const metadata: Metadata = {
 };
 
 /** Числа первого экрана: настоящий расчёт за 2026 год, 1-й караул. */
-const SAMPLE: [value: string, caption: string, verify?: boolean][] = [
-  ["1972 ч", "Норма"],
-  ["2192 ч", "Фактически"],
-  ["220 ч", "Переработка", true],
+const SAMPLE: readonly HeroFigure[] = [
+  { value: "1972 ч", caption: "Норма" },
+  { value: "2192 ч", caption: "Фактически" },
+  { value: "220 ч", caption: "Переработка", verify: true },
 ];
 
 /** Что делает приложение. Шесть карточек, по одному предложению в каждой. */
@@ -255,56 +255,12 @@ export default function LandingPage() {
         {/* ------------------------------------------------------ первый экран */}
         {/* `hero-band` (в `globals.css`) выводит экран за колонку `main` —
             ровно настолько, насколько это не съедает поле у края окна.
-            `isolate` держит слои внутри: снимок лежит своим слоем и не
-            спорит ни с шапкой, ни со страницей. */}
-        <section className="hero-band relative isolate flex min-h-[84lvh] flex-col justify-center border-b border-rule pt-15">
-          {/* Сцена задаёт перспективу, плита — наклон: точка схода тогда
-              одна на весь экран и стоит там, где стоит читатель, у левого
-              края. Плита уходит от него вправо и вглубь.
 
-              Снимок расчёта, а не рисунок: человек видит то, что получит.
-              Две темы — два файла: перекрасить снимок фильтрами дороже и
-              грязнее, чем снять его дважды. */}
-          <div aria-hidden className="hero-stage -z-10">
-            <div className="hero-shot">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src="/hero-grid-dark.webp"
-                alt=""
-                width={1600}
-                height={977}
-                className="hero-shot__plate hidden dark:block"
-              />
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src="/hero-grid-light.webp"
-                alt=""
-                width={1600}
-                height={977}
-                className="hero-shot__plate dark:hidden"
-              />
-            </div>
-          </div>
-
-          {/* Половина ширины на широком экране: вторая половина занята
-              снимком, и заезжать на него текстом нельзя. */}
-          {/* Ширина колонки идёт двумя ступенями: на 1024 три кнопки в
-              48% не помещаются и ломаются на две строки, а на 1280 и
-              шире их ряд свободно встаёт в одну. */}
-          <div className="space-y-6 lg:max-w-[62%] xl:max-w-[48%]">
-            <div className="rise flex flex-wrap items-center gap-2">
-              <span className="rounded-xl bg-paper-raised px-3 py-1.5 font-mono text-xs text-ink-muted">
-                Сутки через трое
-              </span>
-              <a
-                href="#minus"
-                className="inline-flex items-center gap-1.5 rounded-xl bg-signal-soft px-3 py-1.5 text-xs font-medium text-signal no-underline hover:opacity-90"
-              >
-                Минус 24 часа за отпуск
-                <ArrowRight aria-hidden className="size-3.5" />
-              </a>
-            </div>
-
+            Две колонки, а не текст поверх фона: сетка месяцев здесь не
+            подложка, а вторая половина разговора. Слева сказано, о чём
+            речь, справа показано, как это выглядит. */}
+        <section className="hero-band grid items-center gap-10 border-b border-rule pt-15 pb-14 lg:min-h-[84lvh] lg:grid-cols-2 lg:gap-12 lg:pb-0">
+          <div className="space-y-6">
             {/* Переносы расставлены руками, а не отданы автоматике: при
                 свободном переносе на широком экране последней строкой
                 остаётся одно слово «трое», и заголовок разваливается.
@@ -314,59 +270,25 @@ export default function LandingPage() {
                 Чем крупнее кегль, тем плотнее строки: интерлиньяж 0,92 и
                 чуть отрицательный трекинг. Отрицательный «чуть» — PT Sans
                 Narrow и без того узкий, сильное сжатие слепит буквы. */}
-            <h1 className="rise rise-2 text-4xl leading-[0.92] tracking-[-0.01em] text-balance sm:text-5xl lg:text-6xl">
+            <h1 className="rise text-4xl leading-[0.92] tracking-[-0.01em] text-balance sm:text-5xl lg:text-6xl">
               <span className="block text-signal">Переработка</span>
               при&nbsp;графике
               <br className="hidden lg:inline" /> сутки через&nbsp;трое
             </h1>
 
-            <p className="rise rise-3 max-w-prose text-lg leading-snug text-ink-muted text-pretty">
+            <p className="rise rise-2 max-w-prose text-lg leading-snug text-ink-muted text-pretty">
               Норма по&nbsp;производственному календарю. Отпуск уменьшает норму,
               а&nbsp;не&nbsp;отработанные часы.
             </p>
 
-            <div className="rise rise-4 space-y-2">
-              <div className="flex flex-wrap items-center gap-2">
-                <ToCalculator>Открыть калькулятор</ToCalculator>
-                <SecondaryLink href="#what">Что считает</SecondaryLink>
-                <SecondaryLink href="#law">На чём основано</SecondaryLink>
-              </div>
-              {/* Строка снятия возражения у самой кнопки: до неё доходят
-                  те, кто уже готов нажать, и именно там появляется
-                  вопрос «а что попросят взамен». */}
-              <p className="text-xs text-ink-faint">
-                Без регистрации. Данные остаются на устройстве.
-              </p>
-            </div>
-
-            {/* Три числа в том же виде, что и в расчёте: первый экран
-                показывает результат, а не обещает его. */}
-            <div className="rise rise-5 space-y-2 pt-2">
-              <dl className="flex flex-wrap gap-2">
-                {SAMPLE.map(([value, caption, verify]) => (
-                  <div
-                    key={caption}
-                    className="min-w-28 rounded-xl bg-paper-raised px-4 py-2.5"
-                  >
-                    <dd
-                      className={cn(
-                        "font-mono text-xl leading-none sm:text-2xl",
-                        verify ? "font-medium text-verify" : "text-ink",
-                      )}
-                    >
-                      {value}
-                    </dd>
-                    <dt className="mt-1.5 text-[11px] leading-tight text-ink-muted">
-                      {caption}
-                    </dt>
-                  </div>
-                ))}
-              </dl>
-              <p className="font-mono text-xs text-ink-faint">
-                1-й караул, 2026 год, 40-часовая неделя
-              </p>
+            <div className="rise rise-3">
+              <ToCalculator>Открыть калькулятор</ToCalculator>
             </div>
           </div>
+
+          {/* Числа стоят над сеткой и появляются после неё: они её итог,
+              а не подпись к ней. */}
+          <HeroCalendar figures={SAMPLE} />
         </section>
 
         {/* --------------------------------------------------------- что делает */}
@@ -394,41 +316,6 @@ export default function LandingPage() {
           <p className="max-w-prose text-sm text-ink-muted">
             Сверяете с табелем вы сами: приложение даёт число и норму, по которой
             оно получено.
-          </p>
-        </section>
-
-        {/* ---------------------------------------------------------- минус 24 */}
-        <section aria-labelledby="minus" className="space-y-5 border-b border-rule py-14">
-          <h2 id="minus" className="text-2xl md:text-4xl">
-            Откуда берётся недоработка, которой нет
-          </h2>
-          <p className="max-w-prose text-ink-muted">
-            Смена, попавшая в отпуск, вычитается из нормы периода. Вычтут из
-            отработанного — число то же, итог противоположный.
-          </p>
-
-          <div className="grid gap-2 sm:grid-cols-2">
-            <div className="space-y-1 rounded-xl bg-signal-soft p-5">
-              <p className="font-display text-xs font-bold uppercase tracking-wide text-signal">
-                Вычли из факта
-              </p>
-              <p className="font-mono text-sm">норма 168 ч</p>
-              <p className="font-mono text-sm">факт 168 − 24 = 144 ч</p>
-              <p className="pt-1 text-sm font-semibold">Недоработка 24 ч</p>
-            </div>
-            <div className="space-y-1 rounded-xl bg-verify-soft p-5">
-              <p className="font-display text-xs font-bold uppercase tracking-wide text-verify">
-                Вычли из нормы
-              </p>
-              <p className="font-mono text-sm">норма 168 − 24 = 144 ч</p>
-              <p className="font-mono text-sm">факт 144 ч</p>
-              <p className="pt-1 text-sm font-semibold">Ровно норма</p>
-            </div>
-          </div>
-
-          <p className="max-w-prose text-sm text-ink-muted">
-            Письмо Роструда № 550-6-1 от 01.03.2010: часы, которые не нужно было
-            отрабатывать по уважительной причине, исключаются из нормы периода.
           </p>
         </section>
 
@@ -498,16 +385,6 @@ export default function LandingPage() {
           </div>
         </section>
 
-        {/* --------------------------------------------------------------- в расчёт */}
-        <section className="flex flex-col items-start gap-6 rounded-xl bg-paper-raised p-8 sm:flex-row sm:items-center sm:justify-between sm:p-10">
-          <div className="space-y-2">
-            <h2 className="text-2xl md:text-3xl">Посмотрите свой год</h2>
-            <p className="max-w-prose text-ink-muted">
-              Три ответа: караул, ваша смена, недельная норма.
-            </p>
-          </div>
-          <ToCalculator>Открыть калькулятор</ToCalculator>
-        </section>
       </main>
 
       <footer className="mt-16 border-t border-rule">
@@ -565,8 +442,9 @@ export default function LandingPage() {
 }
 
 /**
- * Кнопка в расчёт. Одна на всю страницу: их здесь три, и разъехаться
- * подписью или размером им нельзя.
+ * Кнопка в расчёт. Одна деталь на обе: в шапке она меньше, на первом
+ * экране крупнее, но разъехаться формой или цветом им нельзя — это одна
+ * и та же дверь.
  */
 function ToCalculator({
   children,
@@ -586,30 +464,5 @@ function ToCalculator({
     >
       {children}
     </Link>
-  );
-}
-
-/** Второстепенная кнопка первого экрана: переход к разделу этой же страницы. */
-function SecondaryLink({
-  href,
-  children,
-}: {
-  href: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <a
-      href={href}
-      className={cn(
-        // Высота как у главной кнопки — 44 точки, меньше нельзя пальцем.
-        // Мельче только подпись и поля: рядом с «Открыть калькулятор» это
-        // второй голос, а не второй такой же.
-        "inline-flex h-11 shrink-0 items-center rounded-xl bg-paper-raised px-4 text-sm",
-        "font-medium text-ink no-underline hover:bg-paper-sunken",
-        "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-trace",
-      )}
-    >
-      {children}
-    </a>
   );
 }
