@@ -1,7 +1,8 @@
 "use client";
 
-import { useId, useState } from "react";
+import { useId, useState, type ReactNode } from "react";
 
+import { LandingHero } from "@/components/landing/hero";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Modal } from "@/components/ui/modal";
@@ -15,30 +16,38 @@ import { createProfile, importProfile, type StoredProfile } from "../storage/pro
 import { SettingsPanel } from "./settings-panel";
 
 /**
- * Экран без профиля: приглашение и окно с вопросами.
+ * Экран без профиля: главная и окно с вопросами поверх неё.
+ *
+ * --- Что стоит ЗА окном -------------------------------------------------
+ *
+ * Главная — тот самый первый экран, с которого человек сюда нажал. Здесь
+ * была своя страница «Расскажите о себе»: заголовок, абзац объяснений и
+ * блок возврата из файла. Получалось, что нажатие на кнопку открывает
+ * незнакомый раздел, а поверх него — ещё и окно; закрыв окно, человек
+ * оставался в разделе, которого не просил.
+ *
+ * Теперь за окном ровно то, что было под курсором мгновение назад.
+ * Закрыть окно можно, и человек остаётся на главной; кнопка первого
+ * экрана открывает его снова.
  *
  * --- Почему окно, а не страница с формой --------------------------------
  *
- * Здесь была своя страница-анкета: те же вопросы, но собственной вёрсткой
- * — караул кнопками, норма списком с абзацем пояснения под ним, время
- * развода отдельным полем. Настройки спрашивают то же самое, и две формы
- * на одни вопросы неизбежно расходятся: пояснение поправили в одной, а
- * человек читает другую.
+ * У страницы-анкеты была своя вёрстка тех же вопросов — караул кнопками,
+ * норма списком с абзацем пояснения, время развода отдельным полем.
+ * Настройки спрашивают то же самое, и две формы на одни вопросы неизбежно
+ * расходятся: пояснение поправили в одной, а человек читает другую.
  *
- * Теперь вопросы одни, в одном компоненте (`SettingsPanel`), и открываются
- * так же, как из шапки, — окном. Разница только в заголовке: «Создать
- * профиль» вместо «Настройки», и внизу кнопка, которой профиль заводится.
+ * Теперь вопросы одни, в одном компоненте (`SettingsPanel`), и
+ * открываются так же, как из шапки, — окном. Разница только в заголовке:
+ * «Создать профиль» вместо «Настроек», и внизу кнопка, которой профиль
+ * заводится.
  *
- * --- Почему окно открыто сразу ------------------------------------------
+ * --- Почему возврат из файла тоже в окне --------------------------------
  *
- * Человек пришёл на страницу калькулятора: ему нужен расчёт, а расчёт
- * начинается с ответов. Показать сначала страницу с кнопкой «заполнить»
- * значило бы поставить лишнее нажатие перед единственным возможным
- * действием.
- *
- * Закрыть окно при этом можно — за ним остаётся то, ради чего его стоит
- * закрыть: возврат профиля из файла. Кнопка «Заполнить профиль» открывает
- * окно снова.
+ * Он отвечает на тот же вопрос — «откуда взять профиль», — только другим
+ * способом: не заполнять заново, а вернуть сохранённый. Оставить его на
+ * странице значило бы спрятать за окном единственный выход для того, кто
+ * уже всё это однажды заполнял.
  *
  * --- Почему черновик, а не поля по одному -------------------------------
  *
@@ -52,6 +61,8 @@ const CURRENT_YEAR = new Date().getUTCFullYear();
 
 export interface RegisterFormProps {
   onCreated: (profile: StoredProfile) => void;
+  /** Сообщение о нечитаемом профиле, если он был. Место ему — в окне. */
+  notice?: ReactNode;
 }
 
 /** Профиль, каким он будет, если человек не тронет ни одного поля. */
@@ -70,7 +81,7 @@ function blankProfile(): StoredProfile {
   });
 }
 
-export function RegisterForm({ onCreated }: RegisterFormProps) {
+export function RegisterForm({ onCreated, notice }: RegisterFormProps) {
   const [draft, setDraft] = useState<StoredProfile>(blankProfile);
   const [open, setOpen] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -91,33 +102,51 @@ export function RegisterForm({ onCreated }: RegisterFormProps) {
 
   return (
     <>
-      <div className="space-y-8">
-        {error ? (
-          <p className="max-w-prose rounded-sm border-l-2 border-signal bg-signal-soft px-4 py-3 text-sm">
-            {error}
-          </p>
-        ) : null}
-
-        <Button type="button" onClick={() => setOpen(true)}>
-          Заполнить профиль
-        </Button>
-
-        <ImportBlock onImported={onCreated} />
-      </div>
+      <main className="mx-auto w-full max-w-4xl px-6 pb-16 xl:max-w-6xl 2xl:max-w-7xl">
+        <LandingHero
+          cta={
+            // Та же кнопка, что на посадочной: там она ссылка в расчёт,
+            // здесь — открывает окно. Форма и вес совпадают намеренно,
+            // человек нажимает то же самое место.
+            <Button
+              type="button"
+              size="lg"
+              className="rounded-xl text-base font-bold"
+              onClick={() => setOpen(true)}
+            >
+              Заполнить профиль
+            </Button>
+          }
+        />
+      </main>
 
       <Modal open={open} onClose={() => setOpen(false)} title="Создать профиль">
         <div className="space-y-5">
+          {notice}
+
+          {error ? (
+            <p className="rounded-xl bg-signal-soft px-4 py-3 text-sm">{error}</p>
+          ) : null}
+
           <SettingsPanel profile={draft} onChange={setDraft} purpose="create" />
-          <div className="border-t border-rule pt-4">
+
+          <div className="space-y-5 border-t border-rule pt-4">
             <Button type="button" className="w-full" onClick={submit}>
               Построить мой график
             </Button>
+
+            <ImportBlock onImported={onCreated} />
           </div>
         </div>
       </Modal>
 
-      <footer className="flex justify-center pt-8 pb-8 md:ml-auto md:pb-2">
-        <ThemeToggle/>
+      {/* Подвал той же формы, что на посадочной: линейка через всю
+          ширину и переключатель темы у края. Без неё переключатель повисал
+          пятном посреди пустого поля под первым экраном. */}
+      <footer className="mt-8 border-t border-rule">
+        <div className="mx-auto flex w-full max-w-4xl justify-end px-6 py-8 xl:max-w-6xl 2xl:max-w-7xl">
+          <ThemeToggle />
+        </div>
       </footer>
     </>
   );
@@ -136,18 +165,19 @@ function ImportBlock({ onImported }: { onImported: (profile: StoredProfile) => v
   const [fileName, setFileName] = useState<string | null>(null);
 
   return (
-    <section aria-labelledby="restore" className="space-y-2 border-t border-rule pt-6">
-      <h3 id="restore" className="font-display text-xs font-bold uppercase tracking-wide text-ink-muted">
+    <section aria-labelledby="restore" className="space-y-2">
+      <h3
+        id="restore"
+        className="font-display text-xs font-bold uppercase tracking-wide text-ink-muted"
+      >
         Уже заполняли раньше
       </h3>
-      <p className="max-w-prose text-sm text-ink-muted">
+      <p className="text-sm text-ink-muted">
         Если вы сохраняли профиль в файл, загрузите его — график, отсутствия и
         правки календаря вернутся как были.
       </p>
       {error ? (
-        <p className="max-w-prose rounded-sm border-l-2 border-signal bg-signal-soft px-4 py-3 text-sm">
-          {error}
-        </p>
+        <p className="rounded-xl bg-signal-soft px-4 py-3 text-sm">{error}</p>
       ) : null}
       {/* Нативная кнопка выбора файла подписана браузером — «Choose File»
           в русском интерфейсе, и поменять эту надпись со страницы нельзя.

@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { SiteHeader } from "@/components/shared/site-header";
 import { RegisterForm } from "./register-form";
 import { Workspace } from "./workspace";
+import { WorkspaceSkeleton } from "./workspace-skeleton";
 import { useProfile } from "../storage/use-profile";
 
 /**
@@ -21,6 +22,13 @@ import { useProfile } from "../storage/use-profile";
  * Что показать — анкету или расчёт — известно только из `localStorage`, а
  * его на сервере нет. Отрисовать на сервере догадку и заменить её в
  * браузере значило бы мигнуть человеку анкетой поверх готового расчёта.
+ *
+ * --- Что человек видит, пока профиля нет --------------------------------
+ *
+ * Пока профиль читается — заглушку рабочего экрана: те же места и те же
+ * размеры, что займут числа и сетки. Если профиля нет — главную с окном
+ * «Создать профиль» поверх неё (`RegisterForm`), а не отдельный раздел с
+ * анкетой: человек нажал кнопку и получил окно, а не новую страницу.
  *
  * --- Почему шапку рисует не этот экран, а рабочий ------------------------
  *
@@ -42,27 +50,23 @@ export function CalculatorScreen() {
       <SiteHeader />
 
       {state.status === "loading" ? (
-        <main className="mx-auto w-full max-w-4xl px-6 pb-12 pt-26 xl:max-w-6xl 2xl:max-w-7xl">
-          <p className="text-sm text-ink-muted">Открываем ваш профиль…</p>
-        </main>
+        <>
+          {/* Заглушка молчит для глаз, но не для диктора: тому нужна не
+              раскладка, а одно слово о том, чего он ждёт. */}
+          <p className="sr-only" role="status">
+            Открываем ваш профиль
+          </p>
+          <WorkspaceSkeleton />
+        </>
       ) : (
-        <main className="mx-auto w-full max-w-3xl space-y-10 px-6 pb-12 pt-22">
-          <header className="space-y-3">
-            <h1 className="text-3xl leading-tight">Расскажите о себе</h1>
-            <p className="max-w-prose text-ink-muted">
-              Пять ответов — и приложение построит ваш график караула на год,
-              посчитает норму по производственному календарю и покажет, где
-              выданный табель с ней расходится. Спрашиваются они в окне
-              «Создать профиль»; те же вопросы потом стоят в настройках.
-            </p>
-          </header>
-
-          {state.status === "corrupt" ? (
-            <CorruptNotice reason={state.reason} raw={state.raw} />
-          ) : null}
-
-          <RegisterForm onCreated={save} />
-        </main>
+        <RegisterForm
+          onCreated={save}
+          notice={
+            state.status === "corrupt" ? (
+              <CorruptNotice reason={state.reason} raw={state.raw} />
+            ) : null
+          }
+        />
       )}
     </>
   );
@@ -77,7 +81,7 @@ export function CalculatorScreen() {
  */
 function CorruptNotice({ reason, raw }: { reason: string; raw: string }) {
   return (
-    <section className="max-w-prose space-y-3 rounded-sm border-l-2 border-signal bg-signal-soft px-4 py-3 text-sm">
+    <section className="space-y-3 rounded-xl bg-signal-soft px-4 py-3 text-sm">
       <p>
         <strong>Сохранённый профиль не читается</strong> ({reason}). Заполните
         анкету заново — или сначала заберите старые данные файлом, чтобы

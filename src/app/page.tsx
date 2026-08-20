@@ -11,7 +11,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
-import { HeroCalendar, type HeroFigure } from "@/components/landing/hero-calendar";
+import { LandingHero } from "@/components/landing/hero";
 import { SiteHeader } from "@/components/shared/site-header";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { cn } from "@/lib/utils/cn";
@@ -83,13 +83,6 @@ export const metadata: Metadata = {
   },
   alternates: { canonical: "/" },
 };
-
-/** Числа первого экрана: настоящий расчёт за 2026 год, 1-й караул. */
-const SAMPLE: readonly HeroFigure[] = [
-  { value: "1972 ч", caption: "Норма" },
-  { value: "2192 ч", caption: "Фактически" },
-  { value: "220 ч", caption: "Переработка", verify: true },
-];
 
 /** Что делает приложение. Шесть карточек, по одному предложению в каждой. */
 const FEATURES: [Icon: LucideIcon, title: string, text: string][] = [
@@ -252,67 +245,7 @@ export default function LandingPage() {
       />
 
       <main className="mx-auto w-full max-w-4xl px-6 pb-16 xl:max-w-6xl 2xl:max-w-7xl">
-        {/* ------------------------------------------------------ первый экран */}
-        {/* `hero-band` (в `globals.css`) выводит экран за колонку `main` —
-            ровно настолько, насколько это не съедает поле у края окна.
-
-            Две колонки, а не текст поверх фона: сетка месяцев здесь не
-            подложка, а вторая половина разговора. Слева сказано, о чём
-            речь, справа показано, как это выглядит. */}
-        <section className="hero-band grid items-center gap-10 pt-15 pb-14 lg:min-h-[84lvh] lg:grid-cols-2 lg:gap-12 lg:pb-0">
-          {/* Текст поверх плоскости: дальний край месяца уходит под него,
-              и порядок слоёв должен быть назван явно.
-
-              На телефоне порядок обратный разметке: сверху идёт сборка
-              календаря, под ней — текст с кнопкой. Первым в разметке
-              текст остаётся намеренно: он же первым читается программой
-              чтения и первым попадает в выдачу. */}
-          <div className="relative z-10 space-y-6 max-lg:order-2">
-            {/* Переносы расставлены руками, а не отданы автоматике: при
-                свободном переносе на широком экране последней строкой
-                остаётся одно слово «трое», и заголовок разваливается.
-                Неразрывные пробелы держат предлог при своём слове, а
-                «через трое» — вместе на узком экране.
-
-                Чем крупнее кегль, тем плотнее строки: интерлиньяж 0,92 и
-                чуть отрицательный трекинг. Отрицательный «чуть» — PT Sans
-                Narrow и без того узкий, сильное сжатие слепит буквы.
-
-                Пробел ПОСЛЕ переноса обязателен. `<br>` спрятан классом
-                только на узком экране, но текст рядом с ним остаётся: без
-                пробела «для учёта» и «рабочего времени» слипались в
-                «учётарабочего» — одно слово в двадцать знаков, которое
-                переносить негде, и заголовок вылезал за экран.
-
-                Ступень кегля на 400 точках — оттуда же: «инструмент» с
-                «Удобный» в одной строке при 36 пунктах не помещается в
-                триста двадцать. */}
-            <h1 className="rise text-[2rem] leading-[0.92] tracking-[-0.01em] text-balance xxs:text-4xl sm:text-5xl lg:text-6xl">
-              <span className="block text-verify">Удобный инструмент</span>
-              для&nbsp;учёта{" "}
-              <br className="hidden lg:inline" />
-              рабочего&nbsp;времени
-            </h1>
-
-            <p className="rise rise-2 max-w-prose text-lg leading-snug text-ink-muted text-pretty">
-              Норма по&nbsp;производственному календарю. Отпуск уменьшает норму,
-              а&nbsp;не&nbsp;отработанные часы.
-            </p>
-
-            <div className="rise rise-3">
-              <ToCalculator>Открыть график</ToCalculator>
-            </div>
-          </div>
-
-          {/* Месяц заходит левым краем под текстовую колонку: там он уже
-              растворён маской, и наезжать ему не на что. Отрицательное
-              поле заодно делает плоскость шире своей колонки — клетка
-              получается размером с клетку настенного календаря. */}
-          <HeroCalendar
-            figures={SAMPLE}
-            className="max-lg:order-1 lg:-ml-[30%] lg:max-w-[114%]"
-          />
-        </section>
+        <LandingHero cta={<ToCalculator>Открыть график</ToCalculator>} />
 
         {/* --------------------------------------------------------- что делает */}
         <section aria-labelledby="what" className="space-y-5 border-b border-rule py-14">
