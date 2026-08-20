@@ -72,36 +72,8 @@ export function PeriodSummary({
 
   return (
     <>
-      {/* Щиток над полосой. Шапка залита бумагой только на верхнюю
-          половину, ниже она уходит в прозрачность, — и содержимое
-          страницы просвечивало сквозь неё полоской между шапкой и этой
-          панелью. Псевдоэлемент закрывает ровно эту половину: на своём
-          месте, до прокрутки, он приходится на пустое поле под шапкой и
-          не виден.
-
-          `relative` тут ставить нельзя: это то же свойство `position`, и
-          оно отменило бы `sticky`. Липкий элемент и так задаёт систему
-          координат для `absolute` внутри себя. */}
-        {/* <PeriodExtras
-          calculation={calculation}
-          periodLabel={periodLabel}
-          wide={wide}
-        /> */}
-      <div
-        className={cn(
-          "sticky top-24 z-40 -mx-6 -translate-y-8",
-          "",
-        )}
-      >
-        <div className="flex items-end gap-x-2 px-6 pb-3">
-          <PeriodFigures
-            calculation={calculation}
-            periodLabel={periodLabel}
-            inDays={overtimeInDays}
-          />
-
-          <MinorFigures calculation={calculation} />
-        </div>
+      <div className="sticky top-24 z-40 -mx-6 -translate-y-8">
+        <FiguresRow calculation={calculation} inDays={overtimeInDays} />
       </div>
 
       <PendingNotice accountingYear={accountingYear} />
@@ -110,34 +82,51 @@ export function PeriodSummary({
 }
 
 /**
- * Мелкие итоги — продолжением той же строки, если для них есть место.
+ * Мелкие итоги — плашками в ряд, если для них есть место.
+ *
+ * --- Почему плашки одной ширины ------------------------------------------
+ *
+ * Их пять, и содержание у них разной длины: «0» против «734,0», «Пропущено»
+ * против «Смен по графику». Плашки по содержимому давали пять разных
+ * прямоугольников с рваным правым краем — то самое, из-за чего ряд
+ * выглядел случайным. Одинаковые плашки складываются в ленту, а лента
+ * читается как одна вещь, а не как пять наклеек.
+ *
+ * --- Почему число над подписью, а не рядом -------------------------------
+ *
+ * Так же, как в главной плашке. Число и подпись, стоящие в строку, при
+ * растянутой плашке разъезжаются по её краям, и между ними появляется
+ * пустота, которую глаз читает как границу: «92» отдельно, «смен по
+ * графику» отдельно. Столбиком они остаются одним целым при любой ширине.
+ *
+ * И главное: подписи всех восьми чисел — и крупных, и мелких — встают на
+ * одну линию. Ряд держится этой линией, а не рамками плашек.
  *
  * --- Почему по замеру, а не по ширине экрана ------------------------------
  *
  * Строка главных чисел не одной ширины: недоработка появляется не всегда,
- * подпись периода бывает и «2026 год», и «1-е полугодие», а сами числа
- * бывают четырёхзначными. Любой порог вроде «показывать с 1280» на одном
- * профиле оставил бы пустоту, а на другом полез бы за край.
+ * переработка бывает и «212,0 ч», и «8 суток 20 ч». Любой порог вроде
+ * «показывать с 1280» на одном профиле оставил бы пустоту, а на другом
+ * полез бы за край.
  *
- * Поэтому решает не экран, а свободное место: остаток строки измеряется
- * наблюдателем размера, и итоги показываются, когда помещаются целиком с
- * запасом. Круга здесь нет — блок стоит вне потока (`absolute`) и всегда
- * одного размера, а прячется невидимостью, поэтому его появление ничего
- * не двигает и нового замера не вызывает.
- *
- * --- Почему не переносом на вторую строку --------------------------------
- *
- * Полоса закреплена под шапкой и отнимает высоту у календаря. Вторая
- * строка в ней стоит дороже, чем пять чисел, которые нужны редко: их
- * всегда можно посмотреть в подписи месяца.
+ * Замер идёт по невидимому эталону — тем же плашкам, сжатым по
+ * содержимому. Круга здесь нет именно поэтому: эталон не зависит от того,
+ * что показано. Мерить видимый ряд было бы нельзя — спрятав его, мы
+ * получили бы «теперь помещается» и показали снова.
  */
-function MinorFigures({ calculation }: { calculation: PeriodCalculation }) {
-  const tail = useRef<HTMLDivElement>(null);
+function FiguresRow({
+  calculation,
+  inDays,
+}: {
+  calculation: PeriodCalculation;
+  inDays: boolean;
+}) {
+  const row = useRef<HTMLDivElement>(null);
   const probe = useRef<HTMLDivElement>(null);
   const [fits, setFits] = useState(false);
 
   useEffect(() => {
-    const room = tail.current;
+    const room = row.current;
     const content = probe.current;
     if (!room || !content) return;
 
@@ -145,68 +134,107 @@ function MinorFigures({ calculation }: { calculation: PeriodCalculation }) {
     // `ResizeObserver` вызывает обработчик сразу при подписке, так что
     // первый замер всё равно случится, и лишней отрисовки не будет.
     const observer = new ResizeObserver(() => {
-      // Двадцать четыре точки — тот же зазор, что между числами: без
-      // запаса итоги прилипали бы к правому краю окна.
-      setFits(content.scrollWidth <= room.clientWidth);
+      // Запас в зазор между плашками: ряд, помещающийся впритык, читается
+      // как переполненный, даже когда формально влез.
+      setFits(content.scrollWidth + 8 <= room.clientWidth - 48);
     });
     observer.observe(room);
     observer.observe(content);
     return () => observer.disconnect();
   }, []);
 
+  const items = minorItems(calculation);
+
   return (
-    <div ref={tail} className="relative min-w-0 flex-1 self-stretch">
+    // Полоса залита бумагой, хотя плашки в ней и свои: без заливки между
+    // ними просвечивает календарь — он проезжает под закреплённой полосой,
+    // и в зазорах видно, как едут клетки.
+    <div ref={row} className="relative flex items-stretch gap-2 bg-paper px-6 pb-3">
+      <MainPlate calculation={calculation} inDays={inDays} grow={!fits} />
+
+      {fits ? (
+        <div className="flex h-14 min-w-0 flex-1 gap-2">
+          {items.map((item) => (
+            <MinorPlate key={item.caption} {...item} />
+          ))}
+        </div>
+      ) : null}
+
+      {/* Эталон: та же полоса целиком, сжатая по содержимому и вынесенная
+          из потока. `inert` — чтобы знак вопроса в нём не ловил ни курсор,
+          ни клавиатуру. */}
       <div
         ref={probe}
-        aria-hidden={!fits}
-        className="absolute bottom-0 left-0 h-full w-full gap-1 whitespace-nowrap flex"
+        inert
+        aria-hidden
+        className="pointer-events-none invisible absolute bottom-0 left-6 flex h-14 gap-2 whitespace-nowrap"
       >
-        <Minor
-          value={String(calculation.scheduledShifts)}
-          caption="Смен по графику"
-        />
-        <Minor
-          value={String(calculation.workedShifts)}
-          caption="Отработано смен"
-        />
-        <Minor
-          value={String(calculation.absentShifts)}
-          caption="Пропущено"
-        />
-        <Minor
-          value={`${hours(calculation.nightHours)}`}
-          caption="Ночные часы"
-        />
-        <Minor
-          value={`${hours(calculation.holidayHours)}`}
-          caption="Праздничные часы"
-          // hint={
-          //   <Hint label="Про ночные и праздничные часы">
-          //     <FactOnlyNote />
-          //   </Hint>
-          // }
-        />
+        <MainPlate calculation={calculation} inDays={inDays} tight />
+        {items.map((item) => (
+          <MinorPlate key={item.caption} {...item} tight />
+        ))}
       </div>
     </div>
   );
 }
 
-/** Мелкий итог: то же построение, что у главного числа, но вполголоса. */
-function Minor({
-  value,
-  caption,
-  hint,
-}: {
+interface MinorItem {
   value: string;
+  unit?: string;
   caption: string;
   hint?: ReactNode;
+}
+
+function minorItems(calculation: PeriodCalculation): MinorItem[] {
+  return [
+    { value: String(calculation.scheduledShifts), caption: "Смен по графику" },
+    { value: String(calculation.workedShifts), caption: "Отработано смен" },
+    { value: String(calculation.absentShifts), caption: "Пропущено" },
+    { value: hours(calculation.nightHours), unit: "ч", caption: "Ночные часы" },
+    {
+      value: hours(calculation.holidayHours),
+      unit: "ч",
+      caption: "Праздничные часы",
+      hint: (
+        <Hint label="Про ночные и праздничные часы">
+          <FactOnlyNote />
+        </Hint>
+      ),
+    },
+  ];
+}
+
+/**
+ * Мелкий итог: то же построение, что у главного числа, но вполголоса и на
+ * своей плашке.
+ *
+ * Единица измерения остаётся при числе, хотя подпись под ним и повторяет
+ * её словом. Без «ч» ряд из «92», «92», «0», «734,0», «96,0» выглядит
+ * пятью числами одной природы, тогда как первые три — это смены, а
+ * последние два — часы.
+ */
+function MinorPlate({
+  value,
+  unit,
+  caption,
+  hint,
+  tight,
+}: MinorItem & {
+  /** Плашка эталона: по содержимому, а не в общую долю ширины. */
+  tight?: boolean;
 }) {
   return (
-    <div className="min-w-0 bg-paper-raised py-1 px-2 rounded-lg xl:rounded-xl flex gap-2 items-center xl:w-full justify-evenly xl:h-9">
-      <dd className="whitespace-nowrap font-mono text-sm leading-none text-ink">
+    <div
+      className={cn(
+        "flex min-w-0 flex-col items-center justify-end rounded-xl bg-paper-raised px-3 pb-2",
+        tight ? "shrink-0" : "flex-1",
+      )}
+    >
+      <dd className="whitespace-nowrap font-mono text-base leading-none text-ink">
         {value}
+        {unit ? <span className="ml-1 text-[11px] text-ink-muted">{unit}</span> : null}
       </dd>
-      <dt className="flex items-center gap-1 whitespace-nowrap text-[11px] leading-tight text-ink-muted">
+      <dt className="mt-1.5 flex h-3.5 items-center gap-1 whitespace-nowrap text-[11px] leading-tight text-ink-muted">
         {caption}
         {hint}
       </dt>
@@ -215,56 +243,72 @@ function Minor({
 }
 
 /**
- * Числа: даты периода и главные величины.
+ * Главная плашка: норма, факт и разница между ними.
  *
- * На узком экране остаются три числа — норма, факт, переработка. Сутки и
- * сами даты уходят в строку мелких итогов под ними: полоса обязана
- * оставаться тонкой, а прятать их за кнопку значило бы требовать нажатия
- * там, где хватает взгляда строкой ниже.
+ * Три числа, а иногда четыре: недоработка появляется только тогда, когда
+ * она есть. Держать под неё место всегда значило бы показывать
+ * «Недоработка 0,0 ч» рядом с переработкой — число, которое ничего не
+ * говорит.
+ *
+ * Плашка одна на все три, а не по одной на число: норму, факт и разницу
+ * сравнивают между собой, и рамка вокруг каждого разрезала бы то, что
+ * читается вместе. Мелкие итоги — наоборот, пять независимых фактов, и
+ * плашка у каждого своя.
+ *
+ * На телефоне плашка занимает всю ширину: мелких итогов там нет, и делить
+ * строку не с кем.
  */
-function PeriodFigures({
+function MainPlate({
   calculation,
-  periodLabel,
   inDays,
+  grow,
+  tight,
 }: {
   calculation: PeriodCalculation;
-  /** Даты периода словами: в споре важно, за какие именно числа расчёт. */
-  periodLabel: string;
   /** Переработку — сменами и часами, а не часами. */
   inDays: boolean;
+  /** Мелких итогов рядом нет — занять всю строку и развести числа. */
+  grow?: boolean;
+  /** Плашка эталона: по содержимому. */
+  tight?: boolean;
 }) {
   const overtime = calculation.overtimeHours.greaterThan(0);
   const undertime = calculation.undertimeHours.greaterThan(0);
 
   return (
-    <div className="flex justify-between min-w-0 shrink-0 items-end gap-x-5 bg-paper-raised py-1 px-2 rounded-xl w-full xs:w-[383px]">
-      <dl className="flex min-w-0 items-center gap-x-3 xs:gap-x-6 justify-around w-full">
+    <dl
+      className={cn(
+        "flex h-14 items-end rounded-xl bg-paper-raised px-4 pb-2",
+        // Пока мелких итогов нет, плашка занимает строку целиком, а числа
+        // расходятся по ней: три числа, сжатые в левый угол полосы во всю
+        // ширину экрана, читаются как незаконченная вёрстка.
+        grow && !tight
+          ? "min-w-0 flex-1 justify-between gap-x-3"
+          : "shrink-0 gap-x-5 sm:gap-x-6",
+      )}
+    >
+      <Figure
+        parts={[{ value: hours(calculation.normHours), unit: "ч" }]}
+        caption="Норма"
+        emphatic
+      />
+      <Figure
+        parts={[{ value: hours(calculation.actualHours), unit: "ч" }]}
+        caption="Фактически"
+      />
+      <Figure
+        parts={overtimeParts(calculation.overtimeHours, inDays)}
+        caption="Переработка"
+        tone={overtime ? "verify" : undefined}
+      />
+      {undertime ? (
         <Figure
-          parts={[{ value: hours(calculation.normHours), unit: "ч" }]}
-          caption="Норма"
-          emphatic
+          parts={overtimeParts(calculation.undertimeHours, inDays)}
+          caption="Недоработка"
+          tone="signal"
         />
-        <Figure
-          parts={[{ value: hours(calculation.actualHours), unit: "ч" }]}
-          caption="Фактически"
-        />
-        <Figure
-          parts={overtimeParts(calculation.overtimeHours, inDays)}
-          caption="Переработка"
-          tone={overtime ? "verify" : undefined}
-          // Довод про неуменьшенную норму — у того числа, которое от неё
-          // зависит. Он стоял отдельной карточкой во весь абзац, и её
-          // читают один раз, а место она занимала всегда.
-        />
-        {undertime ? (
-          <Figure
-            parts={overtimeParts(calculation.undertimeHours, inDays)}
-            caption="Недоработка"
-            tone="signal"
-          />
-        ) : null}
-      </dl>
-    </div>
+      ) : null}
+    </dl>
   );
 }
 
@@ -538,7 +582,7 @@ function Figure({
           </span>
         ))}
       </dd>
-      <dt className="flex items-center gap-1 whitespace-nowrap text-[11px] leading-tight text-ink-muted">
+      <dt className="mt-1.5 flex h-3.5 items-center gap-1 whitespace-nowrap text-[11px] leading-tight text-ink-muted">
         {caption}
         {hint}
       </dt>
