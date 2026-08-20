@@ -195,11 +195,11 @@ function minorItems(calculation: PeriodCalculation): MinorItem[] {
       value: hours(calculation.holidayHours),
       unit: "ч",
       caption: "Праздничные часы",
-      hint: (
-        <Hint label="Про ночные и праздничные часы">
-          <FactOnlyNote />
-        </Hint>
-      ),
+      // hint: (
+      //   <Hint label="Про ночные и праздничные часы">
+      //     <FactOnlyNote />
+      //   </Hint>
+      // ),
     },
   ];
 }
@@ -278,18 +278,18 @@ function MainPlate({
   return (
     <dl
       className={cn(
-        "flex h-14 items-end rounded-xl bg-paper-raised px-4 pb-2",
+        "flex h-14 items-center rounded-xl bg-paper-raised px-4 py-2",
         // Пока мелких итогов нет, плашка занимает строку целиком, а числа
         // расходятся по ней: три числа, сжатые в левый угол полосы во всю
         // ширину экрана, читаются как незаконченная вёрстка.
         grow && !tight
-          ? "min-w-0 flex-1 justify-between gap-x-3"
+          ? "min-w-0 flex-1 justify-around gap-x-3"
           : "shrink-0 gap-x-5 sm:gap-x-6",
       )}
     >
       <Figure
         parts={[{ value: hours(calculation.normHours), unit: "ч" }]}
-        caption="Норма"
+        caption="Норма периода"
         emphatic
       />
       <Figure
@@ -564,7 +564,7 @@ function Figure({
   hint?: ReactNode;
 }) {
   return (
-    <div className="min-w-0 ">
+    <div className="min-w-0 sm:flex sm:flex-row-reverse sm:items-center sm:gap-4 lg:block">
       {/* Число и его единица не разрываются переносом: «1796,00» на одной
           строке и «ч» на следующей читается как другое число. */}
       <dd
@@ -582,8 +582,10 @@ function Figure({
           </span>
         ))}
       </dd>
-      <dt className="mt-1.5 flex h-3.5 items-center gap-1 whitespace-nowrap text-[11px] leading-tight text-ink-muted">
-        {caption}
+      <dt className="flex h-3.5 items-center justify-center gap-1 whitespace-nowrap text-[11px] leading-tight text-ink-muted">
+        <span className="sm:after:content-[':']">
+          {caption}
+        </span>
         {hint}
       </dt>
     </div>
