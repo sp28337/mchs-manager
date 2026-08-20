@@ -239,21 +239,9 @@ export function ShiftStrip({
           />
         ))}
       </div>
-
-      {/* Легенда разложена на три группы с заголовками, а не в одну
-          полосу из восемнадцати значков. Группа отвечает на вопрос «что
-          вообще бывает в клетке»: смена, пропуск, вызов, — и внутри
-          группы человек уже ищет свой случай. Прежняя сплошная строка
-          заставляла перебирать всё подряд. */}
-      {/* На широком экране легенда стоит колонкой слева и держится на
-          месте, как числа над ней: `sticky` под самой полосой итога (её
-          низ — 122 точки, отсюда 128). Иначе, доведя календарь до
-          сентября, человек читает клетку «СБ» и уже не помнит, что она
-          значит, — легенда уехала за верхний край.
-
-          `self-start` обязателен: в строке `flex` элемент по умолчанию
-          растянут на всю высоту сетки, и прилипать ему просто некуда. */}
-      <div className="space-y-4 border-t border-rule xl:border-none pt-4 xl:pt-0 xl:max-w-70 xl:w-full xl:flex xl:flex-col xl:gap-6 xl:sticky xl:top-32 xl:self-start">
+      <div className="space-y-4 border-t border-rule xl:border-none translate-y-1
+                      xl:max-w-70 xl:w-full xl:flex xl:flex-col xl:gap-6 xl:sticky
+                      xl:top-32 xl:self-start bg-paper-raised/70 p-4 rounded-xl lg:min-w-92.5">
         <LegendGroup title="Смены по графику">
           <Legend
             className="border-verify/25 bg-verify/30 text-verify"

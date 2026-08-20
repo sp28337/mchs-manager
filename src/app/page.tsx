@@ -259,7 +259,7 @@ export default function LandingPage() {
             Две колонки, а не текст поверх фона: сетка месяцев здесь не
             подложка, а вторая половина разговора. Слева сказано, о чём
             речь, справа показано, как это выглядит. */}
-        <section className="hero-band grid items-center gap-10 border-b border-rule pt-15 pb-14 lg:min-h-[84lvh] lg:grid-cols-2 lg:gap-12 lg:pb-0">
+        <section className="hero-band grid items-center gap-10 pt-15 pb-14 lg:min-h-[84lvh] lg:grid-cols-2 lg:gap-12 lg:pb-0">
           {/* Текст поверх плоскости: дальний край месяца уходит под него,
               и порядок слоёв должен быть назван явно. */}
           <div className="relative z-10 space-y-6">
@@ -273,9 +273,9 @@ export default function LandingPage() {
                 чуть отрицательный трекинг. Отрицательный «чуть» — PT Sans
                 Narrow и без того узкий, сильное сжатие слепит буквы. */}
             <h1 className="rise text-4xl leading-[0.92] tracking-[-0.01em] text-balance sm:text-5xl lg:text-6xl">
-              <span className="block text-signal">Переработка</span>
-              при&nbsp;графике
-              <br className="hidden lg:inline" /> сутки через&nbsp;трое
+              <span className="block text-verify">Удобный инструмент</span>
+              для&nbsp;учёта
+              <br className="hidden lg:inline" />рабочего&nbsp;времени
             </h1>
 
             <p className="rise rise-2 max-w-prose text-lg leading-snug text-ink-muted text-pretty">
@@ -284,7 +284,7 @@ export default function LandingPage() {
             </p>
 
             <div className="rise rise-3">
-              <ToCalculator>Открыть калькулятор</ToCalculator>
+              <ToCalculator>Открыть график</ToCalculator>
             </div>
           </div>
 
@@ -292,7 +292,7 @@ export default function LandingPage() {
               растворён маской, и наезжать ему не на что. Отрицательное
               поле заодно делает плоскость шире своей колонки — клетка
               получается размером с клетку настенного календаря. */}
-          <HeroCalendar figures={SAMPLE} className="lg:-ml-[30%]" />
+          <HeroCalendar figures={SAMPLE} className="lg:ml-[-30%]" />
         </section>
 
         {/* --------------------------------------------------------- что делает */}

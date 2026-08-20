@@ -91,7 +91,7 @@ export function SiteHeader({ tagline, action, tools, className }: SiteHeaderProp
                   строки визуально, но в тексте они склеиваются, и
                   программа чтения произносит «переработкидля». */}
               График{" "}
-              <span className="text-ink-muted">1/3</span>
+              <span className="text-ink-muted">1 3</span>
               {/* {tagline ? (
                 <p className="hidden max-w-xs border-l border-rule pl-6 text-xs text-ink-muted lg:block">
                   {tagline}

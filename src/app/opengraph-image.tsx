@@ -46,7 +46,7 @@ export default function OpengraphImage() {
             <div style={{ width: 20, height: 20, background: "#2a2c2f" }} />
           </div>
           <div style={{ fontSize: 34, letterSpacing: 2, textTransform: "uppercase" }}>
-            График 1/3
+            График 1 3
           </div>
         </div>
 

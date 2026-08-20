@@ -205,7 +205,7 @@ export function HeroCalendar({
             // клетку в сотню точек — и число в ней теряется. Поэтому в
             // одноколоночной раскладке ширина ограничена, а на широком
             // экране её держит колонка.
-            "hero-cal__plane max-w-[26rem] sm:max-w-[30rem] lg:max-w-none",
+            "hero-cal__plane max-w-104 sm:max-w-120 lg:max-w-none",
             "text-base sm:text-lg lg:text-xl xl:text-2xl",
           )}
         >
