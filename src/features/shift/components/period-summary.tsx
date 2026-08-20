@@ -93,7 +93,7 @@ export function PeriodSummary({
           "",
         )}
       >
-        <div className="flex items-end gap-x-6 bg-paper px-6 pb-3">
+        <div className="flex items-end gap-x-2 px-6 pb-3">
           <PeriodFigures
             calculation={calculation}
             periodLabel={periodLabel}
@@ -147,7 +147,7 @@ function MinorFigures({ calculation }: { calculation: PeriodCalculation }) {
     const observer = new ResizeObserver(() => {
       // Двадцать четыре точки — тот же зазор, что между числами: без
       // запаса итоги прилипали бы к правому краю окна.
-      setFits(content.scrollWidth + 24 <= room.clientWidth);
+      setFits(content.scrollWidth <= room.clientWidth);
     });
     observer.observe(room);
     observer.observe(content);
@@ -159,24 +159,32 @@ function MinorFigures({ calculation }: { calculation: PeriodCalculation }) {
       <div
         ref={probe}
         aria-hidden={!fits}
-        className={cn(
-          "absolute bottom-0 left-0 flex items-end gap-x-5 whitespace-nowrap",
-          "border-l border-rule pl-5",
-          fits ? "" : "invisible",
-        )}
+        className="absolute bottom-0 left-0 h-full w-full gap-1 whitespace-nowrap flex"
       >
-        <Minor value={String(calculation.scheduledShifts)} caption="Смен по графику" />
-        <Minor value={String(calculation.workedShifts)} caption="Отработано смен" />
-        <Minor value={String(calculation.absentShifts)} caption="Пропущено" />
-        <Minor value={`${hours(calculation.nightHours)} ч`} caption="Ночные часы" />
         <Minor
-          value={`${hours(calculation.holidayHours)} ч`}
+          value={String(calculation.scheduledShifts)}
+          caption="Смен по графику"
+        />
+        <Minor
+          value={String(calculation.workedShifts)}
+          caption="Отработано смен"
+        />
+        <Minor
+          value={String(calculation.absentShifts)}
+          caption="Пропущено"
+        />
+        <Minor
+          value={`${hours(calculation.nightHours)}`}
+          caption="Ночные часы"
+        />
+        <Minor
+          value={`${hours(calculation.holidayHours)}`}
           caption="Праздничные часы"
-          hint={
-            <Hint label="Про ночные и праздничные часы">
-              <FactOnlyNote />
-            </Hint>
-          }
+          // hint={
+          //   <Hint label="Про ночные и праздничные часы">
+          //     <FactOnlyNote />
+          //   </Hint>
+          // }
         />
       </div>
     </div>
@@ -194,7 +202,7 @@ function Minor({
   hint?: ReactNode;
 }) {
   return (
-    <div className="min-w-0">
+    <div className="min-w-0 bg-paper-raised py-1 px-2 rounded-lg xl:rounded-xl flex gap-2 items-center xl:w-full justify-evenly xl:h-9">
       <dd className="whitespace-nowrap font-mono text-sm leading-none text-ink">
         {value}
       </dd>
@@ -229,8 +237,8 @@ function PeriodFigures({
   const undertime = calculation.undertimeHours.greaterThan(0);
 
   return (
-    <div className="flex min-w-0 shrink-0 items-end gap-x-5">
-      <dl className="flex min-w-0 items-end gap-x-5">
+    <div className="flex justify-between min-w-0 shrink-0 items-end gap-x-5 bg-paper-raised py-1 px-2 rounded-xl w-full xs:w-[383px]">
+      <dl className="flex min-w-0 items-center gap-x-3 xs:gap-x-6 justify-around w-full">
         <Figure
           parts={[{ value: hours(calculation.normHours), unit: "ч" }]}
           caption="Норма"
@@ -512,7 +520,7 @@ function Figure({
   hint?: ReactNode;
 }) {
   return (
-    <div className="min-w-0">
+    <div className="min-w-0 ">
       {/* Число и его единица не разрываются переносом: «1796,00» на одной
           строке и «ч» на следующей читается как другое число. */}
       <dd
