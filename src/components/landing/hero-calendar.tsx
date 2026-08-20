@@ -136,7 +136,7 @@ export function HeroCalendar({
         return (
           <Cell
             corners={corners}
-            wave={wave(slot % 7, Math.floor(slot / 7))}
+            wave={wave(slot % 7, Math.floor(slot / 7), rows)}
             tone={
               start
                 ? "rounded-md border border-verify/25 bg-verify/30 text-verify"
@@ -155,8 +155,9 @@ export function HeroCalendar({
 
   // Волна доходит до ближнего угла — числа ждут её конца. Задержка
   // считается здесь, а не подбирается в CSS на глаз: смени месяц, и она
-  // пересчитается сама. Из двух порядков берётся более долгий.
-  const lastWave = Math.max(wave(6, rows - 1).x, wave(6, rows - 1).y);
+  // пересчитается сама. Из двух порядков берётся более долгий: по ширине
+  // последней приходит нижняя правая клетка, по высоте — верхняя правая.
+  const lastWave = Math.max(wave(6, rows - 1, rows).x, wave(6, 0, rows).y);
 
   return (
     <div aria-hidden className={cn("hero-cal select-none", className)}>
@@ -191,16 +192,17 @@ export function HeroCalendar({
           )}
         >
           <dl
-            // Отступ слева двумя ступенями: на 1024 плоскость узкая, и
-            // при четверти ширины три плашки перестают помещаться в ряд —
-            // «1972» отрывается от «ч».
-            className="hero-cal__figures mb-5 flex flex-wrap gap-2 text-base lg:ml-[8%] xl:ml-[24%]"
+            // Во всю ширину плоскости: плашки — верхний край того же
+            // листа, что и месяц под ними, и обрываться раньше него им
+            // нельзя. Растворяются они вместе с ним — маска общая, она
+            // назначена плоскости.
+            className="hero-cal__figures mb-5 flex flex-wrap gap-2 text-base"
             style={vars({ "--i": lastWave })}
           >
             {figures.map((figure) => (
               <div
                 key={figure.caption}
-                className="min-w-24 flex-1 rounded-xl bg-paper-raised px-4 py-2.5"
+                className="min-w-22 flex-1 rounded-xl bg-paper-raised px-3 py-2.5 sm:px-4"
               >
                 <dd
                   className={cn(
@@ -231,10 +233,14 @@ export function HeroCalendar({
  * Два порядка волны для клетки: вдоль ширины и вдоль высоты.
  *
  * Волна идёт из глубины наружу, а глубина на широком и узком экране
- * разная. Оба числа считаются здесь, выбор между ними — в CSS.
+ * разная. На широком дальний край левый, и волна идёт слева направо. На
+ * узком дальний край НИЖНИЙ — месяц уходит вниз, под текст, — поэтому
+ * строки считаются с конца, и волна поднимается снизу вверх.
+ *
+ * Оба числа считаются здесь, выбор между ними — в CSS.
  */
-function wave(column: number, row: number): { x: number; y: number } {
-  return { x: column * 2 + row, y: row * 2 + column };
+function wave(column: number, row: number, rows: number): { x: number; y: number } {
+  return { x: column * 2 + row, y: (rows - 1 - row) * 2 + column };
 }
 
 function vars(style: Record<string, number>): CSSProperties {

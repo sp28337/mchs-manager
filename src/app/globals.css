@@ -542,14 +542,16 @@
   --cal-step: 46ms;
   --cal-lead: 220ms;
 
-  /* Глубина по вертикали: дальний край — верхний. */
-  --cal-fade: linear-gradient(to bottom, transparent 6%, rgb(0 0 0 / 0.5) 30%, #000 62%);
+  /* Глубина по вертикали: дальний край — НИЖНИЙ. Месяц стоит над текстом
+     и уходит вглубь вниз, под слова; ближний край — верхний, там же
+     стоят числа, и они остаются резкими. */
+  --cal-fade: linear-gradient(to top, transparent 4%, rgb(0 0 0 / 0.5) 28%, #000 60%);
   --cal-haze: linear-gradient(
-    to bottom,
+    to top,
     transparent 2%,
-    rgb(0 0 0 / 0.85) 22%,
-    rgb(0 0 0 / 0.7) 38%,
-    transparent 66%
+    rgb(0 0 0 / 0.85) 20%,
+    rgb(0 0 0 / 0.7) 36%,
+    transparent 64%
   );
 }
 
@@ -563,13 +565,19 @@
 
 .hero-cal__stage {
   perspective: 1600px;
-  perspective-origin: 50% 100%;
+  perspective-origin: 50% 0%;
 }
 
+/* Маска — на всей плоскости, а не на одном месяце: числа лежат в ней же и
+   растворяются вместе с сеткой. Иначе выходило, что плоскость тает, а
+   плашка над ней обрывается по линейке, — и весь объём разваливался
+   ровно в том месте, куда смотрят первым делом. */
 .hero-cal__plane {
   position: relative;
-  transform-origin: 50% 100%;
-  transform: rotateX(9deg) rotate(-0.6deg);
+  transform-origin: 50% 0%;
+  transform: rotateX(-8deg) rotate(-0.6deg);
+  mask-image: var(--cal-fade);
+  -webkit-mask-image: var(--cal-fade);
 }
 
 /* Стопка слоёв месяца. Отдельная от плоскости: в плоскости лежат ещё и
@@ -579,11 +587,10 @@
 }
 
 /* Оба слоя занимают одно место: размер держит резкий, размытый лежит
-   поверх него — вернее, под ним по прозрачности маски. */
+   поверх него — вернее, под ним по прозрачности маски. Растворение
+   дальнего края здесь уже не назначается: им занята вся плоскость. */
 .hero-cal__layer--sharp {
   position: relative;
-  mask-image: var(--cal-fade);
-  -webkit-mask-image: var(--cal-fade);
 }
 
 .hero-cal__layer--haze {

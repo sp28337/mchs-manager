@@ -1,5 +1,7 @@
 import type { ReactNode } from "react";
 
+import { cn } from "@/lib/utils/cn";
+
 import { HeroCalendar, type HeroFigure } from "./hero-calendar";
 
 /**
@@ -83,7 +85,16 @@ export function LandingHero({ cta }: { cta: ReactNode }) {
           размером с клетку настенного календаря. */}
       <HeroCalendar
         figures={SAMPLE}
-        className="max-lg:order-1 lg:-ml-[30%] lg:max-w-[114%]"
+        className={cn(
+          "max-lg:order-1",
+          // На телефоне месяц заходит нижним краем под заголовок: там он
+          // уже растворён маской, и слова читаются поверх пустоты, а не
+          // поверх клеток. Отрицательное поле съедает зазор колонки
+          // целиком и ещё пару десятков точек сверх него — от этого
+          // наплыва и берётся объём.
+          "max-lg:-mb-24",
+          "lg:-ml-[30%] lg:max-w-[114%]",
+        )}
       />
     </section>
   );
