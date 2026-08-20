@@ -160,37 +160,18 @@ export function HeroCalendar({
 
   return (
     <div aria-hidden className={cn("hero-cal select-none", className)}>
-      <dl
-        className="hero-cal__figures relative z-10 mb-5 flex flex-wrap gap-2 lg:ml-[18%]"
-        style={vars({ "--i": lastWave })}
-      >
-        {figures.map((figure) => (
-          <div
-            key={figure.caption}
-            className="min-w-24 flex-1 rounded-xl bg-paper-raised px-4 py-2.5"
-          >
-            <dd
-              className={cn(
-                "font-mono text-xl leading-none sm:text-2xl",
-                figure.verify ? "font-medium text-verify" : "text-ink",
-              )}
-            >
-              {figure.value}
-            </dd>
-            <dt className="mt-1.5 text-[11px] leading-tight text-ink-muted">
-              {figure.caption}
-            </dt>
-          </div>
-        ))}
-      </dl>
-
       {/* Сцена задаёт перспективу, плоскость — наклон. Точка схода одна на
           весь блок и стоит там, где стоит читатель: у ближнего края.
 
-          Слоёв два, и это один и тот же месяц. Нижний размыт целиком и
-          показан только в средней полосе — там, где сетка ещё не в
-          фокусе. Верхний резкий и проявляется ближе к читателю. В полосе,
-          где видны оба, размытый просвечивает сквозь недобравший
+          Числа лежат В ТОЙ ЖЕ плоскости, что и месяц, и наклонены вместе
+          с ней: они не подпись рядом с картинкой, а лист, положенный
+          поверх календаря. Маска дальнего края на них не распространяется
+          — они целиком в ближней, резкой части.
+
+          Слоёв месяца два, и это один и тот же месяц. Нижний размыт
+          целиком и показан только в средней полосе — там, где сетка ещё
+          не в фокусе. Верхний резкий и проявляется ближе к читателю. В
+          полосе, где видны оба, размытый просвечивает сквозь недобравший
           плотности резкий, и переход выходит непрерывным.
 
           Почему не `backdrop-filter` одним слоем: маска его в Chromium не
@@ -209,8 +190,37 @@ export function HeroCalendar({
             "text-base sm:text-lg lg:text-xl xl:text-2xl",
           )}
         >
-          <div className="hero-cal__layer hero-cal__layer--haze">{month}</div>
-          <div className="hero-cal__layer hero-cal__layer--sharp">{month}</div>
+          <dl
+            // Отступ слева двумя ступенями: на 1024 плоскость узкая, и
+            // при четверти ширины три плашки перестают помещаться в ряд —
+            // «1972» отрывается от «ч».
+            className="hero-cal__figures mb-5 flex flex-wrap gap-2 text-base lg:ml-[8%] xl:ml-[24%]"
+            style={vars({ "--i": lastWave })}
+          >
+            {figures.map((figure) => (
+              <div
+                key={figure.caption}
+                className="min-w-24 flex-1 rounded-xl bg-paper-raised px-4 py-2.5"
+              >
+                <dd
+                  className={cn(
+                    "whitespace-nowrap font-mono text-xl leading-none sm:text-2xl",
+                    figure.verify ? "font-medium text-verify" : "text-ink",
+                  )}
+                >
+                  {figure.value}
+                </dd>
+                <dt className="mt-1.5 text-[11px] leading-tight text-ink-muted">
+                  {figure.caption}
+                </dt>
+              </div>
+            ))}
+          </dl>
+
+          <div className="hero-cal__stack">
+            <div className="hero-cal__layer hero-cal__layer--haze">{month}</div>
+            <div className="hero-cal__layer hero-cal__layer--sharp">{month}</div>
+          </div>
         </div>
       </div>
     </div>
