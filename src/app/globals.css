@@ -478,6 +478,19 @@
   margin-inline: 0;
 }
 
+/* До `xl` колонка `main` шире 56rem не бывает, и весь запас — это поле
+   между ней и краем окна. Оно и идёт в вынос, но не целиком: 1rem у края
+   остаётся всегда, иначе первый экран упирался бы в стекло.
+
+   Порог — тот же, с которого раскладка становится двухколоночной: на
+   телефоне выносить нечего, там поля у `main` и так всего полтора
+   сантиметра. */
+@media (width >= 48rem) {
+  .hero-band {
+    margin-inline: calc(-1 * max(0rem, min(3.5rem, (100vw - 56rem) / 2 - 1rem)));
+  }
+}
+
 @media (width >= 80rem) {
   .hero-band {
     margin-inline: calc(-1 * max(0rem, min(3.5rem, (100vw - 72rem) / 2 - 3.5rem)));
@@ -563,9 +576,12 @@
   overflow-clip-margin: 2rem;
 }
 
+/* Точка схода одна на всех ширинах — у ближнего, правого края. Разные
+   углы на телефоне и на мониторе читались как два разных предмета: на
+   узком экране лист лежал, на широком стоял. */
 .hero-cal__stage {
   perspective: 1600px;
-  perspective-origin: 50% 0%;
+  perspective-origin: 100% 50%;
 }
 
 /* Маска — на всей плоскости, а не на одном месяце: числа лежат в ней же и
@@ -574,8 +590,8 @@
    ровно в том месте, куда смотрят первым делом. */
 .hero-cal__plane {
   position: relative;
-  transform-origin: 50% 0%;
-  transform: rotateX(-8deg) rotate(-0.6deg);
+  transform-origin: 100% 50%;
+  transform: rotateY(-15deg) rotateX(4deg) rotate(-0.8deg);
   mask-image: var(--cal-fade);
   -webkit-mask-image: var(--cal-fade);
 }
@@ -601,9 +617,10 @@
   -webkit-mask-image: var(--cal-haze);
 }
 
-/* Широкий экран: текст слева, значит вглубь уходит левый край, и
-   плоскость разворачивается вокруг ближней, правой стороны. */
-@media (width >= 64rem) {
+/* Две колонки: текст слева, значит и вглубь уходит левый край — тот, что
+   подходит к словам. Меняются только маски: наклон общий. Порог тот же,
+   на котором раскладка становится двухколоночной (`LandingHero`). */
+@media (width >= 48rem) {
   :root {
     --cal-fade: linear-gradient(to right, transparent 6%, rgb(0 0 0 / 0.45) 30%, #000 66%);
     --cal-haze: linear-gradient(
@@ -615,14 +632,6 @@
     );
   }
 
-  .hero-cal__stage {
-    perspective-origin: 100% 50%;
-  }
-
-  .hero-cal__plane {
-    transform-origin: 100% 50%;
-    transform: rotateY(-15deg) rotateX(4deg) rotate(-0.8deg);
-  }
 }
 
 @keyframes cal-cell-in {
@@ -646,14 +655,17 @@
 }
 
 .hero-cal__cell {
-  /* Волна идёт из глубины наружу, а глубина на узком экране вертикальна:
-     порядок берётся тот, что совпал с наклоном. */
+  /* Волна идёт из глубины наружу, а глубина в одну колонку вертикальна:
+     порядок берётся тот, что совпал с растворением. */
   --i: var(--iy, 0);
   animation: cal-cell-in 620ms cubic-bezier(0.22, 1, 0.36, 1) both;
   animation-delay: calc(var(--i) * var(--cal-step) + var(--cal-lead));
 }
 
-@media (width >= 64rem) {
+/* Порог тот же, на котором раскладка становится двухколоночной: волна
+   обязана идти туда же, куда уводит маска, иначе сборка начинается с
+   того края, который в эту минуту растворён. */
+@media (width >= 48rem) {
   .hero-cal__cell {
     --i: var(--ix, 0);
   }

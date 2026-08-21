@@ -187,7 +187,7 @@ export function HeroCalendar({
             // клетку в сотню точек — и число в ней теряется. Поэтому в
             // одноколоночной раскладке ширина ограничена, а на широком
             // экране её держит колонка.
-            "hero-cal__plane max-w-104 sm:max-w-120 lg:max-w-none",
+            "hero-cal__plane max-w-104 sm:max-w-128 md:max-w-140 lg:max-w-none",
             "text-base sm:text-lg lg:text-xl xl:text-2xl",
           )}
         >
@@ -196,23 +196,31 @@ export function HeroCalendar({
             // листа, что и месяц под ними, и обрываться раньше него им
             // нельзя. Растворяются они вместе с ним — маска общая, она
             // назначена плоскости.
-            className="hero-cal__figures mb-5 flex flex-wrap gap-2 text-base"
+            //
+            // Переносить ряд нельзя: три числа — это одна строка итога, а
+            // не список. Разорванная надвое, она перестаёт читаться как
+            // итог и вдобавок задирает плоскость на целую плашку вверх.
+            // Поэтому ряд не переносится, а мельчает: на 320 точках
+            // «2192 ч» набрано шестнадцатью пунктами и три плашки с
+            // зазорами укладываются в двести пятьдесят.
+            className="hero-cal__figures mb-4 flex flex-nowrap gap-2 sm:mb-5"
             style={vars({ "--i": lastWave })}
           >
             {figures.map((figure) => (
               <div
                 key={figure.caption}
-                className="min-w-22 flex-1 rounded-xl bg-paper-raised px-3 py-2.5 sm:px-4"
+                className="min-w-0 flex-1 rounded-xl bg-paper-raised px-2.5 py-2 sm:px-4 sm:py-2.5"
               >
                 <dd
                   className={cn(
-                    "whitespace-nowrap font-mono text-xl leading-none sm:text-2xl",
+                    "whitespace-nowrap font-mono leading-none",
+                    "text-base xxs:text-lg sm:text-2xl",
                     figure.verify ? "font-medium text-verify" : "text-ink",
                   )}
                 >
                   {figure.value}
                 </dd>
-                <dt className="mt-1.5 text-[11px] leading-tight text-ink-muted">
+                <dt className="mt-1.5 truncate text-[10px] leading-tight text-ink-muted sm:text-[11px]">
                   {figure.caption}
                 </dt>
               </div>
