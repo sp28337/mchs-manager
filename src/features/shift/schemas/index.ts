@@ -10,7 +10,6 @@ export type {
   AbsenceKind,
   CalloutKind,
   AccountingPeriodKind,
-  GuardNumber,
   WeeklyNorm,
   WorkingConditions,
 } from "../domain/value-objects";
@@ -19,30 +18,13 @@ export type { PeriodCalculation, ShiftRecord } from "../domain/calculation";
 export type { Discrepancy } from "../domain/reconciliation";
 export { formatHours as hours } from "../domain/decimal";
 
-import type {
-  AbsenceKind,
-  CalloutKind,
-  AccountingPeriodKind,
-} from "../domain/value-objects";
+import type { AbsenceKind, CalloutKind } from "../domain/value-objects";
 import type { DayType } from "../domain/production-calendar";
-
-export const ACCOUNTING_PERIOD_LABELS: Record<AccountingPeriodKind, string> = {
-  quarter: "квартал",
-  half_year: "полугодие",
-  year: "год",
-};
-
-/* Подписи условий труда исчезли вместе с вопросом о них: условия больше не
-   спрашиваются отдельным полем, а следуют из выбранного основания нормы
-   (`WEEKLY_NORM_GROUND_LABELS` в домене). */
 
 export const ABSENCE_LABELS: Record<AbsenceKind, string> = {
   annual_leave: "Отпуск",
   sick_leave: "Больничный",
   study_leave: "Учебный отпуск",
-  // unpaid_leave: "Отпуск без сохранения",
-  // business_trip: "Командировка",
-  // other_excused: "Иное освобождение",
   time_off_in_lieu: "Отгул за переработку",
 };
 
@@ -52,7 +34,6 @@ export const CALLOUT_LABELS: Record<CalloutKind, string> = {
   reserve: "Резерв",
   public_event: "Праздничное мероприятие",
   elections: "Выборы",
-  // other_callout: "Иной вызов",
 };
 
 /** Что вид отсутствия или вызова ДЕЛАЕТ с расчётом. */
@@ -60,9 +41,6 @@ export const ABSENCE_EFFECT: Record<AbsenceKind, string> = {
   annual_leave: "часы по норме за эти дни исключаются из нормы",
   sick_leave: "часы по норме за эти дни исключаются из нормы",
   study_leave: "часы по норме за эти дни исключаются из нормы",
-  // unpaid_leave: "часы по норме за эти дни исключаются из нормы",
-  // business_trip: "часы по норме за эти дни исключаются из нормы",
-  // other_excused: "часы по норме за эти дни исключаются из нормы",
   time_off_in_lieu:
     "норма не меняется, а пропущенная смена уменьшает переработку — отгул и есть её погашение",
 };

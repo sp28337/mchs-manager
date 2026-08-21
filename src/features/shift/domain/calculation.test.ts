@@ -23,7 +23,6 @@ import {
   deriveWeeklyNorm,
   shiftDates,
   type GuardCycle,
-  type GuardNumber,
   type WeeklyNorm,
   type WeeklyNormInput,
 } from "./value-objects";
@@ -41,7 +40,6 @@ const MARCH_WORKING: ReadonlySet<IsoDate> = new Set(
 function norm(overrides: Partial<WeeklyNormInput> = {}): WeeklyNorm {
   return deriveWeeklyNorm({
     conditions: "normal",
-    northernLocality: false,
     ...overrides,
   });
 }
@@ -67,18 +65,6 @@ describe("недельная норма", () => {
     expect(harmful.basis).toContain("92 ТК РФ");
   });
 
-  test("северное основание даёт тридцать шесть по обоим приказам", () => {
-    // Приказ № 308 п. 1 сокращает неделю по ч. 4 ст. 54 ФЗ-141, Приказ
-    // № 307 п. 4 — по ст. 320 ТК РФ. Круг местностей у них разный (у
-    // сотрудника шире и включает отдалённые), поэтому решает не приложение,
-    // а сам человек: он выбрал основание, приложение назвало статьи.
-    const northern = norm({ northernLocality: true });
-
-    expect(northern.hours.toString()).toBe("36");
-    expect(northern.basis).toContain("ч. 4 ст. 54 ФЗ-141");
-    expect(northern.basis).toContain("320 ТК РФ");
-  });
-
   test("инвалидность даёт тридцать пять", () => {
     const disabled = norm({ disabilityGroupIorII: true });
     expect(disabled.hours.toString()).toBe("35");
@@ -94,15 +80,6 @@ describe("недельная норма", () => {
       conditions: "harmful_or_dangerous",
     });
     expect(both.hours.toString()).toBe("35");
-  });
-
-  test("сокращения не складываются", () => {
-    // Два основания по 36 часов дают 36, а не 32.
-    const both = norm({
-      northernLocality: true,
-      conditions: "harmful_or_dangerous",
-    });
-    expect(both.hours.toString()).toBe("36");
   });
 });
 
@@ -134,7 +111,7 @@ describe("норма периода", () => {
 
 describe("график караула", () => {
   test("цикл повторяется каждые четверо суток", () => {
-    const cycle: GuardCycle = { guard: 1, knownShiftDate: "2026-01-01" };
+    const cycle: GuardCycle = { knownShiftDate: "2026-01-01" };
     const dates = shiftDates(cycle, "2026-01-01", "2026-02-01");
 
     expect(dates.slice(0, 4)).toEqual([
@@ -149,7 +126,7 @@ describe("график караула", () => {
   test("период, начавшийся после известной смены, сохраняет фазу", () => {
     // Расчёт за март не должен зависеть от того, что известная смена
     // пришлась на январь: фаза цикла — свойство караула, а не периода.
-    const cycle: GuardCycle = { guard: 3, knownShiftDate: "2026-01-03" };
+    const cycle: GuardCycle = { knownShiftDate: "2026-01-03" };
     const march = shiftDates(cycle, "2026-03-01", "2026-04-01");
 
     expect(march[0]).toBe("2026-03-04");
@@ -163,7 +140,6 @@ describe("график караула", () => {
     const covered: IsoDate[] = [];
     for (let offset = 0; offset < 4; offset += 1) {
       const cycle: GuardCycle = {
-        guard: (offset + 1) as GuardNumber,
         knownShiftDate: addDays("2026-01-01", offset),
       };
       covered.push(...shiftDates(cycle, "2026-01-01", "2026-02-01"));
@@ -176,7 +152,7 @@ describe("график караула", () => {
   });
 
   test("пустой период не даёт смен", () => {
-    const cycle: GuardCycle = { guard: 1, knownShiftDate: "2026-03-01" };
+    const cycle: GuardCycle = { knownShiftDate: "2026-03-01" };
     expect(shiftDates(cycle, "2026-03-01", "2026-03-01")).toEqual([]);
   });
 
@@ -185,8 +161,8 @@ describe("график караула", () => {
     // заступает завтра, а табель сверяет за прошлый месяц. Цикл
     // четырёхдневный и одинаков в обе стороны, поэтому отсчёт назад даёт
     // ровно те же сутки, что дала бы январская смена той же фазы.
-    const past: GuardCycle = { guard: 1, knownShiftDate: "2026-01-01" };
-    const future: GuardCycle = { guard: 1, knownShiftDate: "2026-08-21" };
+    const past: GuardCycle = { knownShiftDate: "2026-01-01" };
+    const future: GuardCycle = { knownShiftDate: "2026-08-21" };
     // 21 августа и 1 января — одна фаза: 232 суток, кратно четырём.
     expect(daysBetween("2026-01-01", "2026-08-21") % 4).toBe(0);
 
@@ -199,7 +175,7 @@ describe("график караула", () => {
   test("отсчёт назад не сбивается на границе шага", () => {
     // Смена ровно в начале периода — тот случай, где округление вверх
     // легко даёт лишний шаг назад и график съезжает на четверо суток.
-    const cycle: GuardCycle = { guard: 1, knownShiftDate: "2026-04-01" };
+    const cycle: GuardCycle = { knownShiftDate: "2026-04-01" };
     expect(shiftDates(cycle, "2026-04-01", "2026-04-10")).toEqual([
       "2026-04-01",
       "2026-04-05",
@@ -209,7 +185,7 @@ describe("график караула", () => {
     // Тот же отрезок при смене на сутки позже: первым заступлением внутри
     // становится 2 апреля, а 10-е за правую границу уже не попадает — она
     // исключающая.
-    const shifted: GuardCycle = { guard: 1, knownShiftDate: "2026-04-02" };
+    const shifted: GuardCycle = { knownShiftDate: "2026-04-02" };
     expect(shiftDates(shifted, "2026-04-01", "2026-04-10")).toEqual([
       "2026-04-02",
       "2026-04-06",
@@ -226,7 +202,7 @@ function march(
   return calculatePeriod({
     periodStart: "2026-03-01",
     periodEnd: "2026-04-01",
-    cycle: { guard: 1, knownShiftDate: "2026-01-01" },
+    cycle: { knownShiftDate: "2026-01-01" },
     weekly: norm(),
     calendar: { workingDays: 21, preHolidayDays: 0 },
     absences,
@@ -309,7 +285,7 @@ describe("полный расчёт", () => {
     // обрезан. Обрезался — известной сменой, — и март, посчитанный от
     // августовской смены, вышел бы пустым: цикл достраивался только вперёд.
     const fromFuture = march([], {
-      cycle: { guard: 1, knownShiftDate: "2026-08-21" },
+      cycle: { knownShiftDate: "2026-08-21" },
     });
     const fromPast = march([]);
 
@@ -371,7 +347,7 @@ describe("полный расчёт", () => {
     const halfYear = calculatePeriod({
       periodStart: "2026-01-01",
       periodEnd: "2026-07-01",
-      cycle: { guard: 4, knownShiftDate: "2026-01-02" },
+      cycle: { knownShiftDate: "2026-01-02" },
       // Развод задан явно: проверяется, какому месяцу достаются часы, а не
       // то, какое время стоит в умолчании.
       shiftStartTime: "08:30",
@@ -438,7 +414,6 @@ describe("полный расчёт", () => {
       periodStart: "2026-01-01",
       periodEnd: "2027-01-01",
       cycle: {
-        guard: (offset + 1) as GuardNumber,
         knownShiftDate: addDays("2026-01-01", offset),
       },
       weekly: norm(),

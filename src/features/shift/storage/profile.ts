@@ -53,9 +53,6 @@ const absenceSchema = z.object({
     "annual_leave",
     "sick_leave",
     "study_leave",
-    // "unpaid_leave",
-    // "business_trip",
-    // "other_excused",
     "time_off_in_lieu",
   ]),
   startsOn: isoDate,
@@ -78,7 +75,6 @@ const calloutSchema = z.object({
     "reserve",
     "public_event",
     "elections",
-    // "other_callout",
   ]),
   startsOn: isoDate,
   endsOn: isoDate,
@@ -97,9 +93,7 @@ export const storedProfileSchema = z.object({
   schemaVersion: z.literal(SCHEMA_VERSION),
   displayName: z.string().min(1).max(200),
   workingConditions: z.enum(["normal", "harmful_or_dangerous"]),
-  northernLocality: z.boolean(),
   disabilityGroupIorII: z.boolean(),
-  guardNumber: z.number().int().min(1).max(4),
   firstShiftDate: isoDate,
   /**
    * Время развода караула, «ЧЧ:ММ».
@@ -169,16 +163,11 @@ export const storedProfileSchema = z.object({
 });
 
 export type StoredProfile = z.infer<typeof storedProfileSchema>;
-export type StoredAbsence = z.infer<typeof absenceSchema>;
-export type StoredCallout = z.infer<typeof calloutSchema>;
-export type ReportedFigures = z.infer<typeof reportedSchema>;
 
 export interface NewProfileInput {
   displayName: string;
   workingConditions: StoredProfile["workingConditions"];
-  northernLocality: boolean;
   disabilityGroupIorII: boolean;
-  guardNumber: number;
   /** Любые сутки, в которые караул заступал или заступит. */
   firstShiftDate: IsoDate;
   accountingYear: number;

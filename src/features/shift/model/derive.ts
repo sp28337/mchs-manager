@@ -9,7 +9,6 @@
 
 import { Dec } from "../domain/decimal";
 import {
-  baseNormHours,
   calculatePeriod,
   type AbsencePeriod,
   type CalloutPeriod,
@@ -23,7 +22,6 @@ import {
   weeklyNormGroundOf,
   weeklyNormGroundToFacts,
   type AccountingPeriodKind,
-  type GuardNumber,
   type WeeklyNorm,
   type WeeklyNormGround,
   type WeeklyNormInput,
@@ -40,7 +38,6 @@ import { overridesOf, type StoredProfile } from "../storage/profile";
 export function weeklyNormInputOf(profile: StoredProfile): WeeklyNormInput {
   return {
     conditions: profile.workingConditions,
-    northernLocality: profile.northernLocality,
     disabilityGroupIorII: profile.disabilityGroupIorII,
   };
 }
@@ -63,14 +60,10 @@ export function weeklyNormOf(profile: StoredProfile): WeeklyNorm {
  */
 export function weeklyNormGroundFacts(
   ground: WeeklyNormGround,
-): Pick<
-  StoredProfile,
-  "workingConditions" | "northernLocality" | "disabilityGroupIorII"
-> {
+): Pick<StoredProfile, "workingConditions" | "disabilityGroupIorII"> {
   const facts = weeklyNormGroundToFacts(ground);
   return {
     workingConditions: facts.conditions,
-    northernLocality: facts.northernLocality,
     disabilityGroupIorII: facts.disabilityGroupIorII,
   };
 }
@@ -132,7 +125,6 @@ export function calculateFor(
     periodStart,
     periodEnd,
     cycle: {
-      guard: profile.guardNumber as GuardNumber,
       // Хранилище зовёт это поле `firstShiftDate` с тех пор, когда
       // спрашивали именно первую смену года. Смысл теперь другой — любая
       // известная смена, — но переименовывать ключ значило бы сломать

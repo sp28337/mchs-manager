@@ -24,7 +24,6 @@ import type { StoredProfile } from "../storage/profile";
 const EXPECTED_HOURS: Record<WeeklyNormGround, string> = {
   base: "40",
   harmful: "36",
-  northern: "36",
   disability: "35",
 };
 
@@ -72,7 +71,6 @@ describe("основание недельной нормы", () => {
   it("при двух основаниях сразу показывается победившее — 35 часов", () => {
     const both = {
       conditions: "harmful_or_dangerous" as const,
-      northernLocality: false,
       disabilityGroupIorII: true,
     };
     expect(deriveWeeklyNorm(both).hours.toFixed(0)).toBe("35");
@@ -92,9 +90,7 @@ describe("основание недельной нормы", () => {
       schemaVersion: 1,
       displayName: "Тест",
       workingConditions: "normal",
-      northernLocality: false,
       disabilityGroupIorII: false,
-      guardNumber: 1,
       firstShiftDate: "2026-01-01",
       shiftStartTime: "08:00",
       accountingYear: 2026,

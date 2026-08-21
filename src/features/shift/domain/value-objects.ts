@@ -43,11 +43,6 @@ export const ACCOUNTING_PERIODS: readonly AccountingPeriodKind[] = [
   "year",
 ];
 
-/** Номер караула: при дежурстве сутки через трое их ровно четыре. */
-export type GuardNumber = 1 | 2 | 3 | 4;
-
-export const GUARD_NUMBERS: readonly GuardNumber[] = [1, 2, 3, 4];
-
 /**
  * Причина отсутствия на смене.
  *
@@ -62,18 +57,12 @@ export type AbsenceKind =
   | "annual_leave"
   | "sick_leave"
   | "study_leave"
-  // | "unpaid_leave"
-  // | "business_trip"
-  // | "other_excused"
   | "time_off_in_lieu";
 
 export const ABSENCE_KIND_BASIS: Record<AbsenceKind, string> = {
   annual_leave: "ст. 63 ФЗ-141; ст. 114 ТК РФ",
   sick_leave: "ст. 65 ФЗ-141; ст. 183 ТК РФ",
   study_leave: "ст. 173-177 ТК РФ",
-  // unpaid_leave: "ст. 64 ФЗ-141; ст. 128 ТК РФ",
-  // business_trip: "ст. 166-168 ТК РФ",
-  // other_excused: "письмо Роструда от 01.03.2010 № 550-6-1",
   time_off_in_lieu: "ст. 55 ФЗ-141; ст. 152, 153 ТК РФ",
 };
 
@@ -95,9 +84,6 @@ export const ABSENCE_REDUCES_NORM: Record<AbsenceKind, boolean> = {
   annual_leave: true,
   sick_leave: true,
   study_leave: true,
-  // unpaid_leave: true,
-  // business_trip: true,
-  // other_excused: true,
   time_off_in_lieu: false,
 };
 
@@ -115,8 +101,7 @@ export type CalloutKind =
   | "training_camp"
   | "reserve"
   | "public_event"
-  | "elections"
-  // | "other_callout";
+  | "elections";
 
 export const CALLOUT_KIND_BASIS: Record<CalloutKind, string> = {
   competition: "ч. 1 ст. 54 ФЗ-141; ст. 91 ТК РФ",
@@ -124,7 +109,6 @@ export const CALLOUT_KIND_BASIS: Record<CalloutKind, string> = {
   reserve: "ч. 1 ст. 54 ФЗ-141; ст. 91 ТК РФ",
   public_event: "ч. 1 ст. 54 ФЗ-141; ст. 91 ТК РФ",
   elections: "ч. 1 ст. 54 ФЗ-141; ст. 91 ТК РФ",
-  // other_callout: "ч. 1 ст. 54 ФЗ-141; ст. 91 ТК РФ",
 };
 
 // --------------------------------------------------------------- норма
@@ -151,13 +135,8 @@ export interface WeeklyNorm {
   readonly basis: string;
 }
 
-export function isReduced(norm: WeeklyNorm): boolean {
-  return norm.hours.lessThan(FULL_WEEKLY_HOURS);
-}
-
 export interface WeeklyNormInput {
   conditions: WorkingConditions;
-  northernLocality: boolean;
   disabilityGroupIorII?: boolean;
 }
 
@@ -195,7 +174,6 @@ export interface WeeklyNormInput {
  */
 export function deriveWeeklyNorm({
   conditions,
-  northernLocality,
   disabilityGroupIorII = false,
 }: WeeklyNormInput): WeeklyNorm {
   if (disabilityGroupIorII) {
@@ -213,16 +191,6 @@ export function deriveWeeklyNorm({
       basis:
         "Приказ МЧС России № 308 п. 1 (ч. 2 ст. 54 ФЗ-141) и № 307 п. 6 " +
         "(абз. 5 ч. 1 ст. 92 ТК РФ): вредные 3-4 степени либо опасные условия",
-    };
-  }
-
-  if (northernLocality) {
-    return {
-      hours: REDUCED_WEEKLY_HOURS,
-      basis:
-        "Приказ МЧС России № 308 п. 1 (ч. 4 ст. 54 ФЗ-141) и № 307 п. 4 " +
-        "(ст. 320 ТК РФ): районы Крайнего Севера, приравненные к ним и " +
-        "другие местности с неблагоприятными условиями",
     };
   }
 
@@ -276,7 +244,6 @@ export const WEEKLY_NORM_GROUNDS: readonly WeeklyNormGround[] = [
 export const WEEKLY_NORM_GROUND_LABELS: Record<WeeklyNormGround, string> = {
   base: "40 часов",
   harmful: "36 часов",
-  // northern: "36 часов — Крайний Север и приравненные местности",
   disability: "35 часов",
 };
 
@@ -319,29 +286,14 @@ export const SHIFT_DURATION_HOURS = new Dec(24);
    развод назначает подразделение, и константой оно быть не может. */
 
 /**
- * Приказ № 307 п. 10: перерывы для отдыха и питания общей
- * продолжительностью НЕ БОЛЕЕ ДВУХ ЧАСОВ, которые в рабочее время не
- * включаются (ч. 1 ст. 108 ТК РФ).
+ * График караула: ОДНА известная дата заступления.
  *
- * Оговорка есть только у РАБОТНИКОВ. Приказ № 308 п. 5 требует сотруднику
- * перерывы не менее 30 минут, но из служебного времени их не исключает.
- * При этом п. 11 Приказа № 307 и п. 6 Приказа № 308 говорят одно: там, где
- * перерыв предоставить невозможно, отдых происходит ВО ВРЕМЯ исполнения
- * обязанностей. Для караула на дежурстве это обычный случай, поэтому
- * умолчание здесь — ноль.
- */
-export const MAX_UNPAID_BREAK_HOURS = new Dec(2);
-
-/**
- * График караула: номер караула и ОДНА известная дата его заступления.
- *
- * --- Почему дата, а не только номер --------------------------------------
+ * --- Почему дата, а не номер караула -------------------------------------
  *
  * Номер караула сам по себе цикл не задаёт. В одной части первый караул
  * заступает 1 января, в другой — 3-го, и «караул № 1» в этих двух частях
  * дежурит в разные сутки. Дата заступления — единственное, что однозначно
- * привязывает цикл к календарю; номер остаётся тем, как человек свой
- * караул называет.
+ * привязывает цикл к календарю, и потому спрашивается только она.
  *
  * --- Почему любая, а не первая в году ------------------------------------
  *
@@ -357,7 +309,6 @@ export const MAX_UNPAID_BREAK_HOURS = new Dec(2);
  * приложение, которое в арифметике не ошибается.
  */
 export interface GuardCycle {
-  readonly guard: GuardNumber;
   /** Любые сутки, в которые караул ЗАСТУПАЛ или заступит. */
   readonly knownShiftDate: IsoDate;
 }

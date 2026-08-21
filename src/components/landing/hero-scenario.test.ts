@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { calculatePeriod } from "../../features/shift/domain/calculation";
 import { calendarFactsFor } from "../../features/shift/domain/production-calendar";
-import { FULL_WEEKLY_HOURS, type GuardNumber } from "../../features/shift/domain/value-objects";
+import { FULL_WEEKLY_HOURS } from "../../features/shift/domain/value-objects";
 import { addDays, datesOfMonth, weekday } from "../../features/shift/domain/plain-date";
 import type { AbsencePeriod } from "../../features/shift/domain/calculation";
 import type { IsoDate } from "../../features/shift/domain/plain-date";
@@ -39,7 +39,7 @@ describe("числа первого экрана", () => {
   const base = {
     periodStart,
     periodEnd,
-    cycle: { guard: 1 as GuardNumber, knownShiftDate: HERO_KNOWN_SHIFT as IsoDate },
+    cycle: { knownShiftDate: HERO_KNOWN_SHIFT as IsoDate },
     weekly: { hours: FULL_WEEKLY_HOURS, basis: "ст. 91 ТК РФ" },
     calendar: { workingDays: facts.workingDays, preHolidayDays: facts.preHolidayDays },
     holidayDays: facts.holidays,
