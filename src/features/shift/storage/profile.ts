@@ -250,6 +250,27 @@ export function loadProfile(): LoadResult {
   return { status: "ok", profile: result.data };
 }
 
+/**
+ * Есть ли на этом устройстве готовый график.
+ *
+ * Нужно посадочной странице: кнопка первого экрана обещает разное тому,
+ * кто здесь впервые, и тому, кто возвращается. Испорченный профиль — то же
+ * самое, что его отсутствие: расчёт всё равно откроется анкетой.
+ *
+ * Подписка — на события хранилища: график, заведённый в соседней вкладке,
+ * меняет надпись и здесь, без перезагрузки. Отдельного события на СВОЮ
+ * вкладку браузер не шлёт, но там надпись и не нужна: заведя профиль,
+ * человек уже в расчёте.
+ */
+export function hasStoredProfile(): boolean {
+  return loadProfile().status === "ok";
+}
+
+export function subscribeToStoredProfile(onChange: () => void): () => void {
+  window.addEventListener("storage", onChange);
+  return () => window.removeEventListener("storage", onChange);
+}
+
 export class StorageUnavailableError extends Error {
   constructor() {
     super(

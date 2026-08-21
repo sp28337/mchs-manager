@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import {
   CalendarCog,
   CalendarDays,
@@ -12,9 +11,10 @@ import {
 } from "lucide-react";
 
 import { LandingHero } from "@/components/landing/hero";
+import { HeroCta } from "@/components/landing/hero-cta";
+import { ToCalculator } from "@/components/landing/to-calculator";
 import { SiteHeader } from "@/components/shared/site-header";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
-import { cn } from "@/lib/utils/cn";
 
 /**
  * Посадочная страница.
@@ -245,7 +245,7 @@ export default function LandingPage() {
       />
 
       <main className="mx-auto w-full max-w-4xl px-6 pb-16 xl:max-w-6xl 2xl:max-w-7xl">
-        <LandingHero cta={<ToCalculator>Открыть график</ToCalculator>} />
+        <LandingHero cta={<HeroCta />} />
 
         {/* --------------------------------------------------------- что делает */}
         <section aria-labelledby="what" className="space-y-5 border-b border-rule py-14">
@@ -399,31 +399,5 @@ export default function LandingPage() {
         }}
       />
     </>
-  );
-}
-
-/**
- * Кнопка в расчёт. Одна деталь на обе: в шапке она меньше, на первом
- * экране крупнее, но разъехаться формой или цветом им нельзя — это одна
- * и та же дверь.
- */
-function ToCalculator({
-  children,
-  size = "md",
-}: {
-  children: React.ReactNode;
-  size?: "sm" | "md";
-}) {
-  return (
-    <Link
-      href="/calculator"
-      className={cn(
-        "inline-flex shrink-0 items-center rounded-xl bg-ink font-bold text-paper no-underline",
-        "hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-trace",
-        size === "sm" ? "h-9 px-4 text-sm" : "h-11 px-6 text-base",
-      )}
-    >
-      {children}
-    </Link>
   );
 }
