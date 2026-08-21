@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 
 import { cn } from "@/lib/utils/cn";
 
@@ -75,6 +75,16 @@ export interface MonthGridProps {
   renderDay: (day: IsoDate, corners: string) => ReactNode;
   /** Месяц одной плашкой: без щелей между клетками, с общим контуром. */
   joined?: boolean;
+  /**
+   * Добавка к клетке с буквами дня недели — по её месту в неделе.
+   *
+   * Нужна ровно одному вызывающему: на посадочной странице месяц
+   * СОБИРАЕТСЯ, и шапка недели обязана появляться вместе с клетками, а не
+   * стоять на месте с первого кадра. Задержку знает только он, а классы
+   * раскладки — только эта сетка, поэтому добавка приходит снаружи, а
+   * оформление остаётся здесь.
+   */
+  weekdayProps?: (index: number) => { className?: string; style?: CSSProperties };
 }
 
 /**
@@ -111,7 +121,14 @@ function Fillet({ corner }: { corner: "br" | "tl" }) {
   );
 }
 
-export function MonthGrid({ title, meta, days, renderDay, joined }: MonthGridProps) {
+export function MonthGrid({
+  title,
+  meta,
+  days,
+  renderDay,
+  joined,
+  weekdayProps,
+}: MonthGridProps) {
   const first = days[0];
   if (first === undefined) return null;
 
@@ -149,18 +166,23 @@ export function MonthGrid({ title, meta, days, renderDay, joined }: MonthGridPro
       ) : null}
 
       <div className={cn("grid grid-cols-7", joined ? "gap-0" : "gap-px")}>
-        {WEEKDAY_LABELS.map((name) => (
-          <div
-            key={name}
-            aria-hidden
-            className={cn(
-              "text-center text-[10px] uppercase text-ink-faint",
-              joined ? "pb-1.5" : "pb-0.5",
-            )}
-          >
-            {name}
-          </div>
-        ))}
+        {WEEKDAY_LABELS.map((name, index) => {
+          const extra = weekdayProps?.(index);
+          return (
+            <div
+              key={name}
+              aria-hidden
+              className={cn(
+                "text-center text-[10px] uppercase text-ink-faint",
+                joined ? "pb-1.5" : "pb-0.5",
+                extra?.className,
+              )}
+              style={extra?.style}
+            >
+              {name}
+            </div>
+          );
+        })}
 
         {Array.from({ length: offset }, (_, index) => (
           <div key={`pad-${index}`} aria-hidden className="relative">

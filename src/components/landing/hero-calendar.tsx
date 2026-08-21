@@ -128,6 +128,15 @@ export function HeroCalendar({
     <MonthGrid
       joined
       days={days}
+      // Буквы дней недели собираются вместе с клетками, а не стоят с
+      // первого кадра. Скелета у месяца нет вовсе: он появляется целиком.
+      // Их место в волне — на строку ДАЛЬШЕ первой: по ширине буква
+      // приходит со своим столбцом, по высоте — последней, потому что
+      // строка недели у ближнего края.
+      weekdayProps={(column) => ({
+        className: "hero-cal__cell text-[0.55em]",
+        style: vars(letterWave(column, rows)),
+      })}
       renderDay={(day, corners) => {
         const slot = offset + daysBetween(first, day);
         const start = isShiftStart(day);
@@ -155,9 +164,14 @@ export function HeroCalendar({
 
   // Волна доходит до ближнего угла — числа ждут её конца. Задержка
   // считается здесь, а не подбирается в CSS на глаз: смени месяц, и она
-  // пересчитается сама. Из двух порядков берётся более долгий: по ширине
-  // последней приходит нижняя правая клетка, по высоте — верхняя правая.
-  const lastWave = Math.max(wave(6, rows - 1, rows).x, wave(6, 0, rows).y);
+  // пересчитается сама. Из всех порядков берётся самый долгий: по ширине
+  // последней приходит нижняя правая клетка, по высоте — правая буква
+  // недели.
+  const lastWave = Math.max(
+    wave(6, rows - 1, rows).x,
+    letterWave(6, rows)["--ix"],
+    letterWave(6, rows)["--iy"],
+  );
 
   return (
     <div aria-hidden className={cn("hero-cal select-none", className)}>
@@ -187,8 +201,17 @@ export function HeroCalendar({
             // клетку в сотню точек — и число в ней теряется. Поэтому в
             // одноколоночной раскладке ширина ограничена, а на широком
             // экране её держит колонка.
+            // Ниже двух колонок плоскость ужата ещё на седьмую часть:
+            // во всю ширину телефона она выходила крупной и оттого
+            // тесной — клетка большая, а число в ней почти во всю клетку.
+            // Уменьшаются и клетка, и кегль, причём кегль сильнее: воздуха
+            // внутри клетки становится больше, а не меньше.
             "hero-cal__plane max-w-104 sm:max-w-128 md:max-w-140 lg:max-w-none",
-            "text-base sm:text-lg lg:text-xl xl:text-2xl",
+            // Ужимается только там, где есть что ужимать: с 360 точек и
+            // выше. На 320 плоскость и так впритык, и седьмая часть сверху
+            // превратила бы клетку в марку.
+            "w-[88%] max-[359px]:w-full md:w-full",
+            "text-xs xxs:text-sm sm:text-lg lg:text-xl xl:text-2xl",
           )}
         >
           <dl
@@ -209,18 +232,18 @@ export function HeroCalendar({
             {figures.map((figure) => (
               <div
                 key={figure.caption}
-                className="min-w-0 flex-1 rounded-xl bg-paper-raised px-2.5 py-2 sm:px-4 sm:py-2.5"
+                className="min-w-0 flex-1 rounded-xl bg-paper-raised px-2 py-2 xxs:px-2.5 sm:px-4 sm:py-2.5"
               >
                 <dd
                   className={cn(
                     "whitespace-nowrap font-mono leading-none",
-                    "text-base xxs:text-lg sm:text-2xl",
+                    "text-sm xxs:text-base sm:text-2xl",
                     figure.verify ? "font-medium text-verify" : "text-ink",
                   )}
                 >
                   {figure.value}
                 </dd>
-                <dt className="mt-1.5 truncate text-[10px] leading-tight text-ink-muted sm:text-[11px]">
+                <dt className="mt-1 truncate text-[9px] leading-tight text-ink-muted xxs:text-[10px] sm:mt-1.5 sm:text-[11px]">
                   {figure.caption}
                 </dt>
               </div>
@@ -251,9 +274,23 @@ function wave(column: number, row: number, rows: number): { x: number; y: number
   return { x: column * 2 + row, y: (rows - 1 - row) * 2 + column };
 }
 
+/**
+ * Место буквы дня недели в волне.
+ *
+ * Строка недели стоит НАД месяцем, то есть на строку выше первой. По
+ * ширине это ничего не меняет — буква приходит вместе со своим столбцом;
+ * по высоте она оказывается у ближнего края и потому приходит последней,
+ * уже после верхнего ряда чисел.
+ */
+function letterWave(column: number, rows: number): { "--ix": number; "--iy": number } {
+  const { x, y } = wave(column, -1, rows);
+  return { "--ix": x + 1, "--iy": y };
+}
+
 function vars(style: Record<string, number>): CSSProperties {
   return style as CSSProperties;
 }
+
 
 /**
  * Клетка суток — та же, что в расчёте: плашка месяца снизу, вид суток
