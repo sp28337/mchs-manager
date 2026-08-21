@@ -320,13 +320,17 @@ function Cell({
   children: ReactNode;
 }) {
   return (
+    // Слой отсутствия лежит НАД клеткой, а не внутри вида смены: у того
+    // своя рамка, а `inset-0` отсчитывается от её внутреннего края — и
+    // из-под накладки по всему периметру выглядывала зелёная нитка в
+    // пиксель. У самой клетки рамки нет, и накладка закрывает её целиком.
     <div
-      className={cn("hero-cal__cell bg-paper-raised", corners)}
+      className={cn("hero-cal__cell relative bg-paper-raised", corners)}
       style={vars({ "--ix": index.x, "--iy": index.y })}
     >
       <div
         className={cn(
-          "relative flex aspect-square w-full flex-col items-center justify-center leading-tight",
+          "flex aspect-square w-full flex-col items-center justify-center leading-tight",
           tone,
         )}
       >
@@ -335,21 +339,21 @@ function Cell({
             стоит по центру, а в клетке со сменой — выше, и ряд чисел идёт
             волной. */}
         <span className="font-mono text-[0.7em]">{mark ?? " "}</span>
-
-        {absence ? (
-          <span
-            className={cn(
-              "hero-cal__absence absolute inset-0 flex flex-col items-center justify-center",
-              "rounded-md border leading-tight",
-              ABSENCE_TONE[absence],
-            )}
-            style={vars({ "--at": ABSENCE_AT[absence] })}
-          >
-            <span className="font-mono text-[1em]">{children}</span>
-            <span className="font-mono text-[0.7em]">{ABSENCE_MARK[absence]}</span>
-          </span>
-        ) : null}
       </div>
+
+      {absence ? (
+        <span
+          className={cn(
+            "hero-cal__absence absolute inset-0 flex flex-col items-center justify-center",
+            "rounded-md border leading-tight",
+            ABSENCE_TONE[absence],
+          )}
+          style={vars({ "--at": ABSENCE_AT[absence] })}
+        >
+          <span className="font-mono text-[1em]">{children}</span>
+          <span className="font-mono text-[0.7em]">{ABSENCE_MARK[absence]}</span>
+        </span>
+      ) : null}
     </div>
   );
 }

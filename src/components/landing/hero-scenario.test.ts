@@ -50,8 +50,8 @@ describe("числа первого экрана", () => {
     kind: "time_off_in_lieu",
   };
   const leave: AbsencePeriod = {
-    start: `${HERO_YEAR}-${month}-25` as IsoDate,
-    endInclusive: `${HERO_YEAR}-${month}-31` as IsoDate,
+    start: `${HERO_YEAR}-${month}-01` as IsoDate,
+    endInclusive: `${HERO_YEAR}-${month}-07` as IsoDate,
     kind: "annual_leave",
   };
 
