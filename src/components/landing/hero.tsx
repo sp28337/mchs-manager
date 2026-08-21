@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 
 import { cn } from "@/lib/utils/cn";
 
-import { HeroCalendar, type HeroFigure } from "./hero-calendar";
+import { HeroCalendar } from "./hero-calendar";
 
 /**
  * Первый экран: слово слева, месяц справа.
@@ -36,13 +36,6 @@ import { HeroCalendar, type HeroFigure } from "./hero-calendar";
  * читается программой чтения и первым попадает в выдачу, а порядок на
  * экране меняет `order`.
  */
-
-/** Числа первого экрана: настоящий расчёт за 2026 год, 1-й караул. */
-const SAMPLE: readonly HeroFigure[] = [
-  { value: "1972 ч", caption: "Норма" },
-  { value: "2192 ч", caption: "Фактически" },
-  { value: "220 ч", caption: "Переработка", verify: true },
-];
 
 export function LandingHero({ cta }: { cta: ReactNode }) {
   return (
@@ -95,7 +88,6 @@ export function LandingHero({ cta }: { cta: ReactNode }) {
           заодно делает плоскость шире своей колонки — клетка получается
           размером с клетку настенного календаря. */}
       <HeroCalendar
-        figures={SAMPLE}
         className={cn(
           "max-md:order-1",
           // В одну колонку месяц заходит нижним краем под заголовок: там

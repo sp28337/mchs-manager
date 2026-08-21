@@ -13,6 +13,16 @@ import {
 import { SHIFT_CYCLE_DAYS } from "@/features/shift/domain/value-objects";
 import { cn } from "@/lib/utils/cn";
 
+import { HeroFigures } from "./hero-figures";
+import {
+  HERO_KNOWN_SHIFT,
+  HERO_LEAVE_DAYS,
+  HERO_MONTH,
+  HERO_REST_DAYS,
+  HERO_STAGE_AT,
+  HERO_YEAR,
+} from "./hero-scenario";
+
 /**
  * Месяц графика на первом экране посадочной страницы.
  *
@@ -88,11 +98,11 @@ import { cn } from "@/lib/utils/cn";
  * есть уступ — тот самый скошенный угол, который делает её похожей на
  * страницу календаря, а не на прямоугольник.
  */
-const YEAR = 2026;
-const MONTH = 5;
+const YEAR = HERO_YEAR;
+const MONTH = HERO_MONTH;
 
 /** Смена 1-го караула, от которой отсчитывается цикл «сутки через трое». */
-const KNOWN_SHIFT = makeDate(YEAR, 3, 2);
+const KNOWN_SHIFT = HERO_KNOWN_SHIFT;
 
 /** Сутки заступления и их продолжение: 24 часа делятся датой полуночи. */
 const SHIFT_START_HOURS = 16;
@@ -103,20 +113,7 @@ function isShiftStart(day: IsoDate): boolean {
   return ((delta % SHIFT_CYCLE_DAYS) + SHIFT_CYCLE_DAYS) % SHIFT_CYCLE_DAYS === 0;
 }
 
-export interface HeroFigure {
-  value: string;
-  caption: string;
-  /** Итог, ради которого страницу открыли: он один набран цветом сверки. */
-  verify?: boolean;
-}
-
-export function HeroCalendar({
-  figures,
-  className,
-}: {
-  figures: readonly HeroFigure[];
-  className?: string;
-}) {
+export function HeroCalendar({ className }: { className?: string }) {
   const days = datesOfMonth(YEAR, MONTH);
   const first = days[0];
   if (first === undefined) return null;
@@ -142,6 +139,13 @@ export function HeroCalendar({
         const start = isShiftStart(day);
         const tail = isShiftStart(addDays(day, -1));
 
+        const date = dayOfMonth(day);
+        const absence = HERO_REST_DAYS.includes(date)
+          ? ("rest" as const)
+          : HERO_LEAVE_DAYS.includes(date)
+            ? ("leave" as const)
+            : null;
+
         return (
           <Cell
             corners={corners}
@@ -154,8 +158,9 @@ export function HeroCalendar({
                   : "text-ink-faint"
             }
             mark={start ? SHIFT_START_HOURS : tail ? SHIFT_TAIL_HOURS : null}
+            absence={absence}
           >
-            {dayOfMonth(day)}
+            {date}
           </Cell>
         );
       }}
@@ -214,41 +219,14 @@ export function HeroCalendar({
             "text-xs xxs:text-sm sm:text-lg lg:text-xl xl:text-2xl",
           )}
         >
-          <dl
-            // Во всю ширину плоскости: плашки — верхний край того же
-            // листа, что и месяц под ними, и обрываться раньше него им
-            // нельзя. Растворяются они вместе с ним — маска общая, она
-            // назначена плоскости.
-            //
-            // Переносить ряд нельзя: три числа — это одна строка итога, а
-            // не список. Разорванная надвое, она перестаёт читаться как
-            // итог и вдобавок задирает плоскость на целую плашку вверх.
-            // Поэтому ряд не переносится, а мельчает: на 320 точках
-            // «2192 ч» набрано шестнадцатью пунктами и три плашки с
-            // зазорами укладываются в двести пятьдесят.
-            className="hero-cal__figures mb-4 flex flex-nowrap gap-2 sm:mb-5"
+          {/* Числа — той же плашкой, что в расчёте, и во всю ширину
+              плоскости: они верхний край того же листа, что и месяц под
+              ними, и обрываться раньше него им нельзя. Растворяются они
+              вместе с ним — маска общая, она назначена плоскости. */}
+          <HeroFigures
+            className="hero-cal__figures mb-4 sm:mb-5"
             style={vars({ "--i": lastWave })}
-          >
-            {figures.map((figure) => (
-              <div
-                key={figure.caption}
-                className="min-w-0 flex-1 rounded-xl bg-paper-raised px-2 py-2 xxs:px-2.5 sm:px-4 sm:py-2.5"
-              >
-                <dd
-                  className={cn(
-                    "whitespace-nowrap font-mono leading-none",
-                    "text-sm xxs:text-base sm:text-2xl",
-                    figure.verify ? "font-medium text-verify" : "text-ink",
-                  )}
-                >
-                  {figure.value}
-                </dd>
-                <dt className="mt-1 truncate text-[9px] leading-tight text-ink-muted xxs:text-[10px] sm:mt-1.5 sm:text-[11px]">
-                  {figure.caption}
-                </dt>
-              </div>
-            ))}
-          </dl>
+          />
 
           <div className="hero-cal__stack">
             <div className="hero-cal__layer hero-cal__layer--haze">{month}</div>
@@ -298,17 +276,47 @@ function vars(style: Record<string, number>): CSSProperties {
  * внешним контуром, и скругления углов принадлежат плашке, а цвет смены —
  * тому, что внутри неё.
  */
+/**
+ * Вид отсутствия поверх смены — вторым слоем, а не заменой первого.
+ *
+ * Клетка сначала собирается как смена и только потом становится отгулом
+ * или отпуском: в этом вся история первого экрана. Подменить содержимое
+ * нечем — страница отдаётся статикой, — поэтому отсутствие лежит поверх и
+ * проявляется в свой срок. Заливка у него сплошная, и от смены под ним
+ * ничего не просвечивает.
+ *
+ * Цвета и буквы — те же, что в легенде расчёта: отгул за переработку и
+ * отпуск человек потом встретит внутри ровно такими.
+ */
+const ABSENCE_TONE = {
+  rest: "border-dashed border-rest/50 bg-rest-soft text-rest",
+  leave: "border-dashed border-signal/50 bg-signal-soft text-signal",
+} as const;
+
+const ABSENCE_MARK = { rest: "В", leave: "О" } as const;
+
+/**
+ * Когда проявляется: отгул на втором шаге истории, отпуск на третьем.
+ *
+ * Сроки берутся из того же сценария, что и числа над сеткой. Двух
+ * источников времени быть не должно: разойдись они — и клетка пометится
+ * раньше, чем сдвинется число, которое она меняет.
+ */
+const ABSENCE_AT = { rest: HERO_STAGE_AT[1] ?? 0, leave: HERO_STAGE_AT[2] ?? 0 } as const;
+
 function Cell({
   corners,
   wave: index,
   tone,
   mark,
+  absence,
   children,
 }: {
   corners: string;
   wave: { x: number; y: number };
   tone: string;
   mark: number | null;
+  absence: "rest" | "leave" | null;
   children: ReactNode;
 }) {
   return (
@@ -318,7 +326,7 @@ function Cell({
     >
       <div
         className={cn(
-          "flex aspect-square w-full flex-col items-center justify-center leading-tight",
+          "relative flex aspect-square w-full flex-col items-center justify-center leading-tight",
           tone,
         )}
       >
@@ -327,6 +335,20 @@ function Cell({
             стоит по центру, а в клетке со сменой — выше, и ряд чисел идёт
             волной. */}
         <span className="font-mono text-[0.7em]">{mark ?? " "}</span>
+
+        {absence ? (
+          <span
+            className={cn(
+              "hero-cal__absence absolute inset-0 flex flex-col items-center justify-center",
+              "rounded-md border leading-tight",
+              ABSENCE_TONE[absence],
+            )}
+            style={vars({ "--at": ABSENCE_AT[absence] })}
+          >
+            <span className="font-mono text-[1em]">{children}</span>
+            <span className="font-mono text-[0.7em]">{ABSENCE_MARK[absence]}</span>
+          </span>
+        ) : null}
       </div>
     </div>
   );
