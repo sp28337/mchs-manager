@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 
+import { useCountedNumber } from "@/components/ui/counted-number";
 import { cn } from "@/lib/utils/cn";
 
-import { HERO_COUNT_MS, HERO_STAGES, HERO_STAGE_AT, type HeroStage } from "./hero-scenario";
+import { HERO_STAGES, HERO_STAGE_AT, type HeroStage } from "./hero-scenario";
 
 /**
  * Три числа первого экрана — той же плашкой, что в расчёте.
@@ -29,12 +30,9 @@ import { HERO_COUNT_MS, HERO_STAGES, HERO_STAGE_AT, type HeroStage } from "./her
  * показать: два числа меняются по-разному. Счётчик нужен именно для
  * этого — чтобы глаз увидел, КАКОЕ из чисел двинулось.
  *
- * --- Почему счётчик на сценарии, а не на CSS ------------------------------
- *
- * Числа надо не «показать другими», а провести от прежнего к новому, и
- * промежуточные значения обязаны быть целыми часами. CSS так не умеет:
- * `@property` считает дробями, а привести их к виду часов можно только
- * подстановкой в `content`, где формат уже не выбрать.
+ * Сам счётчик здесь не свой: это `CountedNumber`, тот же, что крутит числа
+ * в полосе итога при правке календаря. Первый экран обещает поведение,
+ * которое человек встретит внутри, и расходиться им нельзя.
  *
  * --- Уважение к `prefers-reduced-motion` ---------------------------------
  *
@@ -66,10 +64,7 @@ export function HeroFigures({
     >
       <Figure value={stage.norm} caption={CAPTIONS[0]} emphatic />
       <Figure value={stage.actual} caption={CAPTIONS[1]} />
-      {/* Цвет — только пока переработка есть. В расчёте он назначается по
-          тому же условию, и «0 ч» зелёным было бы украшением: сигнальный
-          цвет обязан означать, а не оживлять. */}
-      <Figure value={stage.overtime} caption={CAPTIONS[2]} verify={stage.overtime > 0} />
+      <Figure value={stage.overtime} caption={CAPTIONS[2]} verify />
     </dl>
   );
 }
@@ -84,8 +79,11 @@ function Figure({
   value: number;
   caption: string;
   emphatic?: boolean;
+  /** Переработка: сигнальным цветом, пока она есть. */
   verify?: boolean;
 }) {
+  const shown = useCountedNumber(String(value));
+
   return (
     <div className="min-w-0 sm:flex sm:flex-row-reverse sm:items-center sm:gap-4 text-center">
       {/* Число и его единица не разрываются переносом: «168» на одной
@@ -94,10 +92,14 @@ function Figure({
         className={cn(
           "whitespace-nowrap font-mono leading-none tabular-nums",
           emphatic ? "text-xl sm:text-2xl" : "text-lg sm:text-xl",
-          verify && "font-medium text-verify",
+          // Цвет держится ПОКАЗАННОГО числа, а не того, к которому оно
+          // идёт: в расчёте переработка зелёная ровно пока больше нуля, и
+          // погаснуть она обязана в тот же миг, когда счётчик дойдёт до
+          // нуля, — не за секунду до.
+          verify && shown !== "0" && "font-medium text-verify",
         )}
       >
-        {value}
+        {shown}
         <span className="ml-1 text-xs text-ink-muted sm:text-sm">ч</span>
       </dd>
       <dt className="flex h-3.5 items-center justify-center gap-1 whitespace-nowrap text-[11px] leading-tight text-ink-muted">
@@ -110,18 +112,15 @@ function Figure({
 /**
  * Состояние расчёта на текущий момент истории.
  *
- * Возвращает не «какое сейчас состояние», а ЧИСЛА — в том числе
- * промежуточные, пока идёт перещёлкивание. Первая отрисовка отдаёт первое
- * состояние: она же уходит в статическую разметку, и расходиться ей с
- * браузером нельзя.
+ * Возвращает СОСТОЯНИЕ целиком, а не числа по дороге к нему: дорогу до
+ * нового значения каждое число проходит само (`CountedNumber`). Первая
+ * отрисовка отдаёт первое состояние — она же уходит в статическую
+ * разметку, и расходиться ей с браузером нельзя.
  */
 function useStageTimeline(): HeroStage {
-  const [shown, setShown] = useState<HeroStage>(HERO_STAGES[0]!);
-  const frame = useRef(0);
+  const [index, setIndex] = useState(0);
 
   useEffect(() => {
-    const last = HERO_STAGES[HERO_STAGES.length - 1]!;
-
     // Отключённая анимация — сразу итог. Показать первый кадр и замереть
     // значило бы соврать: у человека остались бы числа до отсутствий.
     //
@@ -132,43 +131,16 @@ function useStageTimeline(): HeroStage {
     // всё-таки играется с начала.
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
-      setShown(last);
+      setIndex(HERO_STAGES.length - 1);
       return;
     }
 
-    const timers = HERO_STAGES.slice(1).map((next, index) => {
-      const from = HERO_STAGES[index]!;
-      const at = HERO_STAGE_AT[index + 1] ?? 0;
-      return window.setTimeout(() => countTo(from, next), at);
-    });
+    const timers = HERO_STAGES.slice(1).map((_, step) =>
+      window.setTimeout(() => setIndex(step + 1), HERO_STAGE_AT[step + 1] ?? 0),
+    );
 
-    function countTo(from: HeroStage, to: HeroStage) {
-      const startedAt = performance.now();
-      const step = (now: number) => {
-        const passed = Math.min(1, (now - startedAt) / HERO_COUNT_MS);
-        // Замедление к концу: число подходит к своему значению, а не
-        // останавливается на нём с разбегу.
-        const eased = 1 - Math.pow(1 - passed, 3);
-        setShown({
-          norm: between(from.norm, to.norm, eased),
-          actual: between(from.actual, to.actual, eased),
-          overtime: between(from.overtime, to.overtime, eased),
-        });
-        if (passed < 1) frame.current = requestAnimationFrame(step);
-      };
-      frame.current = requestAnimationFrame(step);
-    }
-
-    return () => {
-      timers.forEach((timer) => window.clearTimeout(timer));
-      cancelAnimationFrame(frame.current);
-    };
+    return () => timers.forEach((timer) => window.clearTimeout(timer));
   }, []);
 
-  return shown;
-}
-
-/** Целые часы между двумя состояниями: доли часа расчёт тут не показывает. */
-function between(from: number, to: number, passed: number): number {
-  return Math.round(from + (to - from) * passed);
+  return HERO_STAGES[index] ?? HERO_STAGES[0]!;
 }

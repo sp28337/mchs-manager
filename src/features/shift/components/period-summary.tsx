@@ -3,6 +3,7 @@
 import { ChevronDown } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 
+import { CountedNumber } from "@/components/ui/counted-number";
 import { Hint } from "@/components/ui/hint";
 import { cn } from "@/lib/utils/cn";
 
@@ -233,7 +234,7 @@ function MinorPlate({
       )}
     >
       <dd className="whitespace-nowrap font-mono text-base leading-none text-ink">
-        {value}
+        {tight ? value : <CountedNumber value={value} />}
         {unit ? <span className="ml-1 text-[11px] text-ink-muted">{unit}</span> : null}
       </dd>
       <dt className="mt-1.5 flex h-3.5 items-center gap-1 whitespace-nowrap text-[11px] leading-tight text-ink-muted">
@@ -293,21 +294,25 @@ function MainPlate({
         parts={[{ value: hoursTrim(calculation.normHours), unit: "ч" }]}
         caption="Норма периода"
         emphatic
+        still={tight}
       />
       <Figure
         parts={[{ value: hoursTrim(calculation.actualHours), unit: "ч" }]}
         caption="Фактически"
+        still={tight}
       />
       <Figure
         parts={overtimeParts(calculation.overtimeHours, inDays)}
         caption="Переработка"
         tone={overtime ? "verify" : undefined}
+        still={tight}
       />
       {undertime ? (
         <Figure
           parts={overtimeParts(calculation.undertimeHours, inDays)}
           caption="Недоработка"
           tone="signal"
+          still={tight}
         />
       ) : null}
     </dl>
@@ -546,6 +551,18 @@ function FactOnlyNote() {
  * Пар бывает две: переработка в сутках это «8 суток 20 ч», и остаток от
  * смены такое же число, как сами сутки. Оформлять его иначе значило бы
  * сказать, что он менее настоящий.
+ *
+ * --- Почему число доходит до нового значения, а не подменяется -----------
+ *
+ * Полоса итога затем и закреплена под шапкой, что человек правит календарь
+ * и смотрит на неё. Правка меняет разом несколько чисел из восьми, а
+ * подменённые мгновенно они не говорят, КАКОЕ из них двинулось: разницу в
+ * час на одном и том же месте глаз не замечает вовсе.
+ *
+ * Отсчёт (`CountedNumber`) отвечает на это движением — тот же самый, что
+ * крутит числа на первом экране. Эталон, по которому меряется ширина
+ * полосы, при этом стоит неподвижно (`still`): считать место по числу в
+ * пути значило бы менять раскладку, пока оно идёт.
  */
 export interface FigurePart {
   value: string;
@@ -558,12 +575,15 @@ function Figure({
   emphatic,
   tone,
   hint,
+  still,
 }: {
   parts: readonly FigurePart[];
   caption: string;
   emphatic?: boolean;
   tone?: "signal" | "verify";
   hint?: ReactNode;
+  /** Плашка эталона: считать по ней ширину, пока число в пути, нельзя. */
+  still?: boolean;
 }) {
   return (
     <div className="min-w-0 sm:flex sm:flex-row-reverse sm:items-center sm:gap-4 lg:block">
@@ -579,7 +599,7 @@ function Figure({
       >
         {parts.map((part, index) => (
           <span key={part.unit} className={index > 0 ? "ml-2" : undefined}>
-            {part.value}
+            {still ? part.value : <CountedNumber value={part.value} />}
             <span className="ml-1 text-xs text-ink-muted sm:text-sm">{part.unit}</span>
           </span>
         ))}
