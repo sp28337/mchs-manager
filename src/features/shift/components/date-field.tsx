@@ -49,8 +49,9 @@ import { MonthGrid } from "./month-grid";
  */
 
 export interface DateFieldProps {
-  label: string;
+  label?: string;
   name: string;
+  id?: string; 
   required?: boolean;
   defaultValue?: IsoDate;
   /** Границы допустимого — включительно. */
@@ -64,6 +65,7 @@ export interface DateFieldProps {
 export function DateField({
   label,
   name,
+  id,
   required = false,
   defaultValue,
   min,

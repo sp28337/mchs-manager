@@ -91,6 +91,7 @@ export function SettingsPanel({
   const normId = useId();
   const guardId = useId();
   const startId = useId();
+  const timeId = useId();
 
   const ground = weeklyNormGroundOfProfile(profile);
 
@@ -132,20 +133,20 @@ export function SettingsPanel({
 
       <Field
         id={nameId}
-        label="Как к вам обращаться"
-        hint={
-          <>
-            Только для обращения. Фамилия, табельный номер и подразделение не
-            нужны — расчёт от них не зависит, и мы их не спрашиваем.
-          </>
-        }
+        label="Имя профиля"
+        // hint={
+        //   <>
+        //     Только для обращения. Фамилия, табельный номер и подразделение не
+        //     нужны — расчёт от них не зависит, и мы их не спрашиваем.
+        //   </>
+        // }
       >
         <Input
           id={nameId}
           maxLength={200}
           // Подсказка в поле нужна не настройкам, а окну «Создать профиль»:
           // там оно пустое, и человек видит, чего от него хотят.
-          placeholder="Например: Сергей Генадьевич"
+          placeholder="Например: Старший пожарный"
           value={profile.displayName}
           onChange={(event) => {
             const displayName = event.target.value;
@@ -158,26 +159,6 @@ export function SettingsPanel({
       <Field
         id={normId}
         label="Норма часов в неделю"
-        hint={
-          <>
-            Основание выбирается вместе с числом: «36 часов» без ссылки на
-            норму — это мнение, а «36 часов, Приказ № 308 п. 1» — довод.
-            Оснований на 36 часов два, и подставить не то значит унести в спор
-            не ту статью.
-            <span className="mt-2 block">
-              Вредные или опасные условия определяются по результатам
-              специальной оценки (Приказ № 308 п. 1, Приказ № 307 п. 6).
-              Северное сокращение — Приказ № 308 п. 1 (ч. 4 ст. 54 ФЗ-141) или
-              Приказ № 307 п. 4 (ст. 320 ТК РФ); у сотрудника круг местностей
-              шире и включает отдалённые. Инвалидность I или II группы даёт 35
-              часов работнику (Приказ № 307 п. 5, абз. 4 ч. 1 ст. 92 ТК РФ).
-            </span>
-            <span className="mt-2 block">
-              Сокращения не складываются: два основания по 36 часов дают 36, а
-              не 32.
-            </span>
-          </>
-        }
       >
         <Select
           id={normId}
@@ -197,9 +178,9 @@ export function SettingsPanel({
         </Select>
       </Field>
 
-      <Field
+      {/* <Field
         id={guardId}
-        label="Ваш караул"
+        label="Караул"
         hint={
           <>
             Номер караула сам по себе цикл не задаёт — его задаёт вместе с
@@ -222,36 +203,39 @@ export function SettingsPanel({
             </option>
           ))}
         </Select>
-      </Field>
+      </Field> */}
 
       {/* Любая смена, а не первая в году: цикл четырёхдневный и одинаков в
           обе стороны, поэтому одна известная дата задаёт весь график —
           хоть завтрашняя. Здесь стоял список «1—4 января», то есть вопрос
           о дате, которую человек не помнит, а вычисляет. */}
-      <DateField
-        label="Любая ваша смена"
-        name="knownShift"
-        defaultValue={profile.firstShiftDate}
-        hint="Та, в которой вы уверены. Остальной график достроится от неё в обе стороны."
-        onChange={(value) => {
-          if (value === null) return;
-          onChange((previous) => ({ ...previous, firstShiftDate: value }));
-        }}
-      />
+      <Field
+        id={timeId}
+        label="Дата рабочей смены"
+        hint={
+          <>
+            Необходима для построения графика.
+          </>
+        }
+      >
+        <DateField
+          id={timeId}
+          name="knownShift"
+          defaultValue={profile.firstShiftDate}
+          // hint="Необходима для построения графика."
+          onChange={(value) => {
+            if (value === null) return;
+            onChange((previous) => ({ ...previous, firstShiftDate: value }));
+          }}
+        />
+      </Field>
 
       <Field
         id={startId}
-        label="Время смены караулов"
+        label="Время отсчёта смены"
         hint={
           <>
-            Отсюда считается, как смена делится между сутками. При смене
-            караулов в 08:30 сутки заступления получают 15,5 часа (из них 2
-            ночных), а следующие — 8,5 (из них 6 ночных). Ошибка здесь сдвигает
-            месячные итоги и число ночных на стыке месяцев.
-            <span className="mt-2 block">
-              Продолжительность смены — 24 часа, не включая время смены
-              караулов (Приказ № 308 п. 3, № 307 п. 8).
-            </span>
+            С этого времени отсчитывается 24 часа смены.
           </>
         }
       >
@@ -289,14 +273,14 @@ function Field({
 }: {
   id: string;
   label: string;
-  hint: React.ReactNode;
+  hint?: React.ReactNode;
   children: React.ReactNode;
 }) {
   return (
     <div className="space-y-1.5">
       <div className="flex items-center gap-1.5">
         <Label htmlFor={id}>{label}</Label>
-        <Hint label={`Что такое «${label}»`}>{hint}</Hint>
+        {hint && <Hint label={`Что такое «${label}»`}>{hint}</Hint>}
       </div>
       {children}
     </div>

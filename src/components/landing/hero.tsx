@@ -76,8 +76,7 @@ export function LandingHero({ cta }: { cta: ReactNode }) {
         </h1>
 
         <p className="rise rise-2 max-w-prose leading-snug text-ink-muted text-pretty max-md:text-lg">
-          Норма по&nbsp;производственному календарю. Отпуск уменьшает норму,
-          а&nbsp;не&nbsp;отработанные часы.
+          Бесплатно и без регистрации
         </p>
 
         <div className="rise rise-3">{cta}</div>

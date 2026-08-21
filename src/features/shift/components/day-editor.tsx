@@ -451,7 +451,7 @@ function DayForm({
             value={note}
             maxLength={500}
             rows={3}
-            placeholder="Например: звонил начкару, обещал отгул"
+            placeholder="Например: вызов в резерв"
             onChange={(event) => setNote(event.target.value)}
             className="block w-full rounded-sm border border-rule-strong bg-paper px-3 py-2 text-sm text-ink placeholder:text-ink-faint"
           />

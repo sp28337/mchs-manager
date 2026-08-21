@@ -258,7 +258,7 @@ export function deriveWeeklyNorm({
  * они разойдутся, человек увидит в настройках «36 часов», а в расчёте
  * получит 40. Оба живут в одном файле и покрыты общим тестом.
  */
-export type WeeklyNormGround = "base" | "harmful" | "northern" | "disability";
+export type WeeklyNormGround = "base" | "harmful" | "disability";
 
 /**
  * Все основания списком, в порядке от общего к самому редкому.
@@ -270,26 +270,23 @@ export type WeeklyNormGround = "base" | "harmful" | "northern" | "disability";
 export const WEEKLY_NORM_GROUNDS: readonly WeeklyNormGround[] = [
   "base",
   "harmful",
-  "northern",
   "disability",
 ];
 
 export const WEEKLY_NORM_GROUND_LABELS: Record<WeeklyNormGround, string> = {
-  base: "40 часов — общая норма",
-  harmful: "36 часов — вредные (3-4 степень) или опасные условия",
-  northern: "36 часов — Крайний Север и приравненные местности",
-  disability: "35 часов — инвалидность I или II группы",
+  base: "40 часов",
+  harmful: "36 часов",
+  // northern: "36 часов — Крайний Север и приравненные местности",
+  disability: "35 часов",
 };
 
 /** Признаки, которые задаёт выбранное основание. */
 export function weeklyNormGroundToFacts(ground: WeeklyNormGround): {
   conditions: WorkingConditions;
-  northernLocality: boolean;
   disabilityGroupIorII: boolean;
 } {
   return {
     conditions: ground === "harmful" ? "harmful_or_dangerous" : "normal",
-    northernLocality: ground === "northern",
     disabilityGroupIorII: ground === "disability",
   };
 }
@@ -304,7 +301,6 @@ export function weeklyNormGroundToFacts(ground: WeeklyNormGround): {
 export function weeklyNormGroundOf(input: WeeklyNormInput): WeeklyNormGround {
   if (input.disabilityGroupIorII) return "disability";
   if (input.conditions === "harmful_or_dangerous") return "harmful";
-  if (input.northernLocality) return "northern";
   return "base";
 }
 
