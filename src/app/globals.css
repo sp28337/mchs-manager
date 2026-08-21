@@ -296,10 +296,6 @@
     color: -webkit-link;
   }
 
-  a:hover {
-    text-decoration: underline;
-  }
-
   /* Видимый фокус — не украшение, а требование WCAG 2.2 (2.4.11 Focus Not
      Obscured, 2.4.13 Focus Appearance). Обводка сигнальным цветом: она
      обязана быть заметнее всего остального на экране. */

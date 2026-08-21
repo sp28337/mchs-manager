@@ -164,7 +164,7 @@ export function Workspace({ profile, onChange, onForget }: WorkspaceProps) {
           просвет под шапкой), и без этого зазора щиток лёг бы прямо на
           имя. */}
       <header className="pb-12">
-        <h1 className="text-3xl leading-tight">{profile.displayName}</h1>
+        <h1 className="text-3xl sm:text-4xl opacity-10 leading-tight text-center">{profile.displayName}</h1>
       </header>
 
       {/* Итог — закреплённой полосой, календарь — во всю ширину под ней.
@@ -185,8 +185,8 @@ export function Workspace({ profile, onChange, onForget }: WorkspaceProps) {
           отодвигали всё остальное вниз. Теперь ниже только подвал, а сетка
           — то, ради чего экран открыт: закрывать её значит закрывать
           страницу. */}
-      <section aria-labelledby="calendar-heading" className="space-y-4">
-        <h2 id="calendar-heading" className="flex items-center gap-2 text-xl">
+      <section aria-labelledby="calendar-heading" className="space-y-4 -translate-y-2">
+        <h2 id="calendar-heading" className="flex items-center gap-2 text-xl sr-only">
           Календарь
           {yearView === "calendar" ? (
             <Hint label="Про производственный календарь">

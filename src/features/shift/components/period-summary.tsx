@@ -571,7 +571,7 @@ function Figure({
           строке и «ч» на следующей читается как другое число. */}
       <dd
         className={cn(
-          "whitespace-nowrap font-mono leading-none",
+          "whitespace-nowrap font-mono leading-none text-center",
           emphatic ? "text-xl sm:text-2xl" : "text-lg sm:text-xl",
           tone === "signal" && "text-signal",
           tone === "verify" && "text-verify font-medium",
