@@ -296,13 +296,13 @@ const ABSENCE_TONE = {
 const ABSENCE_MARK = { rest: "В", leave: "О" } as const;
 
 /**
- * Когда проявляется: отгул на втором шаге истории, отпуск на третьем.
+ * Когда проявляется: отпуск на втором шаге истории, отгул на третьем.
  *
  * Сроки берутся из того же сценария, что и числа над сеткой. Двух
  * источников времени быть не должно: разойдись они — и клетка пометится
  * раньше, чем сдвинется число, которое она меняет.
  */
-const ABSENCE_AT = { rest: HERO_STAGE_AT[1] ?? 0, leave: HERO_STAGE_AT[2] ?? 0 } as const;
+const ABSENCE_AT = { leave: HERO_STAGE_AT[1] ?? 0, rest: HERO_STAGE_AT[2] ?? 0 } as const;
 
 function Cell({
   corners,

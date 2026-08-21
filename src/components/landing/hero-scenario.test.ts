@@ -68,12 +68,12 @@ describe("числа первого экрана", () => {
     expect(stage([])).toEqual(HERO_STAGES[0]);
   });
 
-  it("отгул уменьшает отработанное, но не норму", () => {
-    expect(stage([rest])).toEqual(HERO_STAGES[1]);
+  it("отпуск уменьшает и норму, и отработанное", () => {
+    expect(stage([leave])).toEqual(HERO_STAGES[1]);
   });
 
-  it("отпуск уменьшает и норму тоже", () => {
-    expect(stage([rest, leave])).toEqual(HERO_STAGES[2]);
+  it("отгул после него уменьшает только отработанное", () => {
+    expect(stage([leave, rest])).toEqual(HERO_STAGES[2]);
   });
 
   it("помеченные сутки — те же, что считает домен", () => {
