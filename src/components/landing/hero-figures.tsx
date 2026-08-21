@@ -83,7 +83,7 @@ function Figure({
   verify?: boolean;
 }) {
   return (
-    <div className="min-w-0 sm:flex sm:flex-row-reverse sm:items-center sm:gap-4 lg:block">
+    <div className="min-w-0 sm:flex sm:flex-row-reverse sm:items-center sm:gap-4 text-center">
       {/* Число и его единица не разрываются переносом: «168» на одной
           строке и «ч» на следующей читается как другое число. */}
       <dd

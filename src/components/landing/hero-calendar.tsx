@@ -179,7 +179,7 @@ export function HeroCalendar({ className }: { className?: string }) {
   );
 
   return (
-    <div aria-hidden className={cn("hero-cal select-none", className)}>
+    <div aria-hidden className={cn("hero-cal select-none flex flex-col justify-center", className)}>
       {/* Сцена задаёт перспективу, плоскость — наклон. Точка схода одна на
           весь блок и стоит там, где стоит читатель: у ближнего края.
 
@@ -197,7 +197,7 @@ export function HeroCalendar({ className }: { className?: string }) {
           Почему не `backdrop-filter` одним слоем: маска его в Chromium не
           ограничивает, когда родитель повёрнут в трёх измерениях, — и
           размытым оказывается весь месяц целиком, до последней клетки. */}
-      <div className="hero-cal__stage">
+      <div className="hero-cal__stage flex justify-center">
         <div
           className={cn(
             // Клетка должна остаться клеткой календаря, а не квадратом с
