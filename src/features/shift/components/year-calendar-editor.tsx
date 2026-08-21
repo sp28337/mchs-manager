@@ -14,7 +14,6 @@ import {
 import type { StoredProfile } from "../storage/profile";
 import {
   DAY_TYPES,
-  DAY_TYPE_EFFECT,
   DAY_TYPE_LABELS,
   DAY_TYPE_MARK,
   DAY_TYPE_TONE,
@@ -181,7 +180,6 @@ export function YearCalendarEditor({
               </dt>
               <dd>
                 <span className="font-medium">{DAY_TYPE_LABELS[type]}</span>
-                {/* <span className="text-ink-muted"> — {DAY_TYPE_EFFECT[type]}</span> */}
               </dd>
             </div>
           ))}

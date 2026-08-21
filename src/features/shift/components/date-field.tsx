@@ -49,9 +49,15 @@ import { MonthGrid } from "./month-grid";
  */
 
 export interface DateFieldProps {
+  /**
+   * Подпись поля.
+   *
+   * Необязательна: в настройках подпись рисует общая для всех полей
+   * обёртка `Field`, и своя здесь была бы второй.
+   */
   label?: string;
-  name: string;
-  id?: string; 
+  /** Идентификатор поля, если подпись рисуется снаружи. */
+  id?: string;
   required?: boolean;
   defaultValue?: IsoDate;
   /** Границы допустимого — включительно. */
@@ -64,7 +70,6 @@ export interface DateFieldProps {
 
 export function DateField({
   label,
-  name,
   id,
   required = false,
   defaultValue,
@@ -74,7 +79,10 @@ export function DateField({
   className,
   onChange,
 }: DateFieldProps) {
-  const inputId = useId();
+  const ownId = useId();
+  // Своё имя только тогда, когда его не дали снаружи: иначе подпись из
+  // `Field` указывала бы в пустоту, и по ней нельзя было бы попасть в поле.
+  const inputId = id ?? ownId;
   const hintId = useId();
   const errorId = useId();
 
@@ -105,7 +113,7 @@ export function DateField({
 
   return (
     <div className={cn("space-y-1.5", className)}>
-      <Label htmlFor={inputId}>{label}</Label>
+      {label ? <Label htmlFor={inputId}>{label}</Label> : null}
 
       <div className="relative flex items-start gap-1">
         <Input
@@ -135,11 +143,6 @@ export function DateField({
           }}
         />
       </div>
-
-      {/* Разобранное значение — единственное, что уходит в форму. Пустая
-          строка при неверном вводе намеренна: пусть форма откажет, чем
-          примет наполовину набранную дату. */}
-      <input type="hidden" name={name} value={valid ? parsed : ""} />
 
       {hint ? (
         <p id={hintId} className="max-w-xs text-xs text-ink-muted">

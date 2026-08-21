@@ -419,7 +419,6 @@ function DayForm({
           <DateField
             key={choice}
             label="По дату включительно"
-            name="endsOn"
             defaultValue={day}
             min={day}
             hint={

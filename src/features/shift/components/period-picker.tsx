@@ -3,7 +3,6 @@
 import { CalendarRange } from "lucide-react";
 import { useState } from "react";
 
-import { Hint } from "@/components/ui/hint";
 import { Modal } from "@/components/ui/modal";
 import { cn } from "@/lib/utils/cn";
 
@@ -218,14 +217,6 @@ export function PeriodPicker({
           <section className="space-y-2">
             <h3 className="flex items-center gap-1.5 font-display text-xs font-bold uppercase tracking-wide text-ink-muted">
               Учётный период
-              {/* <Hint label="Что такое учётный период">
-                Переработка определяется по итогу УЧЁТНОГО периода (ст. 104 ТК
-                РФ): у сотрудника ФПС ГПС это полугодие или год (Приказ № 308
-                п. 2), у работника по трудовому договору — ещё и квартал
-                (Приказ № 307 п. 7). Квартал и месяц показаны всем: по ним
-                удобно искать, где именно расчёт разошёлся с выданным табелем,
-                — но итог, который решает спор, снимается с учётного периода.
-              </Hint> */}
             </h3>
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
               {allParts().map((part) => (

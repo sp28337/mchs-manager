@@ -1,16 +1,12 @@
 "use client";
 
-import { ChevronDown } from "lucide-react";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { CountedNumber } from "@/components/ui/counted-number";
-import { Hint } from "@/components/ui/hint";
 import { cn } from "@/lib/utils/cn";
 
 import {
-  atLeastZero,
   daysWord,
-  formatHours as hours,
   formatHoursTrim as hoursTrim,
   splitIntoDays,
   type Decimal,
@@ -46,10 +42,9 @@ import type { PeriodCalculation } from "../domain/calculation";
  * карточка про неуменьшенную норму. Всё это правда и всё это нужно, но не
  * в тот момент, когда человек ищет глазами переработку.
  *
- * Обоснование ушло за знаки вопроса — туда же, куда на этой странице ушли
- * остальные пояснения. Оно не удалено и не смягчено: раскрывается у того
- * самого числа, к которому относится, и программе чтения экрана видно
- * всегда.
+ * Основание недельной нормы при этом никуда не делось: оно живёт при
+ * самой норме (`WeeklyNorm.basis`), и показать его можно там, где до него
+ * дойдёт очередь.
  */
 
 /**
@@ -61,16 +56,13 @@ import type { PeriodCalculation } from "../domain/calculation";
 export function PeriodSummary({
   calculation,
   accountingYear,
-  periodLabel,
   overtimeInDays,
 }: {
   calculation: PeriodCalculation;
   accountingYear: number;
-  periodLabel: string;
   /** В чём показывать переработку: в часах или сменами и часами. */
   overtimeInDays: boolean;
 }) {
-
   return (
     <>
       <div className="sticky top-24 z-40 -mx-6 -translate-y-8">
@@ -183,7 +175,6 @@ interface MinorItem {
   value: string;
   unit?: string;
   caption: string;
-  hint?: ReactNode;
 }
 
 function minorItems(calculation: PeriodCalculation): MinorItem[] {
@@ -192,16 +183,7 @@ function minorItems(calculation: PeriodCalculation): MinorItem[] {
     { value: String(calculation.workedShifts), caption: "Отработано смен" },
     { value: String(calculation.absentShifts), caption: "Пропущено" },
     { value: hoursTrim(calculation.nightHours), unit: "ч", caption: "Ночные часы" },
-    {
-      value: hoursTrim(calculation.holidayHours),
-      unit: "ч",
-      caption: "Праздничные часы",
-      // hint: (
-      //   <Hint label="Про ночные и праздничные часы">
-      //     <FactOnlyNote />
-      //   </Hint>
-      // ),
-    },
+    { value: hoursTrim(calculation.holidayHours), unit: "ч", caption: "Праздничные часы" },
   ];
 }
 
@@ -220,7 +202,6 @@ function MinorPlate({
   value,
   unit,
   caption,
-  hint,
   tight,
 }: MinorItem & {
   /** Плашка эталона: по содержимому, а не в общую долю ширины. */
@@ -239,7 +220,6 @@ function MinorPlate({
       </dd>
       <dt className="mt-1.5 flex h-3.5 items-center gap-1 whitespace-nowrap text-[11px] leading-tight text-ink-muted">
         {caption}
-        {hint}
       </dt>
     </div>
   );
@@ -353,43 +333,6 @@ function overtimeParts(value: Decimal, inDays: boolean): FigurePart[] {
 }
 
 /**
- * Мелкие итоги — второй строкой полосы.
- *
- * Одной строкой, как подпись месяца в календаре: пять подписанных
- * столбиков занимали две строки там, где хватает одной. На узком экране
- * сюда же приходят даты периода и сутки — всё, что не влезло в первую
- * строку.
- */
-// function PeriodExtras({
-//   calculation,
-//   periodLabel,
-//   wide,
-// }: {
-//   calculation: PeriodCalculation;
-//   periodLabel: string;
-//   /** На широком экране даты уже стоят числами выше. */
-//   wide: boolean;
-// }) {
-//   const overtime = calculation.overtimeHours.greaterThan(0);
-
-//   return (
-//       <p className="flex flex-wrap items-center gap-x-1.5 -translate-y-7.5 gap-y-1 text-xs text-ink-muted">
-//         {/* {!wide && overtime ? (
-//           <Stat value={`≈ ${days(calculation.overtimeHours)}`} label="в сутках" />
-//         ) : null} */}
-//         <Stat value={String(calculation.scheduledShifts)} label="смен по графику" />
-//         <Stat value={String(calculation.workedShifts)} label="отработано" />
-//         <Stat value={String(calculation.absentShifts)} label="пропущено" />
-//         <Stat value={`${hours(calculation.nightHours)} ч`} label="ночных" />
-//         <Stat value={`${hours(calculation.holidayHours)} ч`} label="праздничных" last />
-//         <Hint label="Про ночные и праздничные часы">
-//           <FactOnlyNote />
-//         </Hint>
-//       </p>
-//   );
-// }
-
-/**
  * Названная цена непроставленного переноса.
  *
  * Единственное, что осталось карточкой в потоке страницы: это не
@@ -409,139 +352,6 @@ function PendingNotice({ accountingYear }: { accountingYear: number }) {
       выходных на {accountingYear} год ещё не проставлены. Откройте календарь
       года ниже и отметьте их по своему производственному календарю.
     </p>
-  );
-}
-
-/** Знак вопроса с выводом нормы — у дат периода, где бы они ни стояли. */
-function NormHint({ calculation }: { calculation: PeriodCalculation }) {
-  return (
-    <Hint label="Откуда взялась норма">
-      <NormNote calculation={calculation} />
-    </Hint>
-  );
-}
-
-/**
- * Имя стоит ПЕРЕД числом, и это не вкусовщина: «91 смен по графику» —
- * ошибка согласования, а правильная форма зависит от последней цифры.
- * Порядок «смен по графику 91» верен при любом числе и не требует
- * склонять существительное в коде.
- */
-function Stat({
-  value,
-  label,
-  last,
-}: {
-  value: string;
-  label: string;
-  last?: boolean;
-}) {
-  return (
-    <span className="whitespace-nowrap">
-      {label} <span className="font-mono text-ink">{value}</span>
-      {last ? "" : " /"}
-    </span>
-  );
-}
-
-/**
- * Откуда взялась норма — то, что стояло абзацами в рамке под числами.
- *
- * Живёт здесь, а не там, где показывается: текст обязан слово в слово
- * следовать за расчётом, и разойтись с ним ему нельзя.
- */
-export function NormNote({ calculation }: { calculation: PeriodCalculation }) {
-  return (
-    <>
-      <span className="block">
-        {calculation.calendar.workingDays} рабочих дней по производственному
-        календарю × {hours(calculation.weeklyNorm.hours)}&nbsp;ч ÷ 5
-        {calculation.calendar.preHolidayDays > 0
-          ? ` − ${calculation.calendar.preHolidayDays} ч за предпраздничные дни (ст. 95 ТК РФ)`
-          : ""}{" "}
-        = <span className="font-mono">{hours(calculation.baseNormHours)}</span>&nbsp;ч.
-      </span>
-
-      {calculation.excludedHours.greaterThan(0) ? (
-        <span className="mt-2 block">
-          Из неё исключено{" "}
-          <span className="font-mono">{hours(calculation.excludedHours)}</span>&nbsp;ч
-          — это {calculation.absentShifts} смен(ы) по графику, пришедшиеся на
-          отсутствие с сохранением места службы. Остаётся{" "}
-          <span className="font-mono">{hours(calculation.normHours)}</span>&nbsp;ч.
-          Основание: письмо Роструда от 01.03.2010 № 550-6-1.
-        </span>
-      ) : null}
-
-      <span className="mt-2 block text-ink-muted">
-        Недельная норма: {calculation.weeklyNorm.basis}. Норма периода —
-        ст. 104 ТК РФ.
-      </span>
-    </>
-  );
-}
-
-/**
- * Цена чужой ошибки, названная числом. Без неё «считают неверно» — это
- * спор; с ней — довод.
- *
- * Последствие у ошибки ДВА, и какое наступит — зависит от того, перекрыл
- * ли факт неуменьшенную норму. Прежняя версия знала только про
- * недоработку и в самом частом случае — когда человек всё равно
- * переработал — печатала «недоработка 0,00 ч, которой нет». Число верное,
- * фраза бессмысленная, а настоящая потеря (заниженная переработка) при
- * этом не называлась вовсе.
- */
-function WrongNormNote({ calculation }: { calculation: PeriodCalculation }) {
-  // Переработка, которая получилась бы при НЕуменьшенной норме. Считается
-  // от базовой нормы напрямую, а не вычитанием исключённых часов из
-  // настоящей переработки: норма к отработке не уходит в минус, и при
-  // длинном отсутствии разность дала бы неверное число.
-  const wrongOvertime = atLeastZero(
-    calculation.actualHours.minus(calculation.baseNormHours),
-  );
-
-  if (calculation.wrongNormUndertimeHours.greaterThan(0)) {
-    return (
-      <>
-        Если в вашем табеле норму НЕ уменьшили на эти часы, у вас покажется
-        недоработка{" "}
-        <span className="font-mono">
-          {hours(calculation.wrongNormUndertimeHours)}
-        </span>{" "}
-        ч, которой на самом деле нет.
-      </>
-    );
-  }
-
-  return (
-    <>
-      Если в вашем табеле норму НЕ уменьшили на эти часы, переработка выйдет на{" "}
-      <span className="font-mono">
-        {hours(calculation.overtimeHours.minus(wrongOvertime))}
-      </span>{" "}
-      ч меньше действительной: <span className="font-mono">{hours(wrongOvertime)}</span>{" "}
-      ч вместо{" "}
-      <span className="font-mono">{hours(calculation.overtimeHours)}</span> ч.
-    </>
-  );
-}
-
-/**
- * Почему ночные и праздничные часы здесь только названы.
- *
- * Обещать за них доплату было бы неправдой, и молчать об этом нельзя:
- * человек, увидевший 664 часа ночных, сам достроит вывод, которого закон
- * не даёт.
- */
-function FactOnlyNote() {
-  return (
-    <>
-      Показаны как факт. При суммированном учёте в пределах нормы ночные и
-      праздничные часы дополнительным временем отдыха не компенсируются
-      (Приказ МЧС России от 24.09.2018 № 410, п. 14) — обещать здесь доплату
-      было бы неправдой.
-    </>
   );
 }
 
@@ -574,14 +384,12 @@ function Figure({
   caption,
   emphatic,
   tone,
-  hint,
   still,
 }: {
   parts: readonly FigurePart[];
   caption: string;
   emphatic?: boolean;
   tone?: "signal" | "verify";
-  hint?: ReactNode;
   /** Плашка эталона: считать по ней ширину, пока число в пути, нельзя. */
   still?: boolean;
 }) {
@@ -612,7 +420,6 @@ function Figure({
         <span className="sm:after:content-[':'] lg:after:content-none">
           {caption}
         </span>
-        {hint}
       </dt>
     </div>
   );

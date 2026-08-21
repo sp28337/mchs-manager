@@ -4,7 +4,6 @@ import { useMemo, useState } from "react";
 
 import { Hint } from "@/components/ui/hint";
 import { SiteHeader } from "@/components/shared/site-header";
-import { formatPeriodRu } from "../domain/format";
 import { todayIso, type IsoDate } from "../domain/plain-date";
 import {
   accountingPeriodsOf,
@@ -152,7 +151,6 @@ export function Workspace({ profile, onChange, onForget }: WorkspaceProps) {
           выбранным периодом — он живёт здесь. Тянуть его наверх значило бы
           поднять туда и выбор периода, то есть половину этого экрана. */}
       <SiteHeader
-        tagline={`${profile.accountingYear} год / ${profile.guardNumber}-й караул`}
         tools={
           <HeaderTools profile={profile} onChange={onChange} />
         }
@@ -175,7 +173,6 @@ export function Workspace({ profile, onChange, onForget }: WorkspaceProps) {
       <PeriodSummary
         calculation={calculation}
         accountingYear={profile.accountingYear}
-        periodLabel={formatPeriodRu(periodStart, periodEnd)}
         overtimeInDays={profile.overtimeInDays}
       />
 

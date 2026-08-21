@@ -28,24 +28,12 @@ import { cn } from "@/lib/utils/cn";
  * Больше ничего. Разделов у сайта два, и меню из двух пунктов — это
  * не навигация, а украшение.
  *
- * --- Когда название уступает место ---------------------------------------
+ * --- Что уступает место на телефоне --------------------------------------
  *
- * Только когда места действительно не хватает, и не хватает его ровно по
- * одной причине — кнопкам рабочего экрана: вместе с ними название в
- * телефон не помещается.
- *
- * Поэтому решение принимает не страница, а сам факт наличия `tools`: на
- * лендинге значков нет, там ничего не теснится, и название остаётся при
- * любой ширине. Связывать это с адресом страницы значило бы держать в
- * шапке знание о том, какие бывают страницы, — и однажды забыть его
- * обновить.
- *
- * Сжимается по порядку: сперва кнопки теряют подписи и остаются значками
- * (порог `xs` — 448 точек, там подписи перестают влезать), и только потом
- * уступает название.
- *
- * Ссылка при этом не немая: подпись для программы чтения остаётся на
- * месте, просто перестаёт рисоваться.
+ * Название остаётся при любой ширине, а тесно становится только от кнопок
+ * рабочего экрана. Поэтому сжимаются они: с порога `xs` (448 точек, там
+ * подписи перестают влезать) от кнопок остаются значки, а имя действия
+ * достаётся программе чтения из `aria-label`.
  *
  * --- Почему строка не переносится ----------------------------------------
  *
@@ -64,8 +52,6 @@ import { cn } from "@/lib/utils/cn";
  */
 
 export interface SiteHeaderProps {
-  /** Подпись под названием: чем именно занята эта страница. */
-  tagline?: string;
   /** Главное действие страницы. */
   action?: ReactNode;
   /** Кнопки рабочего экрана: настройки и выгрузка. */
@@ -73,7 +59,7 @@ export interface SiteHeaderProps {
   className?: string;
 }
 
-export function SiteHeader({ tagline, action, tools, className }: SiteHeaderProps) {
+export function SiteHeader({ action, tools, className }: SiteHeaderProps) {
   return (
     <header className={cn("fixed z-100 w-full bg-paper", className)}>
       <div className="mx-auto flex h-16 w-full flex-nowrap items-center gap-x-4 py-3 px-6 sm:gap-x-6 2xl:max-w-[2000px]">
@@ -82,30 +68,25 @@ export function SiteHeader({ tagline, action, tools, className }: SiteHeaderProp
           className="group flex min-w-0 items-center gap-2.5 rounded-xs focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-trace"
         >
           <Logo className="size-7 shrink-0 text-signal" />
-          {/* Название скрыто, но не удалено: `sr-only` оставляет его
-              программе чтения, и ссылка домой не превращается в безымянную
-              картинку. */}
-          <span className={cn("min-w-0 leading-none", tools)}>
+          <span className="min-w-0 leading-none">
             <span className="block font-display text-black/80 dark:text-ink text-xl font-bold uppercase leading-tight tracking-wide">
-              {/* Пробел перед второй строкой намеренный: `block` делит
-                  строки визуально, но в тексте они склеиваются, и
-                  программа чтения произносит «переработкидля». */}
+              {/* Пробел перед «1 3» намеренный: в тексте строки
+                  склеиваются, и программа чтения произносит «График13».
+                  Разделитель под курсором проявляется на месте пробела —
+                  поэтому он и стоит в разметке всегда, просто прозрачным:
+                  появись он только при наведении, название дёргалось бы
+                  по ширине. */}
               График{" "}
-              <span className="text-ink-muted">1<span className="opacity-0 group-hover:opacity-100 font-extralight transition-all duration-200">|</span>3</span>
-              {/* {tagline ? (
-                <p className="hidden max-w-xs border-l border-rule pl-6 text-xs text-ink-muted lg:block">
-                  {tagline}
-                </p>
-              ) : null} */}
+              <span className="text-ink-muted">
+                1
+                <span className="font-extralight opacity-0 transition-opacity duration-200 group-hover:opacity-100">
+                  |
+                </span>
+                3
+              </span>
             </span>
           </span>
         </Link>
-{/* 
-        {tagline ? (
-          <p className="hidden max-w-xs border-l border-rule pl-6 text-xs text-ink-muted lg:block">
-            {tagline}
-          </p>
-        ) : null} */}
 
         {/* Кнопки не сжимаются ни при какой ширине: сжатая кнопка — это
             обрезанная подпись, а не выигранное место. Уступает название. */}

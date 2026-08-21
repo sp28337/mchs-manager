@@ -36,7 +36,6 @@ const CALLOUT_MARK: Record<CalloutKind, string> = {
   reserve: "РЗ",
   public_event: "МР",
   elections: "ВБ",
-  // other_callout: "ВЫЗ",
 };
 
 /**
@@ -56,9 +55,6 @@ const ABSENCE_MARK: Record<AbsenceKind, string> = {
   sick_leave: "Б",
   time_off_in_lieu: "В",
   study_leave: "У",
-  // unpaid_leave: "ДО",
-  // business_trip: "К",
-  // other_excused: "ОСВ",
 };
 
 /**
@@ -77,9 +73,6 @@ const ABSENCE_TONE: Record<AbsenceKind, string> = {
   sick_leave: "border-dashed border-sick/50 bg-sick-soft text-sick rounded-md",
   time_off_in_lieu: "border-dashed border-rest/50 bg-rest-soft text-rest rounded-md",
   study_leave: "border-dashed border-study/50 bg-study-soft text-study rounded-md",
-  // unpaid_leave: "border-dashed border-unpaid bg-unpaid-soft text-unpaid",
-  // business_trip: "border-dashed border-trip bg-trip-soft text-trip",
-  // other_excused: "border-dashed border-excused bg-excused-soft text-excused",
 };
 import { MONTH_NAMES } from "./month-names";
 import { MonthGrid, WEEKDAY_LABELS } from "./month-grid";
@@ -194,19 +187,10 @@ export function ShiftStrip({
           "grid grid-cols-1 gap-x-6 gap-y-5 sm:grid-cols-2 lg:grid-cols-3"
         }
       >
-        {groups.map((group, index) => (
+        {groups.map((group) => (
           <MonthGrid
             key={`${group.year}-${group.month}`}
-            title={
-              <>
-                {MONTH_NAMES[group.month]}
-                {/* Год подписывается только там, где он меняется:
-                    повторять его у каждого месяца — шум. */}
-                {/* {index === 0 || group.year !== groups[index - 1]?.year ? (
-                  <span className="text-ink-muted"> {group.year}</span>
-                ) : null} */}
-              </>
-            }
+            title={MONTH_NAMES[group.month]}
             meta={
               <>
                 {/* Числа месяца доходят до нового значения, как и числа

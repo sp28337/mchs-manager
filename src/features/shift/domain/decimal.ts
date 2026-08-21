@@ -110,16 +110,6 @@ export function formatHoursTrim(value: Decimal | number | string): string {
  */
 const HOURS_IN_SHIFT = 24;
 
-export function formatDays(hours: Decimal): string {
-  return hours
-    .dividedBy(HOURS_IN_SHIFT)
-    .toDecimalPlaces(1)
-    .toNumber()
-    .toLocaleString("ru-RU", {
-      maximumFractionDigits: 1,
-    });
-}
-
 /** Часы, разложенные на целые сутки и остаток. */
 export interface DaysAndHours {
   days: number;

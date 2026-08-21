@@ -1,13 +1,12 @@
 "use client";
 
-import { Hint } from "@/components/ui/hint";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils/cn";
 
 import type { StoredProfile } from "../storage/profile";
 
 /**
- * Режим «веду табель» — тумблер и его пояснение.
+ * Режим «веду табель».
  *
  * --- Зачем режим ----------------------------------------------------------
  *
@@ -26,18 +25,6 @@ import type { StoredProfile } from "../storage/profile";
  * подписи, обещающей не то, что делает переключатель, нет ничего.
  */
 
-export function LiveModeNote() {
-  return (
-    <>
-      Расчёт обрезается живым временем: с начала периода по сегодняшний день
-      включительно, а не за весь период. Так и ведут табель — к сегодняшнему
-      числу видно, сколько переработки уже набежало. Выключенный режим
-      показывает период целиком, то есть норму, которую предстоит отработать
-      до его конца.
-    </>
-  );
-}
-
 export function LiveModeSwitch({
   profile,
   onChange,
@@ -54,9 +41,6 @@ export function LiveModeSwitch({
         onChange={(liveMode) => onChange((previous) => ({ ...previous, liveMode }))}
         label="Онлайн"
       />
-      {/* <Hint label="Что значит «веду табель»">
-        <LiveModeNote />
-      </Hint> */}
     </span>
   );
 }
