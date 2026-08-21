@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 
+import { BoneText } from "@/components/ui/bone";
 import { cn } from "@/lib/utils/cn";
 
 import type { DayRecord, PeriodCalculation } from "../domain/calculation";
@@ -239,25 +240,67 @@ export function ShiftStrip({
           />
         ))}
       </div>
-      <div className="space-y-4 border-t border-rule xl:border-none translate-y-1
+      <ShiftLegend />
+    </div>
+  );
+}
+
+/**
+ * Легенда графика.
+ *
+ * --- Почему она вынесена отдельно ----------------------------------------
+ *
+ * Её показывает не только график, но и ЗАГЛУШКА рабочего экрана — та, что
+ * стоит на месте расчёта, пока читается профиль. Заглушка обязана занимать
+ * ровно то же место, что займёт содержимое, иначе страница дёрнется в
+ * момент подстановки. Повторить разметку второй раз значило бы обречь эти
+ * две копии разойтись, а вместе с ними — и раскладку.
+ *
+ * Поэтому разметка одна, а `skeleton` меняет только НАПОЛНЕНИЕ: подписи
+ * набраны тем же кеглем и теми же словами, но прозрачны и лежат на
+ * плашке. Размеры от этого не меняются ни на точку.
+ *
+ * Легенда разложена на три группы с заголовками, а не в одну полосу из
+ * восемнадцати значков. Группа отвечает на вопрос «что вообще бывает в
+ * клетке»: смена, пропуск, вызов, — и внутри группы человек уже ищет свой
+ * случай. Прежняя сплошная строка заставляла перебирать всё подряд.
+ *
+ * На широком экране легенда стоит колонкой слева и держится на месте, как
+ * числа над ней: `sticky` под самой полосой итога. Иначе, доведя календарь
+ * до сентября, человек читает клетку «СБ» и уже не помнит, что она значит,
+ * — легенда уехала за верхний край. `self-start` обязателен: в строке
+ * `flex` элемент по умолчанию растянут на всю высоту сетки, и прилипать
+ * ему просто некуда.
+ */
+export function ShiftLegend({ skeleton }: { skeleton?: boolean }) {
+  return (
+    <div className="space-y-4 border-t border-rule xl:border-none translate-y-1
                       xl:max-w-70 xl:w-full xl:flex xl:flex-col xl:gap-6 xl:sticky
                       xl:top-32 xl:self-start bg-paper-raised/70 p-4 rounded-xl lg:min-w-92.5">
-        <LegendGroup title="Смены по графику">
+        <LegendGroup title="Смены по графику" skeleton={skeleton}>
           <Legend
+            skeleton={skeleton}
             className="border-verify/25 bg-verify/30 text-verify"
             label="Заступление на смену"
           />
           <Legend
+            skeleton={skeleton}
             className="border-verify/15 bg-verify/5 text-verify"
             label="Продолжение смены"
           />
-          <Legend className="border-rule text-ink-faint bg-paper-raised" mark="В" label="Выходной день" />
+          <Legend
+            skeleton={skeleton}
+            className="border-rule text-ink-faint bg-paper-raised"
+            mark="В"
+            label="Выходной день"
+          />
         </LegendGroup>
 
-        <LegendGroup title="Отсутствие по уважительной причине">
+        <LegendGroup title="Отсутствие по уважительной причине" skeleton={skeleton}>
           {(Object.keys(ABSENCE_MARK) as AbsenceKind[]).map((kind) => (
             <Legend
               key={kind}
+              skeleton={skeleton}
               className={ABSENCE_TONE[kind]}
               mark={ABSENCE_MARK[kind]}
               label={ABSENCE_LABELS[kind]}
@@ -265,23 +308,24 @@ export function ShiftStrip({
           ))}
         </LegendGroup>
 
-        <LegendGroup title="Вызовы сверх нормы">
+        <LegendGroup title="Вызовы сверх нормы" skeleton={skeleton}>
           {(Object.keys(CALLOUT_MARK) as CalloutKind[]).map((kind) => (
             <Legend
               key={kind}
+              skeleton={skeleton}
               className="border-trace bg-trace-soft text-trace"
               mark={CALLOUT_MARK[kind]}
               label={CALLOUT_LABELS[kind]}
             />
           ))}
           <Legend
+            skeleton={skeleton}
             className="border-2 border-trace bg-trace-soft text-trace"
             mark="СР РЗ"
             label="Несколько вызовов в сутки"
           />
         </LegendGroup>
       </div>
-    </div>
   );
 }
 
@@ -444,11 +488,19 @@ function DayCell({
  * подписью к одному значку и занимало полстроки, хотя относится ко всем
  * семи сразу.
  */
-function LegendGroup({ title, children }: { title: string; children: ReactNode }) {
+function LegendGroup({
+  title,
+  children,
+  skeleton,
+}: {
+  title: string;
+  children: ReactNode;
+  skeleton?: boolean;
+}) {
   return (
     <div className="space-y-1.5">
       <p className="font-display text-[11px] font-bold uppercase tracking-wide text-ink-muted">
-        {title}
+        <BoneText skeleton={skeleton}>{title}</BoneText>
       </p>
       <dl className="flex flex-wrap xl:flex-col gap-x-5 gap-y-1.5 text-xs">{children}</dl>
     </div>
@@ -466,10 +518,12 @@ function Legend({
   className,
   label,
   mark,
+  skeleton,
 }: {
   className: string;
   label: string;
   mark?: string;
+  skeleton?: boolean;
 }) {
   return (
     <div className="flex items-center gap-2">
@@ -480,13 +534,17 @@ function Legend({
           // шестнадцати пикселях сминаются в кашу.
           "inline-flex h-6 min-w-6 shrink-0 items-center justify-center rounded-xs border px-2",
           "font-mono text-[12px] leading-none",
-          className,
+          // В заглушке цвет вида суток заменён общим тоном плашки: он
+          // ничего не значит, пока расчёта нет, а размеры образца — те же.
+          skeleton ? "skeleton-bone border-transparent bg-paper-raised text-transparent" : className,
           "rounded-sm"
         )}
       >
         {mark}
       </dt>
-      <dd className="text-ink-muted">{label}</dd>
+      <dd className="text-ink-muted">
+        <BoneText skeleton={skeleton}>{label}</BoneText>
+      </dd>
     </div>
   );
 }
