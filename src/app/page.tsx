@@ -357,7 +357,12 @@ export default function LandingPage() {
               и периодов отсутствия.
             </p>
           </div>
-          <ThemeToggle />
+          {/* На телефоне подвал идёт колонкой, и переключатель в ней
+              встаёт по центру, а не жмётся к левому краю. Ширину ему
+              держит он сам, здесь решается только место. */}
+          <div className="flex justify-center">
+            <ThemeToggle />
+          </div>
         </div>
       </footer>
 

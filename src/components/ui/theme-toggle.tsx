@@ -41,8 +41,12 @@ export function ThemeToggle() {
   useEffect(() => setMounted(true), []);
 
   return (
+    // `w-fit` — не украшение: рамка обводит три кнопки, а не полосу от
+    // края до края. В колонке (подвал на телефоне) элемент по умолчанию
+    // растягивается на всю ширину, и обводка растягивалась вместе с ним,
+    // оставляя кнопки в левом углу пустого прямоугольника.
     <fieldset
-      className="flex items-center gap-0.5 rounded-xl border border-rule p-0.5"
+      className="flex w-fit items-center gap-0.5 rounded-xl border border-rule p-0.5"
       aria-label="Тема оформления"
     >
       {OPTIONS.map(({ value, label, Icon }) => {

@@ -144,7 +144,7 @@ export function RegisterForm({ onCreated, notice }: RegisterFormProps) {
           ширину и переключатель темы у края. Без неё переключатель повисал
           пятном посреди пустого поля под первым экраном. */}
       <footer className="mt-8 border-t border-rule">
-        <div className="mx-auto flex w-full max-w-4xl justify-end px-6 py-8 xl:max-w-6xl 2xl:max-w-7xl">
+        <div className="mx-auto flex w-full max-w-4xl justify-center px-6 py-8 sm:justify-end xl:max-w-6xl 2xl:max-w-7xl">
           <ThemeToggle />
         </div>
       </footer>
