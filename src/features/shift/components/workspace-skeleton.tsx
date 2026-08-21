@@ -1,4 +1,12 @@
-import { CalendarCog, CalendarDays, CalendarRange, ZoomIn, ZoomOut } from "lucide-react";
+import {
+  CalendarCog,
+  CalendarDays,
+  CalendarRange,
+  Save,
+  Settings2,
+  ZoomIn,
+  ZoomOut,
+} from "lucide-react";
 
 import { Bone, BoneText } from "@/components/ui/bone";
 import { cn } from "@/lib/utils/cn";
@@ -75,8 +83,12 @@ export function WorkspaceSkeleton() {
     <main aria-hidden className="mx-auto w-full px-6 pb-12 pt-26 2xl:max-w-[2000px]">
       {/* Имя человека. Поле под ним — то же, что в рабочем экране: полоса
           итога поднята на восемь точек и легла бы прямо на имя. */}
+      {/* Имя стоит по центру и почти прозрачным — водяным знаком, а не
+          заголовком. Кость под ним такая же бледная: плотный прямоугольник
+          на этом месте обещал бы блок, которого через мгновение почти не
+          видно. */}
       <header className="pb-12">
-        <h1 className="text-3xl leading-tight">
+        <h1 className="text-3xl sm:text-4xl opacity-10 leading-tight text-center">
           <BoneText skeleton className="rounded-xl">
             Пожарный
           </BoneText>
@@ -101,12 +113,12 @@ export function WorkspaceSkeleton() {
       </div>
 
       <div className="space-y-10">
-        <section className="space-y-4">
-          <h2 className="flex items-center gap-2 text-xl">
-            <BoneText skeleton className="rounded-xl">
-              Календарь
-            </BoneText>
-          </h2>
+        <section className="space-y-4 -translate-y-2">
+          {/* Заголовок «Календарь» виден только программе чтения — как и в
+              расчёте. Кости под него не ставится: он вынесен из потока и
+              места на экране не занимает, а нарисованная на пустом месте
+              полоса сдвинула бы всё под собой на строку. */}
+          <h2 className="flex items-center gap-2 text-xl sr-only">Календарь</h2>
 
           <div className="space-y-4">
             {/* Панель управления сеткой: что показывать, за какой период,
@@ -193,6 +205,41 @@ export function WorkspaceSkeleton() {
         <ProfileFooterBones />
       </div>
     </main>
+  );
+}
+
+/**
+ * Кнопки шапки: настройки и выгрузка.
+ *
+ * Живут они в рабочем экране, а тот появляется только с профилем, — и
+ * пока профиль читается, шапка стояла пустой, а потом в ней разом
+ * возникали две кнопки. Заглушка обещает КАЖДУЮ кнопку расчёта, и эти две
+ * не исключение: они на виду с первого кадра.
+ *
+ * Разметка повторяет `HeaderTools` целиком, вместе с порогом подписей
+ * (`xs`): без него на телефоне кость была бы шире кнопки, которая её
+ * сменит.
+ */
+export function HeaderToolsBones() {
+  return (
+    <div className="flex items-center gap-2">
+      {[
+        { label: "Настройки", Icon: Settings2 },
+        { label: "Сохранить", Icon: Save },
+      ].map(({ label, Icon }) => (
+        <span
+          key={label}
+          className={cn(
+            "inline-flex h-9 shrink-0 items-center gap-2 rounded-xl",
+            "px-3 text-sm font-medium",
+            "skeleton-bone bg-paper-raised text-transparent",
+          )}
+        >
+          <Icon aria-hidden className="size-4.5 shrink-0 opacity-0" />
+          <span className="hidden xs:inline">{label}</span>
+        </span>
+      ))}
+    </div>
   );
 }
 
@@ -303,7 +350,7 @@ function FigureBone({
     <div className="min-w-0 sm:flex sm:flex-row-reverse sm:items-center sm:gap-4 lg:block">
       <dd
         className={cn(
-          "whitespace-nowrap font-mono leading-none",
+          "whitespace-nowrap font-mono leading-none text-center",
           emphatic ? "text-xl sm:text-2xl" : "text-lg sm:text-xl",
         )}
       >

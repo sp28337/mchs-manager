@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { SiteHeader } from "@/components/shared/site-header";
 import { RegisterForm } from "./register-form";
 import { Workspace } from "./workspace";
-import { WorkspaceSkeleton } from "./workspace-skeleton";
+import { HeaderToolsBones, WorkspaceSkeleton } from "./workspace-skeleton";
 import { useProfile } from "../storage/use-profile";
 
 /**
@@ -47,7 +47,12 @@ export function CalculatorScreen() {
 
   return (
     <>
-      <SiteHeader />
+      {/* Пока профиль читается, в шапке стоят кости тех же двух кнопок,
+          что появятся у расчёта: пустая шапка, в которой они возникают
+          разом, читается как рывок ровно так же, как пустое поле под ней.
+          Без профиля (анкета) кнопкам браться неоткуда — им нечего
+          настраивать и нечего выгружать. */}
+      <SiteHeader tools={state.status === "loading" ? <HeaderToolsBones /> : undefined} />
 
       {state.status === "loading" ? (
         <>
