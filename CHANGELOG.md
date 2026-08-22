@@ -18,6 +18,10 @@
 
 ## [Не выпущено]
 
+## [2.0.1] — 2026-08-22
+
+Мелкая правка первого экрана. Ни расчёт, ни данные не затронуты.
+
 ### Изменено
 
 - Первый экран рассказывает историю по очереди, а не всё разом: отметка
@@ -120,6 +124,7 @@
 через трое» для аттестованных сотрудников ФПС ГПС и вольнонаёмных
 работников.
 
-[Не выпущено]: https://github.com/sp28337/mchs-manager/compare/v2.0.0...staging
+[Не выпущено]: https://github.com/sp28337/mchs-manager/compare/v2.0.1...staging
+[2.0.1]: https://github.com/sp28337/mchs-manager/compare/v2.0.0...v2.0.1
 [2.0.0]: https://github.com/sp28337/mchs-manager/compare/v1.0.0...v2.0.0
 [1.0.0]: https://github.com/sp28337/mchs-manager/releases/tag/v1.0.0
