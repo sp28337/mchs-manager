@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 
+import Link from "next/link";
+
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import type { StoredProfile } from "../storage/profile";
@@ -87,13 +89,21 @@ export function ProfileFooter({ profile, onForget }: ProfileFooterProps) {
           <ThemeToggle/>
         </div>
 
-        <p className="max-w-prose text-xs text-ink-muted text-center">
+        <p className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-xs text-ink-muted">
+          <Link href="/terms" className="text-ink-muted">
+            Условия использования
+          </Link>
+          <Link href="/terms#data" className="text-ink-muted">
+            Данные и приватность
+          </Link>
+          <span>
           Последнее изменение:{" "}
           {new Date(profile.savedAt).toLocaleString("ru-RU", {
             dateStyle: "long",
             timeStyle: "short",
           })}
           .
+          </span>
         </p>
       </div>
     </footer>

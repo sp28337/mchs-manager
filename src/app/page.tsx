@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import {
   CalendarCog,
   CalendarDays,
@@ -308,6 +309,17 @@ export default function LandingPage() {
             <p>
               Точность зависит от введённого: даты смены, недельной нормы и
               периодов отсутствия.
+            </p>
+            {/* Условия и раздел о данных — одной строкой: два пункта это
+                не навигация, а ответ на два вопроса, которые сервис
+                вызывает у всех. */}
+            <p className="flex flex-wrap gap-x-4 gap-y-1 pt-1">
+              <Link href="/terms" className="text-ink-muted">
+                Условия использования
+              </Link>
+              <Link href="/terms#data" className="text-ink-muted">
+                Данные и приватность
+              </Link>
             </p>
           </div>
           {/* На телефоне подвал идёт колонкой, и переключатель в ней
