@@ -19,6 +19,7 @@ import { addDays, type IsoDate } from "../domain/plain-date";
 import {
   ACCOUNTING_PERIODS,
   deriveWeeklyNorm,
+  onShiftCycle,
   weeklyNormGroundOf,
   weeklyNormGroundToFacts,
   type AccountingPeriodKind,
@@ -26,7 +27,7 @@ import {
   type WeeklyNormGround,
   type WeeklyNormInput,
 } from "../domain/value-objects";
-import { overridesOf, type StoredProfile } from "../storage/profile";
+import { overridesOf, shiftOverridesOf, type StoredProfile } from "../storage/profile";
 
 /**
  * Профиль на языке домена.
@@ -130,6 +131,7 @@ export function calculateFor(
       // известная смена, — но переименовывать ключ значило бы сломать
       // сохранённые файлы профилей ради названия.
       knownShiftDate: profile.firstShiftDate,
+      overrides: shiftOverridesOf(profile),
     },
     weekly: weeklyNormOf(profile),
     calendar: { workingDays: facts.workingDays, preHolidayDays: facts.preHolidayDays },
@@ -208,4 +210,50 @@ export function statutoryBounds(
       ? `${year + 1}-01-01`
       : `${year}-${pad(endMonth + 1)}-01`) as IsoDate,
   };
+}
+
+
+/**
+ * Правка графика на одни сутки: смена или выходной.
+ *
+ * --- Почему совпадение с циклом не хранится ------------------------------
+ *
+ * Правка называет ИСКЛЮЧЕНИЕ. Сказать «здесь смена» там, где смена и так
+ * по циклу, значит не сказать ничего — а запись осталась бы и однажды
+ * зажила своей жизнью: сдвинь человек известную смену на день, и старые
+ * «подтверждения» цикла превратятся в чужие смены посреди года.
+ *
+ * Поэтому выбор, совпавший с циклом, СНИМАЕТ правку. Тот же приём, что у
+ * производственного календаря: в профиле лежит только то, что человек
+ * утверждает вопреки расчёту.
+ */
+export function withShiftAt(
+  profile: StoredProfile,
+  day: IsoDate,
+  shift: boolean,
+): StoredProfile {
+  const shiftOverrides = { ...profile.shiftOverrides };
+  if (onShiftCycle(profile.firstShiftDate, day) === shift) {
+    delete shiftOverrides[day];
+  } else {
+    shiftOverrides[day] = shift ? "shift" : "off";
+  }
+  return { ...profile, shiftOverrides };
+}
+
+/**
+ * Перенос смены: снять с одних суток и поставить на другие.
+ *
+ * Одним действием, а не двумя правками подряд: перенос — это одно
+ * событие («смену отдали на седьмое»), и в профиле он обязан оказаться
+ * целиком или никак. Двумя вызовами промежуточное состояние — график без
+ * смены — попадало бы в хранилище и в расчёт.
+ */
+export function withShiftMoved(
+  profile: StoredProfile,
+  from: IsoDate,
+  to: IsoDate,
+): StoredProfile {
+  if (from === to) return profile;
+  return withShiftAt(withShiftAt(profile, from, false), to, true);
 }
