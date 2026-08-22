@@ -16,9 +16,10 @@ import { HeroFigures } from "./hero-figures";
 import {
   HERO_KNOWN_SHIFT,
   HERO_LEAVE_DAYS,
+  HERO_MARK_AT,
+  HERO_MARK_MS,
   HERO_MONTH,
   HERO_REST_DAYS,
-  HERO_STAGE_AT,
   HERO_YEAR,
 } from "./hero-scenario";
 
@@ -180,7 +181,14 @@ export function HeroCalendar({ className }: { className?: string }) {
   );
 
   return (
-    <div aria-hidden className={cn("hero-cal select-none flex flex-col justify-center", className)}>
+    <div
+      aria-hidden
+      className={cn("hero-cal select-none flex flex-col justify-center", className)}
+      // Длительность появления отметки уходит в CSS отсюда: в сценарии на
+      // ней построено всё расписание, и записать её вторым числом в
+      // правиле значило бы завести второй источник той же величины.
+      style={vars({ "--mark-ms": HERO_MARK_MS })}
+    >
       {/* Сцена задаёт перспективу, плоскость — наклон. Точка схода одна на
           весь блок и стоит там, где стоит читатель: у ближнего края.
 
@@ -299,11 +307,12 @@ const ABSENCE_MARK = { rest: "В", leave: "О" } as const;
 /**
  * Когда проявляется: отпуск на втором шаге истории, отгул на третьем.
  *
- * Сроки берутся из того же сценария, что и числа над сеткой. Двух
- * источников времени быть не должно: разойдись они — и клетка пометится
- * раньше, чем сдвинется число, которое она меняет.
+ * Сроки берутся из того же расписания, что и числа над сеткой, и стоят
+ * РАНЬШЕ них ровно на длительность самой отметки: сперва она доигрывает,
+ * и только потом трогаются числа. Двух источников времени быть не должно
+ * — разойдись они, и клетка пометится посреди счёта.
  */
-const ABSENCE_AT = { leave: HERO_STAGE_AT[1] ?? 0, rest: HERO_STAGE_AT[2] ?? 0 } as const;
+const ABSENCE_AT = { leave: HERO_MARK_AT[1] ?? 0, rest: HERO_MARK_AT[2] ?? 0 } as const;
 
 function Cell({
   corners,

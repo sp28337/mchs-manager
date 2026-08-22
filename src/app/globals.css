@@ -703,7 +703,8 @@
 
 .hero-cal__absence {
   opacity: 0;
-  animation: cal-absence-in 520ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: cal-absence-in calc(var(--mark-ms, 520) * 1ms)
+    cubic-bezier(0.22, 1, 0.36, 1) both;
   animation-delay: calc(var(--at, 0) * 1ms);
 }
 
