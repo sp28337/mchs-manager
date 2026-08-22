@@ -85,6 +85,16 @@ export interface MonthGridProps {
    * оформление остаётся здесь.
    */
   weekdayProps?: (index: number) => { className?: string; style?: CSSProperties };
+  /**
+   * Добавка к ПУСТОЙ клетке — по её месту в сетке.
+   *
+   * Нужна тому же вызывающему, что и `weekdayProps`, и по той же причине.
+   * Пустая клетка обычно ничем себя не выдаёт, но в одной из них лежит
+   * скос уступа (`Fillet`) — видимый кусок контура месяца. Без этой
+   * добавки он оставался единственным, что стоит на месте с первого
+   * кадра, пока весь остальной месяц ещё собирается.
+   */
+  padProps?: (slot: number) => { className?: string; style?: CSSProperties };
 }
 
 /**
@@ -128,6 +138,7 @@ export function MonthGrid({
   renderDay,
   joined,
   weekdayProps,
+  padProps,
 }: MonthGridProps) {
   const first = days[0];
   if (first === undefined) return null;
@@ -184,14 +195,22 @@ export function MonthGrid({
           );
         })}
 
-        {Array.from({ length: offset }, (_, index) => (
-          <div key={`pad-${index}`} aria-hidden className="relative">
-            {/* Скос верхнего уступа — в последней пустой клетке перед
-                первым числом: вогнутый угол блока приходится ровно на её
-                правый нижний угол. */}
-            {joined && index === offset - 1 ? <Fillet corner="br" /> : null}
-          </div>
-        ))}
+        {Array.from({ length: offset }, (_, index) => {
+          const extra = padProps?.(index);
+          return (
+            <div
+              key={`pad-${index}`}
+              aria-hidden
+              className={cn("relative", extra?.className)}
+              style={extra?.style}
+            >
+              {/* Скос верхнего уступа — в последней пустой клетке перед
+                  первым числом: вогнутый угол блока приходится ровно на её
+                  правый нижний угол. */}
+              {joined && index === offset - 1 ? <Fillet corner="br" /> : null}
+            </div>
+          );
+        })}
 
         {days.map((day, index) => (
           <div key={day} className="min-w-0">
@@ -199,13 +218,22 @@ export function MonthGrid({
           </div>
         ))}
 
-        {Array.from({ length: trailing }, (_, index) => (
-          <div key={`tail-${index}`} aria-hidden className="relative">
-            {/* Скос нижнего уступа — в первой пустой клетке после
-                последнего числа, в её левом верхнем углу. */}
-            {joined && index === 0 ? <Fillet corner="tl" /> : null}
-          </div>
-        ))}
+        {Array.from({ length: trailing }, (_, index) => {
+          const slot = offset + days.length + index;
+          const extra = padProps?.(slot);
+          return (
+            <div
+              key={`tail-${index}`}
+              aria-hidden
+              className={cn("relative", extra?.className)}
+              style={extra?.style}
+            >
+              {/* Скос нижнего уступа — в первой пустой клетке после
+                  последнего числа, в её левом верхнем углу. */}
+              {joined && index === 0 ? <Fillet corner="tl" /> : null}
+            </div>
+          );
+        })}
       </div>
     </section>
   );
