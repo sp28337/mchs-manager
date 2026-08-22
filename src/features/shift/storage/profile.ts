@@ -30,6 +30,7 @@
 import { z } from "zod";
 
 import { DEFAULT_SHIFT_START } from "../domain/shift-hours";
+import type { ShiftOverride } from "../domain/value-objects";
 import type { DayType } from "../domain/production-calendar";
 import type { IsoDate } from "../domain/plain-date";
 
@@ -122,6 +123,18 @@ export const storedProfileSchema = z.object({
   /** Правки производственного календаря: дата → тип дня. */
   calendarOverrides: z.record(isoDate, dayType),
   /**
+   * Правки графика смен: дата → «смена» или «выходной».
+   *
+   * Цикл описывает график, а не жизнь: подмены и переносы случаются, и без
+   * этого поля человек не мог сказать приложению, что одну смену он
+   * отработал не четвёртого, а седьмого. Хранятся ИСКЛЮЧЕНИЯ, а не
+   * переписанный график: сам цикл остаётся прежним и строится дальше сам.
+   *
+   * Необязательное с умолчанием: профили, сохранённые до появления
+   * переносов, обязаны читаться как есть.
+   */
+  shiftOverrides: z.record(isoDate, z.enum(["shift", "off"])).default({}),
+  /**
    * Заметки к суткам: дата → текст.
    *
    * Расчёт их не читает и читать не должен — это память человека, а не
@@ -183,6 +196,7 @@ export function createProfile(input: NewProfileInput): StoredProfile {
     absences: [],
     callouts: [],
     calendarOverrides: {},
+    shiftOverrides: {},
     dayNotes: {},
     liveMode: false,
     overtimeInDays: false,
@@ -316,4 +330,9 @@ export function importProfile(text: string): StoredProfile {
 /** Правки календаря в виде, который понимает домен. */
 export function overridesOf(profile: StoredProfile): Map<IsoDate, DayType> {
   return new Map(Object.entries(profile.calendarOverrides) as [IsoDate, DayType][]);
+}
+
+/** Правки графика в виде, который понимает домен. */
+export function shiftOverridesOf(profile: StoredProfile): Map<IsoDate, ShiftOverride> {
+  return new Map(Object.entries(profile.shiftOverrides) as [IsoDate, ShiftOverride][]);
 }

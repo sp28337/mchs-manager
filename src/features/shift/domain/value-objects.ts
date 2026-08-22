@@ -290,6 +290,39 @@ export const SHIFT_DURATION_HOURS = new Dec(24);
 export interface ShiftCycle {
   /** Любые сутки, в которые человек выходил на смену или выйдет. */
   readonly knownShiftDate: IsoDate;
+  /**
+   * Правки графика: сутки, назначенные сменой или снятые с неё.
+   *
+   * Цикл описывает график, а не жизнь. Подмены, переносы и снятия со
+   * смены случаются постоянно, и человек, у которого одна смена ушла на
+   * три дня вперёд, до сих пор не мог сказать этого приложению вовсе:
+   * весь остальной год у него правильный, а эти сутки — нет.
+   *
+   * Правка называет ИСКЛЮЧЕНИЕ, а не переписывает цикл: снять смену
+   * четвёртого и поставить седьмого — это две записи, а не новый график.
+   * Цикл остаётся тем же и дальше строится сам.
+   */
+  readonly overrides?: ReadonlyMap<IsoDate, ShiftOverride>;
+}
+
+/**
+ * Что человек сказал про эти сутки: смена или выходной.
+ *
+ * Третьего значения нет намеренно — «как в цикле» это ОТСУТСТВИЕ записи.
+ * Иначе профиль копил бы правки, ничего не меняющие, и «сколько я
+ * переставил смен» перестало бы быть вопросом с ответом.
+ */
+export type ShiftOverride = "shift" | "off";
+
+/**
+ * Приходится ли на эти сутки смена ПО ЦИКЛУ, без правок.
+ *
+ * Нужно и расчёту, и разметке: правка, совпавшая с циклом, не хранится, и
+ * узнать это можно только здесь.
+ */
+export function onShiftCycle(knownShiftDate: IsoDate, day: IsoDate): boolean {
+  const delta = daysBetween(knownShiftDate, day);
+  return ((delta % SHIFT_CYCLE_DAYS) + SHIFT_CYCLE_DAYS) % SHIFT_CYCLE_DAYS === 0;
 }
 
 /**
@@ -328,5 +361,20 @@ export function shiftDates(
     if (cursor >= periodStart) dates.push(cursor);
     cursor = addDays(cursor, SHIFT_CYCLE_DAYS);
   }
-  return dates;
+
+  // Правки поверх цикла. Их обычно единицы на год, поэтому перебирается
+  // не период, а они сами: снятые сутки уходят из списка, назначенные
+  // добавляются, если цикл их и так не даёт.
+  const overrides = cycle.overrides;
+  if (overrides === undefined || overrides.size === 0) return dates;
+
+  const kept = dates.filter((day) => overrides.get(day) !== "off");
+  for (const [day, override] of overrides) {
+    if (override !== "shift") continue;
+    if (day < periodStart || day >= periodEnd) continue;
+    if (onShiftCycle(cycle.knownShiftDate, day)) continue;
+    kept.push(day);
+  }
+  // Порядок дат — часть договора: по ним идёт разбор смен подряд.
+  return kept.sort();
 }

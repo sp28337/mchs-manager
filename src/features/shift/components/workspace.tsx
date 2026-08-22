@@ -11,6 +11,7 @@ import {
   liveBounds,
   monthBounds,
   statutoryBounds,
+  withShiftMoved,
 } from "../model/derive";
 import type { StoredProfile } from "../storage/profile";
 import { DayEditor } from "./day-editor";
@@ -227,6 +228,11 @@ export function Workspace({ profile, onChange, onForget }: WorkspaceProps) {
           month={month}
           onMonth={setMonth}
           onPickDay={setPickedDay}
+          // Перенос смены — одно событие, и в профиль он попадает одной
+          // правкой: снять здесь, назначить там (`withShiftMoved`).
+          onMoveShift={(from, to) =>
+            onChange((previous) => withShiftMoved(previous, from, to))
+          }
         />
       </section>
 

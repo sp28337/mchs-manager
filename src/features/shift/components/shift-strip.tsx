@@ -1,4 +1,6 @@
-import type { ReactNode } from "react";
+"use client";
+
+import { useCallback, type ReactNode } from "react";
 
 import { BoneText } from "@/components/ui/bone";
 import { CountedNumber } from "@/components/ui/counted-number";
@@ -74,8 +76,38 @@ const ABSENCE_TONE: Record<AbsenceKind, string> = {
   time_off_in_lieu: "border-dashed border-rest/50 bg-rest-soft text-rest rounded-md",
   study_leave: "border-dashed border-study/50 bg-study-soft text-study rounded-md",
 };
+
+/**
+ * Тот же вид, но вполголоса: сутки отпуска, свободные по графику.
+ *
+ * --- Зачем они вообще помечаются -----------------------------------------
+ *
+ * Отпуск с 1 по 5 показывался ОДНОЙ клеткой — той, где по графику стояла
+ * смена. Человек видел «смена попала в отпуск» и не видел ни начала
+ * отпуска, ни его конца, хотя спор идёт ровно о границах: с какого числа
+ * отпустили и по какое.
+ *
+ * --- Почему тише, а не так же --------------------------------------------
+ *
+ * Потому что стоят они разного. Смена в отпуске — это не отработанные
+ * сутки, из-за которых и меняются числа наверху; свободные сутки внутри
+ * отпуска на расчёт не влияют никак, они показывают только его
+ * протяжённость.
+ *
+ * Ослабление ровно то же, каким в графике различаются заступление и
+ * продолжение смены: цвет тот же, плотность меньше. Другого способа
+ * показать «то же, но слабее» в этом словаре нет, а заводить второй
+ * значило бы объяснять человеку два правила вместо одного.
+ */
+const ABSENCE_TONE_QUIET: Record<AbsenceKind, string> = {
+  annual_leave: "border-dashed border-signal/20 bg-signal-soft/40 text-signal/70 rounded-md",
+  sick_leave: "border-dashed border-sick/20 bg-sick-soft/40 text-sick/70 rounded-md",
+  time_off_in_lieu: "border-dashed border-rest/20 bg-rest-soft/40 text-rest/70 rounded-md",
+  study_leave: "border-dashed border-study/20 bg-study-soft/40 text-study/70 rounded-md",
+};
 import { MONTH_NAMES } from "./month-names";
 import { MonthGrid, WEEKDAY_LABELS } from "./month-grid";
+import { useShiftDrag, type ShiftDrag } from "./use-shift-drag";
 
 /**
  * График смен: месяц — блок, неделя — строка.
@@ -129,6 +161,7 @@ export function ShiftStrip({
   gridClassName,
   dayNotes,
   onPickDay,
+  onMoveShift,
 }: {
   calculation: PeriodCalculation;
   /**
@@ -145,6 +178,13 @@ export function ShiftStrip({
   dayNotes: Readonly<Record<string, string>>;
   /** Нажатие по клетке: открыть правку этих суток. */
   onPickDay: (day: IsoDate) => void;
+  /**
+   * Перенос смены на другие сутки.
+   *
+   * Без него сетка остаётся такой, какой была: смены не тянутся. Так она
+   * и стоит в заглушке экрана, где переносить нечего.
+   */
+  onMoveShift?: (from: IsoDate, to: IsoDate) => void;
 }) {
   // На одни сутки может прийтись и смена, и вызов: человека вызвали на
   // соревнования в свой выходной или сняли со смены на выборы. Карта
@@ -196,6 +236,42 @@ export function ShiftStrip({
       }
     }
   }
+
+  // Где стоят заступления: тянуть можно только их, и класть можно только
+  // туда, где смены ещё нет. Набор строится по тому же расчёту, из
+  // которого нарисована сетка, — второй источник разошёлся бы с видимым.
+  const starts = new Set<IsoDate>();
+  for (const record of calculation.days) {
+    if (record.isShiftStart) starts.add(record.day);
+  }
+  const shown = new Set<IsoDate>();
+  for (const group of groups) for (const day of group.days) shown.add(day);
+
+  const drag = useShiftDrag({
+    // Класть смену можно в любые ПОКАЗАННЫЕ сутки без смены. Ограничение
+    // показанным — не придирка: сутки за краем сетки человек не видит, и
+    // «перенёс неизвестно куда» хуже, чем «не перенёс».
+    canDrop: useCallback(
+      (day: IsoDate) => onMoveShift !== undefined && shown.has(day) && !starts.has(day),
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+      [onMoveShift, calculation],
+    ),
+    onMove: useCallback(
+      (from: IsoDate, to: IsoDate) => onMoveShift?.(from, to),
+      [onMoveShift],
+    ),
+    renderGhost: (day) => (
+      <div
+        className={cn(
+          "flex size-11 flex-col items-center justify-center rounded-md leading-tight",
+          "border border-verify/25 bg-verify/30 text-verify",
+        )}
+      >
+        <span className="font-mono text-sm">{dayOfMonth(day)}</span>
+        <span className="font-mono text-[10px]">смена</span>
+      </div>
+    ),
+  });
 
   return (
     <div className="space-y-6 xl:flex xl:gap-4 xl:flex-row-reverse">
@@ -257,9 +333,12 @@ export function ShiftStrip({
               <DayCell
                 day={day}
                 records={byDay.get(day) ?? []}
+                covered={calculation.absentDays.get(day) ?? null}
                 note={dayNotes[day]}
                 corners={corners}
                 upcoming={upcoming != null && day >= upcoming}
+                drag={drag}
+                draggable={onMoveShift !== undefined && starts.has(day)}
                 onPick={() => onPickDay(day)}
               />
             )}
@@ -267,6 +346,7 @@ export function ShiftStrip({
         ))}
       </div>
       <ShiftLegend />
+      {drag.ghost}
     </div>
   );
 }
@@ -320,6 +400,16 @@ export function ShiftLegend({ skeleton }: { skeleton?: boolean }) {
             mark="В"
             label="Выходной день"
           />
+          {/* Перетаскивание ничем себя не выдаёт: клетка выглядит так же,
+              как и любая другая. Сказать об этом словом — единственный
+              способ, а место у слова одно — там, где объяснено остальное
+              в этой сетке. */}
+          <p className="text-xs text-ink-muted">
+            <BoneText skeleton={skeleton}>
+              Смену можно перенести: потяните её мышью или задержите палец и
+              ведите. Или нажмите по дню и выберите «Выходной».
+            </BoneText>
+          </p>
         </LegendGroup>
 
         <LegendGroup title="Отсутствие по уважительной причине" skeleton={skeleton}>
@@ -372,18 +462,31 @@ function calloutMarks(kinds: readonly CalloutKind[]): string {
 function DayCell({
   day,
   records,
+  covered,
   note,
   corners,
   upcoming,
+  drag,
+  draggable,
   onPick,
 }: {
   day: IsoDate;
   records: readonly DayRecord[];
+  /**
+   * Освобождение, накрывающее эти сутки, — независимо от того, была ли в
+   * них смена. Свободные по графику сутки внутри отпуска показываются
+   * вполголоса: часов у них нет, а протяжённость отпуска они держат.
+   */
+  covered: AbsenceKind | null;
   note?: string;
   /** Скругления углов: их знает сетка, а не клетка. */
   corners: string;
   /** Сутки ещё не наступили: показаны, но в расчёт не входят. */
   upcoming?: boolean;
+  /** Общее состояние переноса: что несут и куда сейчас положат. */
+  drag: ShiftDrag;
+  /** Есть ли в этих сутках смена, которую можно унести. */
+  draggable: boolean;
   onPick: () => void;
 }) {
   const date = dayOfMonth(day);
@@ -432,7 +535,20 @@ function DayCell({
   if (parts.length > 1 && workedHours.greaterThan(0)) {
     parts.push(`всего за сутки ${hoursTrim(workedHours)} ч`);
   }
-  const label = `${where} — ${parts.length > 0 ? parts.join("; ") : "свободные сутки"}`;
+  // Вполголоса помечаются только те сутки, у которых своей записи нет.
+  // Смена — хоть отработанная, хоть пропущенная, — и вызов говорят о
+  // сутках больше, чем протяжённость отпуска, и место в клетке отдаётся
+  // им. Отработанный хвост смены, зашедший в первый день отпуска, так и
+  // остаётся отработанным: часы за него посчитаны.
+  const quiet = records.length === 0 ? covered : null;
+
+  const label =
+    `${where} — ` +
+    (parts.length > 0
+      ? parts.join("; ")
+      : quiet
+        ? `${ABSENCE_LABELS[quiet].toLowerCase()}, выходной по графику`
+        : "свободные сутки");
 
   const worked = shift !== undefined && shift.absenceKind === null;
   const calloutKinds = callouts.flatMap((record) =>
@@ -448,14 +564,21 @@ function DayCell({
     (note ? `${label}. Заметка: ${note}` : label) +
     (upcoming ? ". Ещё не наступило, в расчёт не входит" : "");
 
+  const carried = drag.from === day;
+  const target = drag.over === day;
+
   return (
     <button
       type="button"
       title={full}
       onClick={onPick}
+      {...drag.cellProps(day, draggable)}
       className={cn(
         "relative flex aspect-square w-full min-w-0 cursor-pointer flex-col",
         "items-center justify-center leading-tight bg-paper-raised",
+        // Выделение текста мышью посреди переноса — первое, что портит
+        // жест: курсор тащит смену, а браузер тащит выделение.
+        "select-none",
         corners,
       )}
     >
@@ -463,11 +586,12 @@ function DayCell({
         cn(
           "flex flex-col",
           "relative flex aspect-square w-full min-w-0 cursor-pointer flex-col",
-          "items-center justify-center leading-tight",
+          "items-center justify-center leading-tight rounded-md",
           "hover:outline-2 hover:-outline-offset-2 hover:outline-ink/40",
           "focus-visible:outline-2 focus-visible:-outline-offset-2",
           "focus-visible:outline-trace",
-          records.length === 0 && "bg-paper-raised text-ink-faint rounded-md",
+          records.length === 0 && !quiet && "bg-paper-raised text-ink-faint rounded-md",
+          quiet && cn("border", ABSENCE_TONE_QUIET[quiet]),
           worked && shift.isShiftStart && "bg-verify/30 text-verify rounded-md border border-verify/25",
           worked && !shift.isShiftStart && "bg-verify/5 text-verify rounded-md border border-verify/15",
           shift?.absenceKind && cn("border", ABSENCE_TONE[shift.absenceKind]),
@@ -477,6 +601,13 @@ function DayCell({
           // тот ни был. Сами цвета остаются, чтобы будущую смену было
           // видно сменой, а не пустой клеткой.
           upcoming && "cell-upcoming",
+          // Смену несут: на своём месте от неё остаётся след, а не дырка.
+          // Пустое место читалось бы как «уже перенёс», хотя палец ещё не
+          // отпущен и бросок можно отменить.
+          carried && "opacity-30",
+          // Сюда положат. Обводка внутрь, как у наведения: клетки стоят
+          // вплотную, и рамка сдвинула бы соседей.
+          target && "outline-2 -outline-offset-2 outline-verify bg-verify/10",
         )}
       >
         <span className="sr-only">{full}</span>
@@ -507,11 +638,13 @@ function DayCell({
         >
           {calloutKinds.length > 0
             ? calloutMarks(calloutKinds)
-            : records.length === 0
-              ? "В"
-              : shift?.absenceKind
-                ? ABSENCE_MARK[shift.absenceKind]
-                : hoursTrim(workedHours)}
+            : quiet
+              ? ABSENCE_MARK[quiet]
+              : records.length === 0
+                ? "В"
+                : shift?.absenceKind
+                  ? ABSENCE_MARK[shift.absenceKind]
+                  : hoursTrim(workedHours)}
         </span>
       </div>
     </button>

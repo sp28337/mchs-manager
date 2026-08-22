@@ -41,7 +41,7 @@
  */
 
 import { Dec, ZERO, atLeastZero, type Decimal } from "./decimal";
-import { addDays, type IsoDate } from "./plain-date";
+import { addDays, datesInRange, type IsoDate } from "./plain-date";
 import {
   DEFAULT_SHIFT_START,
   minutesToHours,
@@ -178,6 +178,28 @@ export interface PeriodCalculation {
    * сходится с тем, что видно в клетках.
    */
   readonly days: readonly DayRecord[];
+
+  /**
+   * ВСЕ сутки периода, накрытые освобождением, и чем именно.
+   *
+   * --- Зачем это отдельно от `days` ----------------------------------------
+   *
+   * `days` — часы, а у отпуска в выходной по графику часов нет: сутки,
+   * попавшие в отпуск между сменами, в `days` не появляются вовсе. На
+   * графике из-за этого отпуск с 1 по 5 показывался одной клеткой — той,
+   * где стояла смена, — и человек видел «смена попала в отпуск» вместо
+   * «отпуск идёт по пятое». Границы отпуска, то есть ровно то, о чём
+   * спорят, на экране не было.
+   *
+   * Сюда же класть нулевые часы нельзя: `days` складывают, и запись «ноль
+   * часов, отпуск» пришлось бы отличать от настоящих суток в каждом
+   * месте, где по ним идёт счёт.
+   *
+   * Правило накрытия одно на всё приложение (`absenceCovers`), и второй
+   * его копии в разметке быть не должно: разойдись они на день — и
+   * нарисованный отпуск перестанет совпадать с посчитанным.
+   */
+  readonly absentDays: ReadonlyMap<IsoDate, AbsenceKind>;
 
   /** Переработка. Ноль, если её нет, — отрицательной переработки не бывает. */
   readonly overtimeHours: Decimal;
@@ -384,6 +406,14 @@ export function calculatePeriod({
 
   days.sort((left, right) => left.day.localeCompare(right.day));
 
+  // Накрытые сутки — по календарю, а не по сменам: отпуск идёт подряд, и
+  // выходные по графику внутри него — такой же отпуск, как день со сменой.
+  const absentDays = new Map<IsoDate, AbsenceKind>();
+  for (const day of datesInRange(periodStart, periodEnd)) {
+    const covering = absences.find((item) => absenceCovers(item, day));
+    if (covering) absentDays.set(day, covering.kind);
+  }
+
   const base = baseNormHours(weekly, calendar);
   // Норма не уходит в минус: длительное отсутствие может перекрыть период
   // целиком, и отрицательная норма означала бы, что человек обязан
@@ -408,6 +438,7 @@ export function calculatePeriod({
     absentShifts: shifts.length - worked,
     shifts,
     days,
+    absentDays,
     overtimeHours: atLeastZero(actual.minus(norm)),
     undertimeHours: atLeastZero(norm.minus(actual)),
     wrongNormUndertimeHours: atLeastZero(base.minus(actual)),
