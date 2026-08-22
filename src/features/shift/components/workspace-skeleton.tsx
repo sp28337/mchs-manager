@@ -89,7 +89,7 @@ export function WorkspaceSkeleton() {
       <header className="pb-12">
         <h1 className="text-3xl sm:text-4xl opacity-10 leading-tight text-center">
           <BoneText skeleton className="rounded-xl">
-            Пожарный
+            Мой график
           </BoneText>
         </h1>
       </header>

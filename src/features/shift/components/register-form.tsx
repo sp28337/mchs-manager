@@ -92,7 +92,7 @@ export function RegisterForm({ onCreated, notice }: RegisterFormProps) {
       // отказывать в графике из-за незаполненной строки было бы придиркой.
       onCreated({
         ...draft,
-        displayName: draft.displayName.trim() || "Пожарный",
+        displayName: draft.displayName.trim() || "Мой график",
       });
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Не удалось сохранить профиль.");

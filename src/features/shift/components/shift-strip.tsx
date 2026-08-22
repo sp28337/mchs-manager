@@ -83,7 +83,7 @@ import { MonthGrid, WEEKDAY_LABELS } from "./month-grid";
  * --- Почему счёт идёт по СУТКАМ, а не по сменам --------------------------
  *
  * Смена длится сутки с развода, поэтому лежит в двух календарных днях. При
- * разводе в 08:30 смена, заступившая 31 марта, отдаёт марту 15,5 часа, а
+ * начале в 08:30 смена, начавшаяся 31 марта, отдаёт марту 15,5 часа, а
  * 8,5 — апрелю, и ночных в марте у неё два часа, а не шесть.
  *
  * Раньше блок брал часы смены целиком и приписывал их месяцу ЗАСТУПЛЕНИЯ.
@@ -101,8 +101,8 @@ import { MonthGrid, WEEKDAY_LABELS } from "./month-grid";
  *
  * --- Почему месяцы в колонках -------------------------------------------
  *
- * Учётный период — полугодие или год (Приказ № 308 п. 2, № 307 п. 7), то
- * есть шесть-двенадцать блоков. В одну колонку они дают полосу в
+ * Учётный период — квартал, полугодие или год (ст. 104 ТК РФ), то есть
+ * от трёх до двенадцати блоков. В одну колонку они дают полосу в
  * несколько экранов, где соседние месяцы невозможно сравнить глазом.
  */
 
@@ -117,7 +117,7 @@ interface MonthGroup {
   nightHours: Decimal;
   /** Часы вызовов помимо графика — они уже входят в `workedHours`. */
   calloutHours: Decimal;
-  /** Пропущенных по уважительной причине заступлений. */
+  /** Пропущенных по уважительной причине смен. */
   absentStarts: number;
 }
 
@@ -279,7 +279,7 @@ export function ShiftLegend({ skeleton }: { skeleton?: boolean }) {
           <Legend
             skeleton={skeleton}
             className="border-verify/25 bg-verify/30 text-verify"
-            label="Заступление на смену"
+            label="Начало смены"
           />
           <Legend
             skeleton={skeleton}
@@ -306,7 +306,7 @@ export function ShiftLegend({ skeleton }: { skeleton?: boolean }) {
           ))}
         </LegendGroup>
 
-        <LegendGroup title="Вызовы сверх нормы" skeleton={skeleton}>
+        <LegendGroup title="Работа помимо графика" skeleton={skeleton}>
           {(Object.keys(CALLOUT_MARK) as CalloutKind[]).map((kind) => (
             <Legend
               key={kind}
@@ -320,7 +320,7 @@ export function ShiftLegend({ skeleton }: { skeleton?: boolean }) {
             skeleton={skeleton}
             className="border-2 border-trace bg-trace-soft text-trace"
             mark="СР РЗ"
-            label="Несколько вызовов в сутки"
+            label="Несколько выходов в сутки"
           />
         </LegendGroup>
       </div>
@@ -385,7 +385,7 @@ function DayCell({
     parts.push(
       shift.absenceKind
         ? `${shift.isShiftStart ? "смена по графику" : "продолжение смены"}, ${ABSENCE_LABELS[shift.absenceKind]}`
-        : `${shift.isShiftStart ? "заступление" : "продолжение смены"}, ${hoursTrim(shift.hours)} ч` +
+        : `${shift.isShiftStart ? "начало смены" : "продолжение смены"}, ${hoursTrim(shift.hours)} ч` +
             (shift.nightHours.greaterThan(0)
               ? `, из них ночных ${hoursTrim(shift.nightHours)}`
               : ""),

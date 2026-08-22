@@ -50,7 +50,7 @@ const ADDRESSES: { href: string; label: string; what: string }[] = [
   {
     href: "/calculator",
     label: "pererabotal.ru/calculator",
-    what: "сам расчёт: график караула, норма, сверка с табелем",
+    what: "сам расчёт: график на год, норма и переработка",
   },
 ];
 

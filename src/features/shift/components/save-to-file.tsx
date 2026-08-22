@@ -19,7 +19,7 @@ export function saveProfileToFile(profile: StoredProfile): void {
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
-  link.download = `табель-${profile.accountingYear}.json`;
+  link.download = `график-${profile.accountingYear}.json`;
   link.click();
   URL.revokeObjectURL(url);
 }
