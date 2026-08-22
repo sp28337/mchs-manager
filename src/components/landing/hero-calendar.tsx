@@ -136,6 +136,15 @@ export function HeroCalendar({ className }: { className?: string }) {
         className: "hero-cal__cell text-[0.55em]",
         style: vars(letterWave(column, rows)),
       })}
+      // Пустые клетки — вместе со всеми. Сами по себе они ничего не
+      // показывают, но в одной лежит скос уступа: видимый кусок контура,
+      // который иначе стоял бы на месте с первого кадра, пока месяц ещё
+      // собирается. Место в волне у пустой клетки то же, что у любой
+      // другой на её месте.
+      padProps={(slot) => ({
+        className: "hero-cal__cell",
+        style: vars(waveVars(slot, rows)),
+      })}
       renderDay={(day, corners) => {
         const slot = offset + daysBetween(first, day);
         const start = isShiftStart(day);
@@ -151,7 +160,7 @@ export function HeroCalendar({ className }: { className?: string }) {
         return (
           <Cell
             corners={corners}
-            wave={wave(slot % 7, Math.floor(slot / 7), rows)}
+            wave={waveVars(slot, rows)}
             tone={
               start
                 ? "rounded-md border border-verify/25 bg-verify/30 text-verify"
@@ -261,6 +270,12 @@ function wave(column: number, row: number, rows: number): { x: number; y: number
   return { x: column * 2 + row, y: (rows - 1 - row) * 2 + column };
 }
 
+/** То же место в волне, но по номеру клетки в сетке. */
+function waveVars(slot: number, rows: number): { "--ix": number; "--iy": number } {
+  const { x, y } = wave(slot % 7, Math.floor(slot / 7), rows);
+  return { "--ix": x, "--iy": y };
+}
+
 /**
  * Место буквы дня недели в волне.
  *
@@ -277,7 +292,6 @@ function letterWave(column: number, rows: number): { "--ix": number; "--iy": num
 function vars(style: Record<string, number>): CSSProperties {
   return style as CSSProperties;
 }
-
 
 /**
  * Клетка суток — та же, что в расчёте: плашка месяца снизу, вид суток
@@ -323,7 +337,7 @@ function Cell({
   children,
 }: {
   corners: string;
-  wave: { x: number; y: number };
+  wave: { "--ix": number; "--iy": number };
   tone: string;
   mark: number | null;
   absence: "rest" | "leave" | null;
@@ -336,7 +350,7 @@ function Cell({
     // пиксель. У самой клетки рамки нет, и накладка закрывает её целиком.
     <div
       className={cn("hero-cal__cell relative bg-paper-raised", corners)}
-      style={vars({ "--ix": index.x, "--iy": index.y })}
+      style={vars(index)}
     >
       <div
         className={cn(
