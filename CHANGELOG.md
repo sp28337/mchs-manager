@@ -18,6 +18,11 @@
 
 ## [Не выпущено]
 
+## [2.0.2] — 2026-08-22
+
+Две поломки, обе видны глазом. Вторая — на телефоне, и по ней не
+открывалось ни одно окно приложения.
+
 ### Исправлено
 
 - Скошенный уголок месяца на первом экране стоял на месте с первого кадра,
@@ -137,7 +142,8 @@
 через трое» для аттестованных сотрудников ФПС ГПС и вольнонаёмных
 работников.
 
-[Не выпущено]: https://github.com/sp28337/mchs-manager/compare/v2.0.1...staging
+[Не выпущено]: https://github.com/sp28337/mchs-manager/compare/v2.0.2...staging
+[2.0.2]: https://github.com/sp28337/mchs-manager/compare/v2.0.1...v2.0.2
 [2.0.1]: https://github.com/sp28337/mchs-manager/compare/v2.0.0...v2.0.1
 [2.0.0]: https://github.com/sp28337/mchs-manager/compare/v1.0.0...v2.0.0
 [1.0.0]: https://github.com/sp28337/mchs-manager/releases/tag/v1.0.0
