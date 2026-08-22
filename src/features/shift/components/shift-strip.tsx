@@ -426,12 +426,6 @@ export function ShiftLegend({ skeleton }: { skeleton?: boolean }) {
               ослабление у них общее и означает одно и то же — освобождение
               идёт, а смены в эти сутки и так не было. Взят отпуск как
               самый частый. */}
-          <Legend
-            skeleton={skeleton}
-            className={ABSENCE_TONE_QUIET.annual_leave}
-            mark={ABSENCE_MARK.annual_leave}
-            label="Оно же в выходной по графику"
-          />
         </LegendGroup>
 
         <LegendGroup title="Работа помимо графика" skeleton={skeleton}>
@@ -596,7 +590,7 @@ function DayCell({
         cn(
           "flex flex-col",
           "relative flex aspect-square w-full min-w-0 cursor-pointer flex-col",
-          "items-center justify-center leading-tight",
+          "items-center justify-center leading-tight rounded-md",
           "hover:outline-2 hover:-outline-offset-2 hover:outline-ink/40",
           "focus-visible:outline-2 focus-visible:-outline-offset-2",
           "focus-visible:outline-trace",
