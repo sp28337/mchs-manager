@@ -1,4 +1,6 @@
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
+
+import { cn } from "@/lib/utils/cn";
 
 import { weekday, type IsoDate } from "../domain/plain-date";
 
@@ -18,6 +20,39 @@ import { weekday, type IsoDate } from "../domain/plain-date";
  * Ровно одно: сколько пустых клеток поставить перед первым числом, чтобы
  * столбцы совпали с днями недели. Всё остальное — содержимое клетки —
  * решает вызывающий: у графика в клетке часы, у календаря тип дня.
+ *
+ * --- Месяц как одна плашка (`joined`) ------------------------------------
+ *
+ * Клетки стояли врозь, каждая в своей рамке. Сорок бордюров на месяц и
+ * четыреста восемьдесят на год — это сетка, которая громче того, что в
+ * ней написано: глаз читает решётку, а не смены.
+ *
+ * В сомкнутом виде месяц выглядит одной плашкой: щелей между клетками
+ * нет, рамок у обычных дней нет тоже, а форму блоку задаёт его СОБСТВЕННЫЙ
+ * внешний контур — со скруглениями по углам, включая уступ там, где месяц
+ * начинается не с понедельника. Рамка остаётся только у дней, которые
+ * что-то означают, и потому наконец что-то означает.
+ *
+ * Скругления углов клетки считаются по соседям: угол скругляется, если по
+ * обе стороны от него клеток нет. Так получают форму все ВЫПУКЛЫЕ углы
+ * блока, включая углы уступа.
+ *
+ * --- Уступ: скос, а не выемка --------------------------------------------
+ *
+ * У блока есть ещё вогнутый угол — там, где месяц начинается не с
+ * понедельника и первая строка короче второй. Скруглить его самой клеткой
+ * нельзя: скругление режет клетку, и вместо плавного перехода получается
+ * маленький вырезанный квадрат внутри блока.
+ *
+ * Поэтому уступ заполняется СКОСОМ в пустой клетке рядом (`Fillet`): в её
+ * углу лежит квадратик цвета обычного дня, а поверх — квадратик цвета
+ * страницы со скруглением. Второй съедает у первого всё, кроме дужки, и
+ * контур входит в уступ по касательной, без перелома.
+ *
+ * Цвет скоса — цвет обычного дня, а не соседней клетки: к вогнутому углу
+ * сходятся три разных дня, и «правильного» цвета у него нет. Спокойная
+ * подложка блока здесь единственный ответ, который не соврёт ни одному из
+ * трёх.
  */
 
 export const WEEKDAY_LABELS = ["пн", "вт", "ср", "чт", "пт", "сб", "вс"];
@@ -33,12 +68,93 @@ export interface MonthGridProps {
   meta?: ReactNode;
   /** Подряд идущие дни ОДНОГО месяца. */
   days: readonly IsoDate[];
-  renderDay: (day: IsoDate) => ReactNode;
+  /**
+   * `corners` — классы скругления для этой клетки: у сомкнутого месяца
+   * форму держат сами клетки, и знать её может только сетка.
+   */
+  renderDay: (day: IsoDate, corners: string) => ReactNode;
+  /** Месяц одной плашкой: без щелей между клетками, с общим контуром. */
+  joined?: boolean;
+  /**
+   * Добавка к клетке с буквами дня недели — по её месту в неделе.
+   *
+   * Нужна ровно одному вызывающему: на посадочной странице месяц
+   * СОБИРАЕТСЯ, и шапка недели обязана появляться вместе с клетками, а не
+   * стоять на месте с первого кадра. Задержку знает только он, а классы
+   * раскладки — только эта сетка, поэтому добавка приходит снаружи, а
+   * оформление остаётся здесь.
+   */
+  weekdayProps?: (index: number) => { className?: string; style?: CSSProperties };
 }
 
-export function MonthGrid({ title, meta, days, renderDay }: MonthGridProps) {
+/**
+ * Скос вогнутого угла.
+ *
+ * Два квадрата со стороной в радиус скругления. Нижний — цвета обычного
+ * дня: он достраивает блок до того угла, которого в сетке нет. Верхний —
+ * цвета страницы, со скруглением того угла, что смотрит ВНУТРЬ блока: он
+ * съедает у нижнего всё, кроме дужки у самого угла.
+ *
+ * `corner` называет, в каком углу пустой клетки лежит скос: `br` — правый
+ * нижний (уступ в начале месяца), `tl` — левый верхний (уступ в конце).
+ */
+function Fillet({ corner }: { corner: "br" | "tl" }) {
+  return (
+    <span
+      aria-hidden
+      className={cn(
+        "pointer-events-none absolute size-2.5 bg-paper-raised",
+        corner === "br" ? "bottom-0 right-0" : "left-0 top-0",
+      )}
+    >
+      <span
+        className={cn(
+          // Цвет страницы — тот, что залит на `body` (`bg-paper`), а не
+          // самый утопленный тон палитры: за сеткой лежит именно страница.
+          "absolute inset-0 bg-paper",
+          // Скругляется угол, обращённый к блоку: дуга приходит из центра
+          // в противоположном углу — там же, где сходятся клетки.
+          corner === "br" ? "rounded-br-lg" : "rounded-tl-lg",
+        )}
+      />
+    </span>
+  );
+}
+
+export function MonthGrid({
+  title,
+  meta,
+  days,
+  renderDay,
+  joined,
+  weekdayProps,
+}: MonthGridProps) {
   const first = days[0];
   if (first === undefined) return null;
+
+  const offset = weekday(first);
+  const filled = (slot: number) => slot >= offset && slot < offset + days.length;
+
+  /** Скругления клетки по её месту в контуре месяца. */
+  function corners(slot: number): string {
+    if (!joined) return "";
+    const column = slot % 7;
+    const left = column > 0 && filled(slot - 1);
+    const right = column < 6 && filled(slot + 1);
+    const up = filled(slot - 7);
+    const down = filled(slot + 7);
+    return cn(
+      !left && !up && "rounded-tl-lg",
+      !right && !up && "rounded-tr-lg",
+      !left && !down && "rounded-bl-lg",
+      !right && !down && "rounded-br-lg",
+    );
+  }
+
+  // Пустые клетки после последнего числа рисуются наравне с ведущими:
+  // в первой из них лежит скос нижнего уступа, а без неё её просто не
+  // существует в разметке.
+  const trailing = (7 - ((offset + days.length) % 7)) % 7;
 
   return (
     <section className="space-y-1.5">
@@ -49,24 +165,45 @@ export function MonthGrid({ title, meta, days, renderDay }: MonthGridProps) {
         </div>
       ) : null}
 
-      <div className="grid grid-cols-7 gap-px">
-        {WEEKDAY_LABELS.map((name) => (
-          <div
-            key={name}
-            aria-hidden
-            className="pb-0.5 text-center text-[10px] uppercase text-ink-faint"
-          >
-            {name}
+      <div className={cn("grid grid-cols-7", joined ? "gap-0" : "gap-px")}>
+        {WEEKDAY_LABELS.map((name, index) => {
+          const extra = weekdayProps?.(index);
+          return (
+            <div
+              key={name}
+              aria-hidden
+              className={cn(
+                "text-center text-[10px] uppercase text-ink-faint",
+                joined ? "pb-1.5" : "pb-0.5",
+                extra?.className,
+              )}
+              style={extra?.style}
+            >
+              {name}
+            </div>
+          );
+        })}
+
+        {Array.from({ length: offset }, (_, index) => (
+          <div key={`pad-${index}`} aria-hidden className="relative">
+            {/* Скос верхнего уступа — в последней пустой клетке перед
+                первым числом: вогнутый угол блока приходится ровно на её
+                правый нижний угол. */}
+            {joined && index === offset - 1 ? <Fillet corner="br" /> : null}
           </div>
         ))}
 
-        {Array.from({ length: weekday(first) }, (_, index) => (
-          <div key={`pad-${index}`} aria-hidden />
+        {days.map((day, index) => (
+          <div key={day} className="min-w-0">
+            {renderDay(day, corners(offset + index))}
+          </div>
         ))}
 
-        {days.map((day) => (
-          <div key={day} className="min-w-0">
-            {renderDay(day)}
+        {Array.from({ length: trailing }, (_, index) => (
+          <div key={`tail-${index}`} aria-hidden className="relative">
+            {/* Скос нижнего уступа — в первой пустой клетке после
+                последнего числа, в её левом верхнем углу. */}
+            {joined && index === 0 ? <Fillet corner="tl" /> : null}
           </div>
         ))}
       </div>

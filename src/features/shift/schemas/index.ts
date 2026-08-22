@@ -10,63 +10,20 @@ export type {
   AbsenceKind,
   CalloutKind,
   AccountingPeriodKind,
-  EmploymentKind,
-  Gender,
-  GuardNumber,
   WeeklyNorm,
   WorkingConditions,
 } from "../domain/value-objects";
 export type { DayType, CalendarDay } from "../domain/production-calendar";
 export type { PeriodCalculation, ShiftRecord } from "../domain/calculation";
-export type { Discrepancy } from "../domain/reconciliation";
 export { formatHours as hours } from "../domain/decimal";
 
-import type {
-  AbsenceKind,
-  CalloutKind,
-  AccountingPeriodKind,
-  EmploymentKind,
-  Gender,
-  WorkingConditions,
-} from "../domain/value-objects";
+import type { AbsenceKind, CalloutKind } from "../domain/value-objects";
 import type { DayType } from "../domain/production-calendar";
-
-export const EMPLOYMENT_LABELS: Record<EmploymentKind, string> = {
-  attested: "Аттестованный сотрудник ФПС ГПС",
-  civilian: "Вольнонаёмный работник",
-};
-
-/** Чем различие важно — а не просто как называется. */
-export const EMPLOYMENT_HINT: Record<EmploymentKind, string> = {
-  attested:
-    "Служба по ФЗ-141. Режим сменной службы — Приказ МЧС России от 24.04.2026 № 308.",
-  civilian:
-    "Работа по трудовому договору. Режим сменной работы — Приказ МЧС России от 24.04.2026 № 307.",
-};
-
-export const ACCOUNTING_PERIOD_LABELS: Record<AccountingPeriodKind, string> = {
-  quarter: "квартал",
-  half_year: "полугодие",
-  year: "год",
-};
-
-export const GENDER_LABELS: Record<Gender, string> = {
-  male: "Мужской",
-  female: "Женский",
-};
-
-export const CONDITIONS_LABELS: Record<WorkingConditions, string> = {
-  normal: "Обычные",
-  harmful_or_dangerous: "Вредные (3-4 степень) или опасные",
-};
 
 export const ABSENCE_LABELS: Record<AbsenceKind, string> = {
   annual_leave: "Отпуск",
   sick_leave: "Больничный",
   study_leave: "Учебный отпуск",
-  unpaid_leave: "Отпуск без сохранения",
-  business_trip: "Командировка",
-  other_excused: "Иное освобождение",
   time_off_in_lieu: "Отгул за переработку",
 };
 
@@ -76,7 +33,6 @@ export const CALLOUT_LABELS: Record<CalloutKind, string> = {
   reserve: "Резерв",
   public_event: "Праздничное мероприятие",
   elections: "Выборы",
-  other_callout: "Иной вызов",
 };
 
 /** Что вид отсутствия или вызова ДЕЛАЕТ с расчётом. */
@@ -84,12 +40,18 @@ export const ABSENCE_EFFECT: Record<AbsenceKind, string> = {
   annual_leave: "часы по норме за эти дни исключаются из нормы",
   sick_leave: "часы по норме за эти дни исключаются из нормы",
   study_leave: "часы по норме за эти дни исключаются из нормы",
-  unpaid_leave: "часы по норме за эти дни исключаются из нормы",
-  business_trip: "часы по норме за эти дни исключаются из нормы",
-  other_excused: "часы по норме за эти дни исключаются из нормы",
   time_off_in_lieu:
     "норма не меняется, а пропущенная смена уменьшает переработку — отгул и есть её погашение",
 };
+
+/**
+ * Порядок видов дня в списках: от «входит в норму» к «не входит».
+ *
+ * Один на все места, где день выбирают или объясняют, — иначе легенда и
+ * список в окне правки разошлись бы порядком, и человек искал бы в одном
+ * то, что запомнил из другого.
+ */
+export const DAY_TYPES: DayType[] = ["working", "pre_holiday", "holiday", "weekend"];
 
 export const DAY_TYPE_LABELS: Record<DayType, string> = {
   working: "Рабочий",
@@ -111,7 +73,9 @@ export const DAY_TYPE_EFFECT: Record<DayType, string> = {
 };
 
 export const DAY_TYPE_TONE: Record<DayType, string> = {
-  working: "border-rule bg-paper text-ink",
+  // Рабочий день — подложка, а не белое поле: в сомкнутой сетке месяц
+  // выглядит одной плашкой, и день цвета страницы был бы в ней дырой.
+  working: "border-rule bg-paper-raised text-ink",
   pre_holiday: "border-trace bg-trace-soft text-trace",
   holiday: "border-signal bg-signal-soft text-signal",
   weekend: "border-rule-strong bg-paper-sunken text-ink-muted",

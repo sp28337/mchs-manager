@@ -22,9 +22,9 @@ import { Calculator } from "lucide-react";
  *
  * --- Почему адреса перечислены -------------------------------------------
  *
- * Их всего два. Список из двух пунктов — это не навигация, а прямой ответ
- * на вопрос «куда я вообще попал»: видно, что сайт маленький и состоит
- * ровно из объяснения и расчёта.
+ * Их всего три. Такой список — это не навигация, а прямой ответ на вопрос
+ * «куда я вообще попал»: видно, что сайт маленький и состоит ровно из
+ * объяснения, расчёта и условий.
  *
  * --- Оформление -----------------------------------------------------------
  *
@@ -44,13 +44,18 @@ export const metadata: Metadata = {
 const ADDRESSES: { href: string; label: string; what: string }[] = [
   {
     href: "/",
-    label: "pererabotal.ru",
+    label: "grafik13.ru",
     what: "как считается норма и почему отпуск её уменьшает",
   },
   {
     href: "/calculator",
-    label: "pererabotal.ru/calculator",
-    what: "сам расчёт: график караула, норма, сверка с табелем",
+    label: "grafik13.ru/calculator",
+    what: "сам расчёт: график на год, норма и переработка",
+  },
+  {
+    href: "/terms",
+    label: "grafik13.ru/terms",
+    what: "условия использования и что происходит с данными",
   },
 ];
 
@@ -74,11 +79,11 @@ export default function NotFound() {
       <main className="mx-auto flex min-h-lvh w-full max-w-3xl flex-col justify-center gap-6 px-6 pb-16 pt-26">
         <p className="font-mono text-6xl leading-none text-ink-faint sm:text-7xl">404</p>
 
-        <h1 className="text-3xl leading-[1.15] sm:text-4xl">Такой страницы нет</h1>
+        <h1 className="text-3xl leading-[1.15] sm:text-2xl md:text-4xl">Такой страницы нет</h1>
 
         <p className="max-w-prose text-lg text-ink-muted">
-          Возможно, в адресе опечатка или ссылка устарела. На сайте всего два
-          адреса, и оба перед вами.
+          Возможно, в адресе опечатка или ссылка устарела. Сайт маленький —
+          вот всё, что на нём есть.
         </p>
 
         {/* Главное сообщение этой страницы, а не примечание к ней. */}

@@ -9,50 +9,74 @@
 
 import { Dec } from "../domain/decimal";
 import {
-  baseNormHours,
   calculatePeriod,
   type AbsencePeriod,
   type CalloutPeriod,
   type PeriodCalculation,
 } from "../domain/calculation";
-import {
-  calculateOvertimePay,
-  parseMoney,
-  type OvertimePayEstimate,
-} from "../domain/overtime-pay";
 import { calendarFactsFor, type DayType } from "../domain/production-calendar";
-import type { IsoDate } from "../domain/plain-date";
+import { addDays, type IsoDate } from "../domain/plain-date";
 import {
   ACCOUNTING_PERIODS,
   deriveWeeklyNorm,
+  weeklyNormGroundOf,
+  weeklyNormGroundToFacts,
   type AccountingPeriodKind,
-  type GuardNumber,
   type WeeklyNorm,
+  type WeeklyNormGround,
+  type WeeklyNormInput,
 } from "../domain/value-objects";
 import { overridesOf, type StoredProfile } from "../storage/profile";
 
-export function weeklyNormOf(profile: StoredProfile): WeeklyNorm {
-  return deriveWeeklyNorm({
-    employment: profile.employmentKind,
-    gender: profile.gender,
+/**
+ * Профиль на языке домена.
+ *
+ * Хранилище называет поля своими именами (`workingConditions`), домен —
+ * своими. Перевод собран здесь один раз, потому что нужен дважды: для
+ * нормы и для её основания.
+ */
+export function weeklyNormInputOf(profile: StoredProfile): WeeklyNormInput {
+  return {
     conditions: profile.workingConditions,
-    northernLocality: profile.northernLocality,
     disabilityGroupIorII: profile.disabilityGroupIorII,
-  });
+  };
+}
+
+export function weeklyNormOf(profile: StoredProfile): WeeklyNorm {
+  return deriveWeeklyNorm(weeklyNormInputOf(profile));
 }
 
 /**
- * Учётные периоды, разрешённые приказом именно этому человеку.
+ * Выбранное основание — признаками профиля.
  *
- * Квартал предлагается только работникам (Приказ № 307 п. 7); сотруднику
- * Приказ № 308 п. 2 оставляет полугодие или год. Показывать сотруднику
- * квартал значило бы предлагать период, в котором его переработку считать
- * нельзя, — а именно по итогу учётного периода она и определяется.
+ * Возвращаемый тип назван через `Pick`, а не описан вручную, и это важно:
+ * домен зовёт поле `conditions`, хранилище — `workingConditions`. Первая
+ * версия раскладывала основание прямо в доменных именах и подмешивала
+ * результат в профиль через `...`, отчего в профиль попадал посторонний
+ * ключ `conditions`, а настоящий оставался прежним: человек выбирал «36
+ * часов — вредные условия» и получал 40. Проверка лишних полей на
+ * расширении объекта не срабатывает, поэтому поймать это может только
+ * тип, названный явно.
  */
-export function accountingPeriodsOf(
-  profile: StoredProfile,
-): readonly AccountingPeriodKind[] {
-  return ACCOUNTING_PERIODS[profile.employmentKind];
+export function weeklyNormGroundFacts(
+  ground: WeeklyNormGround,
+): Pick<StoredProfile, "workingConditions" | "disabilityGroupIorII"> {
+  const facts = weeklyNormGroundToFacts(ground);
+  return {
+    workingConditions: facts.conditions,
+    disabilityGroupIorII: facts.disabilityGroupIorII,
+  };
+}
+
+/** Какое основание действует сейчас. */
+export function weeklyNormGroundOfProfile(profile: StoredProfile): WeeklyNormGround {
+  return weeklyNormGroundOf(weeklyNormInputOf(profile));
+}
+
+
+/** Учётные периоды: все три, выбор за человеком. */
+export function accountingPeriodsOf(): readonly AccountingPeriodKind[] {
+  return ACCOUNTING_PERIODS;
 }
 
 export function calloutPeriodsOf(profile: StoredProfile): CalloutPeriod[] {
@@ -101,8 +125,11 @@ export function calculateFor(
     periodStart,
     periodEnd,
     cycle: {
-      guard: profile.guardNumber as GuardNumber,
-      firstShiftDate: profile.firstShiftDate,
+      // Хранилище зовёт это поле `firstShiftDate` с тех пор, когда
+      // спрашивали именно первую смену года. Смысл теперь другой — любая
+      // известная смена, — но переименовывать ключ значило бы сломать
+      // сохранённые файлы профилей ради названия.
+      knownShiftDate: profile.firstShiftDate,
     },
     weekly: weeklyNormOf(profile),
     calendar: { workingDays: facts.workingDays, preHolidayDays: facts.preHolidayDays },
@@ -115,43 +142,6 @@ export function calculateFor(
   });
 }
 
-/**
- * Деньги за переработку периода, если человек указал базу.
- *
- * Норма берётся ГОДОВАЯ, а не за период: часовая ставка по п. 105 приказа
- * № 539 считается «по производственному календарю на данный календарный
- * год». При полугодовом учётном периоде подстановка нормы периода удвоила
- * бы ставку — и сумму вместе с ней.
- *
- * Правки календаря, внесённые человеком, в годовую норму попадают: если
- * он проставил перенос выходных, ставка обязана считаться по тому же
- * календарю, что и всё остальное.
- */
-export function overtimePayFor(
-  profile: StoredProfile,
-  calculation: PeriodCalculation,
-): OvertimePayEstimate | null {
-  const base = parseMoney(profile.monthlyPayBase);
-  if (base === null) return null;
-
-  const year = profile.accountingYear;
-  const yearFacts = calendarFactsFor(
-    `${year}-01-01` as IsoDate,
-    `${year + 1}-01-01` as IsoDate,
-    overridesByYear(profile),
-  );
-
-  return calculateOvertimePay({
-    employment: profile.employmentKind,
-    base: { amount: base },
-    annualNormHours: baseNormHours(weeklyNormOf(profile), {
-      workingDays: yearFacts.workingDays,
-      preHolidayDays: yearFacts.preHolidayDays,
-    }),
-    workingDaysInPeriod: calculation.calendar.workingDays,
-    overtimeHours: calculation.overtimeHours,
-  });
-}
 
 const pad = (value: number) => String(value).padStart(2, "0");
 
@@ -162,6 +152,46 @@ export function monthBounds(year: number, month: number) {
     periodStart: `${year}-${pad(month + 1)}-01` as IsoDate,
     periodEnd: `${nextYear}-${pad(nextMonth + 1)}-01` as IsoDate,
   };
+}
+
+/**
+ * Границы «по сегодня»: тот же период, но обрезанный живым временем.
+ *
+ * --- Зачем это -----------------------------------------------------------
+ *
+ * Учётный период — год или полугодие, и его итог станет известен только
+ * в конце. А человек ведёт учёт СЕЙЧАС: ему нужно знать, сколько
+ * переработки набежало к сегодняшнему дню, — иначе весь расчёт до декабря
+ * показывает норму, которую он ещё не должен был отработать, и «недоработку»
+ * в сотни часов.
+ *
+ * --- Почему начало НЕ сдвигается ------------------------------------------
+ *
+ * Сдвигалось: до первой смены человек в этом графике не работал, и часы
+ * за те сутки были не его. Держалось это на том, что названная дата —
+ * начало работы по графику.
+ *
+ * Теперь человек называет ЛЮБУЮ свою смену, в том числе завтрашнюю, и о
+ * начале работы приложение не знает ничего. Обрезать период по такой дате
+ * значило бы выбросить из расчёта весь год до неё — то есть по ответу
+ * «завтра я на смене» показать пустой график.
+ *
+ * --- Почему конец — завтра ------------------------------------------------
+ *
+ * Правая граница периода в этом расчёте ИСКЛЮЧАЮЩАЯ: `2026-02-01` значит
+ * «по 31 января». Чтобы сегодняшние сутки вошли целиком, границей ставится
+ * следующий день.
+ */
+export function liveBounds(
+  bounds: { periodStart: IsoDate; periodEnd: IsoDate },
+  today: IsoDate,
+): { periodStart: IsoDate; periodEnd: IsoDate } {
+  const start = bounds.periodStart;
+  const tomorrow = addDays(today, 1);
+  const end = tomorrow < bounds.periodEnd ? tomorrow : bounds.periodEnd;
+  // Период, целиком лежащий в будущем, обрезать не во что: пусть остаётся
+  // пустым отрезком в своём начале, а не отрицательным.
+  return { periodStart: start, periodEnd: end < start ? start : end };
 }
 
 export function statutoryBounds(

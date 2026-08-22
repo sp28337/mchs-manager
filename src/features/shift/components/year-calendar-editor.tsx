@@ -1,8 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 
-import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils/cn";
 
 import { formatDateRu } from "../domain/format";
@@ -14,13 +13,12 @@ import {
 } from "../domain/production-calendar";
 import type { StoredProfile } from "../storage/profile";
 import {
-  DAY_TYPE_EFFECT,
+  DAY_TYPES,
   DAY_TYPE_LABELS,
   DAY_TYPE_MARK,
   DAY_TYPE_TONE,
   type DayType,
 } from "../schemas";
-import { DateField } from "./date-field";
 import { MONTH_NAMES } from "./month-names";
 import { MonthGrid, WEEKDAY_LABELS } from "./month-grid";
 
@@ -53,28 +51,50 @@ import { MonthGrid, WEEKDAY_LABELS } from "./month-grid";
  * сам, а что взято из закона: при разборе с начальником это разные по весу
  * утверждения, и стирать между ними границу нельзя.
  *
- * --- Правки сохраняются сразу -------------------------------------------
+ * --- Как правится день --------------------------------------------------
  *
- * Кнопки «Сохранить» здесь нет и быть не должно: запись идёт в браузер, а
- * не по сети, и отдельный шаг сохранения означал бы только возможность
+ * Так же, как в графике смен: нажатие по числу открывает окно этих суток,
+ * и вид дня выбирается там — вместе с заметкой и отметками об отпуске.
+ *
+ * Раньше здесь была кисть («чем помечать») и форма диапазона под сеткой.
+ * Кисть — скрытое состояние: щёлкнув по дню, человек получал то, что
+ * выбрал когда-то раньше, и не всегда помнил, что именно. Форма диапазона
+ * требовала набирать две даты рядом с календарём, в котором эти даты уже
+ * видны. Обе дороги вели туда же, куда ведёт нажатие по дню, — и остались
+ * только третья.
+ *
+ * Правка сохраняется сразу, кнопки «Сохранить» здесь нет: запись идёт в
+ * браузер, а не по сети, и отдельный шаг означал бы только возможность
  * потерять правку, закрыв вкладку.
+ *
+ * --- Почему он больше не сворачивается сам ------------------------------
+ *
+ * Здесь была своя кнопка «Открыть календарь»: блок стоял отдельным
+ * разделом, и двенадцать сеток сразу отодвинули бы всё остальное вниз.
+ * Теперь календарь показывается по переключателю в `YearView` — то есть
+ * его уже выбрали и хотят видеть. Вторая крышка внутри означала бы, что
+ * на нажатие «Производственный календарь» человек получает кнопку
+ * «Открыть календарь».
  */
-
-const DAY_TYPES: DayType[] = ["working", "pre_holiday", "holiday", "weekend"];
 
 export interface YearCalendarEditorProps {
   profile: StoredProfile;
   onChange: (change: (previous: StoredProfile) => StoredProfile) => void;
+  /** Раскладка месяцев: её задаёт масштаб, общий с графиком смен. */
+  gridClassName?: string;
+  /** Заметки к суткам: их наличие видно прямо в клетке, как в графике. */
+  dayNotes: Readonly<Record<string, string>>;
+  /** Нажатие по клетке: открыть правку этих суток. */
+  onPickDay: (day: IsoDate) => void;
 }
 
-export function YearCalendarEditor({ profile, onChange }: YearCalendarEditorProps) {
-  const [brush, setBrush] = useState<DayType>("weekend");
-  const [open, setOpen] = useState(false);
-  const [range, setRange] = useState<{ from: IsoDate | null; to: IsoDate | null }>({
-    from: null,
-    to: null,
-  });
-
+export function YearCalendarEditor({
+  profile,
+  onChange,
+  gridClassName,
+  dayNotes,
+  onPickDay,
+}: YearCalendarEditorProps) {
   const year = profile.accountingYear;
   const overrides = profile.calendarOverrides;
 
@@ -90,45 +110,6 @@ export function YearCalendarEditor({ profile, onChange }: YearCalendarEditorProp
   const overrideCount = Object.keys(overrides).length;
   const pending = pendingTransfers(year).filter((day) => overrides[day] === undefined);
 
-  function paint(from: IsoDate, to: IsoDate, dayType: DayType) {
-    const [start, end] = from <= to ? [from, to] : [to, from];
-    onChange((previous) => {
-      const next = { ...previous.calendarOverrides };
-      for (const item of days) {
-        if (item.day >= start && item.day <= end) next[item.day] = dayType;
-      }
-      return { ...previous, calendarOverrides: next };
-    });
-  }
-
-  if (!open) {
-    return (
-      <section aria-labelledby="calendar" className="space-y-2">
-        <p className="max-w-prose text-sm text-ink-muted">
-          Праздники по ст. 112 ТК РФ и предпраздничные дни по ст. 95 размечены
-          автоматически.{" "}
-          {pending.length > 0 ? (
-            <>
-              Переносы выходных устанавливает Правительство отдельным
-              постановлением на каждый год, и на {year} год приложение его ещё
-              не знает.
-            </>
-          ) : (
-            <>
-              Перенос выходных дней на {year} год внесён по постановлению
-              Правительства — календарь должен совпасть с выданным вам.
-            </>
-          )}{" "}
-          Если ваш производственный календарь всё-таки отличается, поправьте
-          здесь: ошибка в одном дне — это 8 часов нормы.
-        </p>
-        {pending.length > 0 ? <PendingNotice pending={pending} /> : null}
-        <Button type="button" variant="outline" onClick={() => setOpen(true)} className="rounded-xl">
-          Открыть календарь
-        </Button>
-      </section>
-    );
-  }
 
   const byMonth = new Map<number, CalendarDay[]>();
   for (const item of days) {
@@ -139,78 +120,19 @@ export function YearCalendarEditor({ profile, onChange }: YearCalendarEditorProp
   }
 
   return (
-    <section aria-labelledby="calendar" className="space-y-4">
-      <div className="flex flex-wrap items-baseline justify-between gap-3">
-        <Button type="button" variant="ghost" size="sm" onClick={() => setOpen(false)}>
-          Свернуть
-        </Button>
-      </div>
-
-      {pending.length > 0 ? <PendingNotice pending={pending} /> : null}
-
-      <div className="space-y-4 rounded-sm border border-rule bg-paper-raised p-4">
-        <fieldset className="space-y-2">
-          <legend className="font-display text-xs font-bold uppercase tracking-wide text-ink-muted">
-            Чем помечать
-          </legend>
-          <div className="flex flex-wrap gap-2">
-            {DAY_TYPES.map((type) => (
-              <Button
-                key={type}
-                type="button"
-                size="sm"
-                variant={brush === type ? "default" : "outline"}
-                aria-pressed={brush === type}
-                onClick={() => setBrush(type)}
-              >
-                {DAY_TYPE_LABELS[type]}
-              </Button>
-            ))}
-          </div>
-          <p className="max-w-prose text-xs text-ink-muted" aria-live="polite">
-            {DAY_TYPE_EFFECT[brush]}. Щёлкните по числу в календаре ниже.
-          </p>
-        </fieldset>
-
-        <form
-          className="flex flex-wrap items-start gap-3 border-t border-rule pt-4"
-          onSubmit={(event) => {
-            event.preventDefault();
-            if (range.from && range.to) paint(range.from, range.to, brush);
-          }}
-        >
-          <DateField
-            label="С даты"
-            name="from"
-            required
-            min={`${year}-01-01`}
-            max={`${year}-12-31`}
-            onChange={(value) => setRange((previous) => ({ ...previous, from: value }))}
-          />
-          <DateField
-            label="По дату включительно"
-            name="to"
-            required
-            min={`${year}-01-01`}
-            max={`${year}-12-31`}
-            onChange={(value) => setRange((previous) => ({ ...previous, to: value }))}
-          />
-          <Button
-            type="submit"
-            variant="outline"
-            className="mt-[1.375rem]"
-            disabled={!range.from || !range.to}
-          >
-            Назначить диапазон
-          </Button>
-          <p className="mt-[1.375rem] max-w-xs text-xs text-ink-muted">
-            Диапазон удобнее для длительного перерыва; отдельный день быстрее отметить
-            щелчком.
-          </p>
-        </form>
-      </div>
-
-      <div className="grid grid-cols-1 gap-x-6 gap-y-5 sm:grid-cols-2 lg:grid-cols-3">
+    <section aria-labelledby="calendar" className="space-y-4 xl:flex xl:flex-row-reverse xl:gap-4">
+      {/* Сетка идёт ПЕРВОЙ и ничего над собой не имеет — в этом весь
+          смысл. Календарь показывается на месте графика по нажатию
+          кнопки, и всё, что стояло бы выше сетки, сдвигало бы её вниз:
+          человек, смотревший на мартовскую клетку, после переключения
+          искал бы её заново. Пояснение ушло под знак вопроса у заголовка,
+          инструменты правки — под сетку. */}
+      <div
+        className={
+          gridClassName ??
+          "grid grid-cols-1 gap-x-6 gap-y-5 sm:grid-cols-2 lg:grid-cols-3"
+        }
+      >
         {MONTH_NAMES.map((name, month) => {
           const items = byMonth.get(month) ?? [];
           const edited = items.filter((item) => item.source === "override").length;
@@ -221,10 +143,16 @@ export function YearCalendarEditor({ profile, onChange }: YearCalendarEditorProp
               title={name}
               meta={edited > 0 ? <span className="text-ink">правок: {edited}</span> : null}
               days={items.map((item) => item.day)}
-              renderDay={(day) => {
+              joined
+              renderDay={(day, corners) => {
                 const item = byDay.get(day);
                 return item ? (
-                  <DayButton item={item} onPaint={() => paint(day, day, brush)} />
+                  <DayButton
+                    item={item}
+                    corners={corners}
+                    note={dayNotes[day]}
+                    onPick={() => onPickDay(day)}
+                  />
                 ) : null;
               }}
             />
@@ -232,87 +160,168 @@ export function YearCalendarEditor({ profile, onChange }: YearCalendarEditorProp
         })}
       </div>
 
-      <dl className="flex flex-wrap gap-x-6 gap-y-2 text-xs">
-        {DAY_TYPES.map((type) => (
-          <div key={type} className="flex items-center gap-2">
-            <dt
-              className={cn(
-                "flex size-6 shrink-0 items-center justify-center rounded-xs border font-mono text-[10px]",
-                DAY_TYPE_TONE[type],
-              )}
-            >
-              {DAY_TYPE_MARK[type]}
-            </dt>
-            <dd>
-              <span className="font-medium">{DAY_TYPE_LABELS[type]}</span>
-              <span className="text-ink-muted"> — {DAY_TYPE_EFFECT[type]}</span>
-            </dd>
-          </div>
-        ))}
-        <div className="flex items-center gap-2">
-          <dt className="relative flex size-6 shrink-0 items-center justify-center rounded-xs border border-rule">
-            <span aria-hidden className="absolute -right-px -top-px size-1.5 rounded-full bg-ink" />
-          </dt>
-          <dd className="text-ink-muted">Изменено вами</dd>
-        </div>
-      </dl>
+      {pending.length > 0 ? <PendingNotice pending={pending} /> : null}
 
-      <div className="flex flex-wrap items-center gap-4 border-t border-rule pt-4">
-        <p className="text-sm text-ink-muted" aria-live="polite">
-          Ваших правок: {overrideCount}. Расчёт выше уже их учитывает.
-        </p>
-        {overrideCount > 0 ? (
-          <button
-            type="button"
-            className="text-xs text-ink-muted underline underline-offset-2 hover:text-signal"
-            onClick={() =>
-              onChange((previous) => ({ ...previous, calendarOverrides: {} }))
-            }
-          >
-            Вернуть календарь по закону
-          </button>
-        ) : null}
+      {/* Легенда держится на месте вместе с числами: тот же приём, что в
+          графике смен, — `sticky` под полосой итога и `self-start`, иначе
+          растянутому элементу прилипать некуда. */}
+      <div className="xl:max-w-70 xl:w-full xl:sticky xl:top-32 xl:self-start translate-y-1 
+                      bg-paper-raised/70 p-4 rounded-xl lg:min-w-92.5">
+        <dl className="flex flex-wrap gap-x-6 gap-y-2 text-xs xl:flex-col">
+          {DAY_TYPES.map((type) => (
+            <div key={type} className="flex items-center gap-2">
+              <dt
+                className={cn(
+                  "flex size-6 shrink-0 items-center justify-center rounded-sm border font-mono text-[10px]",
+                  DAY_TYPE_TONE[type],
+                )}
+              >
+                {DAY_TYPE_MARK[type]}
+              </dt>
+              <dd>
+                <span className="font-medium">{DAY_TYPE_LABELS[type]}</span>
+              </dd>
+            </div>
+          ))}
+          <div className="flex items-center gap-2">
+            <dt className="relative flex size-6 shrink-0 items-center justify-center rounded-sm border border-rule">
+              <span aria-hidden className="absolute -left-px -top-px size-1.5 rounded-full bg-ink" />
+            </dt>
+            <dd className="text-ink-muted">Изменено вами</dd>
+          </div>
+        </dl>
+
+        <div className="flex flex-wrap items-center gap-4 border-t border-rule pt-4 mt-4">
+          <p className="text-sm text-ink-muted" aria-live="polite">
+            Ваших правок: {overrideCount}
+          </p>
+          {overrideCount > 0 ? (
+            <button
+              type="button"
+              className="text-xs text-ink-muted underline underline-offset-2 hover:text-signal"
+              onClick={() =>
+                onChange((previous) => ({ ...previous, calendarOverrides: {} }))
+              }
+            >
+              Вернуть календарь по закону
+            </button>
+          ) : null}
+        </div>
       </div>
     </section>
   );
 }
 
-function DayButton({ item, onPaint }: { item: CalendarDay; onPaint: () => void }) {
+/**
+ * Пояснение к календарю — то, что раньше стояло абзацем над сеткой.
+ *
+ * Живёт здесь, а не там, где показывается: текст говорит о том, что и
+ * откуда в этой сетке размечено, и разойтись с самой сеткой ему нельзя.
+ * Показывается он знаком вопроса у заголовка раздела — над сеткой места
+ * нет, там она сама.
+ */
+export function CalendarNote({ profile }: { profile: StoredProfile }) {
+  const year = profile.accountingYear;
+  const pending = pendingTransfers(year).filter(
+    (day) => profile.calendarOverrides[day] === undefined,
+  );
+
+  return (
+    <>
+      Праздники по ст. 112 ТК РФ и предпраздничные дни по ст. 95 размечены
+      автоматически.{" "}
+      {pending.length > 0 ? (
+        <>
+          Переносы выходных устанавливает Правительство отдельным постановлением
+          на каждый год, и на {year} год приложение его ещё не знает.
+        </>
+      ) : (
+        <>
+          Перенос выходных дней на {year} год внесён по постановлению
+          Правительства — календарь должен совпасть с выданным вам.
+        </>
+      )}{" "}
+      Если ваш производственный календарь всё-таки отличается, поправьте здесь:
+      ошибка в одном дне — это 8 часов нормы. Нажмите по числу — в окне этих
+      суток выбирается вид дня.
+    </>
+  );
+}
+
+function DayButton({
+  item,
+  corners,
+  note,
+  onPick,
+}: {
+  item: CalendarDay;
+  /** Скругления углов: их знает сетка, а не клетка. */
+  corners: string;
+  note?: string;
+  onPick: () => void;
+}) {
   const date = dayOfMonth(item.day);
   const month = (MONTH_NAMES[monthIndex(item.day)] ?? "").toLowerCase();
   const weekdayName = WEEKDAY_LABELS[weekday(item.day)] ?? "";
 
   const label =
     `${date} ${month}, ${weekdayName} — ${DAY_TYPE_LABELS[item.dayType].toLowerCase()}` +
-    (item.source === "override" ? ", изменено вами" : "");
+    (item.source === "override" ? ", изменено вами" : "") +
+    (note ? `. Заметка: ${note}` : "");
 
   return (
     <button
       type="button"
       title={label}
       aria-label={label}
-      onClick={onPaint}
+      onClick={onPick}
       className={cn(
-        "relative flex w-full min-w-0 cursor-pointer flex-col items-center justify-center rounded-xs border py-0.5 leading-tight",
-        "lg:aspect-square lg:py-0",
-        "hover:border-ink focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-trace",
-        DAY_TYPE_TONE[item.dayType],
+        "relative flex aspect-square w-full min-w-0 cursor-pointer flex-col bg-paper-raised",
+        corners,
       )}
     >
-      <span aria-hidden className="font-mono text-xs">
-        {date}
-      </span>
-      <span aria-hidden className="font-mono text-[9px]">
-        {DAY_TYPE_MARK[item.dayType]}
-      </span>
-      {item.source === "override" ? (
-        // Точка, а не цвет: цвет уже занят типом дня, и второй смысл на том
-        // же канале означал бы, что ни один не читается.
-        <span
-          aria-hidden
-          className="absolute -right-px -top-px size-1.5 rounded-full bg-ink"
-        />
-      ) : null}
+      <div className={
+        cn(
+          "relative flex aspect-square w-full min-w-0 cursor-pointer flex-col",
+          "items-center justify-center leading-tight",
+          // Обводкой внутрь, а не рамкой: клетки стоят вплотную, и рамка
+          // сдвинула бы соседей.
+          "hover:outline-2 hover:-outline-offset-2 hover:outline-ink/40 rounded-md",
+          "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-trace",
+
+          // Рамки нет ни у одного дня: тип дня различается подложкой и
+          // буквой. Триста шестьдесят пять контуров на год — это решётка,
+          // за которой не видно ни праздников, ни правок.
+          DAY_TYPE_TONE[item.dayType],
+          "flex flex-col"
+        )}
+      >
+        {/* Кегль в `em`: клетка следует за масштабом сетки, и число вместе
+            с ней. То же решение, что в клетке графика, — иначе при
+            переключении между сетками менялся бы размер цифр. */}
+        <span aria-hidden className="font-mono text-[1em]">
+          {date}
+        </span>
+        <span aria-hidden className="font-mono text-[0.75em]">
+          {DAY_TYPE_MARK[item.dayType]}
+        </span>
+        {item.source === "override" ? (
+          // Точка, а не цвет: цвет уже занят типом дня, и второй смысл на том
+          // же канале означал бы, что ни один не читается.
+          <span
+            aria-hidden
+            className="absolute -left-px -top-px size-1.5 rounded-full bg-ink"
+          />
+        ) : null}
+        {/* Заметка помечается тем же углом, что в графике: одна пометка на
+            обе сетки, иначе её пришлось бы искать по-разному. */}
+        {note ? (
+          <span
+            aria-hidden
+            className="absolute right-0 top-0 size-0 border-l-4 border-t-4 border-l-transparent border-t-trace"
+          />
+        ) : null}
+      </div>
     </button>
   );
 }
