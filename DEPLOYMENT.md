@@ -19,12 +19,12 @@
 
 ```bash
 pnpm install --frozen-lockfile
-NEXT_PUBLIC_SITE_URL=https://ваш-домен pnpm build
+NEXT_PUBLIC_SITE_URL=https://grafik13.ru pnpm build
 ```
 
-Результат — папка `out/`: `index.html` (лендинг),
-`calculator.html`, `404.html`, `robots.txt`, `sitemap.xml`, `icon.svg` и
-`_next/` со статикой.
+Результат — папка `out/`: `index.html` (лендинг), `calculator.html`,
+`terms.html` (условия использования), `404.html`, `robots.txt`,
+`sitemap.xml`, `icon.svg` и `_next/` со статикой.
 
 ### `NEXT_PUBLIC_SITE_URL` — обязательна
 
@@ -33,7 +33,7 @@ NEXT_PUBLIC_SITE_URL=https://ваш-домен pnpm build
 указывающую на `http://localhost:3000`. Поисковик по такой карте не придёт,
 а ссылка, отправленная в мессенджер, не раскроется.
 
-Задавать без завершающего слэша: `https://example.ru`.
+Задавать без завершающего слэша: `https://grafik13.ru`.
 
 ## Куда выкладывать
 
@@ -66,8 +66,8 @@ aws s3 sync out/ s3://ваш-бакет/ --delete \
 ```bash
 sudo install -m 644 deploy/nginx-security-headers.conf /etc/nginx/snippets/security-headers.conf
 sudo install -m 644 deploy/nginx-metrics.conf          /etc/nginx/conf.d/metrics.conf
-sudo install -m 644 deploy/nginx-site.conf             /etc/nginx/sites-available/pererabotal.ru
-sudo ln -sfn /etc/nginx/sites-available/pererabotal.ru /etc/nginx/sites-enabled/
+sudo install -m 644 deploy/nginx-site.conf          /etc/nginx/sites-available/grafik13.ru
+sudo ln -sfn /etc/nginx/sites-available/grafik13.ru /etc/nginx/sites-enabled/
 sudo nginx -t && sudo systemctl reload nginx
 ```
 
@@ -187,7 +187,7 @@ sudo logrotate -d /etc/logrotate.d/site-metrics   # проверка вхоло�
 есть правовые последствия, поэтому глазами:
 
 ```bash
-curl -s -o /dev/null https://ваш-домен/
+curl -s -o /dev/null https://grafik13.ru/
 sudo tail -1 /var/log/nginx/metrics.log
 # 2026-08-12T09:14:02+00:00	GET	/	200	-	desktop
 ```
@@ -255,8 +255,8 @@ pnpm build       # сборка
 
 | | Имя | Значение |
 |---|---|---|
-| Variable | `SITE_URL` | `https://ваш-домен` — без слэша на конце |
-| Variable | `DEPLOY_ROOT` | `/var/www/kalkulyator` |
+| Variable | `SITE_URL` | `https://grafik13.ru` — без слэша на конце |
+| Variable | `DEPLOY_ROOT` | `/var/www/grafik13` — тот же путь, что в `deploy/nginx-site.conf` |
 | Variable | `SSH_PORT` | если не 22 |
 | Secret | `SSH_HOST` | адрес сервера |
 | Secret | `SSH_USER` | пользователь, владеющий `DEPLOY_ROOT` |
@@ -270,14 +270,14 @@ pnpm build       # сборка
 Подготовка сервера — один раз:
 
 ```bash
-sudo mkdir -p /var/www/kalkulyator/releases
-sudo chown -R deploy:deploy /var/www/kalkulyator
+sudo mkdir -p /var/www/grafik13/releases
+sudo chown -R deploy:deploy /var/www/grafik13
 ```
 
 В nginx корнем указывается **симлинк** `current`, а не каталог выпуска:
 
 ```nginx
-root /var/www/kalkulyator/current;
+root /var/www/grafik13/current;
 ```
 
 Каждая выкладка кладёт файлы в новый каталог `releases/ГГГГММДД-ЧЧММСС-хеш`
@@ -286,8 +286,8 @@ root /var/www/kalkulyator/current;
 Хранятся пять последних выпусков, откат — переключение симлинка:
 
 ```bash
-ln -sfn /var/www/kalkulyator/releases/НУЖНЫЙ /var/www/kalkulyator/current.new
-mv -Tf /var/www/kalkulyator/current.new /var/www/kalkulyator/current
+ln -sfn /var/www/grafik13/releases/НУЖНЫЙ /var/www/grafik13/current.new
+mv -Tf /var/www/grafik13/current.new /var/www/grafik13/current
 ```
 
 После выкладки CD сам проверяет, что по адресу отдаётся именно этот сайт:
@@ -298,9 +298,10 @@ mv -Tf /var/www/kalkulyator/current.new /var/www/kalkulyator/current
 После выкладки проверить руками, потому что это ровно те вещи, которые
 ломаются молча:
 
-1. `https://ваш-домен/robots.txt` — в `Sitemap:` стоит ваш домен, не localhost.
-2. `https://ваш-домен/sitemap.xml` — то же.
-3. `/calculator` открывается по прямому адресу (проверка `try_files`).
+1. `https://grafik13.ru/robots.txt` — в `Sitemap:` стоит ваш домен, не localhost.
+2. `https://grafik13.ru/sitemap.xml` — то же.
+3. `/calculator` и `/terms` открываются по прямым адресам (проверка
+   `try_files`).
 4. Заполнить анкету, обновить страницу — профиль на месте.
 5. **Отключить интернет и обновить страницу.** Расчёт продолжает работать
    — это и есть проверка обещания о приватности, вынесенного на лендинг.

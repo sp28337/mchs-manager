@@ -44,17 +44,17 @@ export const metadata: Metadata = {
 const ADDRESSES: { href: string; label: string; what: string }[] = [
   {
     href: "/",
-    label: "pererabotal.ru",
+    label: "grafik13.ru",
     what: "как считается норма и почему отпуск её уменьшает",
   },
   {
     href: "/calculator",
-    label: "pererabotal.ru/calculator",
+    label: "grafik13.ru/calculator",
     what: "сам расчёт: график на год, норма и переработка",
   },
   {
     href: "/terms",
-    label: "pererabotal.ru/terms",
+    label: "grafik13.ru/terms",
     what: "условия использования и что происходит с данными",
   },
 ];
