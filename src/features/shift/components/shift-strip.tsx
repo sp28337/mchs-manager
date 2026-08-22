@@ -74,6 +74,35 @@ const ABSENCE_TONE: Record<AbsenceKind, string> = {
   time_off_in_lieu: "border-dashed border-rest/50 bg-rest-soft text-rest rounded-md",
   study_leave: "border-dashed border-study/50 bg-study-soft text-study rounded-md",
 };
+
+/**
+ * Тот же вид, но вполголоса: сутки отпуска, свободные по графику.
+ *
+ * --- Зачем они вообще помечаются -----------------------------------------
+ *
+ * Отпуск с 1 по 5 показывался ОДНОЙ клеткой — той, где по графику стояла
+ * смена. Человек видел «смена попала в отпуск» и не видел ни начала
+ * отпуска, ни его конца, хотя спор идёт ровно о границах: с какого числа
+ * отпустили и по какое.
+ *
+ * --- Почему тише, а не так же --------------------------------------------
+ *
+ * Потому что стоят они разного. Смена в отпуске — это не отработанные
+ * сутки, из-за которых и меняются числа наверху; свободные сутки внутри
+ * отпуска на расчёт не влияют никак, они показывают только его
+ * протяжённость.
+ *
+ * Ослабление ровно то же, каким в графике различаются заступление и
+ * продолжение смены: цвет тот же, плотность меньше. Другого способа
+ * показать «то же, но слабее» в этом словаре нет, а заводить второй
+ * значило бы объяснять человеку два правила вместо одного.
+ */
+const ABSENCE_TONE_QUIET: Record<AbsenceKind, string> = {
+  annual_leave: "border-dashed border-signal/20 bg-signal-soft/40 text-signal/70 rounded-md",
+  sick_leave: "border-dashed border-sick/20 bg-sick-soft/40 text-sick/70 rounded-md",
+  time_off_in_lieu: "border-dashed border-rest/20 bg-rest-soft/40 text-rest/70 rounded-md",
+  study_leave: "border-dashed border-study/20 bg-study-soft/40 text-study/70 rounded-md",
+};
 import { MONTH_NAMES } from "./month-names";
 import { MonthGrid, WEEKDAY_LABELS } from "./month-grid";
 
@@ -257,6 +286,7 @@ export function ShiftStrip({
               <DayCell
                 day={day}
                 records={byDay.get(day) ?? []}
+                covered={calculation.absentDays.get(day) ?? null}
                 note={dayNotes[day]}
                 corners={corners}
                 upcoming={upcoming != null && day >= upcoming}
@@ -332,6 +362,16 @@ export function ShiftLegend({ skeleton }: { skeleton?: boolean }) {
               label={ABSENCE_LABELS[kind]}
             />
           ))}
+          {/* Один образец на все четыре вида, а не ещё четыре строки:
+              ослабление у них общее и означает одно и то же — освобождение
+              идёт, а смены в эти сутки и так не было. Взят отпуск как
+              самый частый. */}
+          <Legend
+            skeleton={skeleton}
+            className={ABSENCE_TONE_QUIET.annual_leave}
+            mark={ABSENCE_MARK.annual_leave}
+            label="Оно же в выходной по графику"
+          />
         </LegendGroup>
 
         <LegendGroup title="Работа помимо графика" skeleton={skeleton}>
@@ -372,6 +412,7 @@ function calloutMarks(kinds: readonly CalloutKind[]): string {
 function DayCell({
   day,
   records,
+  covered,
   note,
   corners,
   upcoming,
@@ -379,6 +420,12 @@ function DayCell({
 }: {
   day: IsoDate;
   records: readonly DayRecord[];
+  /**
+   * Освобождение, накрывающее эти сутки, — независимо от того, была ли в
+   * них смена. Свободные по графику сутки внутри отпуска показываются
+   * вполголоса: часов у них нет, а протяжённость отпуска они держат.
+   */
+  covered: AbsenceKind | null;
   note?: string;
   /** Скругления углов: их знает сетка, а не клетка. */
   corners: string;
@@ -432,7 +479,20 @@ function DayCell({
   if (parts.length > 1 && workedHours.greaterThan(0)) {
     parts.push(`всего за сутки ${hoursTrim(workedHours)} ч`);
   }
-  const label = `${where} — ${parts.length > 0 ? parts.join("; ") : "свободные сутки"}`;
+  // Вполголоса помечаются только те сутки, у которых своей записи нет.
+  // Смена — хоть отработанная, хоть пропущенная, — и вызов говорят о
+  // сутках больше, чем протяжённость отпуска, и место в клетке отдаётся
+  // им. Отработанный хвост смены, зашедший в первый день отпуска, так и
+  // остаётся отработанным: часы за него посчитаны.
+  const quiet = records.length === 0 ? covered : null;
+
+  const label =
+    `${where} — ` +
+    (parts.length > 0
+      ? parts.join("; ")
+      : quiet
+        ? `${ABSENCE_LABELS[quiet].toLowerCase()}, выходной по графику`
+        : "свободные сутки");
 
   const worked = shift !== undefined && shift.absenceKind === null;
   const calloutKinds = callouts.flatMap((record) =>
@@ -467,7 +527,8 @@ function DayCell({
           "hover:outline-2 hover:-outline-offset-2 hover:outline-ink/40",
           "focus-visible:outline-2 focus-visible:-outline-offset-2",
           "focus-visible:outline-trace",
-          records.length === 0 && "bg-paper-raised text-ink-faint rounded-md",
+          records.length === 0 && !quiet && "bg-paper-raised text-ink-faint rounded-md",
+          quiet && cn("border", ABSENCE_TONE_QUIET[quiet]),
           worked && shift.isShiftStart && "bg-verify/30 text-verify rounded-md border border-verify/25",
           worked && !shift.isShiftStart && "bg-verify/5 text-verify rounded-md border border-verify/15",
           shift?.absenceKind && cn("border", ABSENCE_TONE[shift.absenceKind]),
@@ -507,11 +568,13 @@ function DayCell({
         >
           {calloutKinds.length > 0
             ? calloutMarks(calloutKinds)
-            : records.length === 0
-              ? "В"
-              : shift?.absenceKind
-                ? ABSENCE_MARK[shift.absenceKind]
-                : hoursTrim(workedHours)}
+            : quiet
+              ? ABSENCE_MARK[quiet]
+              : records.length === 0
+                ? "В"
+                : shift?.absenceKind
+                  ? ABSENCE_MARK[shift.absenceKind]
+                  : hoursTrim(workedHours)}
         </span>
       </div>
     </button>
