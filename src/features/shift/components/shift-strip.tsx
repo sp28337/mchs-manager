@@ -1,4 +1,6 @@
-import type { ReactNode } from "react";
+"use client";
+
+import { useCallback, type ReactNode } from "react";
 
 import { BoneText } from "@/components/ui/bone";
 import { CountedNumber } from "@/components/ui/counted-number";
@@ -105,6 +107,7 @@ const ABSENCE_TONE_QUIET: Record<AbsenceKind, string> = {
 };
 import { MONTH_NAMES } from "./month-names";
 import { MonthGrid, WEEKDAY_LABELS } from "./month-grid";
+import { useShiftDrag, type ShiftDrag } from "./use-shift-drag";
 
 /**
  * График смен: месяц — блок, неделя — строка.
@@ -158,6 +161,7 @@ export function ShiftStrip({
   gridClassName,
   dayNotes,
   onPickDay,
+  onMoveShift,
 }: {
   calculation: PeriodCalculation;
   /**
@@ -174,6 +178,13 @@ export function ShiftStrip({
   dayNotes: Readonly<Record<string, string>>;
   /** Нажатие по клетке: открыть правку этих суток. */
   onPickDay: (day: IsoDate) => void;
+  /**
+   * Перенос смены на другие сутки.
+   *
+   * Без него сетка остаётся такой, какой была: смены не тянутся. Так она
+   * и стоит в заглушке экрана, где переносить нечего.
+   */
+  onMoveShift?: (from: IsoDate, to: IsoDate) => void;
 }) {
   // На одни сутки может прийтись и смена, и вызов: человека вызвали на
   // соревнования в свой выходной или сняли со смены на выборы. Карта
@@ -225,6 +236,42 @@ export function ShiftStrip({
       }
     }
   }
+
+  // Где стоят заступления: тянуть можно только их, и класть можно только
+  // туда, где смены ещё нет. Набор строится по тому же расчёту, из
+  // которого нарисована сетка, — второй источник разошёлся бы с видимым.
+  const starts = new Set<IsoDate>();
+  for (const record of calculation.days) {
+    if (record.isShiftStart) starts.add(record.day);
+  }
+  const shown = new Set<IsoDate>();
+  for (const group of groups) for (const day of group.days) shown.add(day);
+
+  const drag = useShiftDrag({
+    // Класть смену можно в любые ПОКАЗАННЫЕ сутки без смены. Ограничение
+    // показанным — не придирка: сутки за краем сетки человек не видит, и
+    // «перенёс неизвестно куда» хуже, чем «не перенёс».
+    canDrop: useCallback(
+      (day: IsoDate) => onMoveShift !== undefined && shown.has(day) && !starts.has(day),
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+      [onMoveShift, calculation],
+    ),
+    onMove: useCallback(
+      (from: IsoDate, to: IsoDate) => onMoveShift?.(from, to),
+      [onMoveShift],
+    ),
+    renderGhost: (day) => (
+      <div
+        className={cn(
+          "flex size-11 flex-col items-center justify-center rounded-md leading-tight",
+          "border border-verify/25 bg-verify/30 text-verify",
+        )}
+      >
+        <span className="font-mono text-sm">{dayOfMonth(day)}</span>
+        <span className="font-mono text-[10px]">смена</span>
+      </div>
+    ),
+  });
 
   return (
     <div className="space-y-6 xl:flex xl:gap-4 xl:flex-row-reverse">
@@ -290,6 +337,8 @@ export function ShiftStrip({
                 note={dayNotes[day]}
                 corners={corners}
                 upcoming={upcoming != null && day >= upcoming}
+                drag={drag}
+                draggable={onMoveShift !== undefined && starts.has(day)}
                 onPick={() => onPickDay(day)}
               />
             )}
@@ -297,6 +346,7 @@ export function ShiftStrip({
         ))}
       </div>
       <ShiftLegend />
+      {drag.ghost}
     </div>
   );
 }
@@ -350,6 +400,16 @@ export function ShiftLegend({ skeleton }: { skeleton?: boolean }) {
             mark="В"
             label="Выходной день"
           />
+          {/* Перетаскивание ничем себя не выдаёт: клетка выглядит так же,
+              как и любая другая. Сказать об этом словом — единственный
+              способ, а место у слова одно — там, где объяснено остальное
+              в этой сетке. */}
+          <p className="text-xs text-ink-muted">
+            <BoneText skeleton={skeleton}>
+              Смену можно перенести: потяните её мышью или задержите палец и
+              ведите. Или нажмите по дню и выберите «Выходной».
+            </BoneText>
+          </p>
         </LegendGroup>
 
         <LegendGroup title="Отсутствие по уважительной причине" skeleton={skeleton}>
@@ -416,6 +476,8 @@ function DayCell({
   note,
   corners,
   upcoming,
+  drag,
+  draggable,
   onPick,
 }: {
   day: IsoDate;
@@ -431,6 +493,10 @@ function DayCell({
   corners: string;
   /** Сутки ещё не наступили: показаны, но в расчёт не входят. */
   upcoming?: boolean;
+  /** Общее состояние переноса: что несут и куда сейчас положат. */
+  drag: ShiftDrag;
+  /** Есть ли в этих сутках смена, которую можно унести. */
+  draggable: boolean;
   onPick: () => void;
 }) {
   const date = dayOfMonth(day);
@@ -508,14 +574,21 @@ function DayCell({
     (note ? `${label}. Заметка: ${note}` : label) +
     (upcoming ? ". Ещё не наступило, в расчёт не входит" : "");
 
+  const carried = drag.from === day;
+  const target = drag.over === day;
+
   return (
     <button
       type="button"
       title={full}
       onClick={onPick}
+      {...drag.cellProps(day, draggable)}
       className={cn(
         "relative flex aspect-square w-full min-w-0 cursor-pointer flex-col",
         "items-center justify-center leading-tight bg-paper-raised",
+        // Выделение текста мышью посреди переноса — первое, что портит
+        // жест: курсор тащит смену, а браузер тащит выделение.
+        "select-none",
         corners,
       )}
     >
@@ -538,6 +611,13 @@ function DayCell({
           // тот ни был. Сами цвета остаются, чтобы будущую смену было
           // видно сменой, а не пустой клеткой.
           upcoming && "cell-upcoming",
+          // Смену несут: на своём месте от неё остаётся след, а не дырка.
+          // Пустое место читалось бы как «уже перенёс», хотя палец ещё не
+          // отпущен и бросок можно отменить.
+          carried && "opacity-30",
+          // Сюда положат. Обводка внутрь, как у наведения: клетки стоят
+          // вплотную, и рамка сдвинула бы соседей.
+          target && "outline-2 -outline-offset-2 outline-verify bg-verify/10",
         )}
       >
         <span className="sr-only">{full}</span>
