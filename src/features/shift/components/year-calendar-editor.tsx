@@ -5,7 +5,14 @@ import { useMemo } from "react";
 import { cn } from "@/lib/utils/cn";
 
 import { formatDateRu } from "../domain/format";
-import { dayOfMonth, monthIndex, weekday, type IsoDate } from "../domain/plain-date";
+import {
+  datesInRange,
+  dayOfMonth,
+  monthIndex,
+  weekday,
+  year as yearOf,
+  type IsoDate,
+} from "../domain/plain-date";
 import {
   calendarWithOverrides,
   pendingTransfers,
@@ -80,6 +87,20 @@ import { MonthGrid, WEEKDAY_LABELS } from "./month-grid";
 export interface YearCalendarEditorProps {
   profile: StoredProfile;
   onChange: (change: (previous: StoredProfile) => StoredProfile) => void;
+  /**
+   * Показанный отрезок — тот же, что у графика смен. Правая граница
+   * исключающая, как во всём домене.
+   *
+   * Календарь показывал год целиком независимо от выбранного периода:
+   * человек смотрел квартал на графике, переключался на календарь и
+   * получал двенадцать месяцев вместо трёх. Сверять при этом было нечего
+   * — та клетка, из-за которой он переключился, оказывалась в другом
+   * месте экрана.
+   */
+  periodStart: IsoDate;
+  periodEnd: IsoDate;
+  /** Первые сутки, которые ещё не наступили («Онлайн»), или `null`. */
+  upcoming?: IsoDate | null;
   /** Раскладка месяцев: её задаёт масштаб, общий с графиком смен. */
   gridClassName?: string;
   /** Заметки к суткам: их наличие видно прямо в клетке, как в графике. */
@@ -91,6 +112,9 @@ export interface YearCalendarEditorProps {
 export function YearCalendarEditor({
   profile,
   onChange,
+  periodStart,
+  periodEnd,
+  upcoming,
   gridClassName,
   dayNotes,
   onPickDay,
@@ -98,25 +122,42 @@ export function YearCalendarEditor({
   const year = profile.accountingYear;
   const overrides = profile.calendarOverrides;
 
-  const days = useMemo(
-    () =>
-      calendarWithOverrides(
-        year,
-        new Map(Object.entries(overrides) as [IsoDate, DayType][]),
-      ),
-    [year, overrides],
-  );
+  /**
+   * Размеченные сутки показанного отрезка.
+   *
+   * Календарь берётся по годам, а не по одному: отрезок в принципе может
+   * пересечь границу года, и тогда одного года мало. Правки при этом
+   * общие — они лежат в профиле датами.
+   */
+  const byDay = useMemo(() => {
+    const map = new Map<IsoDate, CalendarDay>();
+    const edits = new Map(Object.entries(overrides) as [IsoDate, DayType][]);
+    const first = Number(periodStart.slice(0, 4));
+    const last = Number(periodEnd.slice(0, 4));
+    for (let each = first; each <= last; each += 1) {
+      for (const item of calendarWithOverrides(each, edits)) map.set(item.day, item);
+    }
+    return map;
+  }, [periodStart, periodEnd, overrides]);
 
   const overrideCount = Object.keys(overrides).length;
   const pending = pendingTransfers(year).filter((day) => overrides[day] === undefined);
 
-
-  const byMonth = new Map<number, CalendarDay[]>();
-  for (const item of days) {
-    const month = monthIndex(item.day);
-    const bucket = byMonth.get(month);
-    if (bucket) bucket.push(item);
-    else byMonth.set(month, [item]);
+  // Месяцы отрезка — по тем же правилам, что в графике смен: подряд
+  // идущие сутки, разбитые по месяцам. Неполный месяц на краю периода
+  // так и показывается неполным, со своим уступом.
+  const groups: { year: number; month: number; days: CalendarDay[] }[] = [];
+  for (const day of datesInRange(periodStart, periodEnd)) {
+    const item = byDay.get(day);
+    if (!item) continue;
+    const itemYear = yearOf(day);
+    const month = monthIndex(day);
+    let group = groups.at(-1);
+    if (!group || group.year !== itemYear || group.month !== month) {
+      group = { year: itemYear, month, days: [] };
+      groups.push(group);
+    }
+    group.days.push(item);
   }
 
   return (
@@ -133,16 +174,14 @@ export function YearCalendarEditor({
           "grid grid-cols-1 gap-x-6 gap-y-5 sm:grid-cols-2 lg:grid-cols-3"
         }
       >
-        {MONTH_NAMES.map((name, month) => {
-          const items = byMonth.get(month) ?? [];
-          const edited = items.filter((item) => item.source === "override").length;
-          const byDay = new Map(items.map((item) => [item.day, item]));
+        {groups.map((group) => {
+          const edited = group.days.filter((item) => item.source === "override").length;
           return (
             <MonthGrid
-              key={name}
-              title={name}
+              key={`${group.year}-${group.month}`}
+              title={MONTH_NAMES[group.month]}
               meta={edited > 0 ? <span className="text-ink">правок: {edited}</span> : null}
-              days={items.map((item) => item.day)}
+              days={group.days.map((item) => item.day)}
               joined
               renderDay={(day, corners) => {
                 const item = byDay.get(day);
@@ -151,6 +190,7 @@ export function YearCalendarEditor({
                     item={item}
                     corners={corners}
                     note={dayNotes[day]}
+                    upcoming={upcoming != null && day >= upcoming}
                     onPick={() => onPickDay(day)}
                   />
                 ) : null;
@@ -252,12 +292,15 @@ function DayButton({
   item,
   corners,
   note,
+  upcoming,
   onPick,
 }: {
   item: CalendarDay;
   /** Скругления углов: их знает сетка, а не клетка. */
   corners: string;
   note?: string;
+  /** Сутки ещё не наступили: показаны, но в расчёт не входят. */
+  upcoming?: boolean;
   onPick: () => void;
 }) {
   const date = dayOfMonth(item.day);
@@ -267,7 +310,8 @@ function DayButton({
   const label =
     `${date} ${month}, ${weekdayName} — ${DAY_TYPE_LABELS[item.dayType].toLowerCase()}` +
     (item.source === "override" ? ", изменено вами" : "") +
-    (note ? `. Заметка: ${note}` : "");
+    (note ? `. Заметка: ${note}` : "") +
+    (upcoming ? ". Ещё не наступило, в расчёт не входит" : "");
 
   return (
     <button
@@ -293,7 +337,10 @@ function DayButton({
           // буквой. Триста шестьдесят пять контуров на год — это решётка,
           // за которой не видно ни праздников, ни правок.
           DAY_TYPE_TONE[item.dayType],
-          "flex flex-col"
+          "flex flex-col",
+          // Гашение — последним: поверх любого вида дня. Та же штриховка,
+          // что в графике смен, потому что означает то же самое.
+          upcoming && "cell-upcoming",
         )}
       >
         {/* Кегль в `em`: клетка следует за масштабом сетки, и число вместе

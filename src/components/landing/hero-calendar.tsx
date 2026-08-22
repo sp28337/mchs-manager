@@ -107,8 +107,18 @@ const MONTH = HERO_MONTH;
 const KNOWN_SHIFT = HERO_KNOWN_SHIFT;
 
 /** Сутки начала смены и их продолжение: 24 часа делятся датой полуночи. */
-const SHIFT_START_HOURS = 16;
-const SHIFT_TAIL_HOURS = 8;
+const SHIFT_START_HOURS = "16";
+const SHIFT_TAIL_HOURS = "8";
+
+/**
+ * Свободные сутки — «В», как в самом расчёте.
+ *
+ * Под числом в клетке стоит вторая строка: часы смены. У свободных суток
+ * часов нет, и строка была пустой — в сетке получались дырки там, где на
+ * рабочем экране стоит буква. Пустое место при этом не означало ничего:
+ * человек видел не «выходной», а недорисованную клетку.
+ */
+const FREE_DAY_MARK = "В";
 
 function isShiftStart(day: IsoDate): boolean {
   const delta = daysBetween(KNOWN_SHIFT, day);
@@ -168,7 +178,7 @@ export function HeroCalendar({ className }: { className?: string }) {
                   ? "rounded-md border border-verify/15 bg-verify/5 text-verify"
                   : "text-ink-faint"
             }
-            mark={start ? SHIFT_START_HOURS : tail ? SHIFT_TAIL_HOURS : null}
+            mark={start ? SHIFT_START_HOURS : tail ? SHIFT_TAIL_HOURS : FREE_DAY_MARK}
             absence={absence}
           >
             {date}
@@ -339,7 +349,7 @@ function Cell({
   corners: string;
   wave: { "--ix": number; "--iy": number };
   tone: string;
-  mark: number | null;
+  mark: string;
   absence: "rest" | "leave" | null;
   children: ReactNode;
 }) {
@@ -359,10 +369,10 @@ function Cell({
         )}
       >
         <span className="font-mono text-[1em]">{children}</span>
-        {/* Пустая строка вместо пропуска: без неё число в клетке без смены
-            стоит по центру, а в клетке со сменой — выше, и ряд чисел идёт
-            волной. */}
-        <span className="font-mono text-[0.7em]">{mark ?? " "}</span>
+        {/* Вторая строка есть у каждой клетки: часы смены или «В». Без
+            неё число в клетке без смены стояло бы по центру, а в клетке
+            со сменой — выше, и ряд чисел пошёл бы волной. */}
+        <span className="font-mono text-[0.7em]">{mark}</span>
       </div>
 
       {absence ? (
