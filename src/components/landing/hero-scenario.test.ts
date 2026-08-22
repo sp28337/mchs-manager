@@ -53,9 +53,12 @@ describe("числа первого экрана", () => {
     endInclusive: `${HERO_YEAR}-${month}-13` as IsoDate,
     kind: "time_off_in_lieu",
   };
+  // Отпуск ровно на те сутки, что помечены на сетке: первое и второе.
+  // Возьми он хоть день сверх — и норма уменьшится на дни, которых на
+  // экране не видно.
   const leave: AbsencePeriod = {
     start: `${HERO_YEAR}-${month}-01` as IsoDate,
-    endInclusive: `${HERO_YEAR}-${month}-04` as IsoDate,
+    endInclusive: `${HERO_YEAR}-${month}-02` as IsoDate,
     kind: "annual_leave",
   };
 
@@ -65,6 +68,7 @@ describe("числа первого экрана", () => {
       norm: Number(result.normHours.toString()),
       actual: Number(result.actualHours.toString()),
       overtime: Number(result.overtimeHours.toString()),
+      undertime: Number(result.undertimeHours.toString()),
     };
   };
 
@@ -88,25 +92,38 @@ describe("числа первого экрана", () => {
     expect(stage([])).toEqual(HERO_STAGES[0]);
   });
 
-  it("отпуск уменьшает и норму, и отработанное", () => {
+  it("отпуск уменьшает отработанное, а норму — нет", () => {
     expect(stage([leave])).toEqual(HERO_STAGES[1]);
   });
 
-  it("отгул после него уменьшает только отработанное", () => {
+  it("отгул после него тоже уменьшает только отработанное", () => {
     expect(stage([leave, rest])).toEqual(HERO_STAGES[2]);
   });
 
   /**
-   * Недоработки в конце истории быть не должно.
+   * Отпуск обязан лежать на выходных целиком.
    *
-   * Появись она — плашка расчёта показала бы четвёртое число, а на первом
-   * экране их три. Ноль переработки здесь означает попадание в норму
-   * ровно, а не уход под неё.
+   * На этом держится вся история: норма не меняется потому, что исключать
+   * из неё нечего. Захвати отпуск хоть один будний день — норма уменьшится
+   * на восемь часов, которых на сетке не видно, и первый экран начнёт
+   * врать ровно в том месте, ради которого он есть.
    */
-  it("история кончается ровно нормой, а не недоработкой", () => {
+  it("в отпуске нет ни одного рабочего дня", () => {
+    for (const day of [leave.start, leave.endInclusive]) {
+      expect(facts.workingDaySet.has(day)).toBe(false);
+    }
+    expect(HERO_STAGES[1]!.norm).toBe(HERO_STAGES[0]!.norm);
+  });
+
+  /**
+   * Недоработка в конце — не случайность, а показанное правило: отгул
+   * берут сменой в двадцать четыре часа, а переработки к тому моменту
+   * восемь.
+   */
+  it("история кончается недоработкой, а не переработкой", () => {
     const result = calculatePeriod({ ...base, absences: [leave, rest] });
-    expect(result.undertimeHours.toString()).toBe("0");
-    expect(result.actualHours.toString()).toBe(result.normHours.toString());
+    expect(result.overtimeHours.toString()).toBe("0");
+    expect(result.undertimeHours.toString()).toBe("16");
   });
 
   it("помеченные сутки — те же, что считает домен", () => {
@@ -118,8 +135,8 @@ describe("числа первого экрана", () => {
     };
 
     expect(marked([rest])).toEqual(HERO_REST_DAYS);
-    // Отпуск идёт по четвёртое, а помечена одна смена с продолжением:
-    // отсутствие ложится на смену по дате её начала.
+    // Помечена одна смена с продолжением: отсутствие ложится на смену по
+    // дате её начала.
     expect(marked([leave])).toEqual(HERO_LEAVE_DAYS);
   });
 });

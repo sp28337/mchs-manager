@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState, type CSSProperties } from "react";
+import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
 
+import { BalanceCaption } from "@/components/ui/balance-caption";
 import { useCountedNumber } from "@/components/ui/counted-number";
 import { cn } from "@/lib/utils/cn";
 
@@ -20,15 +21,17 @@ import { HERO_FIGURES_AT, HERO_STAGES, type HeroStage } from "./hero-scenario";
  *
  * --- Почему числа перещёлкиваются ----------------------------------------
  *
- * Это и есть предмет разговора. Сначала отпуск с первого числа — и
- * уменьшаются ОБА числа: и отработанное, и норма, потому что эти часы не
- * нужно было отрабатывать по уважительной причине. Потом тринадцатого
- * отгул за переработку — уходит ещё одна смена из отработанного, а норма
- * остаётся на месте: отгул ею уже оплачен.
+ * Это и есть предмет разговора. Сначала отпуск на первую смену месяца — и
+ * уходят двадцать четыре часа из отработанного, а норма стоит: отпуск лёг
+ * на субботу с воскресеньем, рабочих дней внутри него нет, исключать из
+ * нормы нечего. Потом тринадцатого отгул за переработку — уходит ещё одна
+ * смена, норма опять на месте, и восьми часов переработки на суточный
+ * отгул не хватает: разница уходит в недоработку.
  *
- * Разницу между двумя случаями можно объяснить абзацем текста, а можно
- * показать: два числа меняются по-разному. Счётчик нужен именно для
- * этого — чтобы глаз увидел, КАКОЕ из чисел двинулось.
+ * Что норма считается по производственному календарю, а не по графику
+ * смен, можно объяснить абзацем текста, а можно показать: два числа
+ * меняются по-разному. Счётчик нужен именно для этого — чтобы глаз
+ * увидел, КАКОЕ из чисел двинулось.
  *
  * Сам счётчик здесь не свой: это `CountedNumber`, тот же, что крутит числа
  * в полосе итога при правке календаря. Первый экран обещает поведение,
@@ -41,7 +44,7 @@ import { HERO_FIGURES_AT, HERO_STAGES, type HeroStage } from "./hero-scenario";
  * с первым кадром истории, которую он не увидит.
  */
 
-const CAPTIONS = ["Норма периода", "Фактически", "Переработка"] as const;
+const CAPTIONS = ["Норма периода", "Фактически"] as const;
 
 export function HeroFigures({
   className,
@@ -51,6 +54,7 @@ export function HeroFigures({
   style?: CSSProperties;
 }) {
   const stage = useStageTimeline();
+  const under = stage.undertime > 0;
 
   return (
     // Разметка повторяет `MainPlate` из расчёта: высота, поля, скругление
@@ -64,7 +68,14 @@ export function HeroFigures({
     >
       <Figure value={stage.norm} caption={CAPTIONS[0]} emphatic />
       <Figure value={stage.actual} caption={CAPTIONS[1]} />
-      <Figure value={stage.overtime} caption={CAPTIONS[2]} verify />
+      {/* Третье число — разница, и имя у неё меняется вместе со знаком.
+          Та же деталь, что в расчёте: приставка уезжает, число меняет
+          цвет. */}
+      <Figure
+        value={under ? stage.undertime : stage.overtime}
+        caption={<BalanceCaption under={under} />}
+        tone={under ? "signal" : stage.overtime > 0 ? "verify" : undefined}
+      />
     </dl>
   );
 }
@@ -74,13 +85,13 @@ function Figure({
   value,
   caption,
   emphatic,
-  verify,
+  tone,
 }: {
   value: number;
-  caption: string;
+  caption: ReactNode;
   emphatic?: boolean;
-  /** Переработка: сигнальным цветом, пока она есть. */
-  verify?: boolean;
+  /** Разница: зелёная, пока она переработка, красная — когда недоработка. */
+  tone?: "signal" | "verify";
 }) {
   const shown = useCountedNumber(String(value));
 
@@ -92,11 +103,13 @@ function Figure({
         className={cn(
           "whitespace-nowrap font-mono leading-none tabular-nums",
           emphatic ? "text-xl sm:text-2xl" : "text-lg sm:text-xl",
-          // Цвет держится ПОКАЗАННОГО числа, а не того, к которому оно
-          // идёт: в расчёте переработка зелёная ровно пока больше нуля, и
-          // погаснуть она обязана в тот же миг, когда счётчик дойдёт до
-          // нуля, — не за секунду до.
-          verify && shown !== "0" && "font-medium text-verify",
+          // Цвет меняется вместе с именем разницы, а не когда счётчик
+          // добежит: «пере» уезжает и число краснеет одним движением, за
+          // те же четверть секунды. Ждать конца счёта здесь нечего — в
+          // ноль он не приходит, знак разницы меняется сразу.
+          "transition-colors duration-250",
+          tone === "signal" && "text-signal",
+          tone === "verify" && "font-medium text-verify",
         )}
       >
         {shown}
