@@ -48,7 +48,7 @@ import { ThemeToggle } from "@/components/ui/theme-toggle";
  * форма без объяснений там бесполезна.
  */
 
-const NAME = "График 1/3";
+const NAME = "График 1 3";
 
 /**
  * Почта для связи.
@@ -62,7 +62,7 @@ const NAME = "График 1/3";
 const EMAIL = "grafik1-3@yandex.ru";
 const TITLE = "Норма и переработка при графике сутки через трое";
 const DESCRIPTION =
-  "График 1/3 на год: смены, отпуска, больничные, работа помимо графика и " +
+  "График 1 3 на год: смены, отпуска, больничные, работа помимо графика и " +
   "заметки к дню. Норма считается по производственному календарю, " +
   "переработка — за учётный период. Расчёт идёт в браузере, без регистрации.";
 
@@ -74,7 +74,7 @@ export const metadata: Metadata = {
   description: DESCRIPTION,
   keywords: [
     "график сутки через трое",
-    "график 1/3",
+    "График 1 3",
     "сутки через трое норма часов",
     "суммированный учёт рабочего времени",
     "калькулятор переработки при сменном графике",
@@ -203,15 +203,16 @@ export default function LandingPage() {
   return (
     <>
       <SiteHeader
-        action={
-          <ToCalculator size="sm">
-            {/* На 320 точках «Открыть расчёт» вместе со знаком не помещается,
-                и название переносится на вторую строку. Слово короче — но
-                всё же слово: значок без подписи здесь ничего не называет. */}
-            <span className="xxs:hidden">Расчёт</span>
-            <span className="hidden xxs:inline">Открыть расчёт</span>
-          </ToCalculator>
-        }
+        // action={
+        //   <ToCalculator size="sm">
+        //     {/* На 320 точках «Открыть расчёт» вместе со знаком не помещается,
+        //         и название переносится на вторую строку. Слово короче — но
+        //         всё же слово: значок без подписи здесь ничего не называет. */}
+        //     <span className="xxs:hidden">Расчёт</span>
+        //     <span className="hidden xxs:inline">Открыть расчёт</span>
+        //   </ToCalculator>
+        // }
+        className="items-center"
       />
 
       <main className="mx-auto w-full max-w-4xl px-6 pb-16 xl:max-w-6xl 2xl:max-w-7xl">
@@ -326,13 +327,13 @@ export default function LandingPage() {
                 у всех: на каких условиях, что с моими данными и кому
                 написать, если число посчиталось неверно. */}
             <p className="flex flex-wrap gap-x-4 gap-y-1 pt-1">
-              <Link href="/terms" className="text-ink-muted">
+              <Link href="/terms" className="text-ink-muted hover:underline">
                 Условия использования
               </Link>
-              <Link href="/terms#data" className="text-ink-muted">
+              <Link href="/terms#data" className="text-ink-muted hover:underline">
                 Данные и приватность
               </Link>
-              <a href={`mailto:${EMAIL}`} className="text-ink-muted">
+              <a href={`mailto:${EMAIL}`} className="text-ink-muted hover:underline">
                 {EMAIL}
               </a>
             </p>

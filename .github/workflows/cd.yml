@@ -82,10 +82,10 @@ jobs:
           curl -fsS "$URL/" | grep -q "<title>.*сутки через трое.*</title>"
 
           echo "→ Расчёт"
-          curl -fsS "$URL/calculator" | grep -q "<title>Расчёт — График 1/3</title>"
+          curl -fsS "$URL/calculator" | grep -q "<title>Расчёт — График 1 3</title>"
 
           echo "→ Условия использования"
-          curl -fsS "$URL/terms" | grep -q "<title>Условия использования — График 1/3</title>"
+          curl -fsS "$URL/terms" | grep -q "<title>Условия использования — График 1 3</title>"
 
           echo "→ robots.txt"
           curl -fsS "$URL/robots.txt" | grep -q "^Sitemap: $URL/sitemap.xml$"
