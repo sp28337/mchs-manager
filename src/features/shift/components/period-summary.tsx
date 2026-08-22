@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 
+import { BalanceCaption } from "@/components/ui/balance-caption";
 import { CountedNumber } from "@/components/ui/counted-number";
 import { cn } from "@/lib/utils/cn";
 
@@ -97,8 +98,8 @@ export function PeriodSummary({
  *
  * --- Почему по замеру, а не по ширине экрана ------------------------------
  *
- * Строка главных чисел не одной ширины: недоработка появляется не всегда,
- * переработка бывает и «212,0 ч», и «8 суток 20 ч». Любой порог вроде
+ * Строка главных чисел не одной ширины: разница бывает и «212,0 ч», и
+ * «8 суток 20 ч», а норма — и «160», и «1972,5». Любой порог вроде
  * «показывать с 1280» на одном профиле оставил бы пустоту, а на другом
  * полез бы за край.
  *
@@ -228,10 +229,10 @@ function MinorPlate({
 /**
  * Главная плашка: норма, факт и разница между ними.
  *
- * Три числа, а иногда четыре: недоработка появляется только тогда, когда
- * она есть. Держать под неё место всегда значило бы показывать
- * «Недоработка 0,0 ч» рядом с переработкой — число, которое ничего не
- * говорит.
+ * Чисел ровно три, всегда. Разница бывает в обе стороны, но она ОДНА
+ * величина: переработка и недоработка — это её знак, а не два разных
+ * итога. Показывает знак сама разница — именем и цветом
+ * (`BalanceCaption`), а не второе число рядом.
  *
  * Плашка одна на все три, а не по одной на число: норму, факт и разницу
  * сравнивают между собой, и рамка вокруг каждого разрезала бы то, что
@@ -255,8 +256,8 @@ function MainPlate({
   /** Плашка эталона: по содержимому. */
   tight?: boolean;
 }) {
-  const overtime = calculation.overtimeHours.greaterThan(0);
-  const undertime = calculation.undertimeHours.greaterThan(0);
+  const under = calculation.undertimeHours.greaterThan(0);
+  const balance = under ? calculation.undertimeHours : calculation.overtimeHours;
 
   return (
     <dl
@@ -282,19 +283,14 @@ function MainPlate({
         still={tight}
       />
       <Figure
-        parts={overtimeParts(calculation.overtimeHours, inDays)}
-        caption="Переработка"
-        tone={overtime ? "verify" : undefined}
+        parts={overtimeParts(balance, inDays)}
+        caption={<BalanceCaption under={under} />}
+        // Ноль — это попадание в норму, и цвета у него нет: ни зелёного,
+        // ни красного. Сигнальным становится только то, что требует
+        // разговора с работодателем.
+        tone={under ? "signal" : balance.greaterThan(0) ? "verify" : undefined}
         still={tight}
       />
-      {undertime ? (
-        <Figure
-          parts={overtimeParts(calculation.undertimeHours, inDays)}
-          caption="Недоработка"
-          tone="signal"
-          still={tight}
-        />
-      ) : null}
     </dl>
   );
 }
@@ -387,7 +383,7 @@ function Figure({
   still,
 }: {
   parts: readonly FigurePart[];
-  caption: string;
+  caption: ReactNode;
   emphatic?: boolean;
   tone?: "signal" | "verify";
   /** Плашка эталона: считать по ней ширину, пока число в пути, нельзя. */
@@ -401,6 +397,10 @@ function Figure({
         className={cn(
           "whitespace-nowrap font-mono leading-none text-center",
           emphatic ? "text-xl sm:text-2xl" : "text-lg sm:text-xl",
+          // Цвет меняется столько же, сколько едет приставка в подписи:
+          // это одно событие, показанное с двух сторон, и разъезжаться им
+          // нельзя.
+          "transition-colors duration-250",
           tone === "signal" && "text-signal",
           tone === "verify" && "text-verify font-medium",
         )}
