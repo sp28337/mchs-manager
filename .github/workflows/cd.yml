@@ -74,11 +74,18 @@ jobs:
 
           echo "Проверяем: $URL"
 
+          # Проверяется по заголовку страницы, а не по фразе из текста:
+          # тексты правятся часто, и проверка, привязанная к абзацу,
+          # однажды роняет выкладку рабочей сборки. Заголовок меняется
+          # вместе с назначением страницы — тогда проверку и надо чинить.
           echo "→ Главная"
-          curl -fsS "$URL/" | grep -q "Проверьте, не потеряли ли вы часы"
+          curl -fsS "$URL/" | grep -q "<title>.*сутки через трое.*</title>"
 
-          echo "→ Калькулятор"
-          curl -fsS "$URL/calculator" | grep -q "Калькулятор переработки"
+          echo "→ Расчёт"
+          curl -fsS "$URL/calculator" | grep -q "<title>Расчёт — График 1 3</title>"
+
+          echo "→ Условия использования"
+          curl -fsS "$URL/terms" | grep -q "<title>Условия использования — График 1 3</title>"
 
           echo "→ robots.txt"
           curl -fsS "$URL/robots.txt" | grep -q "^Sitemap: $URL/sitemap.xml$"

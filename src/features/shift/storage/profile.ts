@@ -3,18 +3,17 @@
  *
  * --- Почему не на сервере -----------------------------------------------
  *
- * Приложение спрашивает пол, инвалидность I-II группы и даты больничных.
- * Инвалидность и больничный — это сведения о состоянии здоровья, то есть
- * специальная категория персональных данных (ст. 10 ФЗ-152), а караул,
- * дата первой смены и точные даты отсутствий указывают на конкретного
- * человека внутри части, где сорок сотрудников. Хранить такое на сервере
- * значит стать оператором ПД со всем, что за этим следует: уведомление
- * РКН (ст. 22), письменное согласие (ст. 10 ч. 2), локализация базы в РФ
- * (ст. 18 ч. 5), меры защиты по ПП РФ № 1119, уведомление об утечке за 24
- * часа.
+ * Приложение знает про инвалидность I-II группы и даты больничных. И то и
+ * другое — сведения о состоянии здоровья, то есть специальная категория
+ * персональных данных (ст. 10 ФЗ-152), а даты смен и отсутствий вместе с
+ * ними указывают на конкретного человека в конкретном коллективе. Хранить
+ * такое на сервере значит стать оператором ПД со всем, что за этим
+ * следует: уведомление РКН (ст. 22), письменное согласие (ст. 10 ч. 2),
+ * локализация базы в РФ (ст. 18 ч. 5), меры защиты по ПП РФ № 1119,
+ * уведомление об утечке за 24 часа.
  *
- * Но главное не бумаги. Инструмент существует, чтобы человек проверил
- * табель, НЕ ДОВЕРЯЯ работодателю. Хранить его больничные на чужом
+ * Но главное не бумаги. Инструмент существует, чтобы человек считал своё
+ * время сам, НЕ ДОВЕРЯЯ чужому учёту. Хранить его больничные на чужом
  * сервере — ровно тот риск, от которого он и бежит. Данные, которых у нас
  * нет, невозможно ни истребовать, ни потерять.
  *
@@ -34,7 +33,18 @@ import { DEFAULT_SHIFT_START } from "../domain/shift-hours";
 import type { DayType } from "../domain/production-calendar";
 import type { IsoDate } from "../domain/plain-date";
 
-const STORAGE_KEY = "mchs-timesheet.profile";
+const STORAGE_KEY = "shift-schedule.profile";
+
+/**
+ * Прежнее имя ключа.
+ *
+ * Профиль лежал под ним, пока приложение было заточено под одну
+ * службу. Имя
+ * сменилось, а данные — нет: у человека там год внесённых отпусков, и
+ * потерять его из-за переименования нельзя. Поэтому старый ключ ещё
+ * читается, а первая же запись переносит профиль под новое имя.
+ */
+const LEGACY_STORAGE_KEY = "mchs-timesheet.profile";
 
 /**
  * Версия формата. Хранится в самих данных, чтобы старый профиль можно
@@ -53,9 +63,6 @@ const absenceSchema = z.object({
     "annual_leave",
     "sick_leave",
     "study_leave",
-    "unpaid_leave",
-    "business_trip",
-    "other_excused",
     "time_off_in_lieu",
   ]),
   startsOn: isoDate,
@@ -64,7 +71,7 @@ const absenceSchema = z.object({
 });
 
 /**
- * Вызов помимо графика: соревнования, сбор, резерв, мероприятие, выборы.
+ * Работа помимо графика: соревнования, сбор, резерв, мероприятие, выборы.
  *
  * Часы хранятся строкой, как и остальные величины: число с плавающей
  * точкой в JSON превратило бы 7,5 в 7.499999999999999 при первом же
@@ -78,33 +85,20 @@ const calloutSchema = z.object({
     "reserve",
     "public_event",
     "elections",
-    "other_callout",
   ]),
   startsOn: isoDate,
   endsOn: isoDate,
   hoursPerDay: z.string().min(1),
 });
 
-const reportedSchema = z.object({
-  periodStart: isoDate,
-  periodEnd: isoDate,
-  normHours: z.string().nullish(),
-  actualHours: z.string().nullish(),
-  overtimeHours: z.string().nullish(),
-});
-
 export const storedProfileSchema = z.object({
   schemaVersion: z.literal(SCHEMA_VERSION),
   displayName: z.string().min(1).max(200),
-  employmentKind: z.enum(["attested", "civilian"]),
-  gender: z.enum(["male", "female"]),
   workingConditions: z.enum(["normal", "harmful_or_dangerous"]),
-  northernLocality: z.boolean(),
   disabilityGroupIorII: z.boolean(),
-  guardNumber: z.number().int().min(1).max(4),
   firstShiftDate: isoDate,
   /**
-   * Время развода караула, «ЧЧ:ММ».
+   * Время начала смены, «ЧЧ:ММ».
    *
    * Необязательное с умолчанием, а не новая версия формата: профили,
    * сохранённые до появления поля, обязаны читаться как есть. Заставить
@@ -115,23 +109,11 @@ export const storedProfileSchema = z.object({
     .string()
     .regex(/^([01]\d|2[0-3]):[0-5]\d$/, "время в формате ЧЧ:ММ")
     .default(DEFAULT_SHIFT_START),
-  /**
-   * Месячная база для расчёта денег за переработку, в рублях, строкой.
-   *
-   * Строкой по той же причине, что и часы: число с плавающей точкой в
-   * JSON превращает 30000.50 в 30000.499999999996 за один круг записи и
-   * чтения, а речь о деньгах.
-   *
-   * Пустая строка — «не указано», и это рабочее состояние: блок с
-   * суммой просто не показывается. Что именно сюда кладут, зависит от
-   * категории — должностной оклад сотрудника или заработная плата
-   * работника вместе с выплатами; знание об этом живёт в интерфейсе и в
-   * `domain/overtime-pay.ts`, а не в схеме хранения.
-   *
-   * Необязательное с умолчанием: профили, сохранённые до появления
-   * расчёта денег, обязаны читаться как есть.
-   */
-  monthlyPayBase: z.string().max(20).default(""),
+  /* Схема нестрогая намеренно: поля из неё со временем уходят — статус,
+     пол, номер караула, северное сокращение, сверка с табелем, — а
+     профили, сохранённые до этого, обязаны читаться как есть. Лишние
+     ключи молча отбрасываются, и год внесённых отпусков переносить
+     заново не нужно. */
   accountingYear: z.number().int().min(2000).max(2100),
   absences: z.array(absenceSchema).max(200),
   /** Необязательное с умолчанием: профили, сохранённые до появления
@@ -139,24 +121,54 @@ export const storedProfileSchema = z.object({
   callouts: z.array(calloutSchema).max(200).default([]),
   /** Правки производственного календаря: дата → тип дня. */
   calendarOverrides: z.record(isoDate, dayType),
-  reported: reportedSchema.nullable(),
+  /**
+   * Заметки к суткам: дата → текст.
+   *
+   * Расчёт их не читает и читать не должен — это память человека, а не
+   * данные: «обещали отгул», «подменял Петрова». Разговор об учёте идёт
+   * через полгода после событий, и без такой записи человек не вспомнит,
+   * почему в этот день у него стоит выход помимо графика.
+   *
+   * Хранятся отдельно от отпусков и вызовов, а не полем внутри них,
+   * потому что заметка бывает нужна и на дне, где ничего не отмечено, — и
+   * потому что отпуск это период, а заметка всегда про конкретные сутки.
+   *
+   * Необязательное с умолчанием: профили, сохранённые до появления
+   * заметок, обязаны читаться как есть.
+   */
+  dayNotes: z.record(isoDate, z.string().max(500)).default({}),
+  /**
+   * Режим «веду табель»: расчёт обрезается по сегодняшний день.
+   *
+   * Хранится в профиле, а не в состоянии экрана: человек ведёт табель
+   * месяцами, и заново включать режим при каждом открытии страницы
+   * значило бы каждый раз показывать ему итог, которого он не просил.
+   */
+  liveMode: z.boolean().default(false),
+  /**
+   * Показывать переработку сменами и часами, а не часами.
+   *
+   * Хранится в профиле, а не в состоянии экрана, по той же причине, что и
+   * режим «веду табель»: это не разовый взгляд, а то, в чём человек привык
+   * считать. Заново переключать это при каждом открытии страницы значило бы
+   * каждый раз показывать ему число в чужой мере.
+   *
+   * Необязательное с умолчанием: профили, сохранённые до появления
+   * переключателя, обязаны читаться как есть.
+   */
+  overtimeInDays: z.boolean().default(false),
   savedAt: z.string(),
 });
 
 export type StoredProfile = z.infer<typeof storedProfileSchema>;
-export type StoredAbsence = z.infer<typeof absenceSchema>;
-export type StoredCallout = z.infer<typeof calloutSchema>;
-export type ReportedFigures = z.infer<typeof reportedSchema>;
 
 export interface NewProfileInput {
   displayName: string;
-  employmentKind: StoredProfile["employmentKind"];
-  gender: StoredProfile["gender"];
   workingConditions: StoredProfile["workingConditions"];
-  northernLocality: boolean;
   disabilityGroupIorII: boolean;
-  guardNumber: number;
+  /** Любые сутки, в которые человек выходил на смену или выйдет. */
   firstShiftDate: IsoDate;
+  accountingYear: number;
   shiftStartTime: string;
 }
 
@@ -164,16 +176,16 @@ export function createProfile(input: NewProfileInput): StoredProfile {
   return {
     schemaVersion: SCHEMA_VERSION,
     ...input,
-    // Учётный год берётся из даты первой смены, а не спрашивается
-    // отдельно: первая смена караула лежит в первых четырёх сутках года
-    // по определению цикла, и спрашивать год вдобавок значило бы дать
-    // возможность их рассогласовать.
-    accountingYear: Number(input.firstShiftDate.slice(0, 4)),
-    monthlyPayBase: "",
+    // Учётный год приходит ответом, а не выводится из даты смены. Выводился:
+    // смена спрашивалась «первая в году» и лежала в первых четырёх сутках
+    // января по определению цикла, так что год у неё был тот самый. Теперь
+    // смена любая — хоть августовская, — и год из неё уже не следует.
     absences: [],
     callouts: [],
     calendarOverrides: {},
-    reported: null,
+    dayNotes: {},
+    liveMode: false,
+    overtimeInDays: false,
     savedAt: new Date().toISOString(),
   };
 }
@@ -197,7 +209,11 @@ export function loadProfile(): LoadResult {
 
   let raw: string | null;
   try {
-    raw = window.localStorage.getItem(STORAGE_KEY);
+    // Старое имя ключа читается следом за новым: профиль, заведённый до
+    // переименования, обязан открыться без единого действия человека.
+    raw =
+      window.localStorage.getItem(STORAGE_KEY) ??
+      window.localStorage.getItem(LEGACY_STORAGE_KEY);
   } catch {
     // Хранилище может быть недоступно: приватный режим, запрет сторонних
     // данных, переполнение квоты.
@@ -224,6 +240,27 @@ export function loadProfile(): LoadResult {
   return { status: "ok", profile: result.data };
 }
 
+/**
+ * Есть ли на этом устройстве готовый график.
+ *
+ * Нужно посадочной странице: кнопка первого экрана обещает разное тому,
+ * кто здесь впервые, и тому, кто возвращается. Испорченный профиль — то же
+ * самое, что его отсутствие: расчёт всё равно откроется анкетой.
+ *
+ * Подписка — на события хранилища: график, заведённый в соседней вкладке,
+ * меняет надпись и здесь, без перезагрузки. Отдельного события на СВОЮ
+ * вкладку браузер не шлёт, но там надпись и не нужна: заведя профиль,
+ * человек уже в расчёте.
+ */
+export function hasStoredProfile(): boolean {
+  return loadProfile().status === "ok";
+}
+
+export function subscribeToStoredProfile(onChange: () => void): () => void {
+  window.addEventListener("storage", onChange);
+  return () => window.removeEventListener("storage", onChange);
+}
+
 export class StorageUnavailableError extends Error {
   constructor() {
     super(
@@ -238,6 +275,9 @@ export function saveProfile(profile: StoredProfile): StoredProfile {
   const next: StoredProfile = { ...profile, savedAt: new Date().toISOString() };
   try {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+    // Профиль переехал под новое имя — прежнее убирается, чтобы две копии
+    // не разошлись и вторая не всплыла однажды вместо первой.
+    window.localStorage.removeItem(LEGACY_STORAGE_KEY);
   } catch {
     // Молча потерять правку нельзя: человек увидел бы «сохранено» и ушёл.
     throw new StorageUnavailableError();
@@ -248,6 +288,7 @@ export function saveProfile(profile: StoredProfile): StoredProfile {
 export function clearProfile(): void {
   try {
     window.localStorage.removeItem(STORAGE_KEY);
+    window.localStorage.removeItem(LEGACY_STORAGE_KEY);
   } catch {
     // Нечего чистить — и нечего сообщать.
   }

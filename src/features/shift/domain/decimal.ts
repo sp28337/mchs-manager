@@ -35,6 +35,35 @@ export type Decimal = InstanceType<typeof Dec>;
 
 export const ZERO: Decimal = new Dec(0);
 
+/**
+ * Число из строки или `null`, если это не число.
+ *
+ * --- Зачем обёртка -------------------------------------------------------
+ *
+ * `decimal.js` сообщает о непригодной строке НЕ значением, а исключением:
+ * `new Dec("и")` бросает `DecimalError: Invalid argument`. Проверка вида
+ * `value.isFinite()` до него не доживает — до неё дело не доходит.
+ *
+ * Разбор при этом вызывается на каждое нажатие клавиши в поле часов
+ * работы помимо графика, то есть строка «не число» — не редкость, а нормальное
+ * промежуточное состояние: человек стёр всё и набирает заново, случайно
+ * задел букву, вставил «12 ч». Исключение в этом месте роняло весь
+ * экран расчёта, и вместе с ним — введённые отпуска на экране.
+ *
+ * Поэтому непригодная строка обязана возвращаться значением, и вся работа
+ * с `decimal.js` из пользовательского ввода идёт только через эту функцию.
+ */
+export function toDecimal(input: string): Decimal | null {
+  let value: Decimal;
+  try {
+    value = new Dec(input);
+  } catch {
+    return null;
+  }
+  // `new Dec("NaN")` не бросает, а возвращает NaN — это тоже не число.
+  return value.isNaN() ? null : value;
+}
+
 /** Наибольшее из двух — нужно там, где величина не имеет права уйти в минус. */
 export function atLeastZero(value: Decimal): Decimal {
   return value.isNegative() ? ZERO : value;
@@ -47,23 +76,81 @@ export function atLeastZero(value: Decimal): Decimal {
  * дают 5,333333…, и такое число в доводе выглядит несерьёзно.
  */
 export function formatHours(value: Decimal | number | string): string {
-  return new Dec(value).toFixed(2).replace(".", ",");
+  return new Dec(value).toFixed(1).replace(".", ",");
 }
 
-export function formatDays(hours: Decimal): string {
-  return hours
-    .dividedBy(24)
-    .toDecimalPlaces(1)
-    .toNumber()
-    .toLocaleString("ru-RU", {
-      maximumFractionDigits: 1,
-    });
+/**
+ * Часы без нулевого хвоста: «16», но «15,5».
+ *
+ * Десятая доля показывается тогда, когда она есть. Ноль после запятой не
+ * говорит ничего: он не уточняет число и не обещает точности, которой у
+ * целых часов и так больше, — зато делает «1972,0 ч» на треть длиннее
+ * «1972 ч» и тем мельче на экране.
+ *
+ * Так набраны и клетка календаря, где число стоит без подписи и без
+ * единицы, и главные числа полосы итогов. Прежде в полосе хвост держали
+ * ради того, чтобы числа в столбце были одной формы, — но столбца там
+ * давно нет: числа стоят порознь, каждое на своей плашке.
+ */
+export function formatHoursTrim(value: Decimal | number | string): string {
+  return formatHours(value).replace(/,0$/, "");
+}
+
+/**
+ * Часы в сутках дежурства.
+ *
+ * Двадцать четыре — это продолжительность смены, а не астрономические
+ * сутки: «переработка в сутках» отвечает на
+ * вопрос «сколько смен я отдежурил сверх нормы», и мерить её чем-то другим
+ * бессмысленно.
+ *
+ * Число стоит здесь, а не берётся из `SHIFT_DURATION_HOURS`: этот модуль —
+ * основание для всего остального, включая сам домен, и обратной зависимости
+ * у него быть не может.
+ */
+const HOURS_IN_SHIFT = 24;
+
+/** Часы, разложенные на целые сутки и остаток. */
+export interface DaysAndHours {
+  days: number;
+  hours: Decimal;
+}
+
+/**
+ * Часы как «сутки и часы»: 212 → 8 суток и 20 часов.
+ *
+ * Вместо «8,8 суток». Десятая доля суток — это два часа с четвертью, и
+ * пересчитывать её в голове человеку приходится ровно тогда, когда он
+ * собрался что-то с этой переработкой делать: отгул берут сменами и
+ * часами, а не десятыми долями.
+ */
+export function splitIntoDays(value: Decimal): DaysAndHours {
+  const days = value.dividedToIntegerBy(HOURS_IN_SHIFT);
+  return { days: days.toNumber(), hours: value.minus(days.times(HOURS_IN_SHIFT)) };
+}
+
+/**
+ * «Сутки» при числе: 1 сутки, 8 суток, 21 сутки.
+ *
+ * У слова нет единственного числа, и форма зависит от последней цифры —
+ * кроме одиннадцати, где она обманывает.
+ */
+export function daysWord(days: number): string {
+  return days % 10 === 1 && days % 100 !== 11 ? "сутки" : "суток";
+}
+
+/** То же одной строкой — для подписей, где разметки нет. */
+export function formatDaysAndHours(value: Decimal): string {
+  const { days, hours } = splitIntoDays(value);
+  if (days === 0) return `${formatHoursTrim(hours)} ч`;
+  if (hours.isZero()) return `${days} ${daysWord(days)}`;
+  return `${days} ${daysWord(days)} ${formatHoursTrim(hours)} ч`;
 }
 
 /** Разбор числа, введённого человеком: и «168,5», и «168.5». */
 export function parseHours(input: string): Decimal | null {
   const normalised = input.trim().replace(",", ".");
   if (normalised === "") return null;
-  const value = new Dec(normalised);
-  return value.isFinite() ? value : null;
+  const value = toDecimal(normalised);
+  return value !== null && value.isFinite() ? value : null;
 }

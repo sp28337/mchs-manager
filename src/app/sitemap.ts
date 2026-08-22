@@ -6,7 +6,12 @@ export const dynamic = "force-static";
 
 const SITE = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
 
-/** Страница ровно одна — та, у которой есть что показать поиску. */
+/**
+ * Две страницы: та, у которой есть что показать поиску, и условия.
+ *
+ * Калькулятора здесь нет намеренно — он закрыт от индексации (`robots.ts`):
+ * форма без единого слова о том, зачем её заполнять, в выдаче бесполезна.
+ */
 export default function sitemap(): MetadataRoute.Sitemap {
   return [
     {
@@ -14,6 +19,12 @@ export default function sitemap(): MetadataRoute.Sitemap {
       lastModified: new Date(),
       changeFrequency: "yearly",
       priority: 1,
+    },
+    {
+      url: `${SITE}/terms`,
+      lastModified: new Date(),
+      changeFrequency: "yearly",
+      priority: 0.3,
     },
   ];
 }

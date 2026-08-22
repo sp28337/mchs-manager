@@ -22,8 +22,7 @@ import {
 import {
   deriveWeeklyNorm,
   shiftDates,
-  type GuardCycle,
-  type GuardNumber,
+  type ShiftCycle,
   type WeeklyNorm,
   type WeeklyNormInput,
 } from "./value-objects";
@@ -40,10 +39,7 @@ const MARCH_WORKING: ReadonlySet<IsoDate> = new Set(
 
 function norm(overrides: Partial<WeeklyNormInput> = {}): WeeklyNorm {
   return deriveWeeklyNorm({
-    employment: "attested",
-    gender: "male",
     conditions: "normal",
-    northernLocality: false,
     ...overrides,
   });
 }
@@ -53,76 +49,32 @@ function norm(overrides: Partial<WeeklyNormInput> = {}): WeeklyNorm {
 describe("недельная норма", () => {
   test("обычные условия дают сорок часов", () => {
     expect(norm().hours.toString()).toBe("40");
-    expect(norm().basis).toContain("308");
+    expect(norm().basis).toContain("91 ТК РФ");
   });
 
-  test("вредность даёт тридцать шесть и служащему, и работнику", () => {
-    // Сокращает неделю обоим, но по разным пунктам, и основание обязано
-    // это различать: человек понесёт его начальнику.
-    const attested = norm({ conditions: "harmful_or_dangerous" });
-    const civilian = norm({ employment: "civilian", conditions: "harmful_or_dangerous" });
+  test("вредность даёт тридцать шесть", () => {
+    // Основание обязано называть статью: человек понесёт эту ссылку
+    // работодателю, и «36 часов» без неё — не довод, а мнение.
+    const harmful = norm({ conditions: "harmful_or_dangerous" });
 
-    expect(attested.hours.toString()).toBe("36");
-    expect(civilian.hours.toString()).toBe("36");
-    expect(attested.basis).toContain("308");
-    expect(attested.basis).toContain("ФЗ-141");
-    expect(civilian.basis).toContain("307");
-    expect(civilian.basis).toContain("92 ТК РФ");
+    expect(harmful.hours.toString()).toBe("36");
+    expect(harmful.basis).toContain("92 ТК РФ");
   });
 
-  test("северянки получают тридцать шесть по обоим приказам", () => {
-    // Приказ № 308 п. 1 даёт сокращение и СОТРУДНИЦАМ — по ч. 4 ст. 54
-    // ФЗ-141, а не только работницам по ст. 320 ТК РФ.
-    const attested = norm({ gender: "female", northernLocality: true });
-    const civilian = norm({
-      employment: "civilian",
-      gender: "female",
-      northernLocality: true,
-    });
-
-    expect(attested.hours.toString()).toBe("36");
-    expect(civilian.hours.toString()).toBe("36");
-    expect(attested.basis).toContain("ч. 4 ст. 54 ФЗ-141");
-    expect(civilian.basis).toContain("320 ТК РФ");
-  });
-
-  test("северное сокращение не распространяется на мужчин", () => {
-    // Оба приказа говорят о женщинах. Распространить сокращение на всех
-    // значило бы занизить норму — то есть выдумать переработку.
-    expect(norm({ gender: "male", northernLocality: true }).hours.toString()).toBe("40");
-  });
-
-  test("инвалидность даёт тридцать пять и только работникам", () => {
-    const civilian = norm({ employment: "civilian", disabilityGroupIorII: true });
-    expect(civilian.hours.toString()).toBe("35");
-    expect(civilian.basis).toContain("307 п. 5");
-
-    // Приказ № 308 такого пункта не содержит, и это не пробел: службу в
-    // ФПС ГПС инвалид I или II группы не проходит.
-    const attested = norm({ employment: "attested", disabilityGroupIorII: true });
-    expect(attested.hours.toString()).toBe("40");
+  test("инвалидность даёт тридцать пять", () => {
+    const disabled = norm({ disabilityGroupIorII: true });
+    expect(disabled.hours.toString()).toBe("35");
+    expect(disabled.basis).toContain("92 ТК РФ");
   });
 
   test("инвалидность сильнее вредности", () => {
-    // 35 короче 36. Проверь вредность первой — и работник с инвалидностью
+    // 35 короче 36. Проверь вредность первой — и человек с инвалидностью
     // во вредных условиях получил бы 36 вместо 35.
     const both = norm({
-      employment: "civilian",
       disabilityGroupIorII: true,
       conditions: "harmful_or_dangerous",
     });
     expect(both.hours.toString()).toBe("35");
-  });
-
-  test("сокращения не складываются", () => {
-    // Два основания по 36 часов дают 36, а не 32.
-    const both = norm({
-      employment: "civilian",
-      gender: "female",
-      northernLocality: true,
-      conditions: "harmful_or_dangerous",
-    });
-    expect(both.hours.toString()).toBe("36");
   });
 });
 
@@ -150,11 +102,11 @@ describe("норма периода", () => {
   });
 });
 
-// ---------------------------------------------------------- график караула
+// ------------------------------------------------------------ график смен
 
-describe("график караула", () => {
+describe("график смен", () => {
   test("цикл повторяется каждые четверо суток", () => {
-    const cycle: GuardCycle = { guard: 1, firstShiftDate: "2026-01-01" };
+    const cycle: ShiftCycle = { knownShiftDate: "2026-01-01" };
     const dates = shiftDates(cycle, "2026-01-01", "2026-02-01");
 
     expect(dates.slice(0, 4)).toEqual([
@@ -166,10 +118,10 @@ describe("график караула", () => {
     expect(dates).toHaveLength(8);
   });
 
-  test("период, начавшийся после первой смены, сохраняет фазу", () => {
-    // Расчёт за март не должен зависеть от того, что цикл начался в
-    // январе: фаза цикла — свойство караула, а не периода.
-    const cycle: GuardCycle = { guard: 3, firstShiftDate: "2026-01-03" };
+  test("период, начавшийся после известной смены, сохраняет фазу", () => {
+    // Расчёт за март не должен зависеть от того, что известная смена
+    // пришлась на январь: фаза цикла — свойство графика, а не периода.
+    const cycle: ShiftCycle = { knownShiftDate: "2026-01-03" };
     const march = shiftDates(cycle, "2026-03-01", "2026-04-01");
 
     expect(march[0]).toBe("2026-03-04");
@@ -178,13 +130,12 @@ describe("график караула", () => {
     }
   });
 
-  test("четыре караула вместе закрывают каждые сутки ровно один раз", () => {
+  test("четыре сдвига цикла вместе закрывают каждые сутки ровно один раз", () => {
     // Проверка самого режима, а не кода.
     const covered: IsoDate[] = [];
     for (let offset = 0; offset < 4; offset += 1) {
-      const cycle: GuardCycle = {
-        guard: (offset + 1) as GuardNumber,
-        firstShiftDate: addDays("2026-01-01", offset),
+      const cycle: ShiftCycle = {
+        knownShiftDate: addDays("2026-01-01", offset),
       };
       covered.push(...shiftDates(cycle, "2026-01-01", "2026-02-01"));
     }
@@ -196,8 +147,44 @@ describe("график караула", () => {
   });
 
   test("пустой период не даёт смен", () => {
-    const cycle: GuardCycle = { guard: 1, firstShiftDate: "2026-01-01" };
+    const cycle: ShiftCycle = { knownShiftDate: "2026-03-01" };
     expect(shiftDates(cycle, "2026-03-01", "2026-03-01")).toEqual([]);
+  });
+
+  test("известная смена ПОЗЖЕ периода строит его так же", () => {
+    // Ради этого график и считается от любой смены: человек знает, что
+    // выходит на смену завтра, а смотрит на прошлый месяц. Цикл
+    // четырёхдневный и одинаков в обе стороны, поэтому отсчёт назад даёт
+    // ровно те же сутки, что дала бы январская смена той же фазы.
+    const past: ShiftCycle = { knownShiftDate: "2026-01-01" };
+    const future: ShiftCycle = { knownShiftDate: "2026-08-21" };
+    // 21 августа и 1 января — одна фаза: 232 суток, кратно четырём.
+    expect(daysBetween("2026-01-01", "2026-08-21") % 4).toBe(0);
+
+    expect(shiftDates(future, "2026-03-01", "2026-04-01")).toEqual(
+      shiftDates(past, "2026-03-01", "2026-04-01"),
+    );
+    expect(shiftDates(future, "2026-03-01", "2026-04-01")[0]).toBe("2026-03-02");
+  });
+
+  test("отсчёт назад не сбивается на границе шага", () => {
+    // Смена ровно в начале периода — тот случай, где округление вверх
+    // легко даёт лишний шаг назад и график съезжает на четверо суток.
+    const cycle: ShiftCycle = { knownShiftDate: "2026-04-01" };
+    expect(shiftDates(cycle, "2026-04-01", "2026-04-10")).toEqual([
+      "2026-04-01",
+      "2026-04-05",
+      "2026-04-09",
+    ]);
+
+    // Тот же отрезок при смене на сутки позже: первой сменой внутри
+    // становится 2 апреля, а 10-е за правую границу уже не попадает — она
+    // исключающая.
+    const shifted: ShiftCycle = { knownShiftDate: "2026-04-02" };
+    expect(shiftDates(shifted, "2026-04-01", "2026-04-10")).toEqual([
+      "2026-04-02",
+      "2026-04-06",
+    ]);
   });
 });
 
@@ -210,7 +197,7 @@ function march(
   return calculatePeriod({
     periodStart: "2026-03-01",
     periodEnd: "2026-04-01",
-    cycle: { guard: 1, firstShiftDate: "2026-01-01" },
+    cycle: { knownShiftDate: "2026-01-01" },
     weekly: norm(),
     calendar: { workingDays: 21, preHolidayDays: 0 },
     absences,
@@ -228,7 +215,7 @@ describe("полный расчёт", () => {
     expect(result.baseNormHours.toString()).toBe("168"); // (40/5) × 21
     expect(result.excludedHours.toString()).toBe("0");
     expect(result.normHours.toString()).toBe("168");
-    // Караул заступает 2, 6, 10, 14, 18, 22, 26 и 30 марта — восемь смен,
+    // Смены 2, 6, 10, 14, 18, 22, 26 и 30 марта — восемь штук,
     // и каждая укладывается в месяц целиком (последняя кончается 31-го).
     expect(result.scheduledShifts).toBe(8);
     expect(result.actualHours.toString()).toBe("192");
@@ -245,7 +232,7 @@ describe("полный расчёт", () => {
       { start: "2026-03-01", endInclusive: "2026-03-14", kind: "annual_leave" },
     ]);
 
-    // За 1-14 марта у первого караула четыре заступления: 2, 6, 10, 14.
+    // За 1-14 марта в этом цикле четыре смены: 2, 6, 10, 14.
     expect(withLeave.absentShifts).toBe(4);
     // 1-14 марта — десять рабочих дней по календарю, по 8 часов нормы.
     expect(withLeave.excludedHours.toString()).toBe("80");
@@ -284,20 +271,45 @@ describe("полный расчёт", () => {
     expect(result.excludedHours.toString()).toBe("176");
     expect(result.normHours.toString()).toBe("0");
     expect(result.undertimeHours.toString()).toBe("0");
-    // А вот столько «долга» покажет табель, в котором норму не тронули.
+    // А вот столько «долга» вышло бы, если норму не уменьшать.
     expect(result.wrongNormUndertimeHours.toString()).toBe("168");
+  });
+
+  test("расчёт от будущей смены совпадает с расчётом от прошлой", () => {
+    // Просмотр начинается на сутки раньше периода и больше ничем не
+    // обрезан. Обрезался — известной сменой, — и март, посчитанный от
+    // августовской смены, вышел бы пустым: цикл достраивался только вперёд.
+    const fromFuture = march([], {
+      cycle: { knownShiftDate: "2026-08-21" },
+    });
+    const fromPast = march([]);
+
+    expect(fromFuture.shifts.map((shift) => shift.startedOn)).toEqual(
+      fromPast.shifts.map((shift) => shift.startedOn),
+    );
+    expect(fromFuture.actualHours.toString()).toBe(fromPast.actualHours.toString());
   });
 
   test("смена через границу суток делит свои часы", () => {
     // При разводе в 08:30 смена с 30 марта отдаёт 30-му 15,5 часа, а 31-му
-    // 8,5.
-    const firstDay = march([], { periodStart: "2026-03-30", periodEnd: "2026-03-31" });
-    const secondDay = march([], { periodStart: "2026-03-31", periodEnd: "2026-04-01" });
+    // 8,5. Время развода задано здесь явно, а не взято из умолчания:
+    // проверяется деление часов, и менять эти числа вслед за чужим
+    // умолчанием пришлось бы при каждой его правке.
+    const firstDay = march([], {
+      periodStart: "2026-03-30",
+      periodEnd: "2026-03-31",
+      shiftStartTime: "08:30",
+    });
+    const secondDay = march([], {
+      periodStart: "2026-03-31",
+      periodEnd: "2026-04-01",
+      shiftStartTime: "08:30",
+    });
 
     expect(firstDay.shifts.at(-1)?.startedOn).toBe("2026-03-30");
     expect(firstDay.actualHours.toString()).toBe("15.5"); // с 08:30 до полуночи
 
-    // Смена заступила накануне периода — и всё же отдаёт ему свой хвост.
+    // Смена началась накануне периода — и всё же отдаёт ему свой хвост.
     // Без просмотра на сутки назад эти 8,5 часа терялись бы у каждого
     // месяца, начинающегося со вторых суток чужой смены.
     expect(secondDay.shifts[0]?.startedOn).toBe("2026-03-30");
@@ -320,17 +332,20 @@ describe("полный расчёт", () => {
     ).toBe("8");
   });
 
-  test("месячные итоги считаются по суткам, а не по дате заступления", () => {
+  test("месячные итоги считаются по суткам, а не по дате начала смены", () => {
     // Дефект, найденный на живом профиле: на периоде в полгода смене,
-    // заступившей 31 марта, март получал все 24 часа. Месячная сумма
+    // начавшейся 31 марта, март получал все 24 часа. Месячная сумма
     // оказывалась завышена, апрельская занижена, и обе расходились с
     // табелем.
-    // Цикл взят с живого профиля: 4-й караул, первая смена 2 января. При
-    // нём заступление приходится ровно на 31 марта.
+    // Цикл взят с живого профиля: первая смена 2 января. При нём начало
+    // смены приходится ровно на 31 марта.
     const halfYear = calculatePeriod({
       periodStart: "2026-01-01",
       periodEnd: "2026-07-01",
-      cycle: { guard: 4, firstShiftDate: "2026-01-02" },
+      cycle: { knownShiftDate: "2026-01-02" },
+      // Развод задан явно: проверяется, какому месяцу достаются часы, а не
+      // то, какое время стоит в умолчании.
+      shiftStartTime: "08:30",
       weekly: norm(),
       calendar: { workingDays: 118, preHolidayDays: 2 },
       absences: [],
@@ -383,19 +398,18 @@ describe("полный расчёт", () => {
       holidayDays: newYear,
     });
 
-    // Первый караул заступает 1 и 5 января — обе смены целиком в каникулах.
+    // Смены 1 и 5 января — обе целиком в новогодних каникулах.
     expect(result.holidayHours.toString()).toBe("48");
   });
 
-  test.each([0, 1, 2, 3])("караул %i получает ту же годовую норму", (offset) => {
+  test.each([0, 1, 2, 3])("сдвиг цикла %i даёт ту же годовую норму", (offset) => {
     // Следствие ст. 104 ТК РФ и одновременно проверка на здравый смысл:
-    // номер караула не может менять норму, он меняет только даты.
+    // сдвиг цикла не может менять норму, он меняет только даты.
     const result = calculatePeriod({
       periodStart: "2026-01-01",
       periodEnd: "2027-01-01",
       cycle: {
-        guard: (offset + 1) as GuardNumber,
-        firstShiftDate: addDays("2026-01-01", offset),
+        knownShiftDate: addDays("2026-01-01", offset),
       },
       weekly: norm(),
       calendar: { workingDays: 247, preHolidayDays: 6 },
@@ -488,7 +502,7 @@ describe("вызовы помимо графика", () => {
   });
 
   test("вызов может совпасть со сменой, и оба остаются в расчёте", () => {
-    // 2 марта у первого караула заступление (цикл с 1 января); вызов в тот
+    // 2 марта смена по графику (цикл с 1 января); вызов в тот
     // же день не отменяет смену и не отменяется ею.
     const both = march([], {
       callouts: [
@@ -509,7 +523,7 @@ describe("вызовы помимо графика", () => {
   });
 
   test("несколько вызовов в одни сутки считаются все", () => {
-    // Настоящий день: 2 марта заступление, после смены соревнования, а
+    // Настоящий день: 2 марта смена, после неё соревнования, а
     // следом вызвали в резерв. Три записи об одних сутках, и ни одна не
     // отменяет остальные.
     const stacked = march([], {

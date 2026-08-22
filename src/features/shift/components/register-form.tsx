@@ -1,116 +1,99 @@
 "use client";
 
-import { useId, useState } from "react";
+import { useId, useState, type ReactNode } from "react";
 
+import { LandingHero } from "@/components/landing/hero";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Modal } from "@/components/ui/modal";
+import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { cn } from "@/lib/utils/cn";
 
-import { DEFAULT_SHIFT_START, parseTimeOfDay } from "../domain/shift-hours";
+import { DEFAULT_SHIFT_START } from "../domain/shift-hours";
+import { todayIso } from "../domain/plain-date";
+import { weeklyNormGroundFacts } from "../model/derive";
 import { createProfile, importProfile, type StoredProfile } from "../storage/profile";
-import {
-  CONDITIONS_LABELS,
-  EMPLOYMENT_HINT,
-  EMPLOYMENT_LABELS,
-  GENDER_LABELS,
-  type EmploymentKind,
-  type Gender,
-  type WorkingConditions,
-} from "../schemas";
-import { ThemeToggle } from "@/components/ui/theme-toggle";
+import { SettingsPanel } from "./settings-panel";
 
 /**
- * Регистрация.
+ * Экран без профиля: главная и окно с вопросами поверх неё.
  *
- * --- Почему спрашивается именно это ------------------------------------
+ * --- Что стоит ЗА окном -------------------------------------------------
  *
- * Каждое поле здесь меняет ЧИСЛО в расчёте, и ни одно не задано «для
- * анкеты»:
+ * Главная — тот самый первый экран, с которого человек сюда нажал. Здесь
+ * была своя страница «Расскажите о себе»: заголовок, абзац объяснений и
+ * блок возврата из файла. Получалось, что нажатие на кнопку открывает
+ * незнакомый раздел, а поверх него — ещё и окно; закрыв окно, человек
+ * оставался в разделе, которого не просил.
  *
- * * основание (служба или трудовой договор) решает, каким законом
- *   считается время;
- * * условия труда, пол в северной местности и инвалидность I-II группы
- *   сокращают неделю до 36 или 35 часов — это до 5 часов нормы в неделю,
- *   больше двухсот часов в год;
- * * караул и дата его первой смены задают график: без них неизвестно, в
- *   какие сутки человек заступал.
+ * Теперь за окном ровно то, что было под курсором мгновение назад.
+ * Закрыть окно можно, и человек остаётся на главной; кнопка первого
+ * экрана открывает его снова.
  *
- * Ни фамилии в паспортном смысле, ни табельного номера, ни подразделения
- * не спрашивается: расчёту они не нужны, а собирать то, что не нужно, —
- * значит хранить чужие данные без причины.
+ * --- Почему окно, а не страница с формой --------------------------------
  *
- * --- Куда всё это уходит ------------------------------------------------
+ * У страницы-анкеты была своя вёрстка тех же вопросов — норма списком с
+ * абзацем пояснения, время отсчёта смены отдельным полем. Настройки
+ * спрашивают то же самое, и две формы на одни вопросы неизбежно
+ * расходятся: пояснение поправили в одной, а человек читает другую.
  *
- * Никуда. Ответы записываются в хранилище браузера и остаются на этом
- * устройстве; сервера у приложения нет. Здесь спрашивают об инвалидности и
- * больничных — сведения о здоровье, — и отправлять их наружу означало бы
- * ровно тот риск, от которого человек сюда и пришёл.
+ * Теперь вопросы одни, в одном компоненте (`SettingsPanel`), и
+ * открываются так же, как из шапки, — окном. Разница только в заголовке:
+ * «Создать профиль» вместо «Настроек», и внизу кнопка, которой профиль
+ * заводится.
  *
- * --- Почему дата первой смены, а не только номер караула ----------------
+ * --- Почему возврат из файла тоже в окне --------------------------------
  *
- * Номер караула сам по себе цикл не задаёт. В одной части первый караул
- * заступает 1 января, в другой — третьего, и «караул № 1» в них дежурит
- * в разные сутки. Дата первой смены — единственное, что привязывает цикл
- * к календарю.
+ * Он отвечает на тот же вопрос — «откуда взять профиль», — только другим
+ * способом: не заполнять заново, а вернуть сохранённый. Оставить его на
+ * странице значило бы спрятать за окном единственный выход для того, кто
+ * уже всё это однажды заполнял.
+ *
+ * --- Почему черновик, а не поля по одному -------------------------------
+ *
+ * `SettingsPanel` правит профиль, а не набор полей. Поэтому здесь лежит
+ * готовый профиль с умолчаниями, панель правит его, а кнопка сохраняет.
+ * Заодно исчезает разнобой умолчаний: то, что подставлено в черновике, и
+ * есть то, что человек увидит в настройках потом.
  */
 
 const CURRENT_YEAR = new Date().getUTCFullYear();
 
 export interface RegisterFormProps {
   onCreated: (profile: StoredProfile) => void;
+  /** Сообщение о нечитаемом профиле, если он был. Место ему — в окне. */
+  notice?: ReactNode;
 }
 
-export function RegisterForm({ onCreated }: RegisterFormProps) {
-  const [employment, setEmployment] = useState<EmploymentKind>("attested");
-  const [gender, setGender] = useState<Gender>("male");
-  const [conditions, setConditions] = useState<WorkingConditions>("normal");
-  const [northern, setNorthern] = useState(false);
-  const [disability, setDisability] = useState(false);
-  const [guard, setGuard] = useState(1);
-  const [firstShiftDay, setFirstShiftDay] = useState(1);
-  const [startTime, setStartTime] = useState(DEFAULT_SHIFT_START);
+/** Профиль, каким он будет, если человек не тронет ни одного поля. */
+function blankProfile(): StoredProfile {
+  return createProfile({
+    displayName: "",
+    // Норма приходит одним ответом: человек выбирает основание, а признаки,
+    // которые из него следуют, раскладываются по профилю здесь.
+    ...weeklyNormGroundFacts("base"),
+    // Сегодня — единственная дата, о которой точно известно, что человек её
+    // помнит. Свою смену он отмерит от неё.
+    firstShiftDate: todayIso(),
+    accountingYear: CURRENT_YEAR,
+    shiftStartTime: DEFAULT_SHIFT_START,
+  });
+}
+
+export function RegisterForm({ onCreated, notice }: RegisterFormProps) {
+  const [draft, setDraft] = useState<StoredProfile>(blankProfile);
+  const [open, setOpen] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const nameId = useId();
-  const yearId = useId();
-  const startId = useId();
-
-  // Северное сокращение спрашивается только у женщин: оба приказа
-  // (№ 308 п. 1 и № 307 п. 4) говорят именно о них. Задать вопрос
-  // мужчине значило бы спросить о том, что ни на что не повлияет.
-  const northernApplies = gender === "female";
-
-  // Инвалидность I или II группы даёт 35 часов только работнику
-  // (Приказ № 307 п. 5). Приказ № 308 такого пункта не знает: службу в
-  // ФПС ГПС инвалид I или II группы не проходит.
-  const disabilityApplies = employment === "civilian";
-
-  function submit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const form = new FormData(event.currentTarget);
-    const year = Number(form.get("year") ?? CURRENT_YEAR);
-
-    if (parseTimeOfDay(startTime) === null) {
-      setError("Время развода — в формате ЧЧ:ММ, например 08:30.");
-      return;
-    }
-
+  function submit() {
     setError(null);
     try {
-      onCreated(
-        createProfile({
-          displayName: String(form.get("displayName") ?? "").trim() || "Пожарный",
-          employmentKind: employment,
-          gender,
-          workingConditions: conditions,
-          northernLocality: northernApplies && northern,
-          disabilityGroupIorII: disabilityApplies && disability,
-          guardNumber: guard,
-          firstShiftDate: `${year}-01-0${firstShiftDay}`,
-          shiftStartTime: startTime,
-        }),
-      );
+      // Пустое имя — не ошибка: обращение нужно человеку, а не расчёту, и
+      // отказывать в графике из-за незаполненной строки было бы придиркой.
+      onCreated({
+        ...draft,
+        displayName: draft.displayName.trim() || "Мой график",
+      });
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Не удалось сохранить профиль.");
     }
@@ -118,185 +101,51 @@ export function RegisterForm({ onCreated }: RegisterFormProps) {
 
   return (
     <>
-      <div className="space-y-8">
-        <form className="space-y-7" onSubmit={submit}>
+      <main className="mx-auto w-full max-w-4xl px-6 pb-16 xl:max-w-6xl 2xl:max-w-7xl">
+        <LandingHero
+          cta={
+            // Та же кнопка, что на посадочной: там она ссылка в расчёт,
+            // здесь — открывает окно. Форма и вес совпадают намеренно,
+            // человек нажимает то же самое место.
+            <Button
+              type="button"
+              size="lg"
+              className="rounded-xl text-base font-bold"
+              onClick={() => setOpen(true)}
+            >
+              Заполнить профиль
+            </Button>
+          }
+        />
+      </main>
+
+      <Modal open={open} onClose={() => setOpen(false)} title="Создать профиль">
+        <div className="space-y-5">
+          {notice}
+
           {error ? (
-            <p className="rounded-sm border-l-2 border-signal bg-signal-soft px-4 py-3 text-sm">
-              {error}
-            </p>
+            <p className="rounded-xl bg-signal-soft px-4 py-3 text-sm">{error}</p>
           ) : null}
 
-          <div className="space-y-1.5">
-            <Label htmlFor={nameId}>Как к вам обращаться</Label>
-            <Input
-              id={nameId}
-              name="displayName"
-              maxLength={200}
-              placeholder="Например: Сергей Генадьевич"
-              className="max-w-md"
-              aria-describedby={`${nameId}-hint`}
-            />
-            <p id={`${nameId}-hint`} className="max-w-md text-xs text-ink-muted">
-              Только для обращения. Фамилия, табельный номер и подразделение не
-              нужны — расчёт от них не зависит, и мы их не спрашиваем.
-            </p>
+          <SettingsPanel profile={draft} onChange={setDraft} purpose="create" />
+
+          <div className="space-y-5 border-t border-rule pt-4">
+            <Button type="button" className="w-full" onClick={submit}>
+              Построить мой график
+            </Button>
+
+            <ImportBlock onImported={onCreated} />
           </div>
+        </div>
+      </Modal>
 
-          <Choice
-            legend="Кто вы"
-            value={employment}
-            options={["attested", "civilian"] as const}
-            labels={EMPLOYMENT_LABELS}
-            hints={EMPLOYMENT_HINT}
-            onChange={setEmployment}
-          />
-
-          <Choice
-            legend="Пол"
-            value={gender}
-            options={["male", "female"] as const}
-            labels={GENDER_LABELS}
-            onChange={setGender}
-            hint="Влияет в одном случае: женщинам на Крайнем Севере и в приравненных местностях положена 36-часовая неделя (Приказ № 308 п. 1, Приказ № 307 п. 4)."
-          />
-
-          <Choice
-            legend="Условия службы или труда"
-            value={conditions}
-            options={["normal", "harmful_or_dangerous"] as const}
-            labels={CONDITIONS_LABELS}
-            onChange={setConditions}
-            hint="По результатам специальной оценки. Вредные 3-4 степени или опасные дают 36 часов в неделю вместо 40 (Приказ № 308 п. 1, Приказ № 307 п. 6)."
-          />
-
-          {northernApplies ? (
-            <label className="flex max-w-md items-start gap-2 text-sm cursor-pointer">
-              <input
-                type="checkbox"
-                checked={northern}
-                onChange={(event) => setNorthern(event.target.checked)}
-                className="mt-1"
-              />
-              <span>
-                {employment === "attested"
-                  ? "Служу в районе Крайнего Севера, приравненной или иной местности с неблагоприятными условиями"
-                  : "Работаю в районе Крайнего Севера или приравненной местности"}
-                <span className="block text-xs text-ink-muted">
-                  {employment === "attested"
-                    ? "Приказ МЧС России № 308 п. 1 (ч. 4 ст. 54 ФЗ-141): 36 часов в неделю. Круг местностей шире, чем в Трудовом кодексе, — в него входят и отдалённые."
-                    : "Приказ МЧС России № 307 п. 4 (ст. 320 ТК РФ): 36 часов в неделю."}
-                </span>
-              </span>
-            </label>
-          ) : null}
-
-          {disabilityApplies ? (
-            <label className="flex max-w-md items-start gap-2 text-sm cursor-pointer">
-              <input
-                type="checkbox"
-                checked={disability}
-                onChange={(event) => setDisability(event.target.checked)}
-                className="mt-1"
-              />
-              <span>
-                Инвалидность I или II группы
-                <span className="block text-xs text-ink-muted">
-                  Приказ МЧС России № 307 п. 5 (абз. 4 ч. 1 ст. 92 ТК РФ): 35 часов
-                  в неделю — самая короткая из возможных норм.
-                </span>
-              </span>
-            </label>
-          ) : null}
-
-          <fieldset className="space-y-2">
-            <legend className="font-display text-xs font-bold uppercase tracking-wide text-ink-muted">
-              Ваш караул
-            </legend>
-            <div className="flex flex-wrap gap-2">
-              {[1, 2, 3, 4].map((number) => (
-                <Button
-                  key={number}
-                  type="button"
-                  variant={guard === number ? "default" : "outline"}
-                  aria-pressed={guard === number}
-                  onClick={() => {
-                    setGuard(number);
-                    // Чаще всего номер караула и есть день его первой смены,
-                    // поэтому подставляется он — но остаётся изменяемым: в
-                    // части нумерация может быть другой.
-                    setFirstShiftDay(number);
-                  }}
-                >
-                  {number}-й
-                </Button>
-              ))}
-            </div>
-          </fieldset>
-
-          <fieldset className="space-y-2">
-            <legend className="font-display text-xs font-bold uppercase tracking-wide text-ink-muted">
-              Первая смена караула в году
-            </legend>
-            <div className="flex flex-wrap gap-2">
-              {[1, 2, 3, 4].map((day) => (
-                <Button
-                  key={day}
-                  type="button"
-                  variant={firstShiftDay === day ? "default" : "outline"}
-                  aria-pressed={firstShiftDay === day}
-                  onClick={() => setFirstShiftDay(day)}
-                >
-                  {day} января
-                </Button>
-              ))}
-            </div>
-            <p className="max-w-md text-xs text-ink-muted">
-              Цикл «сутки через трое» четырёхдневный, поэтому первая смена
-              обязательно приходится на одни из первых четырёх суток года.
-              Пятое января — это уже вторая смена какого-то из караулов.
-            </p>
-          </fieldset>
-
-          <div className="space-y-1.5">
-            <Label htmlFor={startId}>Время смены караулов</Label>
-            <Input
-              id={startId}
-              type="time"
-              value={startTime}
-              onChange={(event) => setStartTime(event.target.value)}
-              className="w-32 font-mono"
-              aria-describedby={`${startId}-hint`}
-            />
-            <p id={`${startId}-hint`} className="max-w-md text-xs text-ink-muted">
-              Отсюда считается, как смена делится между сутками. При смене караулов в 
-              08:30 сутки заступления получают 15,5 часа (из них 2 ночныe), а следующие — 8,5 (из них 6 ночные). Ошибка здесь сдвигает месячные итоги и число
-              ночных на стыке месяцев. Продолжительность смены — 24 часа, не
-              включая время смены караулов (Приказ № 308 п. 3, № 307 п. 8).
-            </p>
-          </div>
-
-          <div className="space-y-1.5">
-            <Label htmlFor={yearId}>Учётный год</Label>
-            <Input
-              id={yearId}
-              name="year"
-              type="number"
-              min={2000}
-              max={2100}
-              defaultValue={CURRENT_YEAR}
-              className="w-32"
-            />
-          </div>
-
-          <Button type="submit" className="w-full max-w-md">
-            Построить мой график
-          </Button>
-        </form>
-
-        <ImportBlock onImported={onCreated} />
-      </div>
-      <footer className="flex justify-center pt-8 pb-8 md:ml-auto md:pb-2">
-        <ThemeToggle/>
+      {/* Подвал той же формы, что на посадочной: линейка через всю
+          ширину и переключатель темы у края. Без неё переключатель повисал
+          пятном посреди пустого поля под первым экраном. */}
+      <footer className="mt-8 border-t border-rule">
+        <div className="mx-auto flex w-full max-w-4xl justify-center px-6 py-8 sm:justify-end xl:max-w-6xl 2xl:max-w-7xl">
+          <ThemeToggle />
+        </div>
       </footer>
     </>
   );
@@ -315,18 +164,19 @@ function ImportBlock({ onImported }: { onImported: (profile: StoredProfile) => v
   const [fileName, setFileName] = useState<string | null>(null);
 
   return (
-    <section aria-labelledby="restore" className="space-y-2 border-t border-rule pt-6">
-      <h3 id="restore" className="font-display text-xs font-bold uppercase tracking-wide text-ink-muted">
+    <section aria-labelledby="restore" className="space-y-2">
+      <h3
+        id="restore"
+        className="font-display text-xs font-bold uppercase tracking-wide text-ink-muted"
+      >
         Уже заполняли раньше
       </h3>
-      <p className="max-w-prose text-sm text-ink-muted">
+      <p className="text-sm text-ink-muted">
         Если вы сохраняли профиль в файл, загрузите его — график, отсутствия и
         правки календаря вернутся как были.
       </p>
       {error ? (
-        <p className="max-w-prose rounded-sm border-l-2 border-signal bg-signal-soft px-4 py-3 text-sm">
-          {error}
-        </p>
+        <p className="rounded-xl bg-signal-soft px-4 py-3 text-sm">{error}</p>
       ) : null}
       {/* Нативная кнопка выбора файла подписана браузером — «Choose File»
           в русском интерфейсе, и поменять эту надпись со страницы нельзя.
@@ -365,51 +215,5 @@ function ImportBlock({ onImported }: { onImported: (profile: StoredProfile) => v
         </span>
       </div>
     </section>
-  );
-}
-
-function Choice<T extends string>({
-  legend,
-  value,
-  options,
-  labels,
-  hints,
-  hint,
-  onChange,
-}: {
-  legend: string;
-  value: T;
-  options: readonly T[];
-  labels: Record<T, string>;
-  hints?: Record<T, string>;
-  hint?: string;
-  onChange: (next: T) => void;
-}) {
-  return (
-    <fieldset className="space-y-2">
-      <legend className="font-display text-xs font-bold uppercase tracking-wide text-ink-muted">
-        {legend}
-      </legend>
-      <div className="space-y-2">
-        {options.map((option) => (
-          <label key={option} className="flex max-w-md items-start gap-2 text-sm cursor-pointer">
-            <input
-              type="radio"
-              name={legend}
-              checked={value === option}
-              onChange={() => onChange(option)}
-              className="mt-1"
-            />
-            <span>
-              {labels[option]}
-              {hints ? (
-                <span className="block text-xs text-ink-muted">{hints[option]}</span>
-              ) : null}
-            </span>
-          </label>
-        ))}
-      </div>
-      {hint ? <p className="max-w-md text-xs text-ink-muted">{hint}</p> : null}
-    </fieldset>
   );
 }

@@ -2,9 +2,12 @@
 
 import { useState } from "react";
 
+import Link from "next/link";
+
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
-import { exportProfile, type StoredProfile } from "../storage/profile";
+import type { StoredProfile } from "../storage/profile";
+import { saveProfileToFile } from "./save-to-file";
 
 /**
  * Где лежат данные и как их не потерять.
@@ -30,18 +33,6 @@ export interface ProfileFooterProps {
 export function ProfileFooter({ profile, onForget }: ProfileFooterProps) {
   const [confirming, setConfirming] = useState(false);
 
-  function download() {
-    const blob = new Blob([exportProfile(profile)], {
-      type: "application/json",
-    });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `табель-${profile.accountingYear}-караул-${profile.guardNumber}.json`;
-    link.click();
-    URL.revokeObjectURL(url);
-  }
-
   return (
     <footer className="space-y-4 border-t border-rule pt-6 text-sm">
       <div className="max-w-prose space-y-2">
@@ -62,7 +53,7 @@ export function ProfileFooter({ profile, onForget }: ProfileFooterProps) {
       </div>
 
       <div className="flex flex-wrap items-center gap-3">
-        <Button type="button" variant="outline" size="sm" onClick={download} className="rounded-xl">
+        <Button type="button" variant="outline" size="sm" onClick={() => saveProfileToFile(profile)} className="rounded-xl">
           Сохранить профиль в файл
         </Button>
 
@@ -98,13 +89,21 @@ export function ProfileFooter({ profile, onForget }: ProfileFooterProps) {
           <ThemeToggle/>
         </div>
 
-        <p className="max-w-prose text-xs text-ink-muted text-center">
+        <p className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-xs text-ink-muted">
+          <Link href="/terms" className="text-ink-muted">
+            Условия использования
+          </Link>
+          <Link href="/terms#data" className="text-ink-muted">
+            Данные и приватность
+          </Link>
+          <span>
           Последнее изменение:{" "}
           {new Date(profile.savedAt).toLocaleString("ru-RU", {
             dateStyle: "long",
             timeStyle: "short",
           })}
           .
+          </span>
         </p>
       </div>
     </footer>

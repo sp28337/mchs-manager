@@ -16,14 +16,34 @@ import { cn } from "@/lib/utils/cn";
  *   вернуться;
  * * переключатель темы — относится к окну, а не к содержимому, и потому
  *   не имеет своего места ни на одной из страниц;
- * * действие страницы (`action`) — на лендинге это переход к расчёту, на
- *   калькуляторе выгрузка профиля в файл. Второе здесь не для симметрии:
- *   данные лежат только в браузере, и очистка кэша стирает год внесённых
- *   отпусков. Кнопка, которая от этого спасает, обязана быть видна не
- *   только в подвале, докуда ещё нужно долистать.
+ * * действие страницы (`action`) — на лендинге это переход к расчёту.
+ *
+ * Четвёртое — кнопки рабочего экрана (`tools`): настройки и выгрузка
+ * профиля в файл. Они ни к какому месту страницы не
+ * привязаны и нужны отовсюду. Выгрузка здесь не для симметрии: данные
+ * лежат только в браузере, и очистка кэша стирает год внесённых отпусков
+ * — кнопка, которая от этого спасает, обязана быть видна не только в
+ * подвале, докуда ещё нужно долистать.
  *
  * Больше ничего. Разделов у сайта два, и меню из двух пунктов — это
  * не навигация, а украшение.
+ *
+ * --- Что уступает место на телефоне --------------------------------------
+ *
+ * Название остаётся при любой ширине, а тесно становится только от кнопок
+ * рабочего экрана. Поэтому сжимаются они: с порога `xs` (448 точек, там
+ * подписи перестают влезать) от кнопок остаются значки, а имя действия
+ * достаётся программе чтения из `aria-label`.
+ *
+ * --- Почему строка не переносится ----------------------------------------
+ *
+ * Раньше строка была `flex-wrap`, и на промежуточных ширинах кнопки
+ * съезжали под название второй строкой — шапка высотой в шесть рем с
+ * содержимым, вылезающим за неё. Перенос убран совсем: ширины подобраны
+ * так, чтобы содержимое влезало на любом экране, а порядок сжатия задан
+ * заранее — сперва кнопки теряют подписи, потом уходит название сайта.
+ * Сами кнопки не жмутся никогда: сжатая кнопка это обрезанная подпись, а
+ * не выигранное место.
  *
  * --- Почему она не липкая ------------------------------------------------
  *
@@ -32,40 +52,46 @@ import { cn } from "@/lib/utils/cn";
  */
 
 export interface SiteHeaderProps {
-  /** Подпись под названием: чем именно занята эта страница. */
-  tagline?: string;
   /** Главное действие страницы. */
   action?: ReactNode;
+  /** Кнопки рабочего экрана: настройки и выгрузка. */
+  tools?: ReactNode;
   className?: string;
 }
 
-export function SiteHeader({ tagline, action, className }: SiteHeaderProps) {
+export function SiteHeader({ action, tools, className }: SiteHeaderProps) {
   return (
-    <header className={cn("fixed w-full z-100  bg-linear-to-b from-paper from-50% to-transparent h-24", className)}>
-      <div className="mx-auto flex w-full flex-wrap items-center gap-x-6 gap-y-3 px-6 py-3 2xl:max-w-[2000px]">
+    <header className={cn("fixed z-100 w-full bg-paper", className)}>
+      <div className="mx-auto flex h-16 w-full flex-nowrap items-center gap-x-4 py-3 px-6 sm:gap-x-6 2xl:max-w-[2000px]">
         <Link
           href="/"
-          className="group flex items-center gap-2.5 rounded-xs focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-trace"
+          className="group flex min-w-0 items-center gap-2.5 rounded-xs focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-trace"
         >
-          <Logo className="size-7 text-signal" />
-          <span className="leading-none">
-            <span className="block font-display text-black/80 dark:text-ink text-sm font-bold uppercase leading-tight tracking-wide group-hover:underline">
-              {/* Пробел перед второй строкой намеренный: `block` делит
-                  строки визуально, но в тексте они склеиваются, и
-                  программа чтения произносит «переработкидля». */}
-              Калькулятор переработки{" "}
-              <span className="block text-ink-muted">для пожарных</span>
+          <Logo className="size-7 shrink-0 text-signal" />
+          <span className="min-w-0 leading-none">
+            <span className="block font-display text-black/80 dark:text-ink text-xl font-bold uppercase leading-tight tracking-wide">
+              {/* Пробел перед «1 3» намеренный: в тексте строки
+                  склеиваются, и программа чтения произносит «График13».
+                  Разделитель под курсором проявляется на месте пробела —
+                  поэтому он и стоит в разметке всегда, просто прозрачным:
+                  появись он только при наведении, название дёргалось бы
+                  по ширине. */}
+              График{" "}
+              <span className="text-ink-muted">
+                1
+                <span className="font-extralight opacity-0 transition-opacity duration-200 group-hover:opacity-100">
+                  |
+                </span>
+                3
+              </span>
             </span>
           </span>
         </Link>
 
-        {tagline ? (
-          <p className="hidden max-w-xs border-l border-rule pl-6 text-xs text-ink-muted lg:block">
-            {tagline}
-          </p>
-        ) : null}
-
-        <div className="ml-auto flex items-center gap-3">
+        {/* Кнопки не сжимаются ни при какой ширине: сжатая кнопка — это
+            обрезанная подпись, а не выигранное место. Уступает название. */}
+        <div className="ml-auto flex shrink-0 items-center gap-2 sm:gap-3">
+          {tools}
           {action}
         </div>
       </div>

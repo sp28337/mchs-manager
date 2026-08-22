@@ -2,10 +2,9 @@
 
 import { Button } from "@/components/ui/button";
 import { SiteHeader } from "@/components/shared/site-header";
-import { Save } from "lucide-react";
 import { RegisterForm } from "./register-form";
 import { Workspace } from "./workspace";
-import { exportProfile, type StoredProfile } from "../storage/profile";
+import { HeaderToolsBones, WorkspaceSkeleton } from "./workspace-skeleton";
 import { useProfile } from "../storage/use-profile";
 
 /**
@@ -23,91 +22,58 @@ import { useProfile } from "../storage/use-profile";
  * Что показать — анкету или расчёт — известно только из `localStorage`, а
  * его на сервере нет. Отрисовать на сервере догадку и заменить её в
  * браузере значило бы мигнуть человеку анкетой поверх готового расчёта.
+ *
+ * --- Что человек видит, пока профиля нет --------------------------------
+ *
+ * Пока профиль читается — заглушку рабочего экрана: те же места и те же
+ * размеры, что займут числа и сетки. Если профиля нет — главную с окном
+ * «Создать профиль» поверх неё (`RegisterForm`), а не отдельный раздел с
+ * анкетой: человек нажал кнопку и получил окно, а не новую страницу.
+ *
+ * --- Почему шапку рисует не этот экран, а рабочий ------------------------
+ *
+ * У расчёта в шапке стоят настройки и выгрузка профиля, а обеим нужен
+ * профиль ВЫБРАННОГО периода — он живёт в рабочем экране вместе с выбором.
+ * Поднять его сюда значило бы поднять сюда и половину рабочего экрана. Поэтому
+ * рабочий экран отдаёт шапку и содержимое разом, а здесь остаются шапки
+ * двух других состояний, где в них ничего, кроме знака, и нет.
  */
 export function CalculatorScreen() {
   const { state, save, update, forget } = useProfile();
 
-  const profile = state.status === "ok" ? state.profile : null;
+  if (state.status === "ok") {
+    return <Workspace profile={state.profile} onChange={update} onForget={forget} />;
+  }
 
   return (
     <>
-      <SiteHeader
-        tagline={
-          profile
-            ? `${profile.accountingYear} год · ${profile.guardNumber}-й караул`
-            : ""
-        }
-        action={profile ? <SaveToFile profile={profile} /> : null}
-      />
+      {/* Пока профиль читается, в шапке стоят кости тех же двух кнопок,
+          что появятся у расчёта: пустая шапка, в которой они возникают
+          разом, читается как рывок ровно так же, как пустое поле под ней.
+          Без профиля (анкета) кнопкам браться неоткуда — им нечего
+          настраивать и нечего выгружать. */}
+      <SiteHeader tools={state.status === "loading" ? <HeaderToolsBones /> : undefined} />
 
       {state.status === "loading" ? (
-        <main className="mx-auto w-full max-w-4xl px-6 pb-12 pt-26 xl:max-w-6xl 2xl:max-w-7xl">
-          <p className="text-sm text-ink-muted">Открываем ваш профиль…</p>
-        </main>
-      ) : profile ? (
-        <main className="mx-auto w-full max-w-4xl space-y-10 px-6 pb-12 pt-26 xl:max-w-6xl 2xl:max-w-7xl">
-          <header className="space-y-1">
-            <p className="font-mono text-xs uppercase tracking-widest text-ink-faint">
-              {profile.accountingYear} год · {profile.guardNumber}-й караул
-            </p>
-            <h1 className="text-3xl leading-tight">{profile.displayName}</h1>
-          </header>
-
-          <Workspace profile={profile} onChange={update} onForget={forget} />
-        </main>
+        <>
+          {/* Заглушка молчит для глаз, но не для диктора: тому нужна не
+              раскладка, а одно слово о том, чего он ждёт. */}
+          <p className="sr-only" role="status">
+            Открываем ваш профиль
+          </p>
+          <WorkspaceSkeleton />
+        </>
       ) : (
-        <main className="mx-auto w-full max-w-3xl space-y-10 px-6 pb-12 pt-22">
-          <header className="space-y-3">
-            <h1 className="text-3xl leading-tight">Расскажите о себе</h1>
-            <p className="max-w-prose text-ink-muted">
-              Семь ответов — и приложение построит ваш график караула на год,
-              посчитает норму по производственному календарю и покажет, где
-              выданный табель с ней расходится.
-            </p>
-          </header>
-
-          {state.status === "corrupt" ? (
-            <CorruptNotice reason={state.reason} raw={state.raw} />
-          ) : null}
-
-          <RegisterForm onCreated={save} />
-        </main>
+        <RegisterForm
+          onCreated={save}
+          notice={
+            state.status === "corrupt" ? (
+              <CorruptNotice reason={state.reason} raw={state.raw} />
+            ) : null
+          }
+        />
       )}
     </>
-  );
-}
-
-/**
- * Выгрузка профиля прямо из шапки.
- *
- * Хранилище браузера — единственное место, где живут данные, и очистка
- * кэша стирает год внесённых отпусков. Такую кнопку нельзя держать только
- * в подвале, докуда нужно долистать двенадцать календарных сеток.
- */
-function SaveToFile({ profile }: { profile: StoredProfile }) {
-  return (
-    <Button
-      type="button"
-      variant="outline"
-      className="rounded-xl"
-      size="sm"
-      onClick={() => {
-        const blob = new Blob([exportProfile(profile)], { type: "application/json" });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement("a");
-        link.href = url;
-        link.download = `табель-${profile.accountingYear}-караул-${profile.guardNumber}.json`;
-        link.click();
-        URL.revokeObjectURL(url);
-      }}
-    >
-      <div className="hidden xxs:block">
-        Сохранить в файл
-      </div>
-      <div className="xxs:hidden xs:block">
-        <Save className="size-5"/>
-      </div>
-    </Button>
   );
 }
 
@@ -120,7 +86,7 @@ function SaveToFile({ profile }: { profile: StoredProfile }) {
  */
 function CorruptNotice({ reason, raw }: { reason: string; raw: string }) {
   return (
-    <section className="max-w-prose space-y-3 rounded-sm border-l-2 border-signal bg-signal-soft px-4 py-3 text-sm">
+    <section className="space-y-3 rounded-xl bg-signal-soft px-4 py-3 text-sm">
       <p>
         <strong>Сохранённый профиль не читается</strong> ({reason}). Заполните
         анкету заново — или сначала заберите старые данные файлом, чтобы

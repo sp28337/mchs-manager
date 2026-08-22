@@ -12,7 +12,7 @@ on:
   workflow_call:
     inputs:
       site-url:
-        description: https://pererabotal.ru
+        description: https://grafik13.ru
         required: true
         type: string
     outputs:
@@ -59,10 +59,11 @@ jobs:
 
       - name: Build
         env:
-          # На pull request адреса нет — собираем с заглушкой только чтобы
-          # убедиться, что сборка проходит. Артефакт такой сборки в прод не
-          # попадёт: CD вызывает этот же workflow со своим `site-url`.
-          NEXT_PUBLIC_SITE_URL: 'https://pererabotal.ru'
+          # Адрес нужен на сборке: из него собираются canonical, Open Graph
+          # и sitemap. Когда workflow вызывают из CD, он приходит входным
+          # параметром; на pull request параметра нет, и берётся боевой
+          # адрес — артефакт такой сборки в прод всё равно не попадает.
+          NEXT_PUBLIC_SITE_URL: ${{ inputs.site-url || 'https://grafik13.ru' }}
         run: pnpm build
 
       - name: Upload release artifact

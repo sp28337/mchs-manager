@@ -2,7 +2,7 @@
  * Раскладка суточной смены по календарным суткам.
  *
  * Числа здесь — не из кода, а с часов: смена с развода 08:30 идёт до 08:30
- * следующих суток, значит в сутках заступления её 15,5 часа (из них ночных
+ * следующих суток, значит в сутках начала её 15,5 часа (из них ночных
  * два: с 22:00 до 24:00), а в следующих 8,5 (из них ночных шесть: с 00:00
  * до 06:00).
  */
@@ -31,12 +31,12 @@ describe("время развода", () => {
     expect(parseTimeOfDay("")).toBeNull();
   });
 
-  test("умолчание — 08:30", () => {
-    expect(DEFAULT_SHIFT_START).toBe("08:30");
-    expect(shiftStartMinute(undefined)).toBe(510);
+  test("умолчание — 08:00", () => {
+    expect(DEFAULT_SHIFT_START).toBe("08:00");
+    expect(shiftStartMinute(undefined)).toBe(480);
     // Неразбираемое значение не должно ронять расчёт: профиль мог прийти из
     // файла, а без часов считать нечего.
-    expect(shiftStartMinute("ерунда")).toBe(510);
+    expect(shiftStartMinute("ерунда")).toBe(480);
   });
 });
 
@@ -49,7 +49,7 @@ describe("развод в 08:30", () => {
     expect(parts[1]!.day).toBe("2026-04-01");
   });
 
-  test("сутки заступления получают 15,5 часа, следующие 8,5", () => {
+  test("сутки начала смены получают 15,5 часа, следующие 8,5", () => {
     expect(minutesToHours(parts[0]!.minutes).toString()).toBe("15.5");
     expect(minutesToHours(parts[1]!.minutes).toString()).toBe("8.5");
     expect(parts[0]!.minutes + parts[1]!.minutes).toBe(1440);
@@ -62,7 +62,7 @@ describe("развод в 08:30", () => {
     expect(minutesToHours(parts[1]!.nightMinutes).toString()).toBe("6");
   });
 
-  test("заступление помечено только в первых сутках", () => {
+  test("начало смены помечено только в первых сутках", () => {
     expect(parts[0]!.isStart).toBe(true);
     expect(parts[1]!.isStart).toBe(false);
   });

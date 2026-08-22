@@ -5,6 +5,7 @@ import { useEffect, useId, useRef, useState } from "react";
 
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useAnchoredPosition } from "@/lib/hooks/use-anchored-position";
 import { cn } from "@/lib/utils/cn";
 
 import { formatDateRu, maskDateRu, parseDateRu } from "../domain/format";
@@ -32,7 +33,7 @@ import { MonthGrid } from "./month-grid";
  *
  * --- Почему оба способа, а не один --------------------------------------
  *
- * Даты отпуска человек переписывает из приказа, где они уже написаны
+ * Даты отпуска человек переписывает из документа, где они уже написаны
  * цифрами: набрать восемь цифр быстрее, чем щёлкать по календарю. А вот
  * границу больничного или «ту субботу, которую сделали рабочей» он ищет
  * глазами по неделям, и тут нужен именно календарь. Отобрать любой из двух
@@ -48,8 +49,15 @@ import { MonthGrid } from "./month-grid";
  */
 
 export interface DateFieldProps {
-  label: string;
-  name: string;
+  /**
+   * Подпись поля.
+   *
+   * Необязательна: в настройках подпись рисует общая для всех полей
+   * обёртка `Field`, и своя здесь была бы второй.
+   */
+  label?: string;
+  /** Идентификатор поля, если подпись рисуется снаружи. */
+  id?: string;
   required?: boolean;
   defaultValue?: IsoDate;
   /** Границы допустимого — включительно. */
@@ -62,7 +70,7 @@ export interface DateFieldProps {
 
 export function DateField({
   label,
-  name,
+  id,
   required = false,
   defaultValue,
   min,
@@ -71,7 +79,10 @@ export function DateField({
   className,
   onChange,
 }: DateFieldProps) {
-  const inputId = useId();
+  const ownId = useId();
+  // Своё имя только тогда, когда его не дали снаружи: иначе подпись из
+  // `Field` указывала бы в пустоту, и по ней нельзя было бы попасть в поле.
+  const inputId = id ?? ownId;
   const hintId = useId();
   const errorId = useId();
 
@@ -102,7 +113,7 @@ export function DateField({
 
   return (
     <div className={cn("space-y-1.5", className)}>
-      <Label htmlFor={inputId}>{label}</Label>
+      {label ? <Label htmlFor={inputId}>{label}</Label> : null}
 
       <div className="relative flex items-start gap-1">
         <Input
@@ -133,24 +144,22 @@ export function DateField({
         />
       </div>
 
-      {/* Разобранное значение — единственное, что уходит в форму. Пустая
-          строка при неверном вводе намеренна: пусть форма откажет, чем
-          примет наполовину набранную дату. */}
-      <input type="hidden" name={name} value={valid ? parsed : ""} />
-
       {hint ? (
-        <p id={hintId} className="max-w-44 text-xs text-ink-muted">
+        <p id={hintId} className="max-w-xs text-xs text-ink-muted">
           {hint}
         </p>
       ) : null}
       {problem ? (
-        <p id={errorId} role="alert" className="max-w-44 text-xs text-signal">
+        <p id={errorId} role="alert" className="max-w-xs text-xs text-signal">
           {problem}
         </p>
       ) : null}
     </div>
   );
 }
+
+/** Ширина всплывающего календаря; она же нужна для расчёта его места. */
+const POPOVER_WIDTH = 288;
 
 /**
  * Всплывающий календарь.
@@ -159,6 +168,9 @@ export function DateField({
  * же, что показывает график смен, — и тянуть ради неё пакет с порталами и
  * позиционированием значило бы добавить сотню килобайт к приложению,
  * которое целиком весит меньше.
+ *
+ * Место считается хуком `useAnchoredPosition` — там же объяснено, почему
+ * слой `fixed`, а не `absolute`.
  */
 function CalendarPopover({
   open,
@@ -181,6 +193,13 @@ function CalendarPopover({
 
   const anchor = selected ?? clamp(todayIso(), min, max);
   const [view, setView] = useState({ year: yearOf(anchor), month: monthIndex(anchor) + 1 });
+
+  // Правым краем к кнопке: поле даты стоит слева в своей колонке, и
+  // календарь, разложенный вправо, вылез бы за неё.
+  const place = useAnchoredPosition(open, trigger, {
+    width: POPOVER_WIDTH,
+    align: "right",
+  });
 
   // Закрытие по щелчку мимо и по Escape. Без первого календарь остаётся
   // висеть над формой и перекрывает соседнее поле; без второго с
@@ -251,7 +270,15 @@ function CalendarPopover({
           id={dialogId}
           role="dialog"
           aria-label="Выбор даты"
-          className="absolute right-0 top-10 z-20 w-72 space-y-2 rounded-sm border border-rule-strong bg-paper-raised p-3 shadow-lg"
+          style={{
+            top: place?.top ?? 0,
+            left: place?.left ?? 0,
+            width: POPOVER_WIDTH,
+            // До первого замера календарь не показывается: иначе он мигнул
+            // бы в левом верхнем углу окна и прыгнул на место.
+            visibility: place ? "visible" : "hidden",
+          }}
+          className="fixed z-50 space-y-2 rounded-sm border border-rule-strong bg-paper-raised p-3 shadow-lg"
         >
           <div className="flex items-center justify-between gap-2">
             <Arrow label="Предыдущий месяц" onClick={() => step(-1)}>

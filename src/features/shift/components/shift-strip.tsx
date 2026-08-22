@@ -1,9 +1,16 @@
 import type { ReactNode } from "react";
 
+import { BoneText } from "@/components/ui/bone";
+import { CountedNumber } from "@/components/ui/counted-number";
 import { cn } from "@/lib/utils/cn";
 
 import type { DayRecord, PeriodCalculation } from "../domain/calculation";
-import { ZERO, formatHours as hours, type Decimal } from "../domain/decimal";
+import {
+  ZERO,
+  formatHours as hours,
+  formatHoursTrim as hoursTrim,
+  type Decimal,
+} from "../domain/decimal";
 import {
   datesInRange,
   dayOfMonth,
@@ -24,12 +31,11 @@ import type { AbsenceKind, CalloutKind } from "../domain/value-objects";
  * Полное название стоит в подписи клетки и в легенде.
  */
 const CALLOUT_MARK: Record<CalloutKind, string> = {
-  competition: "СОР",
-  training_camp: "СБР",
-  reserve: "РЕЗ",
-  public_event: "МЕР",
-  elections: "ВЫБ",
-  other_callout: "ВЫЗ",
+  competition: "СР",
+  training_camp: "СБ",
+  reserve: "РЗ",
+  public_event: "МР",
+  elections: "ВБ",
 };
 
 /**
@@ -49,9 +55,6 @@ const ABSENCE_MARK: Record<AbsenceKind, string> = {
   sick_leave: "Б",
   time_off_in_lieu: "В",
   study_leave: "У",
-  unpaid_leave: "ДО",
-  business_trip: "К",
-  other_excused: "ОСВ",
 };
 
 /**
@@ -66,13 +69,10 @@ const ABSENCE_MARK: Record<AbsenceKind, string> = {
  * на следующий вопрос — почему именно не состоялась.
  */
 const ABSENCE_TONE: Record<AbsenceKind, string> = {
-  annual_leave: "border-dashed border-signal bg-signal-soft text-signal",
-  sick_leave: "border-dashed border-sick bg-sick-soft text-sick",
-  time_off_in_lieu: "border-dashed border-rest bg-rest-soft text-rest",
-  study_leave: "border-dashed border-study bg-study-soft text-study",
-  unpaid_leave: "border-dashed border-unpaid bg-unpaid-soft text-unpaid",
-  business_trip: "border-dashed border-trip bg-trip-soft text-trip",
-  other_excused: "border-dashed border-excused bg-excused-soft text-excused",
+  annual_leave: "border-dashed border-signal/50 bg-signal-soft text-signal rounded-md",
+  sick_leave: "border-dashed border-sick/50 bg-sick-soft text-sick rounded-md",
+  time_off_in_lieu: "border-dashed border-rest/50 bg-rest-soft text-rest rounded-md",
+  study_leave: "border-dashed border-study/50 bg-study-soft text-study rounded-md",
 };
 import { MONTH_NAMES } from "./month-names";
 import { MonthGrid, WEEKDAY_LABELS } from "./month-grid";
@@ -83,7 +83,7 @@ import { MonthGrid, WEEKDAY_LABELS } from "./month-grid";
  * --- Почему счёт идёт по СУТКАМ, а не по сменам --------------------------
  *
  * Смена длится сутки с развода, поэтому лежит в двух календарных днях. При
- * разводе в 08:30 смена, заступившая 31 марта, отдаёт марту 15,5 часа, а
+ * начале в 08:30 смена, начавшаяся 31 марта, отдаёт марту 15,5 часа, а
  * 8,5 — апрелю, и ночных в марте у неё два часа, а не шесть.
  *
  * Раньше блок брал часы смены целиком и приписывал их месяцу ЗАСТУПЛЕНИЯ.
@@ -101,8 +101,8 @@ import { MonthGrid, WEEKDAY_LABELS } from "./month-grid";
  *
  * --- Почему месяцы в колонках -------------------------------------------
  *
- * Учётный период — полугодие или год (Приказ № 308 п. 2, № 307 п. 7), то
- * есть шесть-двенадцать блоков. В одну колонку они дают полосу в
+ * Учётный период — квартал, полугодие или год (ст. 104 ТК РФ), то есть
+ * от трёх до двенадцати блоков. В одну колонку они дают полосу в
  * несколько экранов, где соседние месяцы невозможно сравнить глазом.
  */
 
@@ -117,11 +117,24 @@ interface MonthGroup {
   nightHours: Decimal;
   /** Часы вызовов помимо графика — они уже входят в `workedHours`. */
   calloutHours: Decimal;
-  /** Пропущенных по уважительной причине заступлений. */
+  /** Пропущенных по уважительной причине смен. */
   absentStarts: number;
 }
 
-export function ShiftStrip({ calculation }: { calculation: PeriodCalculation }) {
+export function ShiftStrip({
+  calculation,
+  gridClassName,
+  dayNotes,
+  onPickDay,
+}: {
+  calculation: PeriodCalculation;
+  /** Раскладка месяцев: её задаёт масштаб, общий с календарём года. */
+  gridClassName?: string;
+  /** Заметки к суткам: их наличие видно прямо в клетке. */
+  dayNotes: Readonly<Record<string, string>>;
+  /** Нажатие по клетке: открыть правку этих суток. */
+  onPickDay: (day: IsoDate) => void;
+}) {
   // На одни сутки может прийтись и смена, и вызов: человека вызвали на
   // соревнования в свой выходной или сняли со смены на выборы. Карта
   // «день → одна запись» такой день теряла бы молча.
@@ -167,24 +180,24 @@ export function ShiftStrip({ calculation }: { calculation: PeriodCalculation }) 
   }
 
   return (
-    <div className="space-y-6">
-      <div className="grid grid-cols-1 gap-x-6 gap-y-5 sm:grid-cols-2 lg:grid-cols-3">
-        {groups.map((group, index) => (
+    <div className="space-y-6 xl:flex xl:gap-4 xl:flex-row-reverse">
+      <div
+        className={
+          gridClassName ??
+          "grid grid-cols-1 gap-x-6 gap-y-5 sm:grid-cols-2 lg:grid-cols-3"
+        }
+      >
+        {groups.map((group) => (
           <MonthGrid
             key={`${group.year}-${group.month}`}
-            title={
-              <>
-                {MONTH_NAMES[group.month]}
-                {/* Год подписывается только там, где он меняется:
-                    повторять его у каждого месяца — шум. */}
-                {index === 0 || group.year !== groups[index - 1]?.year ? (
-                  <span className="text-ink-muted"> {group.year}</span>
-                ) : null}
-              </>
-            }
+            title={MONTH_NAMES[group.month]}
             meta={
               <>
-                {group.starts} см · {hours(group.workedHours)} ч
+                {/* Числа месяца доходят до нового значения, как и числа
+                    полосы итога: человек отмечает отпуск в апреле и видит
+                    движение там, где апрель, — а не только наверху. */}
+                <CountedNumber value={String(group.starts)} /> см /{" "}
+                <CountedNumber value={hours(group.workedHours)} /> ч
                 {/* Раньше здесь стояло «· −8», и человек справедливо
                     прочитал это как «минус 8 часов». Число пропущенных
                     смен обязано быть подписано словом: приложение
@@ -192,44 +205,100 @@ export function ShiftStrip({ calculation }: { calculation: PeriodCalculation }) 
                     молча, и двусмысленность в его собственном итоге —
                     последнее, что тут допустимо. */}
                 {group.absentStarts > 0 ? (
-                  <span className="text-signal"> · пропущено {group.absentStarts}</span>
+                  <span className="text-signal">
+                    {" / пропущено "}
+                    <CountedNumber value={String(group.absentStarts)} />
+                  </span>
                 ) : null}
                 {group.calloutHours.greaterThan(0) ? (
-                  <span className="text-trace"> · вызовы {hours(group.calloutHours)}</span>
+                  <span className="text-trace">
+                    {" / вызовы "}
+                    <CountedNumber value={hours(group.calloutHours)} />
+                  </span>
                 ) : null}
                 {group.nightHours.greaterThan(0) ? (
-                  <span className="text-ink-faint"> · ноч. {hours(group.nightHours)}</span>
+                  <span className="text-ink-faint">
+                    {" / ноч. "}
+                    <CountedNumber value={hours(group.nightHours)} />
+                  </span>
                 ) : null}
               </>
             }
             days={group.days}
-            renderDay={(day) => <DayCell day={day} records={byDay.get(day) ?? []} />}
+            joined
+            renderDay={(day, corners) => (
+              <DayCell
+                day={day}
+                records={byDay.get(day) ?? []}
+                note={dayNotes[day]}
+                corners={corners}
+                onPick={() => onPickDay(day)}
+              />
+            )}
           />
         ))}
       </div>
+      <ShiftLegend />
+    </div>
+  );
+}
 
-      {/* Легенда разложена на три группы с заголовками, а не в одну
-          полосу из восемнадцати значков. Группа отвечает на вопрос «что
-          вообще бывает в клетке»: смена, пропуск, вызов, — и внутри
-          группы человек уже ищет свой случай. Прежняя сплошная строка
-          заставляла перебирать всё подряд. */}
-      <div className="space-y-4 border-t border-rule pt-4">
-        <LegendGroup title="Смены по графику">
+/**
+ * Легенда графика.
+ *
+ * --- Почему она вынесена отдельно ----------------------------------------
+ *
+ * Её показывает не только график, но и ЗАГЛУШКА рабочего экрана — та, что
+ * стоит на месте расчёта, пока читается профиль. Заглушка обязана занимать
+ * ровно то же место, что займёт содержимое, иначе страница дёрнется в
+ * момент подстановки. Повторить разметку второй раз значило бы обречь эти
+ * две копии разойтись, а вместе с ними — и раскладку.
+ *
+ * Поэтому разметка одна, а `skeleton` меняет только НАПОЛНЕНИЕ: подписи
+ * набраны тем же кеглем и теми же словами, но прозрачны и лежат на
+ * плашке. Размеры от этого не меняются ни на точку.
+ *
+ * Легенда разложена на три группы с заголовками, а не в одну полосу из
+ * восемнадцати значков. Группа отвечает на вопрос «что вообще бывает в
+ * клетке»: смена, пропуск, вызов, — и внутри группы человек уже ищет свой
+ * случай. Прежняя сплошная строка заставляла перебирать всё подряд.
+ *
+ * На широком экране легенда стоит колонкой слева и держится на месте, как
+ * числа над ней: `sticky` под самой полосой итога. Иначе, доведя календарь
+ * до сентября, человек читает клетку «СБ» и уже не помнит, что она значит,
+ * — легенда уехала за верхний край. `self-start` обязателен: в строке
+ * `flex` элемент по умолчанию растянут на всю высоту сетки, и прилипать
+ * ему просто некуда.
+ */
+export function ShiftLegend({ skeleton }: { skeleton?: boolean }) {
+  return (
+    <div className="space-y-4 border-t border-rule xl:border-none translate-y-1
+                      xl:max-w-70 xl:w-full xl:flex xl:flex-col xl:gap-6 xl:sticky
+                      xl:top-32 xl:self-start bg-paper-raised/70 p-4 rounded-xl lg:min-w-92.5">
+        <LegendGroup title="Смены по графику" skeleton={skeleton}>
           <Legend
-            className="border-verify bg-verify-soft text-verify"
-            label="Заступление на смену"
+            skeleton={skeleton}
+            className="border-verify/25 bg-verify/30 text-verify"
+            label="Начало смены"
           />
           <Legend
-            className="border-verify/50 bg-verify-soft/50 text-verify"
-            label="Продолжение смены, заступившей накануне"
+            skeleton={skeleton}
+            className="border-verify/15 bg-verify/5 text-verify"
+            label="Продолжение смены"
           />
-          <Legend className="border-rule text-ink-faint" mark="В" label="Выходной день" />
+          <Legend
+            skeleton={skeleton}
+            className="border-rule text-ink-faint bg-paper-raised"
+            mark="В"
+            label="Выходной день"
+          />
         </LegendGroup>
 
-        <LegendGroup title="Смены по графику, пропущенные по уважительной причине">
+        <LegendGroup title="Отсутствие по уважительной причине" skeleton={skeleton}>
           {(Object.keys(ABSENCE_MARK) as AbsenceKind[]).map((kind) => (
             <Legend
               key={kind}
+              skeleton={skeleton}
               className={ABSENCE_TONE[kind]}
               mark={ABSENCE_MARK[kind]}
               label={ABSENCE_LABELS[kind]}
@@ -237,30 +306,31 @@ export function ShiftStrip({ calculation }: { calculation: PeriodCalculation }) 
           ))}
         </LegendGroup>
 
-        <LegendGroup title="Вызовы помимо графика">
+        <LegendGroup title="Работа помимо графика" skeleton={skeleton}>
           {(Object.keys(CALLOUT_MARK) as CalloutKind[]).map((kind) => (
             <Legend
               key={kind}
+              skeleton={skeleton}
               className="border-trace bg-trace-soft text-trace"
               mark={CALLOUT_MARK[kind]}
               label={CALLOUT_LABELS[kind]}
             />
           ))}
           <Legend
+            skeleton={skeleton}
             className="border-2 border-trace bg-trace-soft text-trace"
-            mark="СОР РЕЗ"
-            label="Несколько вызовов в одни сутки — часы складываются"
+            mark="СР РЗ"
+            label="Несколько выходов в сутки"
           />
         </LegendGroup>
       </div>
-    </div>
   );
 }
 
 /**
  * Коды вызовов, ужатые до ширины клетки.
  *
- * Один вызов — свой код целиком. Два — оба, потому что «СОР РЕЗ» человек
+ * Один вызов — свой код целиком. Два — оба, потому что «СР РЗ» человек
  * прочитает и в сорока пикселях. Три и больше в клетку не влезут, и вместо
  * каши там стоит «СОР+2»: счётчик честно говорит, что вызовов больше, а
  * какие именно — скажет подпись при наведении.
@@ -271,7 +341,20 @@ function calloutMarks(kinds: readonly CalloutKind[]): string {
   return `${marks[0]}+${marks.length - 1}`;
 }
 
-function DayCell({ day, records }: { day: IsoDate; records: readonly DayRecord[] }) {
+function DayCell({
+  day,
+  records,
+  note,
+  corners,
+  onPick,
+}: {
+  day: IsoDate;
+  records: readonly DayRecord[];
+  note?: string;
+  /** Скругления углов: их знает сетка, а не клетка. */
+  corners: string;
+  onPick: () => void;
+}) {
   const date = dayOfMonth(day);
   const weekdayName = WEEKDAY_LABELS[weekday(day)] ?? "";
   // Родительный падеж, а не «2 март»: подпись читают вслух экранные
@@ -294,26 +377,29 @@ function DayCell({ day, records }: { day: IsoDate; records: readonly DayRecord[]
   //
   // Подпись называет и то, чего в клетке не видно: ночные часы и куда
   // именно вызывали. Именно эти две вещи чаще всего расходятся с табелем.
+  // Числа в подписи — те же, что в клетке: целые часы без нулевого
+  // хвоста. Иначе диктор произносит «шестнадцать целых ноль десятых» там,
+  // где на экране написано «16».
   const parts: string[] = [];
   if (shift) {
     parts.push(
       shift.absenceKind
         ? `${shift.isShiftStart ? "смена по графику" : "продолжение смены"}, ${ABSENCE_LABELS[shift.absenceKind]}`
-        : `${shift.isShiftStart ? "заступление" : "продолжение смены"}, ${hours(shift.hours)} ч` +
+        : `${shift.isShiftStart ? "начало смены" : "продолжение смены"}, ${hoursTrim(shift.hours)} ч` +
             (shift.nightHours.greaterThan(0)
-              ? `, из них ночных ${hours(shift.nightHours)}`
+              ? `, из них ночных ${hoursTrim(shift.nightHours)}`
               : ""),
     );
   }
   for (const callout of callouts) {
     if (callout.calloutKind) {
-      parts.push(`${CALLOUT_LABELS[callout.calloutKind]}, ${hours(callout.hours)} ч`);
+      parts.push(`${CALLOUT_LABELS[callout.calloutKind]}, ${hoursTrim(callout.hours)} ч`);
     }
   }
   // Итог суток называется, когда слагаемых больше одного: спор идёт именно
   // о том, всё ли посчитано, и сумма отвечает на это прямо.
   if (parts.length > 1 && workedHours.greaterThan(0)) {
-    parts.push(`всего за сутки ${hours(workedHours)} ч`);
+    parts.push(`всего за сутки ${hoursTrim(workedHours)} ч`);
   }
   const label = `${where} — ${parts.length > 0 ? parts.join("; ") : "свободные сутки"}`;
 
@@ -322,51 +408,73 @@ function DayCell({ day, records }: { day: IsoDate; records: readonly DayRecord[]
     record.calloutKind ? [record.calloutKind] : [],
   );
 
+  // Заметка названа в подписи, а не только помечена углом: угла незрячий
+  // читатель не увидит, а знать о записи ему нужно так же.
+  const full = note ? `${label}. Заметка: ${note}` : label;
+
   return (
-    <div
-      title={label}
+    <button
+      type="button"
+      title={full}
+      onClick={onPick}
       className={cn(
-        "flex min-w-0 flex-col items-center justify-center rounded-xs border py-0.5 leading-tight",
-        "lg:aspect-square lg:py-0",
-        records.length === 0 && "border-rule text-ink-faint",
-        // Хвост смены отличается от заступления бледностью, а не другим
-        // цветом: это те же отработанные часы, и разный цвет читался бы как
-        // разный род времени.
-        worked && shift.isShiftStart && "border-verify bg-verify-soft text-verify",
-        worked && !shift.isShiftStart && "border-verify/50 bg-verify-soft/50 text-verify",
-        shift?.absenceKind && ABSENCE_TONE[shift.absenceKind],
-        // Вызов перебивает вид смены: он редок, и человек ищет глазами
-        // именно его. Часы при этом не теряются — они в подписи и в итоге
-        // месяца.
-        calloutKinds.length > 0 && "border-trace bg-trace-soft text-trace",
-        // Несколько вызовов в одни сутки видно и без чтения кодов: рамка
-        // становится плотнее. Это единственные сутки, где человеку нужно
-        // навести курсор, — пусть они сами просят об этом.
-        calloutKinds.length > 1 && "border-2",
+        "relative flex aspect-square w-full min-w-0 cursor-pointer flex-col",
+        "items-center justify-center leading-tight bg-paper-raised",
+        corners,
       )}
     >
-      <span className="sr-only">{label}</span>
-      <span aria-hidden className="font-mono text-xs">
-        {date}
-      </span>
-      <span
-        aria-hidden
-        className={cn(
-          "font-mono",
-          // Два кода вместо одного набираются мельче и теснее: иначе
-          // «СОР РЕЗ» распирает клетку и ломает сетку месяца.
-          calloutKinds.length > 1 ? "text-[8px] tracking-tighter" : "text-[9px]",
+      <div className={
+        cn(
+          "flex flex-col",
+          "relative flex aspect-square w-full min-w-0 cursor-pointer flex-col",
+          "items-center justify-center leading-tight",
+          "hover:outline-2 hover:-outline-offset-2 hover:outline-ink/40",
+          "focus-visible:outline-2 focus-visible:-outline-offset-2",
+          "focus-visible:outline-trace",
+          records.length === 0 && "bg-paper-raised text-ink-faint rounded-md",
+          worked && shift.isShiftStart && "bg-verify/30 text-verify rounded-md border border-verify/25",
+          worked && !shift.isShiftStart && "bg-verify/5 text-verify rounded-md border border-verify/15",
+          shift?.absenceKind && cn("border", ABSENCE_TONE[shift.absenceKind]),
+          calloutKinds.length > 0 && "border border-trace bg-trace-soft text-trace",
+          calloutKinds.length > 1 && "border-2 rounded-xl",
         )}
       >
-        {calloutKinds.length > 0
-          ? calloutMarks(calloutKinds)
-          : records.length === 0
-            ? "В"
-            : shift?.absenceKind
-              ? ABSENCE_MARK[shift.absenceKind]
-              : hours(workedHours).replace(",00", "")}
-      </span>
-    </div>
+        <span className="sr-only">{full}</span>
+        {/* Угол вместо цвета: цвет клетки уже занят видом суток, и второй
+            смысл на том же канале означал бы, что ни один не читается. */}
+        {note ? (
+          <span
+            aria-hidden
+            className="absolute right-0 top-0 size-0 border-l-4 border-t-4 border-l-transparent border-t-trace"
+          />
+        ) : null}
+        {/* Кегль задан в `em`, а не в пикселях: клетка растёт и уменьшается
+            вместе с масштабом сетки, и число обязано расти вместе с ней —
+            иначе на крупном масштабе получается пустой квадрат с мелкой
+            цифрой посередине. Размер в `em` берётся от сетки, которая его и
+            назначает. */}
+        <span aria-hidden className="font-mono text-[1em]">
+          {date}
+        </span>
+        <span
+          aria-hidden
+          className={cn(
+            "font-mono",
+            // Два кода вместо одного набираются мельче и теснее: иначе
+            // «СОР РЕЗ» распирает клетку и ломает сетку месяца.
+            calloutKinds.length > 1 ? "text-[0.67em] tracking-tighter" : "text-[0.75em]",
+          )}
+        >
+          {calloutKinds.length > 0
+            ? calloutMarks(calloutKinds)
+            : records.length === 0
+              ? "В"
+              : shift?.absenceKind
+                ? ABSENCE_MARK[shift.absenceKind]
+                : hoursTrim(workedHours)}
+        </span>
+      </div>
+    </button>
   );
 }
 
@@ -378,13 +486,21 @@ function DayCell({ day, records }: { day: IsoDate; records: readonly DayRecord[]
  * подписью к одному значку и занимало полстроки, хотя относится ко всем
  * семи сразу.
  */
-function LegendGroup({ title, children }: { title: string; children: ReactNode }) {
+function LegendGroup({
+  title,
+  children,
+  skeleton,
+}: {
+  title: string;
+  children: ReactNode;
+  skeleton?: boolean;
+}) {
   return (
     <div className="space-y-1.5">
       <p className="font-display text-[11px] font-bold uppercase tracking-wide text-ink-muted">
-        {title}
+        <BoneText skeleton={skeleton}>{title}</BoneText>
       </p>
-      <dl className="flex flex-wrap gap-x-5 gap-y-1.5 text-xs">{children}</dl>
+      <dl className="flex flex-wrap xl:flex-col gap-x-5 gap-y-1.5 text-xs">{children}</dl>
     </div>
   );
 }
@@ -400,10 +516,12 @@ function Legend({
   className,
   label,
   mark,
+  skeleton,
 }: {
   className: string;
   label: string;
   mark?: string;
+  skeleton?: boolean;
 }) {
   return (
     <div className="flex items-center gap-2">
@@ -412,14 +530,19 @@ function Legend({
         className={cn(
           // Ширина по содержимому, а не квадрат: «ДО» и «ОСВ» в
           // шестнадцати пикселях сминаются в кашу.
-          "inline-flex h-4 min-w-4 shrink-0 items-center justify-center rounded-xs border px-1",
-          "font-mono text-[9px] leading-none",
-          className,
+          "inline-flex h-6 min-w-6 shrink-0 items-center justify-center rounded-xs border px-2",
+          "font-mono text-[12px] leading-none",
+          // В заглушке цвет вида суток заменён общим тоном плашки: он
+          // ничего не значит, пока расчёта нет, а размеры образца — те же.
+          skeleton ? "skeleton-bone border-transparent bg-paper-raised text-transparent" : className,
+          "rounded-sm"
         )}
       >
         {mark}
       </dt>
-      <dd className="text-ink-muted">{label}</dd>
+      <dd className="text-ink-muted">
+        <BoneText skeleton={skeleton}>{label}</BoneText>
+      </dd>
     </div>
   );
 }
