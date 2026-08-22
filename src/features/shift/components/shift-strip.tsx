@@ -422,10 +422,6 @@ export function ShiftLegend({ skeleton }: { skeleton?: boolean }) {
               label={ABSENCE_LABELS[kind]}
             />
           ))}
-          {/* Один образец на все четыре вида, а не ещё четыре строки:
-              ослабление у них общее и означает одно и то же — освобождение
-              идёт, а смены в эти сутки и так не было. Взят отпуск как
-              самый частый. */}
         </LegendGroup>
 
         <LegendGroup title="Работа помимо графика" skeleton={skeleton}>

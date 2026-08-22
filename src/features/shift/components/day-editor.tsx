@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Modal } from "@/components/ui/modal";
 import { Select } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 
 import { parseHours } from "../domain/decimal";
 import { formatDateRu, formatDayMonthRu } from "../domain/format";
@@ -155,7 +156,6 @@ function DayForm({
   onClose: () => void;
 }) {
   const choiceId = useId();
-  const shiftId = useId();
   const dayTypeId = useId();
   const hoursId = useId();
   const noteId = useId();
@@ -404,25 +404,26 @@ function DayForm({
         {/* Смена или выходной — самый частый вопрос на сетке графика после
             отпуска: подмены и переносы случаются, и цикл о них не знает.
 
-            Список, а не кнопка «убрать смену»: состояний два, и человек
-            должен видеть оба вместе с тем, какое из них стоит сейчас.
-            Перенос смены делается тем же списком дважды — снять здесь,
-            назначить там, — а на самой сетке одним перетаскиванием. */}
+            Тумблер, а не список: состояние здесь ровно одно и оно двоичное
+            — «смена в этот день» либо есть, либо нет. Список из двух
+            значений заставлял его РАСКРЫВАТЬ, чтобы увидеть второе, и
+            выбирать словом там, где достаточно положения кружка.
+
+            «Выходной» при этом не пропал: он назван подписью под
+            тумблером, потому что это его смысл, а не второе состояние
+            какого-то другого переключателя. */}
         {kind === "shifts" ? (
         <div className="space-y-1.5">
-          <Label htmlFor={shiftId}>Смена в этот день</Label>
-          <Select
-            id={shiftId}
-            value={shift ? "shift" : "off"}
-            onChange={(event) => setShift(event.target.value === "shift")}
-          >
-            <option value="shift">Рабочая смена{onCycle ? " — по графику" : ""}</option>
-            <option value="off">Выходной{onCycle ? "" : " — по графику"}</option>
-          </Select>
+          <Switch
+            checked={shift}
+            onChange={setShift}
+            label="Смена в этот день"
+            className="font-display text-xs font-bold uppercase tracking-wide"
+          />
           <p className="text-xs text-ink-muted" aria-live="polite">
             {shift
               ? "Сутки идут в отработанное целиком: 24 часа с начала смены."
-              : "Сутки свободны: ни часов, ни ночных."}
+              : "Выходной: ни часов, ни ночных."}
             {shift === onCycle
               ? " Это и есть график по циклу."
               : ` По циклу здесь ${onCycle ? "смена" : "выходной"} — ваша правка это переопределит.`}
