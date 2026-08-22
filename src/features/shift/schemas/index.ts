@@ -15,7 +15,6 @@ export type {
 } from "../domain/value-objects";
 export type { DayType, CalendarDay } from "../domain/production-calendar";
 export type { PeriodCalculation, ShiftRecord } from "../domain/calculation";
-export type { Discrepancy } from "../domain/reconciliation";
 export { formatHours as hours } from "../domain/decimal";
 
 import type { AbsenceKind, CalloutKind } from "../domain/value-objects";

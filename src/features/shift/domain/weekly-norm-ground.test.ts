@@ -100,7 +100,6 @@ describe("основание недельной нормы", () => {
       dayNotes: {},
       liveMode: false,
       overtimeInDays: false,
-      reported: null,
       savedAt: "2026-01-01T00:00:00.000Z",
     };
 
