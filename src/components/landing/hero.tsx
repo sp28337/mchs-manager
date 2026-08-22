@@ -46,7 +46,7 @@ export function LandingHero({ cta }: { cta: ReactNode }) {
     // без этого поля он уезжал под неё. На широком экране первый экран
     // высотой в окно и содержимое в нём отцентровано, там хватает и
     // меньшего.
-    <section className="hero-band grid gap-10 pt-18 sm:items-center h-screen md:min-h-[84lvh] md:grid-cols-2 md:gap-8 md:pt-15 md:pb-0 lg:gap-12">
+    <section className="hero-band grid gap-10 pt-18 sm:items-center md:min-h-[84lvh] md:grid-cols-2 md:gap-8 md:pt-15 md:pb-0 lg:gap-12">
       {/* Текст поверх плоскости: дальний край месяца уходит под него, и
           порядок слоёв должен быть назван явно. */}
       <div className="relative z-10 space-y-6 max-md:order-2 flex flex-col justify-center">

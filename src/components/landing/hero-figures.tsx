@@ -5,7 +5,7 @@ import { useEffect, useState, type CSSProperties } from "react";
 import { useCountedNumber } from "@/components/ui/counted-number";
 import { cn } from "@/lib/utils/cn";
 
-import { HERO_STAGES, HERO_STAGE_AT, type HeroStage } from "./hero-scenario";
+import { HERO_FIGURES_AT, HERO_STAGES, type HeroStage } from "./hero-scenario";
 
 /**
  * Три числа первого экрана — той же плашкой, что в расчёте.
@@ -136,7 +136,7 @@ function useStageTimeline(): HeroStage {
     }
 
     const timers = HERO_STAGES.slice(1).map((_, step) =>
-      window.setTimeout(() => setIndex(step + 1), HERO_STAGE_AT[step + 1] ?? 0),
+      window.setTimeout(() => setIndex(step + 1), HERO_FIGURES_AT[step + 1] ?? 0),
     );
 
     return () => timers.forEach((timer) => window.clearTimeout(timer));
