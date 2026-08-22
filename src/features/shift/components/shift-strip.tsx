@@ -119,15 +119,26 @@ interface MonthGroup {
   calloutHours: Decimal;
   /** Пропущенных по уважительной причине смен. */
   absentStarts: number;
+  /** Сутки месяца, которые уже наступили. Ноль — месяц целиком впереди. */
+  counted: number;
 }
 
 export function ShiftStrip({
   calculation,
+  upcoming,
   gridClassName,
   dayNotes,
   onPickDay,
 }: {
   calculation: PeriodCalculation;
+  /**
+   * Первые сутки, которые ещё не наступили («Онлайн»), или `null`.
+   *
+   * Сетка их ПОКАЗЫВАЕТ — гашёными и в штриховку, — но в свои итоги не
+   * берёт: числа месяца обязаны совпадать с полосой итога наверху, а та
+   * считает по сегодняшний день.
+   */
+  upcoming?: IsoDate | null;
   /** Раскладка месяцев: её задаёт масштаб, общий с календарём года. */
   gridClassName?: string;
   /** Заметки к суткам: их наличие видно прямо в клетке. */
@@ -160,11 +171,18 @@ export function ShiftStrip({
         nightHours: ZERO,
         calloutHours: ZERO,
         absentStarts: 0,
+        counted: 0,
       };
       groups.push(group);
     }
 
     group.days.push(day);
+
+    // Ещё не наступившие сутки в итог месяца не идут. Показать их и тут же
+    // сложить в «отработано» значило бы объявить отработанным то, что
+    // только предстоит.
+    if (upcoming != null && day >= upcoming) continue;
+    group.counted += 1;
 
     for (const record of byDay.get(day) ?? []) {
       if (record.isShiftStart) {
@@ -192,6 +210,14 @@ export function ShiftStrip({
             key={`${group.year}-${group.month}`}
             title={MONTH_NAMES[group.month]}
             meta={
+              // Месяц, который весь ещё впереди, не показывает «0 см /
+              // 0,0 ч» над сеткой, полной смен: ноль здесь означал бы «не
+              // отработано», а верно — «не наступило». Месяц наполовину
+              // прошедший показывает числа как есть: это итог на сегодня,
+              // тот же, что в полосе наверху.
+              group.counted === 0 ? (
+                <span className="text-ink-faint">ещё не наступил</span>
+              ) : (
               <>
                 {/* Числа месяца доходят до нового значения, как и числа
                     полосы итога: человек отмечает отпуск в апреле и видит
@@ -223,6 +249,7 @@ export function ShiftStrip({
                   </span>
                 ) : null}
               </>
+              )
             }
             days={group.days}
             joined
@@ -232,6 +259,7 @@ export function ShiftStrip({
                 records={byDay.get(day) ?? []}
                 note={dayNotes[day]}
                 corners={corners}
+                upcoming={upcoming != null && day >= upcoming}
                 onPick={() => onPickDay(day)}
               />
             )}
@@ -346,6 +374,7 @@ function DayCell({
   records,
   note,
   corners,
+  upcoming,
   onPick,
 }: {
   day: IsoDate;
@@ -353,6 +382,8 @@ function DayCell({
   note?: string;
   /** Скругления углов: их знает сетка, а не клетка. */
   corners: string;
+  /** Сутки ещё не наступили: показаны, но в расчёт не входят. */
+  upcoming?: boolean;
   onPick: () => void;
 }) {
   const date = dayOfMonth(day);
@@ -410,7 +441,12 @@ function DayCell({
 
   // Заметка названа в подписи, а не только помечена углом: угла незрячий
   // читатель не увидит, а знать о записи ему нужно так же.
-  const full = note ? `${label}. Заметка: ${note}` : label;
+  //
+  // То же и с гашёными сутками: штриховку он не увидит, а «в расчёт не
+  // входит» — единственное, что эти сутки отличает.
+  const full =
+    (note ? `${label}. Заметка: ${note}` : label) +
+    (upcoming ? ". Ещё не наступило, в расчёт не входит" : "");
 
   return (
     <button
@@ -437,6 +473,10 @@ function DayCell({
           shift?.absenceKind && cn("border", ABSENCE_TONE[shift.absenceKind]),
           calloutKinds.length > 0 && "border border-trace bg-trace-soft text-trace",
           calloutKinds.length > 1 && "border-2 rounded-xl",
+          // Гашение — последним: оно поверх любого вида суток, каким бы
+          // тот ни был. Сами цвета остаются, чтобы будущую смену было
+          // видно сменой, а не пустой клеткой.
+          upcoming && "cell-upcoming",
         )}
       >
         <span className="sr-only">{full}</span>

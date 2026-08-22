@@ -106,6 +106,7 @@ export type YearViewKind = "shifts" | "calendar";
 export function YearView({
   profile,
   calculation,
+  upcoming,
   view,
   onViewChange,
   onChange,
@@ -116,7 +117,16 @@ export function YearView({
   onPickDay,
 }: {
   profile: StoredProfile;
+  /**
+   * Расчёт на ВЕСЬ показанный отрезок — в режиме «Онлайн» он шире того,
+   * по которому посчитаны числа наверху.
+   */
   calculation: PeriodCalculation;
+  /**
+   * Первые сутки, которые ещё не наступили, или `null`, если режима
+   * «Онлайн» нет. Обе сетки гасят всё с этого дня и дальше.
+   */
+  upcoming: IsoDate | null;
   view: YearViewKind;
   onViewChange: (view: YearViewKind) => void;
   onChange: (change: (previous: StoredProfile) => StoredProfile) => void;
@@ -239,6 +249,7 @@ export function YearView({
       {view === "shifts" ? (
         <ShiftStrip
           calculation={calculation}
+          upcoming={upcoming}
           gridClassName={grid}
           dayNotes={profile.dayNotes}
           onPickDay={onPickDay}
@@ -247,6 +258,12 @@ export function YearView({
         <YearCalendarEditor
           profile={profile}
           onChange={onChange}
+          // Календарь показывает тот же отрезок, что и график: человек
+          // переключается между ними, сверяя смену с видом дня, и разные
+          // отрезки означали бы, что сверять нечего.
+          periodStart={calculation.periodStart}
+          periodEnd={calculation.periodEnd}
+          upcoming={upcoming}
           gridClassName={grid}
           dayNotes={profile.dayNotes}
           onPickDay={onPickDay}
