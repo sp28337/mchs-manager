@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 
+import { COUNT_MS } from "@/lib/motion";
+
 /**
  * Число, которое не подменяется, а доходит до нового значения.
  *
@@ -37,15 +39,6 @@ import { useEffect, useRef, useState } from "react";
  * страдают — движение здесь помогает заметить перемену, но не является
  * самой переменой.
  */
-
-/**
- * Сколько идёт перещёлкивание.
- *
- * Меньше полусекунды глаз не успевает поймать, больше секунды — правка в
- * календаре начинает казаться медленной: человек ставит отметку и ждёт
- * ответа.
- */
-export const COUNT_MS = 900;
 
 export function CountedNumber({ value }: { value: string }) {
   return <>{useCountedNumber(value)}</>;
