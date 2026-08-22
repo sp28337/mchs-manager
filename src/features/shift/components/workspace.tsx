@@ -133,6 +133,30 @@ export function Workspace({ profile, onChange, onForget }: WorkspaceProps) {
     [profile, periodStart, periodEnd],
   );
 
+  /**
+   * Второй расчёт — на ВЕСЬ выбранный отрезок, для сетки.
+   *
+   * Числа наверху обрезаны сегодняшним днём, и это правильно: столько
+   * переработки набежало на сегодня. Но сетка, обрезанная вместе с ними,
+   * теряла остаток периода целиком — человек включал «Онлайн» и половина
+   * квартала пропадала с экрана. Своих смен на будущее он при этом не
+   * видел вовсе, хотя они известны: цикл четырёхдневный и достраивается
+   * куда угодно.
+   *
+   * Поэтому расчётов два. Этот знает весь отрезок и нужен только для
+   * показа; сутки после сегодняшних сетка гасит и в свои итоги не берёт.
+   * Когда режим выключен, второго расчёта нет вовсе — отрезки совпадают.
+   */
+  const shown = useMemo(
+    () =>
+      profile.liveMode ? calculateFor(profile, chosen.periodStart, chosen.periodEnd) : null,
+    [profile, chosen.periodStart, chosen.periodEnd],
+  );
+
+  // Первые сутки, которые ещё не наступили. Граница расчёта исключающая,
+  // то есть это ровно она: «по сегодня» кончается завтрашним днём.
+  const upcoming = profile.liveMode ? periodEnd : null;
+
 
   // Что показано на сетке года. Живёт здесь, а не в самой сетке, потому
   // что от этого зависят заголовок и подпись раздела вокруг неё.
@@ -193,7 +217,8 @@ export function Workspace({ profile, onChange, onForget }: WorkspaceProps) {
         </h2>
         <YearView
           profile={profile}
-          calculation={calculation}
+          calculation={shown ?? calculation}
+          upcoming={upcoming}
           view={yearView}
           onViewChange={setYearView}
           onChange={onChange}
