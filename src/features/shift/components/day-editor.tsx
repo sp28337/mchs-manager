@@ -13,7 +13,12 @@ import { parseHours } from "../domain/decimal";
 import { formatDateRu, formatDayMonthRu } from "../domain/format";
 import type { IsoDate } from "../domain/plain-date";
 import { statutoryCalendar } from "../domain/production-calendar";
-import { ABSENCE_KIND_BASIS, CALLOUT_KIND_BASIS } from "../domain/value-objects";
+import {
+  ABSENCE_KIND_BASIS,
+  CALLOUT_KIND_BASIS,
+  onShiftCycle,
+} from "../domain/value-objects";
+import { withShiftAt } from "../model/derive";
 import {
   ABSENCE_EFFECT,
   ABSENCE_LABELS,
@@ -150,6 +155,7 @@ function DayForm({
   onClose: () => void;
 }) {
   const choiceId = useId();
+  const shiftId = useId();
   const dayTypeId = useId();
   const hoursId = useId();
   const noteId = useId();
@@ -158,7 +164,16 @@ function DayForm({
   const lawful = statutoryCalendar(profile.accountingYear).get(day) ?? "working";
   const effective = profile.calendarOverrides[day] ?? lawful;
 
+  // Смена в этих сутках: по циклу или как поправил человек.
+  const onCycle = onShiftCycle(profile.firstShiftDate, day);
+  const scheduled = profile.shiftOverrides[day] === "shift"
+    ? true
+    : profile.shiftOverrides[day] === "off"
+      ? false
+      : onCycle;
+
   const [dayType, setDayType] = useState<DayType>(effective);
+  const [shift, setShift] = useState(scheduled);
   const [choice, setChoice] = useState<DayChoice>("none");
   const [endsOn, setEndsOn] = useState<IsoDate | null>(day);
   const [hours, setHours] = useState(DEFAULT_CALLOUT_HOURS);
@@ -197,6 +212,18 @@ function DayForm({
     return { ...next, calendarOverrides };
   }
 
+  /**
+   * Смена в этих сутках.
+   *
+   * Только на сетке графика: на производственном календаре о сменах не
+   * спрашивают, и записывать там нечего.
+   */
+  function saveShift(next: StoredProfile): StoredProfile {
+    if (kind !== "shifts") return next;
+    if (shift === scheduled) return next;
+    return withShiftAt(next, day, shift);
+  }
+
   function saveNote(next: StoredProfile, text: string): StoredProfile {
     const dayNotes = { ...next.dayNotes };
     // Пустая заметка не хранится: иначе профиль обрастал бы пустыми
@@ -210,7 +237,7 @@ function DayForm({
     const target = day;
 
     if (choice === "none") {
-      onChange((previous) => saveDayType(saveNote(previous, note)));
+      onChange((previous) => saveShift(saveDayType(saveNote(previous, note))));
       onClose();
       return;
     }
@@ -239,6 +266,7 @@ function DayForm({
       }
 
       onChange((previous) =>
+        saveShift(
         saveDayType(
         saveNote(
           {
@@ -249,6 +277,7 @@ function DayForm({
             ],
           },
           note,
+        ),
         ),
         ),
       );
@@ -265,6 +294,7 @@ function DayForm({
       }
       const calloutKind = (parts?.[1] ?? "competition") as CalloutKind;
       onChange((previous) =>
+        saveShift(
         saveDayType(
         saveNote(
           {
@@ -281,6 +311,7 @@ function DayForm({
             ],
           },
           note,
+        ),
         ),
         ),
       );
@@ -366,6 +397,35 @@ function DayForm({
             {dayType === lawful
               ? " Это и есть значение по закону."
               : ` По закону здесь ${DAY_TYPE_LABELS[lawful].toLowerCase()} — ваша правка это переопределит.`}
+          </p>
+        </div>
+        ) : null}
+
+        {/* Смена или выходной — самый частый вопрос на сетке графика после
+            отпуска: подмены и переносы случаются, и цикл о них не знает.
+
+            Список, а не кнопка «убрать смену»: состояний два, и человек
+            должен видеть оба вместе с тем, какое из них стоит сейчас.
+            Перенос смены делается тем же списком дважды — снять здесь,
+            назначить там, — а на самой сетке одним перетаскиванием. */}
+        {kind === "shifts" ? (
+        <div className="space-y-1.5">
+          <Label htmlFor={shiftId}>Смена в этот день</Label>
+          <Select
+            id={shiftId}
+            value={shift ? "shift" : "off"}
+            onChange={(event) => setShift(event.target.value === "shift")}
+          >
+            <option value="shift">Рабочая смена{onCycle ? " — по графику" : ""}</option>
+            <option value="off">Выходной{onCycle ? "" : " — по графику"}</option>
+          </Select>
+          <p className="text-xs text-ink-muted" aria-live="polite">
+            {shift
+              ? "Сутки идут в отработанное целиком: 24 часа с начала смены."
+              : "Сутки свободны: ни часов, ни ночных."}
+            {shift === onCycle
+              ? " Это и есть график по циклу."
+              : ` По циклу здесь ${onCycle ? "смена" : "выходной"} — ваша правка это переопределит.`}
           </p>
         </div>
         ) : null}

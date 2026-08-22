@@ -115,6 +115,7 @@ export function YearView({
   month,
   onMonth,
   onPickDay,
+  onMoveShift,
 }: {
   profile: StoredProfile;
   /**
@@ -136,6 +137,8 @@ export function YearView({
   month: number | null;
   onMonth: (month: number | null) => void;
   onPickDay: (day: IsoDate) => void;
+  /** Перенос смены перетаскиванием по сетке графика. */
+  onMoveShift: (from: IsoDate, to: IsoDate) => void;
 }) {
   // Кнопки масштаба появляются с `lg` — тем же порогом, что и колонки в
   // сетке. Условие продублировано здесь, а не выведено из классов: узнать
@@ -253,6 +256,7 @@ export function YearView({
           gridClassName={grid}
           dayNotes={profile.dayNotes}
           onPickDay={onPickDay}
+          onMoveShift={onMoveShift}
         />
       ) : (
         <YearCalendarEditor

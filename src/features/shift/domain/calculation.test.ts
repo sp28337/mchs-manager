@@ -146,6 +146,66 @@ describe("график смен", () => {
     expect([...covered].sort()).toEqual(january);
   });
 
+  /**
+   * Правки графика: подмены и переносы.
+   *
+   * Цикл описывает график, а не жизнь. Проверяется здесь то, ради чего
+   * правки и заведены: цикл остаётся прежним, меняются только названные
+   * сутки.
+   */
+  test("снятая смена уходит из графика, а цикл остаётся", () => {
+    const cycle: ShiftCycle = {
+      knownShiftDate: "2026-01-01",
+      overrides: new Map([["2026-01-05", "off"]]),
+    };
+    const dates = shiftDates(cycle, "2026-01-01", "2026-02-01");
+
+    expect(dates).not.toContain("2026-01-05");
+    // Следующая смена по циклу на месте: снятие не сдвигает график.
+    expect(dates).toContain("2026-01-09");
+    expect(dates).toHaveLength(7);
+  });
+
+  test("назначенная смена встаёт в график и не двоится", () => {
+    const cycle: ShiftCycle = {
+      knownShiftDate: "2026-01-01",
+      overrides: new Map([
+        ["2026-01-07", "shift"],
+        // Сутки, где смена и так по циклу: запись ничего не добавляет, и
+        // второй раз эта дата в графике появиться не должна.
+        ["2026-01-09", "shift"],
+      ]),
+    };
+    const dates = shiftDates(cycle, "2026-01-01", "2026-02-01");
+
+    expect(dates).toContain("2026-01-07");
+    expect(dates.filter((day) => day === "2026-01-09")).toHaveLength(1);
+    expect(dates).toEqual([...dates].sort());
+  });
+
+  test("перенос смены: снята здесь, назначена там", () => {
+    const cycle: ShiftCycle = {
+      knownShiftDate: "2026-01-01",
+      overrides: new Map([
+        ["2026-01-05", "off"],
+        ["2026-01-07", "shift"],
+      ]),
+    };
+    const dates = shiftDates(cycle, "2026-01-01", "2026-02-01");
+
+    // Смен столько же, сколько было: перенос не создаёт и не теряет смену.
+    expect(dates).toHaveLength(8);
+    expect(dates.slice(0, 3)).toEqual(["2026-01-01", "2026-01-07", "2026-01-09"]);
+  });
+
+  test("правка за пределами периода в него не попадает", () => {
+    const cycle: ShiftCycle = {
+      knownShiftDate: "2026-01-01",
+      overrides: new Map([["2026-02-03", "shift"]]),
+    };
+    expect(shiftDates(cycle, "2026-01-01", "2026-02-01")).not.toContain("2026-02-03");
+  });
+
   test("пустой период не даёт смен", () => {
     const cycle: ShiftCycle = { knownShiftDate: "2026-03-01" };
     expect(shiftDates(cycle, "2026-03-01", "2026-03-01")).toEqual([]);
