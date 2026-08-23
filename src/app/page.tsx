@@ -13,7 +13,6 @@ import {
 
 import { LandingHero } from "@/components/landing/hero";
 import { HeroCta } from "@/components/landing/hero-cta";
-import { ToCalculator } from "@/components/landing/to-calculator";
 import { SiteHeader } from "@/components/shared/site-header";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 
@@ -202,18 +201,18 @@ const FAQ: { question: string; answer: string }[] = [
 export default function LandingPage() {
   return (
     <>
-      <SiteHeader
-        // action={
-        //   <ToCalculator size="sm">
-        //     {/* На 320 точках «Открыть расчёт» вместе со знаком не помещается,
-        //         и название переносится на вторую строку. Слово короче — но
-        //         всё же слово: значок без подписи здесь ничего не называет. */}
-        //     <span className="xxs:hidden">Расчёт</span>
-        //     <span className="hidden xxs:inline">Открыть расчёт</span>
-        //   </ToCalculator>
-        // }
-        className="items-center"
-      />
+      {/* Справа в шапке — выбор темы.
+          -------------------------------------------------------------
+          Здесь стояла кнопка «Открыть расчёт», и она была лишней: ровно
+          та же дверь, только крупнее и с объяснением, стоит на первом
+          экране в двух сантиметрах ниже. Две одинаковые кнопки в поле
+          зрения заставляют выбирать между ними, хотя выбора нет.
+
+          Тема же относится не к странице, а к окну, и своего места ни в
+          одном разделе не имеет. В подвале она была — то есть за
+          прокруткой всей страницы; человеку, которому режет глаза, идти
+          туда через четыре экрана. */}
+      <SiteHeader action={<ThemeToggle />} className="items-center" />
 
       <main className="mx-auto w-full max-w-4xl px-6 pb-16 xl:max-w-6xl 2xl:max-w-7xl">
         <LandingHero cta={<HeroCta />} />
@@ -337,12 +336,6 @@ export default function LandingPage() {
                 {EMAIL}
               </a>
             </p>
-          </div>
-          {/* На телефоне подвал идёт колонкой, и переключатель в ней
-              встаёт по центру, а не жмётся к левому краю. Ширину ему
-              держит он сам, здесь решается только место. */}
-          <div className="flex justify-center">
-            <ThemeToggle />
           </div>
         </div>
       </footer>
