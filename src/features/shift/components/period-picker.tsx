@@ -1,9 +1,13 @@
 "use client";
 
 import { CalendarRange } from "lucide-react";
-import { useState } from "react";
+import { useId, useState } from "react";
 
+import { Button } from "@/components/ui/button";
+import { Hint } from "@/components/ui/hint";
+import { Label } from "@/components/ui/label";
 import { Modal } from "@/components/ui/modal";
+import { Select } from "@/components/ui/select";
 import { cn } from "@/lib/utils/cn";
 
 import { todayIso, year as yearOf } from "../domain/plain-date";
@@ -12,33 +16,40 @@ import { ACCOUNTING_PERIODS } from "../domain/value-objects";
 import { MONTH_NAMES } from "./month-names";
 
 /**
- * Выбор периода — кнопкой и окном, а не списком.
+ * Выбор периода — кнопкой и окном с тремя списками.
  *
- * --- Почему не `select` ---------------------------------------------------
+ * --- Три вопроса, а не девятнадцать ответов -------------------------------
  *
- * Отрезков девятнадцать: год, два полугодия, четыре квартала и двенадцать
- * месяцев. В выпадающем списке это лента, по которой нужно вести курсор,
- * и рядом с ней стоял ВТОРОЙ список — «месяц внутри периода». Два органа
- * управления ради одного выбора, причём второй зависел от первого: выбрав
- * январь, человек не мог выбрать август, не вернувшись к первому списку.
+ * Отрезков и правда девятнадцать: год, два полугодия, четыре квартала и
+ * двенадцать месяцев. Разложенные плитками, все сразу, они и выглядели как
+ * девятнадцать: окно на три экрана прокрутки, по которому нужно искать
+ * глазами, где стоишь.
  *
- * Кнопка и окно решают это одним движением. В окне все отрезки видны
- * сразу, разложены по группам, и нажатие на любой закрывает окно с уже
- * применённым выбором: подтверждать нечего — выбор и есть подтверждение.
+ * Но вопросов здесь три, и они разной природы: КАКОЙ ГОД, КАКАЯ ЕГО ЧАСТЬ
+ * и НЕ СУЗИТЬ ЛИ ДО МЕСЯЦА. Три списка отвечают ровно на них: каждый
+ * показывает свой выбор строкой, не разворачиваясь, и окно умещается в
+ * ладонь. Плитки хороши, когда вариантов немного и они равноправны;
+ * здесь ни того, ни другого.
  *
- * --- Почему группы именно такие -------------------------------------------
+ * --- Почему именно в таком порядке ----------------------------------------
  *
- * «По годам», «Учётный период», «Помесячно» — сверху вниз это сужение, и
- * список так и читается: год, часть года, месяц. Год попал сюда из
- * настроек, где стоял списком «Учётный год» рядом с нормой, — то есть
- * выглядел свойством человека. Год не свойство, а то, ЗА ЧТО смотрим:
- * вопрос тот же, что «полугодие или март», и место у него то же.
+ * Учётный период первым: это главный вопрос экрана — именно по его итогу
+ * определяется переработка (ч. 3 ст. 104 ТК РФ). Год вторым: он объемлет
+ * период, но меняют его реже. Месяц последним, потому что он не про
+ * учёт, а про «посмотреть поближе».
  *
- * Раньше кварталы стояли отдельной группой «Только для сверки» — на
- * экране это была пометка на половине пунктов, которую нужно прочитать и
- * понять, прежде чем нажать. Приложение не решает за человека, какой у
- * него учётный период: его назначает работодатель (ч. 3 ст. 104 ТК РФ), и
- * человек его знает. Все три отрезка стоят одной группой.
+ * --- Почему месяц и период — один выбор -----------------------------------
+ *
+ * Это два ответа на один вопрос «что показать», и держать оба значило бы
+ * показывать одно, а считать другое. Поэтому у месяца есть пункт «Весь
+ * период»: выбрать его — то же самое, что снять месяц, и человеку не
+ * нужно догадываться, как вернуться к кварталу.
+ *
+ * --- Почему без кнопки «Применить» ----------------------------------------
+ *
+ * По той же причине, что и везде в приложении: выбор применяется сразу,
+ * и его видно за окном. «Готово» внизу только закрывает окно — на телефоне
+ * иначе пришлось бы целиться в крестик.
  *
  * --- Что показывает сама кнопка -------------------------------------------
  *
@@ -80,12 +91,12 @@ export function partLabel(
  *
  * Снаружи, на кнопке, год нужен: она отвечает на вопрос «что я сейчас
  * вижу», и «Год» без числа на него не отвечает. Внутри окна год стоит
- * отдельной строкой прямо над отрезками и выбирается там же, поэтому
- * «2026 год» рядом с выбранным 2026-м — это одно и то же число дважды, и
- * второй раз оно читается как ещё один выбор.
+ * своим списком строкой ниже, поэтому «2026 год» рядом с выбранным
+ * 2026-м — это одно и то же число дважды, и второй раз оно читается как
+ * ещё один выбор.
  */
 function partChoiceLabel(kind: AccountingPeriodKind, index: number): string {
-  if (kind === "year") return "Год";
+  if (kind === "year") return "Весь год";
   return `${index + 1}-${kind === "quarter" ? "й квартал" : "е полугодие"}`;
 }
 
@@ -119,13 +130,6 @@ function allParts(): StatutoryChoice[] {
   );
 }
 
-/** Во сколько колонок ставить отрезок такого вида: год во всю ширину. */
-const SPAN: Record<AccountingPeriodKind, string> = {
-  year: "col-span-2 sm:col-span-4",
-  half_year: "sm:col-span-2",
-  quarter: "",
-};
-
 export function PeriodPicker({
   accountingYear,
   onAccountingYear,
@@ -144,23 +148,21 @@ export function PeriodPicker({
   onMonth: (month: number | null) => void;
 }) {
   const [open, setOpen] = useState(false);
+  const partId = useId();
+  const yearId = useId();
+  const monthId = useId();
 
   const current =
     month === null
       ? partLabel(statutory.kind, statutory.index, accountingYear)
       : `${MONTH_NAMES[month]} ${accountingYear}`;
 
-  function pickPart(part: StatutoryChoice) {
-    onStatutory(part);
+  function pickPart(value: string) {
+    const [kind, index] = value.split(":");
+    onStatutory({ kind: kind as AccountingPeriodKind, index: Number(index) });
     // Месяц снимается: он и отрезок — два ответа на один вопрос, и
     // держать оба выбранными значило бы показывать один, а считать другой.
     onMonth(null);
-    setOpen(false);
-  }
-
-  function pickMonth(index: number) {
-    onMonth(index);
-    setOpen(false);
   }
 
   return (
@@ -182,68 +184,72 @@ export function PeriodPicker({
       </button>
 
       <Modal open={open} onClose={() => setOpen(false)} title="За какой период">
-        <div className="space-y-6">
-          {/* Год стоит первым: он объемлет и отрезок, и месяц, и читается
-              список сверху вниз как сужение — год, часть года, месяц.
-
-              Здесь он и живёт, а не в настройках, где стоял списком «Учётный
-              год». Там это выглядело свойством человека, тогда как год —
-              это то, ЗА ЧТО смотрим: тот же вопрос, что и «полугодие или
-              март», и место у него то же. */}
-          <section className="space-y-2">
-            <h3 className="font-display text-xs font-bold uppercase tracking-wide text-ink-muted">
-              По годам
-            </h3>
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-              {yearChoices(accountingYear).map((option) => (
-                <Choice
-                  key={option}
-                  active={option === accountingYear}
-                  onClick={() => {
-                    onAccountingYear(option);
-                    setOpen(false);
-                  }}
-                >
-                  {option}
-                </Choice>
-              ))}
-            </div>
-          </section>
-
-          <section className="space-y-2">
-            <h3 className="flex items-center gap-1.5 font-display text-xs font-bold uppercase tracking-wide text-ink-muted">
-              Учётный период
-            </h3>
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+        <div className="space-y-4">
+          <Field
+            id={partId}
+            label="Учётный период"
+            hint="По его итогу и определяется переработка (ч. 3 ст. 104 ТК РФ).
+                  Какой он у вас — устанавливает работодатель."
+          >
+            <Select
+              id={partId}
+              value={`${statutory.kind}:${statutory.index}`}
+              onChange={(event) => pickPart(event.target.value)}
+            >
               {allParts().map((part) => (
-                <Choice
-                  key={`${part.kind}:${part.index}`}
-                  className={SPAN[part.kind]}
-                  active={month === null && statutory.kind === part.kind && statutory.index === part.index}
-                  onClick={() => pickPart(part)}
-                >
+                <option key={`${part.kind}:${part.index}`} value={`${part.kind}:${part.index}`}>
                   {partChoiceLabel(part.kind, part.index)}
-                </Choice>
+                </option>
               ))}
-            </div>
-          </section>
+            </Select>
+          </Field>
 
-          <section className="space-y-2">
-            <h3 className="font-display text-xs font-bold uppercase tracking-wide text-ink-muted">
-              Помесячно
-            </h3>
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-              {MONTH_NAMES.map((name, index) => (
-                <Choice
-                  key={name}
-                  active={month === index}
-                  onClick={() => pickMonth(index)}
-                >
-                  {name}
-                </Choice>
+          {/* Год живёт здесь, а не в настройках, где стоял списком «Учётный
+              год». Там это выглядело свойством человека, тогда как год —
+              то, ЗА ЧТО смотрим: тот же вопрос, что и «полугодие или
+              март», и место у него то же. */}
+          <Field id={yearId} label="Год">
+            <Select
+              id={yearId}
+              value={String(accountingYear)}
+              onChange={(event) => onAccountingYear(Number(event.target.value))}
+            >
+              {yearChoices(accountingYear).map((option) => (
+                <option key={option} value={option}>
+                  {option}
+                </option>
               ))}
-            </div>
-          </section>
+            </Select>
+          </Field>
+
+          <Field
+            id={monthId}
+            label="Месяц"
+            hint="Сузить показанное до одного месяца. «Весь период» —
+                  вернуться к выбранному отрезку целиком."
+          >
+            <Select
+              id={monthId}
+              value={month === null ? "" : String(month)}
+              onChange={(event) => {
+                const value = event.target.value;
+                onMonth(value === "" ? null : Number(value));
+              }}
+            >
+              <option value="">Весь период</option>
+              {MONTH_NAMES.map((name, index) => (
+                <option key={name} value={index}>
+                  {name}
+                </option>
+              ))}
+            </Select>
+          </Field>
+
+          <div className="border-t border-rule pt-4">
+            <Button type="button" onClick={() => setOpen(false)}>
+              Готово
+            </Button>
+          </div>
         </div>
       </Modal>
     </>
@@ -251,37 +257,29 @@ export function PeriodPicker({
 }
 
 /**
- * Пункт выбора.
+ * Подпись и поле.
  *
- * Выбранный залит чернилами: это единственное залитое пятно в окне, и
- * потому видно, где человек стоит, без второго признака вроде галочки.
+ * Знак вопроса стоит у подписи, а не под полем: пояснение отвечает на
+ * вопрос «что здесь выбрать», и читают его до выбора, а не после.
  */
-function Choice({
-  active,
-  onClick,
+function Field({
+  id,
+  label,
+  hint,
   children,
-  className,
 }: {
-  active: boolean;
-  onClick: () => void;
+  id: string;
+  label: string;
+  hint?: React.ReactNode;
   children: React.ReactNode;
-  className?: string;
 }) {
   return (
-    <button
-      type="button"
-      aria-pressed={active}
-      onClick={onClick}
-      className={cn(
-        "h-10 cursor-pointer rounded-xl border px-3 text-sm transition-colors",
-        "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-trace",
-        active
-          ? "border-ink bg-ink font-medium text-paper"
-          : "border-rule-strong bg-paper-raised text-ink hover:bg-paper-sunken",
-        className,
-      )}
-    >
+    <div className="space-y-1.5">
+      <div className="flex items-center gap-1.5">
+        <Label htmlFor={id}>{label}</Label>
+        {hint ? <Hint label={`Что такое «${label}»`}>{hint}</Hint> : null}
+      </div>
       {children}
-    </button>
+    </div>
   );
 }
