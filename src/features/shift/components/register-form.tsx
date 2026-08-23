@@ -3,6 +3,7 @@
 import { useState, type ReactNode } from "react";
 
 import { LandingHero } from "@/components/landing/hero";
+import { CtaIcon } from "@/components/landing/to-calculator";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 
@@ -47,6 +48,7 @@ export function RegisterForm({ onCreated, notice }: RegisterFormProps) {
               className="rounded-xl text-base font-bold"
               onClick={() => setOpen(true)}
             >
+              <CtaIcon />
               Заполнить профиль
             </Button>
           }
