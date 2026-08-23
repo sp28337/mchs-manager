@@ -1,6 +1,12 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+} from "react";
 
 import { COUNT_MS } from "@/lib/motion";
 
@@ -59,13 +65,28 @@ import { COUNT_MS } from "@/lib/motion";
  */
 
 export function CountedNumber({ value }: { value: string }) {
-  const { shown, reserve } = useCountedNumber(value);
+  const { shown, reserve, roll, up } = useCountedNumber(value);
   return (
     <span
       className="inline-block text-right tabular-nums"
       style={{ minWidth: `${reserve}ch` }}
     >
-      {shown}
+      {[...shown].map((char, index) => (
+        <span
+          // Ключ считается от ПРАВОГО края: барабан у единиц один и тот
+          // же, сколько бы знаков ни было в числе. Смена знака в ключе
+          // означает новый элемент — с него и начинается оборот.
+          key={`${shown.length - 1 - index}:${char}`}
+          className={roll > 0 ? "digit-roll" : undefined}
+          style={
+            roll > 0
+              ? ({ "--roll": roll, "--dir": up ? 1 : -1 } as CSSProperties)
+              : undefined
+          }
+        >
+          {char}
+        </span>
+      ))}
     </span>
   );
 }
@@ -83,10 +104,14 @@ export function useCountedNumber(target: string): {
   /** Сколько знаков держать под число: столько же, сколько было в самой
    *  длинной его записи за жизнь этого экрана. */
   reserve: number;
+  /** Скорость барабана: 1 в начале хода, 0 в конце и в покое. */
+  roll: number;
+  /** Куда идёт счёт: вверх или вниз. */
+  up: boolean;
 } {
-  const [tween, setTween] = useState<string | null>(null);
+  const [tween, setTween] = useState<Tween | null>(null);
   const [reserved, setReserved] = useState(target.length);
-  const shown = tween ?? target;
+  const shown = tween?.text ?? target;
 
   // Что стоит на экране прямо сейчас. Отсчёт начинается отсюда, а не от
   // прежней цели: если человек правит календарь быстрее, чем идёт
@@ -105,6 +130,8 @@ export function useCountedNumber(target: string): {
       return;
     }
 
+    const up = to > from;
+
     // Первым кадром — то, что уже стоит на экране, а не новая цель.
     //
     // Без этой строки браузер успевал нарисовать итог ДО того, как к нему
@@ -115,7 +142,7 @@ export function useCountedNumber(target: string): {
     // Лишняя отрисовка здесь неизбежна: сравнить старое значение с новым
     // можно только после того, как новое пришло, а исправить картинку
     // нужно до того, как её увидят.
-    setTween(displayed.current);
+    setTween({ text: displayed.current, roll: 1, up });
 
     const digits = decimalsOf(target);
     const startedAt = performance.now();
@@ -128,7 +155,11 @@ export function useCountedNumber(target: string): {
         const eased = 1 - Math.pow(1 - passed, 3);
         const text = format(from + (to - from) * eased, digits);
         displayed.current = text;
-        setTween(text);
+        // Скорость барабана — производная того же замедления, приведённая
+        // к единице: полный ход в начале, полная остановка в конце. Из неё
+        // берутся и размытие, и подскок цифры, поэтому «быстро» и «резко»
+        // не расходятся между собой ни на кадр.
+        setTween({ text, roll: Math.pow(1 - passed, 2), up });
         // Запас считается по дороге, а не заранее: длина промежуточных
         // значений известна только здесь. Обновление идёт из кадра
         // анимации, вместе с самим числом, и лишней отрисовки не даёт.
@@ -146,7 +177,19 @@ export function useCountedNumber(target: string): {
     return () => cancelAnimationFrame(frame.current);
   }, [target]);
 
-  return { shown, reserve: Math.max(reserved, shown.length) };
+  return {
+    shown,
+    reserve: Math.max(reserved, shown.length),
+    roll: tween?.roll ?? 0,
+    up: tween?.up ?? true,
+  };
+}
+
+/** Кадр отсчёта: что показать и с какой скоростью крутится барабан. */
+interface Tween {
+  text: string;
+  roll: number;
+  up: boolean;
 }
 
 /** Число из записи вида «1972» или «15,5». Всё прочее — не число. */
