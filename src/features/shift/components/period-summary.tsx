@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 
-import { BalanceCaption } from "@/components/ui/balance-caption";
+import { BalanceCaption, BALANCE_SWAP_MS } from "@/components/ui/balance-caption";
 import { CountedNumber } from "@/components/ui/counted-number";
 import { cn } from "@/lib/utils/cn";
 
@@ -399,11 +399,13 @@ function Figure({
           emphatic ? "text-xl sm:text-2xl" : "text-lg sm:text-xl",
           // Цвет меняется столько же, сколько едет приставка в подписи:
           // это одно событие, показанное с двух сторон, и разъезжаться им
-          // нельзя.
-          "transition-colors duration-250",
+          // нельзя. Поэтому длительность приходит оттуда же, откуда её
+          // берёт сама приставка, а не повторяется здесь числом.
+          "transition-colors",
           tone === "signal" && "text-signal",
           tone === "verify" && "text-verify font-medium",
         )}
+        style={{ transitionDuration: `${BALANCE_SWAP_MS}ms` }}
       >
         {parts.map((part, index) => (
           <span key={part.unit} className={index > 0 ? "ml-2" : undefined}>

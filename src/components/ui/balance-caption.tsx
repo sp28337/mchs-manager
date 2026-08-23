@@ -1,3 +1,7 @@
+"use client";
+
+import { useEffect, useLayoutEffect, useRef } from "react";
+
 import { cn } from "@/lib/utils/cn";
 
 /**
@@ -28,12 +32,79 @@ import { cn } from "@/lib/utils/cn";
  * Хвост слова при этом стоит на месте: едет только то, что меняется.
  * Ширину коробки держит самая широкая из двух приставок, поэтому
  * «работка» не дёргается ни в одну сторону.
+ *
+ * --- Почему приставка смазывается на ходу ---------------------------------
+ *
+ * Четыре буквы, проезжающие свою собственную высоту, глаз читать не
+ * успевает и не должен: пока они едут, это не слово, а движение. Резкий
+ * текст в пути читается как подмена кадра — мелькнуло что-то другое, —
+ * а смазанный честно говорит «здесь сейчас происходит», и в конце
+ * останавливается уже словом.
+ *
+ * Размытие сходит к нулю раньше, чем кончается ход: последняя треть
+ * движения — доводка на место, и она обязана быть чёткой.
+ *
+ * --- Почему движение считается кодом, а не переходом CSS ------------------
+ *
+ * Переход умеет вести значение из А в Б, но не умеет пройти через
+ * ТРЕТЬЕ по дороге: у размытия начало и конец одинаковые — ноль, — а
+ * весь смысл в том, что посередине оно есть. Это уже раскадровка, и
+ * задать её можно либо ключевыми кадрами, либо здесь.
+ *
+ * Выбран второй способ: ключевые кадры пришлось бы запускать сменой
+ * класса, а класс меняется в той же отрисовке, что и положение приставки,
+ * — и один кадр она успевала бы показать себя уже на месте. Здесь
+ * анимация назначается ДО того, как браузер нарисовал новое положение
+ * (`useLayoutEffect`), и рывка не бывает.
+ *
+ * Первая отрисовка ничего не играет: приставка просто стоит там, где
+ * стоит. Проигрывать при загрузке страницы движение, которого не было, —
+ * значит соврать о том, что что-то изменилось.
  */
 
 /** Сколько идёт смена приставки и перекраска числа рядом с ней. */
-export const BALANCE_SWAP_MS = 250;
+export const BALANCE_SWAP_MS = 420;
+
+/** Насколько смазывается приставка на ходу. */
+const BLUR_PX = 3.2;
+
+/**
+ * Где стоит приставка при этом знаке разницы.
+ *
+ * `«недо»` сверху, `«пере»` снизу — и та из них, что сейчас не при деле,
+ * уезжает за край коробки на свою собственную высоту.
+ */
+function restOf(prefix: "over" | "under", under: boolean): string {
+  if (prefix === "under") return under ? "0%" : "-100%";
+  return under ? "100%" : "0%";
+}
 
 export function BalanceCaption({ under }: { under: boolean }) {
+  const overRef = useRef<HTMLSpanElement>(null);
+  const underRef = useRef<HTMLSpanElement>(null);
+  const previous = useRef(under);
+
+  useSwapEffect(() => {
+    const was = previous.current;
+    previous.current = under;
+    if (was === under) return;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+
+    for (const [element, prefix] of [
+      [underRef.current, "under"],
+      [overRef.current, "over"],
+    ] as const) {
+      element?.animate(
+        [
+          { transform: `translateY(${restOf(prefix, was)})`, filter: `blur(${BLUR_PX}px)` },
+          { filter: `blur(${BLUR_PX * 0.35}px)`, offset: 0.45 },
+          { transform: `translateY(${restOf(prefix, under)})`, filter: "blur(0px)" },
+        ],
+        { duration: BALANCE_SWAP_MS, easing: "cubic-bezier(0.22, 1, 0.36, 1)" },
+      );
+    }
+  }, [under]);
+
   return (
     // Выравнивание по центру, а не по базовой линии: у коробки с
     // приставкой своя высота, и базовая линия у грид-контейнера
@@ -46,8 +117,10 @@ export function BalanceCaption({ under }: { under: boolean }) {
           Высота с запасом на выносной элемент «р»: обрезка по строке
           съела бы ему хвост. */}
       <span className="grid h-[1.45em] overflow-hidden">
-        <Prefix away={!under}>Недо</Prefix>
-        <Prefix away={under} down>
+        <Prefix ref={underRef} at={restOf("under", under)} hidden={!under}>
+          Недо
+        </Prefix>
+        <Prefix ref={overRef} at={restOf("over", under)} hidden={under}>
           Пере
         </Prefix>
       </span>
@@ -56,32 +129,37 @@ export function BalanceCaption({ under }: { under: boolean }) {
   );
 }
 
-/**
- * Одна приставка: на месте или уехавшая за край коробки.
- *
- * `down` называет, в какую сторону она уезжает. «Пере» уходит ВНИЗ —
- * её выталкивают; «недо» приходит сверху, значит и ждёт своей очереди
- * наверху.
- */
+/** Одна приставка на своём месте: на виду или за краем коробки. */
 function Prefix({
-  away,
-  down,
+  ref,
+  at,
+  hidden,
   children,
 }: {
-  away: boolean;
-  down?: boolean;
+  ref: React.RefObject<HTMLSpanElement | null>;
+  /** Сдвиг от места на виду. */
+  at: string;
+  /** Уехала за край: читалке её произносить нечего. */
+  hidden: boolean;
   children: string;
 }) {
   return (
     <span
-      aria-hidden={away}
-      className={cn(
-        "col-start-1 row-start-1 flex items-center justify-center",
-        "transition-transform duration-250 ease-out",
-        away && (down ? "translate-y-full" : "-translate-y-full"),
-      )}
+      ref={ref}
+      aria-hidden={hidden}
+      className={cn("col-start-1 row-start-1 flex items-center justify-center")}
+      style={{ transform: `translateY(${at})` }}
     >
       {children}
     </span>
   );
 }
+
+/**
+ * Тот же эффект, что до отрисовки, но безопасный на сервере.
+ *
+ * Разметка отдаётся статикой, а `useLayoutEffect` на сервере ругается в
+ * консоль. Выбор между ним и обычным эффектом делается один раз при
+ * загрузке модуля и потому не нарушает порядок вызовов.
+ */
+const useSwapEffect = typeof window === "undefined" ? useEffect : useLayoutEffect;
