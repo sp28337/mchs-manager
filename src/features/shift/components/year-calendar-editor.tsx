@@ -183,6 +183,7 @@ export function YearCalendarEditor({
               meta={edited > 0 ? <span className="text-ink">правок: {edited}</span> : null}
               days={group.days.map((item) => item.day)}
               joined
+              assemble
               renderDay={(day, corners) => {
                 const item = byDay.get(day);
                 return item ? (
