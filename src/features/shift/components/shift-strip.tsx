@@ -54,10 +54,10 @@ const CALLOUT_MARK: Record<CalloutKind, string> = {
  */
 const ABSENCE_MARK: Record<AbsenceKind, string> = {
   annual_leave: "О",
-  // «ОД» из того же табеля Т-13: дополнительный отпуск там обозначается
+  // «Д» из того же табеля Т-13: дополнительный отпуск там обозначается
   // именно так, и двум знакам в клетке место есть — коды вызовов тоже
   // двухбуквенные.
-  extra_leave: "ОД",
+  extra_leave: "Д",
   sick_leave: "Б",
   time_off_in_lieu: "В",
   study_leave: "У",
