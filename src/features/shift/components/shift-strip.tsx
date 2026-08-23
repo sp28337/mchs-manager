@@ -329,6 +329,7 @@ export function ShiftStrip({
             }
             days={group.days}
             joined
+            assemble
             renderDay={(day, corners) => (
               <DayCell
                 day={day}
