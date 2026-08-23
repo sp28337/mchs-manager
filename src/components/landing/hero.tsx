@@ -89,7 +89,7 @@ export function LandingHero({ cta }: { cta: ReactNode }) {
             на ступень крупнее она переносится на две строки, и подпись
             от руки превращается во второй абзац. Поэтому потолок здесь
             ставит ширина колонки, а не вкус. */}
-        <p className="rise rise-2 max-w-prose font-hand text-2xl leading-tight text-ink-muted text-pretty sm:text-3xl xl:text-4xl">
+        <p className="rise rise-2 max-w-prose font-hand text-2xl leading-tight text-ink-muted text-pretty sm:text-[2rem] xl:text-5xl">
           Бесплатно и без регистрации
         </p>
 

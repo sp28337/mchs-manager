@@ -181,11 +181,11 @@
   --font-display: var(--font-pt-sans-narrow), "PT Sans Narrow", sans-serif;
   --font-sans: var(--font-plex-sans), "IBM Plex Sans", system-ui, sans-serif;
   --font-mono: var(--font-plex-mono), "IBM Plex Mono", ui-monospace, monospace;
-  /* `hand` — Marck Script, перьевой курсив с кириллицей. Ровно на одну
-     строку первого экрана; запасная — системный курсив, чтобы при неудаче
-     загрузки строка осталась написанной от руки, а не слилась с
+  /* `hand` — Great Vibes, каллиграфический курсив с кириллицей. Ровно на
+     одну строку первого экрана; запасная — системный курсив, чтобы при
+     неудаче загрузки строка осталась написанной от руки, а не слилась с
      интерфейсом. */
-  --font-hand: var(--font-marck-script), "Marck Script", cursive;
+  --font-hand: var(--font-great-vibes), "Great Vibes", cursive;
 
   /* Два масштаба, и оба осмысленны.
 
