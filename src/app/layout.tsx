@@ -1,5 +1,10 @@
 import type { Metadata } from "next";
-import { Caveat, IBM_Plex_Mono, IBM_Plex_Sans, PT_Sans_Narrow } from "next/font/google";
+import {
+  IBM_Plex_Mono,
+  IBM_Plex_Sans,
+  Marck_Script,
+  PT_Sans_Narrow,
+} from "next/font/google";
 
 import { Providers } from "./providers";
 import "./globals.css";
@@ -34,13 +39,18 @@ const mono = IBM_Plex_Mono({
    же деловым шрифтом, что и остальное, оно читается как ещё один пункт
    регламента — и теряется рядом с крупным заголовком.
 
-   Caveat выбран за кириллицу: рукописных гарнитур в вебе много, а
-   рукописных С КИРИЛЛИЦЕЙ, где «д» и «з» не выглядят чужими, — единицы.
-   Начертание одно: у надписи на странице одно место и один вес. */
-const hand = Caveat({
+   Marck Script — перьевой курсив с настоящей кириллицей: связное письмо с
+   тонким штрихом и нажимом, а не маркерная скоропись. Рукописных гарнитур
+   в вебе много, а рукописных С КИРИЛЛИЦЕЙ, где «д», «з» и «я» нарисованы,
+   а не подставлены из латиницы, — единицы, и перьевых среди них считаные.
+
+   Начертание одно, четырёхсотое: у гарнитуры другого и нет, да и у
+   надписи на странице одно место и один вес. Тонкость штриха здесь от
+   рисунка пера, а не от насыщенности, — жирного пера не бывает. */
+const hand = Marck_Script({
   subsets: ["cyrillic", "latin"],
-  weight: ["600"],
-  variable: "--font-caveat",
+  weight: ["400"],
+  variable: "--font-marck-script",
   display: "swap",
 });
 
