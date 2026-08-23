@@ -18,6 +18,11 @@
 
 ## [Не выпущено]
 
+## [2.5.0] — 2026-08-23
+
+Сброс наконец сбрасывает то, что накопилось; из плашки месяца ушли белые
+нити, а первый экран разграфляет лист прямо на ходу.
+
 ### Изменено
 
 - **«Сброс настроек» стал «Сбросом настроек календаря»** — и делает
@@ -325,7 +330,8 @@
 через трое» для аттестованных сотрудников ФПС ГПС и вольнонаёмных
 работников.
 
-[Не выпущено]: https://github.com/sp28337/mchs-manager/compare/v2.4.0...staging
+[Не выпущено]: https://github.com/sp28337/mchs-manager/compare/v2.5.0...staging
+[2.5.0]: https://github.com/sp28337/mchs-manager/compare/v2.4.0...v2.5.0
 [2.4.0]: https://github.com/sp28337/mchs-manager/compare/v2.3.0...v2.4.0
 [2.3.0]: https://github.com/sp28337/mchs-manager/compare/v2.2.0...v2.3.0
 [2.2.0]: https://github.com/sp28337/mchs-manager/compare/v2.1.0...v2.2.0
