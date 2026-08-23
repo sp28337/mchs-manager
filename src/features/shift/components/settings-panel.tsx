@@ -1,7 +1,9 @@
 "use client";
 
-import { useId } from "react";
+import { RotateCcw } from "lucide-react";
+import { useId, useState } from "react";
 
+import { Button } from "@/components/ui/button";
 import { Hint } from "@/components/ui/hint";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -17,7 +19,7 @@ import {
   weeklyNormGroundFacts,
   weeklyNormGroundOfProfile,
 } from "../model/derive";
-import type { StoredProfile } from "../storage/profile";
+import { resetSettings, type StoredProfile } from "../storage/profile";
 import { DateField } from "./date-field";
 import { LiveModeSwitch } from "./live-mode";
 import { TimeField } from "./time-field";
@@ -191,6 +193,88 @@ export function SettingsPanel({
           тот же вопрос, что «полугодие или март». Поэтому он переехал в
           окно выбора периода, к отрезкам и месяцам, и меняется там же,
           где на него смотрят. */}
+
+      {purpose === "settings" ? <ResetSettings onChange={onChange} /> : null}
+    </div>
+  );
+}
+
+/**
+ * Сброс настроек — с подтверждением и с прямым перечнем последствий.
+ *
+ * --- Почему это не «сбросить всё» -----------------------------------------
+ *
+ * Сбрасываются ответы о себе и способ показа: имя, норма, время отсчёта,
+ * «Онлайн», мера переработки. Не сбрасывается ничего, чего приложение не
+ * сможет восстановить, — дата рабочей смены, отпуска, вызовы, правки
+ * календаря, переносы смен, заметки.
+ *
+ * Дата смены не в списке не по забывчивости: она задаёт весь график, и
+ * «сбросить» её можно только выдумав другую, то есть молча построив
+ * человеку чужой график. Для «стереть всё» есть отдельный, честно
+ * названный способ — удалить профиль с устройства, он в подвале.
+ *
+ * --- Почему подтверждение прямо здесь, а не окном -------------------------
+ *
+ * Настройки на телефоне сами открыты окном, и второе окно поверх первого
+ * — это два крестика, из которых один закрывает не то. Подтверждение
+ * разворачивается на месте кнопки: тот же приём, что у удаления профиля в
+ * подвале, и человек уже видел его там.
+ *
+ * Вопрос называет и то, что уцелеет: «отпуска и календарь останутся». Без
+ * этой половины человек честно испугается нажать.
+ */
+function ResetSettings({
+  onChange,
+}: {
+  onChange: (change: (previous: StoredProfile) => StoredProfile) => void;
+}) {
+  const [confirming, setConfirming] = useState(false);
+
+  if (!confirming) {
+    return (
+      <div className="border-t border-rule pt-4">
+        <button
+          type="button"
+          className="text-xs text-ink-muted underline underline-offset-2 hover:text-signal"
+          onClick={() => setConfirming(true)}
+        >
+          Сбросить настройки
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-2 border-t border-rule pt-4">
+      <p className="text-sm">
+        Вернуть имя, норму, время отсчёта и оба переключателя к исходным?
+      </p>
+      <p className="text-xs text-ink-muted">
+        Дата рабочей смены, отпуска, вызовы, правки календаря, переносы смен и
+        заметки останутся на месте.
+      </p>
+      <div className="flex flex-wrap items-center gap-2 pt-1">
+        <Button
+          type="button"
+          size="sm"
+          onClick={() => {
+            onChange(resetSettings);
+            setConfirming(false);
+          }}
+        >
+          <RotateCcw aria-hidden />
+          Да, сбросить
+        </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          onClick={() => setConfirming(false)}
+        >
+          Отмена
+        </Button>
+      </div>
     </div>
   );
 }
