@@ -10,7 +10,7 @@ import {
   subscribeToStoredProfile,
 } from "@/features/shift/storage/profile";
 
-import { ctaClass, ToCalculator } from "./to-calculator";
+import { ctaClass, CtaIcon, ToCalculator } from "./to-calculator";
 
 /**
  * Кнопка первого экрана: «Построить график» или «Открыть график».
@@ -59,6 +59,7 @@ export function HeroCta() {
   return (
     <>
       <button type="button" className={ctaClass()} onClick={() => setOpen(true)}>
+        <CtaIcon />
         Построить график
       </button>
 
