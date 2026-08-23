@@ -21,15 +21,25 @@ export function ToCalculator({
   size?: "sm" | "md";
 }) {
   return (
-    <Link
-      href="/calculator"
-      className={cn(
-        "inline-flex shrink-0 items-center rounded-xl bg-ink font-bold text-paper no-underline",
-        "hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-trace",
-        size === "sm" ? "h-9 px-4 text-sm" : "h-11 px-6 text-base",
-      )}
-    >
+    <Link href="/calculator" className={ctaClass(size)}>
       {children}
     </Link>
+  );
+}
+
+/**
+ * Вид кнопки первого экрана — отдельно от неё самой.
+ *
+ * У кнопки два поведения: у того, кто уже завёл график, она ссылка в
+ * расчёт; у того, кто здесь впервые, — кнопка, открывающая окно на месте.
+ * Это разные элементы разметки (`a` и `button`), и разъехаться видом им
+ * нельзя: человек нажимает одно и то же место, и одинаковость здесь —
+ * обещание, что за ней одно и то же.
+ */
+export function ctaClass(size: "sm" | "md" = "md"): string {
+  return cn(
+    "inline-flex shrink-0 cursor-pointer items-center rounded-xl bg-ink font-bold text-paper no-underline",
+    "hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-trace",
+    size === "sm" ? "h-9 px-4 text-sm" : "h-11 px-6 text-base",
   );
 }

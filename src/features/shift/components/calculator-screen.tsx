@@ -1,5 +1,8 @@
 "use client";
 
+import { useRouter } from "next/navigation";
+import { useEffect } from "react";
+
 import { Button } from "@/components/ui/button";
 import { SiteHeader } from "@/components/shared/site-header";
 import { RegisterForm } from "./register-form";
@@ -26,9 +29,22 @@ import { useProfile } from "../storage/use-profile";
  * --- Что человек видит, пока профиля нет --------------------------------
  *
  * Пока профиль читается — заглушку рабочего экрана: те же места и те же
- * размеры, что займут числа и сетки. Если профиля нет — главную с окном
- * «Создать профиль» поверх неё (`RegisterForm`), а не отдельный раздел с
- * анкетой: человек нажал кнопку и получил окно, а не новую страницу.
+ * размеры, что займут числа и сетки.
+ *
+ * Если профиля НЕТ — этой странице показывать нечего, и человек
+ * возвращается на главную. Там его и ждёт окно «Создать профиль»: оно
+ * открывается кнопкой первого экрана, на месте, без перехода. Раньше
+ * расчёт в этом случае показывал ту же главную поверх своего адреса, и
+ * получалось, что нажатие кнопки уводит на страницу, неотличимую от
+ * покинутой; закрыв окно, человек оставался на расчёте без расчёта.
+ *
+ * Тем же путём уходит и тот, кто удалил профиль: удаление опустошает
+ * хранилище, и возврат на главную получается сам собой — отдельного
+ * перехода для него писать не нужно.
+ *
+ * Исключение одно — испорченное хранилище (`corrupt`). Тут уводить
+ * нельзя: человек пришёл к своему расчёту, и вместе с объяснением он
+ * потерял бы единственную кнопку, которая спасает данные.
  *
  * --- Почему шапку рисует не этот экран, а рабочий ------------------------
  *
@@ -40,6 +56,14 @@ import { useProfile } from "../storage/use-profile";
  */
 export function CalculatorScreen() {
   const { state, save, update, forget } = useProfile();
+  const router = useRouter();
+
+  // Уход на главную — в эффекте, а не по ходу отрисовки: переход меняет
+  // состояние маршрутизатора, и делать это, пока React рисует, нельзя.
+  const empty = state.status === "empty";
+  useEffect(() => {
+    if (empty) router.replace("/");
+  }, [empty, router]);
 
   if (state.status === "ok") {
     return <Workspace profile={state.profile} onChange={update} onForget={forget} />;
@@ -52,26 +76,24 @@ export function CalculatorScreen() {
           разом, читается как рывок ровно так же, как пустое поле под ней.
           Без профиля (анкета) кнопкам браться неоткуда — им нечего
           настраивать и нечего выгружать. */}
-      <SiteHeader tools={state.status === "loading" ? <HeaderToolsBones /> : undefined} />
+      <SiteHeader tools={state.status === "corrupt" ? undefined : <HeaderToolsBones />} />
 
-      {state.status === "loading" ? (
+      {state.status === "corrupt" ? (
+        <RegisterForm
+          onCreated={save}
+          notice={<CorruptNotice reason={state.reason} raw={state.raw} />}
+        />
+      ) : (
         <>
           {/* Заглушка молчит для глаз, но не для диктора: тому нужна не
-              раскладка, а одно слово о том, чего он ждёт. */}
+              раскладка, а одно слово о том, чего он ждёт. Она же стоит
+              те доли секунды, пока идёт возврат на главную: пустая
+              страница на её месте читалась бы как поломка. */}
           <p className="sr-only" role="status">
-            Открываем ваш профиль
+            {empty ? "Профиля нет, открываем главную" : "Открываем ваш профиль"}
           </p>
           <WorkspaceSkeleton />
         </>
-      ) : (
-        <RegisterForm
-          onCreated={save}
-          notice={
-            state.status === "corrupt" ? (
-              <CorruptNotice reason={state.reason} raw={state.raw} />
-            ) : null
-          }
-        />
       )}
     </>
   );

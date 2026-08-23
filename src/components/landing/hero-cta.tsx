@@ -1,13 +1,16 @@
 "use client";
 
-import { useSyncExternalStore } from "react";
+import { useRouter } from "next/navigation";
+import { useState, useSyncExternalStore } from "react";
 
+import { CreateProfileModal } from "@/features/shift/components/create-profile-modal";
 import {
   hasStoredProfile,
+  saveProfile,
   subscribeToStoredProfile,
 } from "@/features/shift/storage/profile";
 
-import { ToCalculator } from "./to-calculator";
+import { ctaClass, ToCalculator } from "./to-calculator";
 
 /**
  * Кнопка первого экрана: «Построить график» или «Открыть график».
@@ -33,9 +36,43 @@ import { ToCalculator } from "./to-calculator";
  * `useSyncExternalStore` взят ради этого честно: он сам отдаёт разметке
  * серверное значение, а браузеру — своё, и подмена не считается
  * расхождением при гидратации.
+ *
+ * --- Почему окно открывается здесь, а не на странице расчёта ---------------
+ *
+ * Раньше кнопка вела на `/calculator` в обоих случаях, и тот, не найдя
+ * профиля, показывал ту же главную с окном поверх неё. Человек нажимал
+ * кнопку и попадал на страницу, которая выглядит как та, с которой он
+ * ушёл, — с другим адресом и без единого признака перехода. Закрыв окно,
+ * он оставался на странице расчёта без расчёта.
+ *
+ * Теперь так: нет графика — окно открывается здесь же, и никуда не ведёт;
+ * есть график — кнопка остаётся ссылкой. В расчёт человек попадает, когда
+ * там есть что показывать, и попадает сразу после создания профиля.
  */
 export function HeroCta() {
   const built = useSyncExternalStore(subscribeToStoredProfile, hasStoredProfile, () => false);
+  const router = useRouter();
+  const [open, setOpen] = useState(false);
 
-  return <ToCalculator>{built ? "Открыть график" : "Построить график"}</ToCalculator>;
+  if (built) return <ToCalculator>Открыть график</ToCalculator>;
+
+  return (
+    <>
+      <button type="button" className={ctaClass()} onClick={() => setOpen(true)}>
+        Построить график
+      </button>
+
+      <CreateProfileModal
+        open={open}
+        onClose={() => setOpen(false)}
+        onCreated={(profile) => {
+          // Профиль пишется здесь, а не на странице расчёта: та узнала бы
+          // о нём только из хранилища и первым делом показала бы заглушку
+          // чтения — при том, что профиль только что был в руках.
+          saveProfile(profile);
+          router.push("/calculator");
+        }}
+      />
+    </>
+  );
 }
