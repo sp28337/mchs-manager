@@ -322,6 +322,9 @@ function DayButton({
       onClick={onPick}
       className={cn(
         "relative flex aspect-square w-full min-w-0 cursor-pointer flex-col bg-paper-raised",
+        // Та же подложка от волосяной щели, что и в графике смен: сетка
+        // одна и та же, и шов у неё тот же.
+        "cell-seam",
         corners,
       )}
     >
