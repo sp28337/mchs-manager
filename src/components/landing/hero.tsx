@@ -68,14 +68,14 @@ export function LandingHero({ cta }: { cta: ReactNode }) {
             Ступень кегля на 400 точках — оттуда же: «инструмент» с
             «Удобный» в одной строке при 36 пунктах не помещается в
             триста двадцать. */}
-        <h1 className="rise text-[2rem] leading-[0.92] tracking-[-0.01em] text-balance xxs:text-4xl sm:text-5xl md:text-4xl lg:text-5xl xl:text-6xl">
-          <span className="block text-verify">Удобный инструмент</span>
+        <h1 className="rise text-[2rem] leading-[0.92] tracking-[-0.01em] text-balance xxs:text-4xl sm:text-5xl md:text-6xl lg:text-7xl xl:text-8xl">
+          <span className="block text-verify whitespace-nowrap">Удобный инструмент</span>
           для&nbsp;учёта{" "}
           <br className="hidden lg:inline" />
           рабочего&nbsp;времени
         </h1>
 
-        <p className="rise rise-2 max-w-prose leading-snug text-ink-muted text-pretty max-md:text-lg">
+        <p className="rise rise-2 max-w-prose leading-snug text-ink-muted text-pretty max-md:text-lg xl:text-2xl">
           Бесплатно и без регистрации
         </p>
 

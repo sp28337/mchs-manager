@@ -359,7 +359,7 @@ function Cell({
     // из-под накладки по всему периметру выглядывала зелёная нитка в
     // пиксель. У самой клетки рамки нет, и накладка закрывает её целиком.
     <div
-      className={cn("hero-cal__cell relative bg-paper-raised", corners)}
+      className={cn("hero-cal__cell relative bg-paper-raised z-999", corners)}
       style={vars(index)}
     >
       <div

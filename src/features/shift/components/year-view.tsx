@@ -158,7 +158,7 @@ export function YearView({
   // получается примерно четыре пятых ширины экрана — месяц снова похож на
   // страницу календаря, а клетка остаётся достаточно крупной, чтобы по
   // ней попасть пальцем.
-  const grid = cn("grid gap-x-6 gap-y-5 max-sm:px-[5%] flex-1", step.grid, step.text);
+  const grid = cn("grid gap-x-6 gap-y-5 flex-1", step.grid, step.text);
 
   return (
     <div className="space-y-4">
