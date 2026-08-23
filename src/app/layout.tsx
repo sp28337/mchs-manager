@@ -1,5 +1,10 @@
 import type { Metadata } from "next";
-import { IBM_Plex_Mono, IBM_Plex_Sans, PT_Sans_Narrow } from "next/font/google";
+import {
+  Great_Vibes,
+  IBM_Plex_Mono,
+  IBM_Plex_Sans,
+  PT_Sans_Narrow,
+} from "next/font/google";
 
 import { Providers } from "./providers";
 import "./globals.css";
@@ -24,6 +29,30 @@ const mono = IBM_Plex_Mono({
   subsets: ["cyrillic", "latin"],
   weight: ["400", "500"],
   variable: "--font-plex-mono",
+  display: "swap",
+});
+
+/* Четвёртая гарнитура — рукописная, и ровно на одну строку.
+   -----------------------------------------------------------------------
+   «Бесплатно и без регистрации» — не заголовок и не подпись к полю: это
+   слово от автора, сказанное человеку до всякого расчёта. Набранное тем
+   же деловым шрифтом, что и остальное, оно читается как ещё один пункт
+   регламента — и теряется рядом с крупным заголовком.
+
+   Great Vibes — каллиграфический курсив с настоящей кириллицей: тонкий
+   волосяной штрих, сильный нажим и росчерки. Рукописных гарнитур в вебе
+   много, а рукописных С КИРИЛЛИЦЕЙ, где «д», «з» и «я» нарисованы, а не
+   подставлены из латиницы, — единицы, и каллиграфических среди них
+   считаные: у соседних по духу Parisienne, Pinyon Script и Tangerine
+   кириллицы нет вовсе.
+
+   Начертание одно, четырёхсотое: у гарнитуры другого и нет, да и у
+   надписи на странице одно место и один вес. Тонкость штриха здесь от
+   рисунка пера, а не от насыщенности, — жирного пера не бывает. */
+const hand = Great_Vibes({
+  subsets: ["cyrillic", "latin"],
+  weight: ["400"],
+  variable: "--font-great-vibes",
   display: "swap",
 });
 
@@ -53,7 +82,7 @@ export default function RootLayout({
   return (
     <html
       lang="ru"
-      className={`${display.variable} ${sans.variable} ${mono.variable}`}
+      className={`${display.variable} ${sans.variable} ${mono.variable} ${hand.variable}`}
       suppressHydrationWarning
     >
       <body className="min-h-dvh bg-paper text-ink">

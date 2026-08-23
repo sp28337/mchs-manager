@@ -59,7 +59,7 @@ export function ThemeToggle() {
             title={label}
             aria-pressed={mounted ? active : undefined}
             className={cn(
-              "flex size-7 items-center justify-center rounded-xl",
+              "flex size-7 items-center justify-center rounded-xl cursor-pointer",
               "focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-trace",
               active ? "bg-ink text-paper" : "text-ink-muted hover:text-ink",
             )}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
 
 import { BalanceCaption, BALANCE_SWAP_MS } from "@/components/ui/balance-caption";
 import { CountedNumber } from "@/components/ui/counted-number";
@@ -119,19 +119,34 @@ function FiguresRow({
   const probe = useRef<HTMLDivElement>(null);
   const [fits, setFits] = useState(false);
 
-  useEffect(() => {
+  // Замер ДО первой отрисовки, а не после неё.
+  //
+  // Раньше первое значение ставил `ResizeObserver`: он вызывает обработчик
+  // сразу при подписке, и казалось, что отдельный замер не нужен. Но
+  // подписка шла из обычного эффекта, а тот работает уже ПОСЛЕ отрисовки —
+  // и обработчик приходил только следующим кадром. Между этими двумя
+  // моментами человек успевал увидеть кадр, нарисованный по умолчанию
+  // «не помещается»: плашка во всю ширину экрана и без мелких итогов.
+  // Замерено при обновлении страницы — два кадра, полторы десятых доли
+  // секунды, плашка 1862 точки вместо 370.
+  //
+  // Теперь замер идёт из layout-эффекта и сразу: React успевает
+  // перерисовать полосу до того, как кадр попадёт на экран. Наблюдатель
+  // остаётся, но отвечает уже только за ПОСЛЕДУЮЩИЕ изменения — смену
+  // ширины окна и длины самих чисел.
+  useLayoutEffect(() => {
     const room = row.current;
     const content = probe.current;
     if (!room || !content) return;
 
-    // Состояние ставится только из наблюдателя, а не тут же в эффекте:
-    // `ResizeObserver` вызывает обработчик сразу при подписке, так что
-    // первый замер всё равно случится, и лишней отрисовки не будет.
-    const observer = new ResizeObserver(() => {
-      // Запас в зазор между плашками: ряд, помещающийся впритык, читается
-      // как переполненный, даже когда формально влез.
+    // Запас в зазор между плашками: ряд, помещающийся впритык, читается
+    // как переполненный, даже когда формально влез.
+    const measure = () =>
       setFits(content.scrollWidth + 8 <= room.clientWidth - 48);
-    });
+
+    measure();
+
+    const observer = new ResizeObserver(measure);
     observer.observe(room);
     observer.observe(content);
     return () => observer.disconnect();

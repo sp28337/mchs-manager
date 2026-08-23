@@ -7,7 +7,7 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import type { StoredProfile } from "../storage/profile";
-import { saveProfileToFile } from "./save-to-file";
+import { useSaveToFile } from "./save-to-file";
 
 /**
  * Где лежат данные и как их не потерять.
@@ -32,6 +32,7 @@ export interface ProfileFooterProps {
 
 export function ProfileFooter({ profile, onForget }: ProfileFooterProps) {
   const [confirming, setConfirming] = useState(false);
+  const save = useSaveToFile(profile);
 
   return (
     <footer className="space-y-4 border-t border-rule pt-6 text-sm">
@@ -53,7 +54,7 @@ export function ProfileFooter({ profile, onForget }: ProfileFooterProps) {
       </div>
 
       <div className="flex flex-wrap items-center gap-3">
-        <Button type="button" variant="outline" size="sm" onClick={() => saveProfileToFile(profile)} className="rounded-xl">
+        <Button type="button" variant="outline" size="sm" onClick={save.ask} className="rounded-xl">
           Сохранить профиль в файл
         </Button>
 
@@ -106,6 +107,7 @@ export function ProfileFooter({ profile, onForget }: ProfileFooterProps) {
           </span>
         </p>
       </div>
+      {save.dialog}
     </footer>
   );
 }

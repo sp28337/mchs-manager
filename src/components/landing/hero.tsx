@@ -68,14 +68,28 @@ export function LandingHero({ cta }: { cta: ReactNode }) {
             Ступень кегля на 400 точках — оттуда же: «инструмент» с
             «Удобный» в одной строке при 36 пунктах не помещается в
             триста двадцать. */}
-        <h1 className="rise text-[2rem] leading-[0.92] tracking-[-0.01em] text-balance xxs:text-4xl sm:text-5xl md:text-4xl lg:text-5xl xl:text-6xl">
-          <span className="block text-verify">Удобный инструмент</span>
+        <h1 className="rise text-[2rem] leading-[0.92] tracking-[-0.01em] text-balance xxs:text-4xl sm:text-5xl md:text-6xl lg:text-7xl xl:text-8xl">
+          <span className="block text-verify whitespace-nowrap">Удобный инструмент</span>
           для&nbsp;учёта{" "}
           <br className="hidden lg:inline" />
           рабочего&nbsp;времени
         </h1>
 
-        <p className="rise rise-2 max-w-prose leading-snug text-ink-muted text-pretty max-md:text-lg">
+        {/* Рукописным — потому что это не пункт регламента, а слово от
+            автора, сказанное человеку до всякого расчёта. Тем же деловым
+            шрифтом, что и всё вокруг, оно читалось как ещё одно условие и
+            терялось рядом с крупным заголовком.
+
+            Кегль крупнее соседнего текста: у перьевого курсива строчные
+            вдвое мельче своего кегля — почти весь размер уходит на
+            выносные, — и набранная «как абзац» строка выглядела бы вдвое
+            мельче абзаца.
+
+            Выше не поднять: строка длинная и связная, а колонка узкая —
+            на ступень крупнее она переносится на две строки, и подпись
+            от руки превращается во второй абзац. Поэтому потолок здесь
+            ставит ширина колонки, а не вкус. */}
+        <p className="rise rise-2 max-w-prose font-hand text-2xl leading-tight text-ink-muted text-pretty sm:text-[2rem] xl:text-5xl">
           Бесплатно и без регистрации
         </p>
 
