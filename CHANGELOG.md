@@ -18,6 +18,11 @@
 
 ## [Не выпущено]
 
+## [2.4.0] — 2026-08-23
+
+Месяц собирается волной, числа идут барабаном, у отпуска появился
+дополнительный, а у настроек — сброс.
+
 ### Добавлено
 
 - **Дополнительный отпуск** (ст. 116-119 ТК РФ) — свой вид отсутствия, а
@@ -262,7 +267,8 @@
 через трое» для аттестованных сотрудников ФПС ГПС и вольнонаёмных
 работников.
 
-[Не выпущено]: https://github.com/sp28337/mchs-manager/compare/v2.3.0...staging
+[Не выпущено]: https://github.com/sp28337/mchs-manager/compare/v2.4.0...staging
+[2.4.0]: https://github.com/sp28337/mchs-manager/compare/v2.3.0...v2.4.0
 [2.3.0]: https://github.com/sp28337/mchs-manager/compare/v2.2.0...v2.3.0
 [2.2.0]: https://github.com/sp28337/mchs-manager/compare/v2.1.0...v2.2.0
 [2.1.0]: https://github.com/sp28337/mchs-manager/compare/v2.0.2...v2.1.0
