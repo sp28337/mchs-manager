@@ -121,6 +121,19 @@ export interface MonthGridProps {
    */
   padProps?: (slot: number) => { className?: string; style?: CSSProperties };
   /**
+   * Добавка к ОБЁРТКЕ клетки суток — по её месту в сетке.
+   *
+   * Обёртка это не сама клетка: клетку рисует вызывающий (`renderDay`), а
+   * обёртка — элемент сетки вокруг неё, и на ней висит подложка, которая
+   * закрывает щели между клетками (`bleed` ниже). Подложка рисуется
+   * раньше клеток и потому не гаснет вместе с ними; чтобы она приходила
+   * волной, а не стояла готовой решёткой, место клетки в волне нужно
+   * знать ЗДЕСЬ.
+   *
+   * Нужна тому же вызывающему, что `weekdayProps` и `padProps`.
+   */
+  dayProps?: (slot: number) => { className?: string; style?: CSSProperties };
+  /**
    * Месяц СОБИРАЕТСЯ при появлении: клетки приходят волной наискось, а не
    * встают все разом.
    *
@@ -183,6 +196,7 @@ export function MonthGrid({
   joined,
   weekdayProps,
   padProps,
+  dayProps,
   assemble,
 }: MonthGridProps) {
   const first = days[0];
@@ -293,11 +307,12 @@ export function MonthGrid({
         })}
 
         {days.map((day, index) => {
-          const extra = assembling(offset + index);
+          const slot = offset + index;
+          const extra = dayProps?.(slot) ?? assembling(slot);
           return (
             <div
               key={day}
-              className={cn("min-w-0", bleed(offset + index), extra?.className)}
+              className={cn("min-w-0", bleed(slot), extra?.className)}
               style={extra?.style}
             >
               {renderDay(day, corners(offset + index))}
