@@ -75,7 +75,15 @@ export function LandingHero({ cta }: { cta: ReactNode }) {
           рабочего&nbsp;времени
         </h1>
 
-        <p className="rise rise-2 max-w-prose leading-snug text-ink-muted text-pretty max-md:text-lg xl:text-2xl">
+        {/* Рукописным — потому что это не пункт регламента, а слово от
+            автора, сказанное человеку до всякого расчёта. Тем же деловым
+            шрифтом, что и всё вокруг, оно читалось как ещё одно условие и
+            терялось рядом с крупным заголовком.
+
+            Кегль крупнее соседнего текста: у рукописных гарнитур строчные
+            мельче своего размера, и «как у абзаца» выглядит мельче
+            абзаца. */}
+        <p className="rise rise-2 max-w-prose font-hand text-2xl leading-tight text-ink-muted text-pretty sm:text-3xl xl:text-4xl">
           Бесплатно и без регистрации
         </p>
 

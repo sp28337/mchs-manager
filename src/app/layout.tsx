@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { IBM_Plex_Mono, IBM_Plex_Sans, PT_Sans_Narrow } from "next/font/google";
+import { Caveat, IBM_Plex_Mono, IBM_Plex_Sans, PT_Sans_Narrow } from "next/font/google";
 
 import { Providers } from "./providers";
 import "./globals.css";
@@ -24,6 +24,23 @@ const mono = IBM_Plex_Mono({
   subsets: ["cyrillic", "latin"],
   weight: ["400", "500"],
   variable: "--font-plex-mono",
+  display: "swap",
+});
+
+/* Четвёртая гарнитура — рукописная, и ровно на одну строку.
+   -----------------------------------------------------------------------
+   «Бесплатно и без регистрации» — не заголовок и не подпись к полю: это
+   слово от автора, сказанное человеку до всякого расчёта. Набранное тем
+   же деловым шрифтом, что и остальное, оно читается как ещё один пункт
+   регламента — и теряется рядом с крупным заголовком.
+
+   Caveat выбран за кириллицу: рукописных гарнитур в вебе много, а
+   рукописных С КИРИЛЛИЦЕЙ, где «д» и «з» не выглядят чужими, — единицы.
+   Начертание одно: у надписи на странице одно место и один вес. */
+const hand = Caveat({
+  subsets: ["cyrillic", "latin"],
+  weight: ["600"],
+  variable: "--font-caveat",
   display: "swap",
 });
 
@@ -53,7 +70,7 @@ export default function RootLayout({
   return (
     <html
       lang="ru"
-      className={`${display.variable} ${sans.variable} ${mono.variable}`}
+      className={`${display.variable} ${sans.variable} ${mono.variable} ${hand.variable}`}
       suppressHydrationWarning
     >
       <body className="min-h-dvh bg-paper text-ink">
