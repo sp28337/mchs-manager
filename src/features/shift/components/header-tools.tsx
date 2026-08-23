@@ -7,7 +7,7 @@ import { Modal } from "@/components/ui/modal";
 import { cn } from "@/lib/utils/cn";
 
 import type { StoredProfile } from "../storage/profile";
-import { saveProfileToFile } from "./save-to-file";
+import { useSaveToFile } from "./save-to-file";
 import { SettingsPanel } from "./settings-panel";
 
 /**
@@ -74,6 +74,7 @@ export function HeaderTools({
   className?: string;
 }) {
   const [open, setOpen] = useState(false);
+  const save = useSaveToFile(profile);
 
   return (
     <>
@@ -88,7 +89,7 @@ export function HeaderTools({
             <button
               key={id}
               type="button"
-              onClick={() => (id === "save" ? saveProfileToFile(profile) : setOpen(true))}
+              onClick={() => (id === "save" ? save.ask() : setOpen(true))}
               // Имя кнопки не зависит от того, видна подпись или нет:
               // на узком экране от кнопки остаётся значок, и без имени она
               // стала бы для программы чтения безымянной.
@@ -121,6 +122,8 @@ export function HeaderTools({
       >
         <SettingsPanel profile={profile} onChange={onChange} />
       </Modal>
+
+      {save.dialog}
     </>
   );
 }
