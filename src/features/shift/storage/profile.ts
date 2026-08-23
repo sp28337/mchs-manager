@@ -62,6 +62,7 @@ const absenceSchema = z.object({
   id: z.string().min(1),
   kind: z.enum([
     "annual_leave",
+    "extra_leave",
     "sick_leave",
     "study_leave",
     "time_off_in_lieu",

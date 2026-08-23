@@ -22,6 +22,10 @@ import type { DayType } from "../domain/production-calendar";
 
 export const ABSENCE_LABELS: Record<AbsenceKind, string> = {
   annual_leave: "Отпуск",
+  // Сразу за основным отпуском, а не в конце списка: человек, у которого
+  // он есть, вносит его тем же движением и в те же дни — порядок в списке
+  // и в легенде это и показывает.
+  extra_leave: "Дополнительный отпуск",
   sick_leave: "Больничный",
   study_leave: "Учебный отпуск",
   time_off_in_lieu: "Отгул за переработку",
@@ -38,6 +42,7 @@ export const CALLOUT_LABELS: Record<CalloutKind, string> = {
 /** Что вид отсутствия или вызова ДЕЛАЕТ с расчётом. */
 export const ABSENCE_EFFECT: Record<AbsenceKind, string> = {
   annual_leave: "часы по норме за эти дни исключаются из нормы",
+  extra_leave: "часы по норме за эти дни исключаются из нормы",
   sick_leave: "часы по норме за эти дни исключаются из нормы",
   study_leave: "часы по норме за эти дни исключаются из нормы",
   time_off_in_lieu:

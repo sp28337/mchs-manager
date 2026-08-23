@@ -54,6 +54,10 @@ const CALLOUT_MARK: Record<CalloutKind, string> = {
  */
 const ABSENCE_MARK: Record<AbsenceKind, string> = {
   annual_leave: "О",
+  // «ОД» из того же табеля Т-13: дополнительный отпуск там обозначается
+  // именно так, и двум знакам в клетке место есть — коды вызовов тоже
+  // двухбуквенные.
+  extra_leave: "ОД",
   sick_leave: "Б",
   time_off_in_lieu: "В",
   study_leave: "У",
@@ -72,6 +76,7 @@ const ABSENCE_MARK: Record<AbsenceKind, string> = {
  */
 const ABSENCE_TONE: Record<AbsenceKind, string> = {
   annual_leave: "border-dashed border-signal/50 bg-signal-soft text-signal rounded-md",
+  extra_leave: "border-dashed border-trip/50 bg-trip-soft text-trip rounded-md",
   sick_leave: "border-dashed border-sick/50 bg-sick-soft text-sick rounded-md",
   time_off_in_lieu: "border-dashed border-rest/50 bg-rest-soft text-rest rounded-md",
   study_leave: "border-dashed border-study/50 bg-study-soft text-study rounded-md",
@@ -101,6 +106,7 @@ const ABSENCE_TONE: Record<AbsenceKind, string> = {
  */
 const ABSENCE_TONE_QUIET: Record<AbsenceKind, string> = {
   annual_leave: "border-dashed border-signal/20 bg-signal-soft/40 text-signal/70 rounded-md",
+  extra_leave: "border-dashed border-trip/20 bg-trip-soft/40 text-trip/70 rounded-md",
   sick_leave: "border-dashed border-sick/20 bg-sick-soft/40 text-sick/70 rounded-md",
   time_off_in_lieu: "border-dashed border-rest/20 bg-rest-soft/40 text-rest/70 rounded-md",
   study_leave: "border-dashed border-study/20 bg-study-soft/40 text-study/70 rounded-md",
