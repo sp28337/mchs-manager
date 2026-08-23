@@ -155,6 +155,14 @@ export function HeroCalendar({ className }: { className?: string }) {
         className: "hero-cal__cell",
         style: vars(waveVars(slot, rows)),
       })}
+      // Разлиновка — на обёртке клетки, и той же волной, только на шаг
+      // впереди: подложка, закрывающая щели, рисуется раньше самих клеток
+      // и потому не гаснет вместе с ними. Без этого она стояла бы готовой
+      // решёткой на пустом месте.
+      dayProps={(slot) => ({
+        className: "hero-cal__grid",
+        style: vars(waveVars(slot, rows)),
+      })}
       renderDay={(day, corners) => {
         const slot = offset + daysBetween(first, day);
         const start = isShiftStart(day);
