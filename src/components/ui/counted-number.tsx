@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { COUNT_MS } from "@/lib/motion";
 
@@ -33,6 +33,24 @@ import { COUNT_MS } from "@/lib/motion";
  * Что разобрать не удалось — «8 суток», «—», пустое место — меняется
  * подстановкой. Отсчитывать нечего.
  *
+ * --- Почему место под число не сжимается ----------------------------------
+ *
+ * Пока число идёт от «32» к «8», оно теряет знак — а с ним и ширину. В
+ * полосе итога число стоит в строку с подписью, и строка при этом
+ * дёргается влево-вправо: подпись отъезжает, потому что соседнее число
+ * стало короче. Дрожь эта чужая — двигалось одно число, а поехала вся
+ * плашка.
+ *
+ * Поэтому число живёт в коробке, которая НЕ УМЕНЬШАЕТСЯ: её ширина —
+ * самая длинная запись, какую это число показывало. Растёт коробка сразу,
+ * а сужаться ей незачем: место под число уже занято, и второй раз его
+ * никто не просит.
+ *
+ * Ширина считается в `ch` и работает потому, что цифры здесь моноширинные
+ * (`tabular-nums`): один знак — одна и та же ширина, что «1», что «8».
+ * Прижато содержимое вправо, к своей единице измерения: запас тогда
+ * достаётся промежутку с подписью, где он и так есть.
+ *
  * --- Уважение к `prefers-reduced-motion` ----------------------------------
  *
  * Отсчёта нет вовсе: новое значение встаёт сразу. Числа при этом не
@@ -41,7 +59,15 @@ import { COUNT_MS } from "@/lib/motion";
  */
 
 export function CountedNumber({ value }: { value: string }) {
-  return <>{useCountedNumber(value)}</>;
+  const { shown, reserve } = useCountedNumber(value);
+  return (
+    <span
+      className="inline-block text-right tabular-nums"
+      style={{ minWidth: `${reserve}ch` }}
+    >
+      {shown}
+    </span>
+  );
 }
 
 /**
@@ -52,8 +78,14 @@ export function CountedNumber({ value }: { value: string }) {
  * открывшись, принимался бы крутить все свои числа от нуля, хотя ничего
  * ещё не менялось.
  */
-export function useCountedNumber(target: string): string {
+export function useCountedNumber(target: string): {
+  shown: string;
+  /** Сколько знаков держать под число: столько же, сколько было в самой
+   *  длинной его записи за жизнь этого экрана. */
+  reserve: number;
+} {
   const [tween, setTween] = useState<string | null>(null);
+  const [reserved, setReserved] = useState(target.length);
   const shown = tween ?? target;
 
   // Что стоит на экране прямо сейчас. Отсчёт начинается отсюда, а не от
@@ -63,7 +95,7 @@ export function useCountedNumber(target: string): string {
   const displayed = useRef(shown);
   const frame = useRef(0);
 
-  useEffect(() => {
+  useCountEffect(() => {
     const from = parse(displayed.current);
     const to = parse(target);
 
@@ -72,6 +104,18 @@ export function useCountedNumber(target: string): string {
       setTween(null);
       return;
     }
+
+    // Первым кадром — то, что уже стоит на экране, а не новая цель.
+    //
+    // Без этой строки браузер успевал нарисовать итог ДО того, как к нему
+    // пошёл отсчёт: число мигало конечным значением, отскакивало назад и
+    // только потом шло. Один кадр, но именно он и выдавал ответ раньше
+    // движения, ради которого весь отсчёт и заведён.
+    //
+    // Лишняя отрисовка здесь неизбежна: сравнить старое значение с новым
+    // можно только после того, как новое пришло, а исправить картинку
+    // нужно до того, как её увидят.
+    setTween(displayed.current);
 
     const digits = decimalsOf(target);
     const startedAt = performance.now();
@@ -85,6 +129,10 @@ export function useCountedNumber(target: string): string {
         const text = format(from + (to - from) * eased, digits);
         displayed.current = text;
         setTween(text);
+        // Запас считается по дороге, а не заранее: длина промежуточных
+        // значений известна только здесь. Обновление идёт из кадра
+        // анимации, вместе с самим числом, и лишней отрисовки не даёт.
+        setReserved((current) => Math.max(current, text.length));
         frame.current = requestAnimationFrame(step);
         return;
       }
@@ -98,7 +146,7 @@ export function useCountedNumber(target: string): string {
     return () => cancelAnimationFrame(frame.current);
   }, [target]);
 
-  return shown;
+  return { shown, reserve: Math.max(reserved, shown.length) };
 }
 
 /** Число из записи вида «1972» или «15,5». Всё прочее — не число. */
@@ -120,3 +168,13 @@ function format(value: number, digits: number): string {
 function reducedMotion(): boolean {
   return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 }
+
+/**
+ * Эффект ДО отрисовки — и безопасный на сервере.
+ *
+ * Отсчёт правит то, что уже посчитано к отрисовке, поэтому обычный
+ * эффект здесь опаздывает на кадр. На сервере же `useLayoutEffect`
+ * ругается в консоль и всё равно не выполняется. Выбор делается один раз
+ * при загрузке модуля и потому не нарушает порядок вызовов.
+ */
+const useCountEffect = typeof window === "undefined" ? useEffect : useLayoutEffect;
