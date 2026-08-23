@@ -12,7 +12,12 @@ import { cn } from "@/lib/utils/cn";
 import { DEFAULT_SHIFT_START } from "../domain/shift-hours";
 import { todayIso } from "../domain/plain-date";
 import { weeklyNormGroundFacts } from "../model/derive";
-import { createProfile, importProfile, type StoredProfile } from "../storage/profile";
+import {
+  createProfile,
+  importProfile,
+  DEFAULT_PROFILE_NAME,
+  type StoredProfile,
+} from "../storage/profile";
 import { SettingsPanel } from "./settings-panel";
 
 /**
@@ -92,7 +97,7 @@ export function RegisterForm({ onCreated, notice }: RegisterFormProps) {
       // отказывать в графике из-за незаполненной строки было бы придиркой.
       onCreated({
         ...draft,
-        displayName: draft.displayName.trim() || "Мой график",
+        displayName: draft.displayName.trim() || DEFAULT_PROFILE_NAME,
       });
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Не удалось сохранить профиль.");

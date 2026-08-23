@@ -95,6 +95,25 @@ export interface MonthGridProps {
    * кадра, пока весь остальной месяц ещё собирается.
    */
   padProps?: (slot: number) => { className?: string; style?: CSSProperties };
+  /**
+   * Месяц СОБИРАЕТСЯ при появлении: клетки приходят волной наискось, а не
+   * встают все разом.
+   *
+   * Зачем: сетка на год — это пятьсот клеток, и появляются они мгновенно,
+   * все сразу. Глазу не за что зацепиться, и экран читается как картинка,
+   * которая была здесь всегда. Волна показывает, что месяц СОБРАН из
+   * суток, и заодно даёт полсекунды, за которые видно, где смены.
+   *
+   * Тот же приём, что на первом экране, но вчетверо быстрее: там месяц
+   * один и он предмет разговора, здесь их до двенадцати и они рабочий
+   * инструмент. Порядок волны — наискось от левого верхнего угла:
+   * привычное направление чтения.
+   *
+   * Первый экран собирает месяц СВОЕЙ анимацией (`weekdayProps`,
+   * `padProps` и класс на клетке) — у него другая длительность, глубина и
+   * растворение. Поэтому здесь это отдельный флаг, а не общее правило.
+   */
+  assemble?: boolean;
 }
 
 /**
@@ -139,6 +158,7 @@ export function MonthGrid({
   joined,
   weekdayProps,
   padProps,
+  assemble,
 }: MonthGridProps) {
   const first = days[0];
   if (first === undefined) return null;
@@ -167,6 +187,23 @@ export function MonthGrid({
   // существует в разметке.
   const trailing = (7 - ((offset + days.length) % 7)) % 7;
 
+  /**
+   * Место клетки в волне: наискось от левого верхнего угла.
+   *
+   * Столбец весит вдвое против строки — тогда фронт идёт по диагонали, а
+   * не по строкам: сетка собирается как лист, а не как список.
+   *
+   * Строка недели считается строкой ВЫШЕ первой, потому что она и стоит
+   * выше: приходит вместе со своим столбцом, а не отдельным этапом.
+   */
+  const arriving = (index: number) =>
+    assemble
+      ? { className: "grid-cell-in", style: { "--i": index } as CSSProperties }
+      : null;
+  /** Клетка сетки: столбец весит вдвое, строка считается от буквенной. */
+  const assembling = (slot: number) =>
+    arriving((slot % 7) * 2 + Math.floor(slot / 7) + 1);
+
   return (
     <section className="space-y-1.5">
       {title ? (
@@ -178,7 +215,9 @@ export function MonthGrid({
 
       <div className={cn("grid grid-cols-7", joined ? "gap-0" : "gap-px")}>
         {WEEKDAY_LABELS.map((name, index) => {
-          const extra = weekdayProps?.(index);
+          // Буквы — строка ВЫШЕ первой, поэтому и в волне они на шаг
+          // раньше своего столбца.
+          const extra = weekdayProps?.(index) ?? arriving(index * 2);
           return (
             <div
               key={name}
@@ -196,7 +235,7 @@ export function MonthGrid({
         })}
 
         {Array.from({ length: offset }, (_, index) => {
-          const extra = padProps?.(index);
+          const extra = padProps?.(index) ?? assembling(index);
           return (
             <div
               key={`pad-${index}`}
@@ -212,15 +251,22 @@ export function MonthGrid({
           );
         })}
 
-        {days.map((day, index) => (
-          <div key={day} className="min-w-0">
-            {renderDay(day, corners(offset + index))}
-          </div>
-        ))}
+        {days.map((day, index) => {
+          const extra = assembling(offset + index);
+          return (
+            <div
+              key={day}
+              className={cn("min-w-0", extra?.className)}
+              style={extra?.style}
+            >
+              {renderDay(day, corners(offset + index))}
+            </div>
+          );
+        })}
 
         {Array.from({ length: trailing }, (_, index) => {
           const slot = offset + days.length + index;
-          const extra = padProps?.(slot);
+          const extra = padProps?.(slot) ?? assembling(slot);
           return (
             <div
               key={`tail-${index}`}

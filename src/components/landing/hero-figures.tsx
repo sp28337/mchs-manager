@@ -2,8 +2,8 @@
 
 import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
 
-import { BalanceCaption } from "@/components/ui/balance-caption";
-import { useCountedNumber } from "@/components/ui/counted-number";
+import { BalanceCaption, BALANCE_SWAP_MS } from "@/components/ui/balance-caption";
+import { CountedNumber } from "@/components/ui/counted-number";
 import { cn } from "@/lib/utils/cn";
 
 import { HERO_FIGURES_AT, HERO_STAGES, type HeroStage } from "./hero-scenario";
@@ -93,8 +93,6 @@ function Figure({
   /** Разница: зелёная, пока она переработка, красная — когда недоработка. */
   tone?: "signal" | "verify";
 }) {
-  const shown = useCountedNumber(String(value));
-
   return (
     <div className="min-w-0 sm:flex sm:flex-row-reverse sm:items-center sm:gap-4 text-center">
       {/* Число и его единица не разрываются переносом: «168» на одной
@@ -104,15 +102,17 @@ function Figure({
           "whitespace-nowrap font-mono leading-none tabular-nums",
           emphatic ? "text-xl sm:text-2xl" : "text-lg sm:text-xl",
           // Цвет меняется вместе с именем разницы, а не когда счётчик
-          // добежит: «пере» уезжает и число краснеет одним движением, за
-          // те же четверть секунды. Ждать конца счёта здесь нечего — в
-          // ноль он не приходит, знак разницы меняется сразу.
-          "transition-colors duration-250",
+          // добежит: «пере» уезжает и число краснеет одним движением.
+          // Длительность одна на оба — она приходит оттуда же, откуда её
+          // берёт сама приставка. Ждать конца счёта здесь нечего: в ноль
+          // он не приходит, знак разницы меняется сразу.
+          "transition-colors",
           tone === "signal" && "text-signal",
           tone === "verify" && "font-medium text-verify",
         )}
+        style={{ transitionDuration: `${BALANCE_SWAP_MS}ms` }}
       >
-        {shown}
+        <CountedNumber value={String(value)} />
         <span className="ml-1 text-xs text-ink-muted sm:text-sm">ч</span>
       </dd>
       <dt className="flex h-3.5 items-center justify-center gap-1 whitespace-nowrap text-[11px] leading-tight text-ink-muted">

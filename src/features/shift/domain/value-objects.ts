@@ -52,12 +52,18 @@ export const ACCOUNTING_PERIODS: readonly AccountingPeriodKind[] = [
  */
 export type AbsenceKind =
   | "annual_leave"
+  | "extra_leave"
   | "sick_leave"
   | "study_leave"
   | "time_off_in_lieu";
 
 export const ABSENCE_KIND_BASIS: Record<AbsenceKind, string> = {
   annual_leave: "ст. 63 ФЗ-141; ст. 114 ТК РФ",
+  // Дополнительный отпуск — не «ещё немного основного», а отдельное право
+  // с отдельным основанием: вредные условия, ненормированный день, север,
+  // особый характер работы (ст. 116-119 ТК РФ). Оплачивается так же, и
+  // норму уменьшает так же.
+  extra_leave: "ст. 116-119 ТК РФ",
   sick_leave: "ст. 65 ФЗ-141; ст. 183 ТК РФ",
   study_leave: "ст. 173-177 ТК РФ",
   time_off_in_lieu: "ст. 55 ФЗ-141; ст. 152, 153 ТК РФ",
@@ -79,6 +85,7 @@ export const ABSENCE_KIND_BASIS: Record<AbsenceKind, string> = {
  */
 export const ABSENCE_REDUCES_NORM: Record<AbsenceKind, boolean> = {
   annual_leave: true,
+  extra_leave: true,
   sick_leave: true,
   study_leave: true,
   time_off_in_lieu: false,
