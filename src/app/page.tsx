@@ -309,9 +309,12 @@ export default function LandingPage() {
 
       </main>
 
-      <footer className="mt-16 border-t border-rule">
+      {/* Подвал — рифлёным листом: страница кончается тем, по чему ходят в
+          части. Сам рельеф и его подгонка под тему живут в `globals.css`,
+          в правиле `.plate`. */}
+      <footer className="plate mt-16 border-t border-rule">
         <div className="mx-auto flex w-full max-w-4xl flex-col gap-6 px-6 py-8 sm:flex-row sm:items-end sm:justify-between xl:max-w-6xl 2xl:max-w-7xl">
-          <div className="max-w-prose space-y-2 text-xs text-ink-muted">
+          <div className="max-w-prose space-y-2 text-xs text-plate-ink">
             <p>
               {NAME} не заменяет табель или другие документы работодателя.
               Приложение показывает, как норма и переработка получаются из
@@ -326,13 +329,13 @@ export default function LandingPage() {
                 у всех: на каких условиях, что с моими данными и кому
                 написать, если число посчиталось неверно. */}
             <p className="flex flex-wrap gap-x-4 gap-y-1 pt-1">
-              <Link href="/terms" className="text-ink-muted hover:underline">
+              <Link href="/terms" className="text-plate-ink hover:underline">
                 Условия использования
               </Link>
-              <Link href="/terms#data" className="text-ink-muted hover:underline">
+              <Link href="/terms#data" className="text-plate-ink hover:underline">
                 Данные и приватность
               </Link>
-              <a href={`mailto:${EMAIL}`} className="text-ink-muted hover:underline">
+              <a href={`mailto:${EMAIL}`} className="text-plate-ink hover:underline">
                 {EMAIL}
               </a>
             </p>

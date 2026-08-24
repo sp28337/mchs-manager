@@ -322,7 +322,8 @@ export default function TermsPage() {
         </p>
       </main>
 
-      <footer className="mt-16 border-t border-rule">
+      {/* Тот же лист, что и на главной: подвал у страниц один и тот же. */}
+      <footer className="plate mt-16 border-t border-rule">
         <div className="mx-auto flex w-full max-w-3xl justify-center px-6 py-8">
           <ThemeToggle />
         </div>
