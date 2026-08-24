@@ -9,6 +9,9 @@ import {
   patternShiftDates,
   schedulePatternOf,
 } from "./schedule-pattern";
+import { calendarFactsFor } from "./production-calendar";
+import { calculatePeriod } from "./calculation";
+import { deriveWeeklyNorm } from "./value-objects";
 
 const at = (day: string) => day as IsoDate;
 
@@ -80,19 +83,29 @@ describe("цикл вокруг названной смены", () => {
     expect(onPatternCycle(anchor, at("2025-12-29"), pattern)).toBe(false);
   });
 
-  it("пять через два с понедельника — это рабочая неделя", () => {
-    // Ради этого 5/2 и оставлен скользящим циклом, без отдельного «графика
-    // по дням недели»: назови понедельник — и выходные навсегда встанут на
-    // субботу с воскресеньем.
-    const monday = at("2026-01-05");
-    expect(weekday(monday)).toBe(0);
+  it("пятидневка не считает цикл, а спрашивает календарь", () => {
+    // Скользящим циклом её сделать нельзя: пятидневка — это рабочая
+    // НЕДЕЛЯ, и определяет её производственный календарь, а не арифметика.
+    // Названная дата смены на неё не влияет вовсе — здесь она заведомо
+    // «неудобная», суббота, и всё равно ничего не меняет.
     const pattern = schedulePatternOf("5/2");
+    const saturday = at("2026-01-03");
+    expect(weekday(saturday)).toBe(5);
 
-    for (let i = 0; i < 28; i++) {
-      const day = addDays(monday, i);
-      const isWeekend = weekday(day) >= 5;
-      expect(onPatternCycle(monday, day, pattern), day).toBe(!isWeekend);
-    }
+    const working = new Set([at("2026-01-12"), at("2026-01-13")]);
+    expect(onPatternCycle(saturday, at("2026-01-12"), pattern, working)).toBe(true);
+    expect(onPatternCycle(saturday, at("2026-01-14"), pattern, working)).toBe(false);
+  });
+
+  it("без календаря пятидневка не выдумывает смен", () => {
+    // Выдумать рабочий день, не зная, не праздник ли он, нельзя. Молча
+    // показать его сменой значило бы соврать — а врать этому приложению
+    // нельзя по определению.
+    const pattern = schedulePatternOf("5/2");
+    expect(onPatternCycle(at("2026-01-05"), at("2026-01-06"), pattern)).toBe(false);
+    expect(
+      patternShiftDates(at("2026-01-05"), pattern, at("2026-01-01"), at("2026-02-01")),
+    ).toEqual([]);
   });
 });
 
@@ -145,6 +158,7 @@ describe("даты смен за период", () => {
   it("за год выходит ровно столько смен, сколько даёт цикл", () => {
     // Проверка на сдвиг: любая ошибка в отсчёте цикла меняет это число.
     for (const pattern of SCHEDULE_PATTERNS) {
+      if (pattern.source === "calendar") continue;
       const dates = patternShiftDates(anchor, pattern, at("2026-01-01"), at("2027-01-01"));
       const expected = Math.round((365 * pattern.workDays) / pattern.cycleDays);
       expect(Math.abs(dates.length - expected), pattern.id).toBeLessThanOrEqual(1);
@@ -157,5 +171,94 @@ describe("даты смен за период", () => {
         );
       }
     }
+  });
+});
+
+/**
+ * Пятидневка по настоящему производственному календарю.
+ *
+ * Здесь проверяется то, ради чего она и переведена с цикла на календарь:
+ * праздники, предпраздничные дни и ПЕРЕНОСЫ. Цикл в семь дней ни о чём из
+ * этого не знает и разъезжается с календарём в первый же праздник.
+ *
+ * Сильнее всего говорит последняя проверка: у пятидневки факт обязан
+ * сойтись с нормой в ноль. Норма считается по календарю, факт — по сменам,
+ * и если они сходятся, значит смены встали ровно на рабочие дни, а
+ * предпраздничный час снят и там, и там.
+ */
+describe("пятидневка по производственному календарю", () => {
+  const YEAR_START = at("2026-01-01");
+  const YEAR_END = at("2027-01-01");
+  const pattern = schedulePatternOf("5/2");
+
+  const facts = calendarFactsFor(YEAR_START, YEAR_END, new Map());
+  const shifts = patternShiftDates(
+    at("2026-01-05"),
+    pattern,
+    YEAR_START,
+    YEAR_END,
+    facts.workingDaySet,
+  );
+
+  it("смен ровно столько, сколько рабочих дней в году", () => {
+    expect(facts.workingDays).toBe(247);
+    expect(shifts).toHaveLength(247);
+  });
+
+  it("в праздники смен нет", () => {
+    // Новогодние, 23 февраля, 8 марта, 1 и 9 мая, 12 июня, 4 ноября.
+    for (const day of ["2026-01-01", "2026-01-07", "2026-02-23", "2026-03-09",
+                       "2026-05-01", "2026-05-11", "2026-06-12", "2026-11-04"]) {
+      expect(shifts.includes(at(day)), day).toBe(false);
+    }
+  });
+
+  it("перенесённые выходные сняты со смен", () => {
+    // 8 марта 2026-го — воскресенье, выходной переносится на понедельник
+    // 9-го; 9 мая — суббота, перенос на понедельник 11-го. Оба понедельника
+    // рабочие по циклу и НЕрабочие по календарю: ровно тот случай, из-за
+    // которого цикл здесь и не годится.
+    for (const day of ["2026-03-09", "2026-05-11"]) {
+      expect(weekday(at(day)), day).toBe(0);
+      expect(shifts.includes(at(day)), day).toBe(false);
+    }
+  });
+
+  it("предпраздничные дни остаются рабочими", () => {
+    // Они рабочие, просто короче на час (ст. 95 ТК РФ). Выбрось их из
+    // смен — и человек «недоработает» по восемь часов вместо одного.
+    for (const day of ["2026-04-30", "2026-05-08", "2026-06-11", "2026-11-03"]) {
+      expect(shifts.includes(at(day)), day).toBe(true);
+    }
+  });
+
+  it("факт сходится с нормой в ноль", () => {
+    const calculation = calculatePeriod({
+      periodStart: YEAR_START,
+      periodEnd: YEAR_END,
+      cycle: {
+        knownShiftDate: at("2026-01-05"),
+        pattern: "5/2",
+        workingDays: facts.workingDaySet,
+      },
+      weekly: deriveWeeklyNorm({ conditions: "normal" }),
+      calendar: {
+        workingDays: facts.workingDays,
+        preHolidayDays: facts.preHolidayDays,
+      },
+      absences: [],
+      holidayDays: facts.holidays,
+      workingDays: facts.workingDaySet,
+      preHolidayDays: facts.preHolidayDaySet,
+      shiftStartTime: "08:00",
+      shiftDurationHours: "8",
+    });
+
+    // 247 рабочих дней × 8 часов минус час за каждый из четырёх
+    // предпраздничных — и норма, и факт дают одно и то же число.
+    expect(calculation.normHours.toFixed(1)).toBe("1972.0");
+    expect(calculation.actualHours.toFixed(1)).toBe("1972.0");
+    expect(calculation.overtimeHours.toFixed(1)).toBe("0.0");
+    expect(calculation.undertimeHours.toFixed(1)).toBe("0.0");
   });
 });

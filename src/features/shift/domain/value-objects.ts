@@ -347,6 +347,15 @@ export interface ShiftCycle {
    */
   readonly pattern?: SchedulePatternId;
   /**
+   * Рабочие дни производственного календаря — для графиков, которые
+   * строятся по нему, а не по циклу (пятидневка).
+   *
+   * Множество обязано накрывать ВЕСЬ просматриваемый отрезок, включая
+   * сутки перед началом периода: смена, начавшаяся накануне, отдаёт
+   * периоду свой хвост.
+   */
+  readonly workingDays?: ReadonlySet<IsoDate>;
+  /**
    * Правки графика: сутки, назначенные сменой или снятые с неё.
    *
    * Цикл описывает график, а не жизнь. Подмены, переносы и снятия со
@@ -380,8 +389,9 @@ export function onShiftCycle(
   knownShiftDate: IsoDate,
   day: IsoDate,
   pattern?: SchedulePatternId,
+  workingDays?: ReadonlySet<IsoDate>,
 ): boolean {
-  return onPatternCycle(knownShiftDate, day, schedulePatternOf(pattern));
+  return onPatternCycle(knownShiftDate, day, schedulePatternOf(pattern), workingDays);
 }
 
 /**
@@ -409,6 +419,7 @@ export function shiftDates(
     pattern,
     periodStart,
     periodEnd,
+    cycle.workingDays,
   );
 
   // Правки поверх цикла. Их обычно единицы на год, поэтому перебирается
@@ -421,7 +432,7 @@ export function shiftDates(
   for (const [day, override] of overrides) {
     if (override !== "shift") continue;
     if (day < periodStart || day >= periodEnd) continue;
-    if (onPatternCycle(cycle.knownShiftDate, day, pattern)) continue;
+    if (onPatternCycle(cycle.knownShiftDate, day, pattern, cycle.workingDays)) continue;
     kept.push(day);
   }
   // Порядок дат — часть договора: по ним идёт разбор смен подряд.
