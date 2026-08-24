@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 
 import { Logo } from "@/components/ui/logo";
+import { ScheduleMark } from "@/components/shared/schedule-mark";
 import { cn } from "@/lib/utils/cn";
 
 /**
@@ -70,20 +71,11 @@ export function SiteHeader({ action, tools, className }: SiteHeaderProps) {
           <Logo className="size-7 shrink-0 text-signal" />
           <span className="min-w-0 leading-none">
             <span className="block font-display text-black/80 dark:text-ink text-xl font-bold uppercase leading-tight tracking-wide">
-              {/* Пробел перед «1 3» намеренный: в тексте строки
+              {/* Пробел перед цифрами намеренный: в тексте строки
                   склеиваются, и программа чтения произносит «График13».
-                  Разделитель под курсором проявляется на месте пробела —
-                  поэтому он и стоит в разметке всегда, просто прозрачным:
-                  появись он только при наведении, название дёргалось бы
-                  по ширине. */}
-              График{" "}
-              <span className="text-ink-muted">
-                1
-                <span className="font-extralight opacity-0 transition-opacity duration-200 group-hover:opacity-100">
-                  |
-                </span>
-                3
-              </span>
+                  Сами цифры называют выбранный график и меняются вместе с
+                  ним (`ScheduleMark`). */}
+              График <ScheduleMark />
             </span>
           </span>
         </Link>
