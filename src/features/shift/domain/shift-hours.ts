@@ -31,10 +31,29 @@ import { Dec, type Decimal } from "./decimal";
 import { addDays, type IsoDate } from "./plain-date";
 
 const MINUTES_PER_DAY = 1440;
-const MINUTES_PER_HOUR = 60;
+export const MINUTES_PER_HOUR = 60;
 
 /** Продолжительность смены «сутки через трое» — 24 часа. */
 export const SHIFT_MINUTES = MINUTES_PER_DAY;
+
+/**
+ * Продолжительность смены в часах — строкой, как её вводит человек.
+ *
+ * Строкой, а не числом, по той же причине, что и часы вызова: 7,5 при
+ * первом же круге записи и чтения в JSON превращается в 7.499999999999999.
+ * В минуты — целые и потому точные — переводится один раз, здесь.
+ *
+ * Ноль и всё, что не число, дают суточную смену: смена нулевой длины
+ * означала бы график, в котором человек не работает вовсе, — это не
+ * настройка, а поломка, и молча показывать её расчётом нельзя.
+ */
+export function shiftMinutes(hours: string | undefined): number {
+  const parsed = Number(String(hours ?? "").replace(",", "."));
+  if (!Number.isFinite(parsed) || parsed <= 0) return MINUTES_PER_DAY;
+  // Смена длиннее суток разложилась бы на трое суток, а расчёт разбирает
+  // двое: дальше суток не пускаем.
+  return Math.min(Math.round(parsed * MINUTES_PER_HOUR), MINUTES_PER_DAY);
+}
 
 /**
  * Ночное время — с 22:00 до 06:00 (ч. 1 ст. 96 ТК РФ).
@@ -96,23 +115,32 @@ function nightWithin(from: number, to: number): number {
 /**
  * Смена, разложенная по календарным суткам.
  *
- * Возвращается один кусок, если смена начинается в полночь, и два во всех
- * остальных случаях. Второй кусок принадлежит СЛЕДУЮЩИМ суткам — именно из
- * него берутся часы, которые в табеле уходят на первое число следующего
- * месяца.
+ * Второй кусок появляется, только если смена ПЕРЕВАЛИВАЕТ за полночь, —
+ * именно из него берутся часы, которые в табеле уходят на первое число
+ * следующего месяца. Суточная смена переваливает всегда, кроме начала
+ * ровно в полночь; двенадцатичасовая с восьми утра не переваливает вовсе,
+ * а с восьми вечера — переваливает.
+ *
+ * Продолжительность приходит извне: она зависит от графика и от того, что
+ * человек указал в настройках. Умолчание — сутки, тот график, с которого
+ * приложение начиналось.
  */
-export function splitShift(startedOn: IsoDate, startMinute: number): DayPart[] {
-  const firstDayMinutes = MINUTES_PER_DAY - startMinute;
+export function splitShift(
+  startedOn: IsoDate,
+  startMinute: number,
+  durationMinutes: number = SHIFT_MINUTES,
+): DayPart[] {
+  const firstDayMinutes = Math.min(durationMinutes, MINUTES_PER_DAY - startMinute);
   const parts: DayPart[] = [
     {
       day: startedOn,
       minutes: firstDayMinutes,
-      nightMinutes: nightWithin(startMinute, MINUTES_PER_DAY),
+      nightMinutes: nightWithin(startMinute, startMinute + firstDayMinutes),
       isStart: true,
     },
   ];
 
-  const tailMinutes = SHIFT_MINUTES - firstDayMinutes;
+  const tailMinutes = durationMinutes - firstDayMinutes;
   if (tailMinutes > 0) {
     parts.push({
       day: addDays(startedOn, 1),

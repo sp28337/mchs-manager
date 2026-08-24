@@ -8,7 +8,13 @@
  */
 
 import { Dec, type Decimal } from "./decimal";
-import { addDays, daysBetween, type IsoDate } from "./plain-date";
+import { type IsoDate } from "./plain-date";
+import {
+  onPatternCycle,
+  patternShiftDates,
+  schedulePatternOf,
+  type SchedulePatternId,
+} from "./schedule-pattern";
 
 /**
  * Условия по результатам специальной оценки. `harmful_or_dangerous` —
@@ -126,6 +132,9 @@ export const REDUCED_WEEKLY_HOURS = new Dec(36);
 /** Абз. 4 ч. 1 ст. 92 ТК РФ — инвалиды I или II группы. */
 export const DISABILITY_WEEKLY_HOURS = new Dec(35);
 
+/** Абз. 2 ч. 1 ст. 92 ТК РФ — работники в возрасте до шестнадцати лет. */
+export const MINOR_WEEKLY_HOURS = new Dec(24);
+
 /**
  * Недельная норма вместе с основанием, по которому она получена.
  *
@@ -141,6 +150,13 @@ export interface WeeklyNorm {
 export interface WeeklyNormInput {
   conditions: WorkingConditions;
   disabilityGroupIorII?: boolean;
+  /**
+   * Возраст до шестнадцати лет — самая короткая неделя из возможных.
+   *
+   * Необязательное с умолчанием: профили, сохранённые до появления этого
+   * основания, читаются как есть.
+   */
+  underSixteen?: boolean;
 }
 
 /**
@@ -166,14 +182,23 @@ export interface WeeklyNormInput {
  * --- Порядок проверок ----------------------------------------------------
  *
  * Сокращения не складываются. Проверки идут по убыванию силы основания,
- * и первое сработавшее и есть ответ: инвалидность стоит первой, потому
- * что даёт самую короткую неделю — 35 часов; поставь её ниже, и человек с
- * инвалидностью во вредных условиях получил бы 36 вместо 35.
+ * и первое сработавшее и есть ответ: возраст до шестнадцати стоит первым,
+ * потому что даёт самую короткую неделю — 24 часа, — за ним инвалидность
+ * с её тридцатью пятью. Поставь любое из них ниже, и человек получил бы
+ * норму длиннее той, на которую имеет право.
  */
 export function deriveWeeklyNorm({
   conditions,
   disabilityGroupIorII = false,
+  underSixteen = false,
 }: WeeklyNormInput): WeeklyNorm {
+  if (underSixteen) {
+    return {
+      hours: MINOR_WEEKLY_HOURS,
+      basis: "Абз. 2 ч. 1 ст. 92 ТК РФ: возраст до шестнадцати лет",
+    };
+  }
+
   if (disabilityGroupIorII) {
     return {
       hours: DISABILITY_WEEKLY_HOURS,
@@ -221,7 +246,7 @@ export function deriveWeeklyNorm({
  * они разойдутся, человек увидит в настройках «36 часов», а в расчёте
  * получит 40. Оба живут в одном файле и покрыты общим тестом.
  */
-export type WeeklyNormGround = "base" | "harmful" | "disability";
+export type WeeklyNormGround = "base" | "harmful" | "disability" | "minor";
 
 /**
  * Все основания списком, в порядке от общего к самому редкому.
@@ -234,22 +259,26 @@ export const WEEKLY_NORM_GROUNDS: readonly WeeklyNormGround[] = [
   "base",
   "harmful",
   "disability",
+  "minor",
 ];
 
 export const WEEKLY_NORM_GROUND_LABELS: Record<WeeklyNormGround, string> = {
   base: "40 часов",
   harmful: "36 часов",
   disability: "35 часов",
+  minor: "24 часа",
 };
 
 /** Признаки, которые задаёт выбранное основание. */
 export function weeklyNormGroundToFacts(ground: WeeklyNormGround): {
   conditions: WorkingConditions;
   disabilityGroupIorII: boolean;
+  underSixteen: boolean;
 } {
   return {
     conditions: ground === "harmful" ? "harmful_or_dangerous" : "normal",
     disabilityGroupIorII: ground === "disability",
+    underSixteen: ground === "minor",
   };
 }
 
@@ -261,6 +290,7 @@ export function weeklyNormGroundToFacts(ground: WeeklyNormGround): {
  * настройки показали бы «36», а расчёт взял бы 35.
  */
 export function weeklyNormGroundOf(input: WeeklyNormInput): WeeklyNormGround {
+  if (input.underSixteen) return "minor";
   if (input.disabilityGroupIorII) return "disability";
   if (input.conditions === "harmful_or_dangerous") return "harmful";
   return "base";
@@ -268,7 +298,13 @@ export function weeklyNormGroundOf(input: WeeklyNormInput): WeeklyNormGround {
 
 // ------------------------------------------------------------- дежурство
 
-/** Сутки через трое: вышел на смену — и через четверо суток снова. */
+/**
+ * Сутки через трое: вышел на смену — и через четверо суток снова.
+ *
+ * Осталось ради первого экрана посадочной страницы: там показан именно
+ * этот график и ничего другого. Расчёт берёт длину цикла из выбранного
+ * графика (`schedule-pattern.ts`), а не отсюда.
+ */
 export const SHIFT_CYCLE_DAYS = 4;
 
 /** Смена «сутки через трое» — это ровно 24 часа с её начала. */
@@ -295,8 +331,30 @@ export const SHIFT_DURATION_HOURS = new Dec(24);
  * приложение, которое в арифметике не ошибается.
  */
 export interface ShiftCycle {
-  /** Любые сутки, в которые человек выходил на смену или выйдет. */
+  /**
+   * Любые сутки, в которые человек выходил на смену или выйдет.
+   *
+   * У графиков, где рабочих суток подряд несколько, это ПЕРВЫЕ сутки
+   * череды: вторые из них цикл достроит сам.
+   */
   readonly knownShiftDate: IsoDate;
+  /**
+   * Какой это график: «1/3», «2/2», «5/2», «1/4».
+   *
+   * Необязательное с умолчанием, а не новая версия формата: профили,
+   * сохранённые до появления выбора, читаются как «сутки через трое» —
+   * единственный график, который тогда и был.
+   */
+  readonly pattern?: SchedulePatternId;
+  /**
+   * Рабочие дни производственного календаря — для графиков, которые
+   * строятся по нему, а не по циклу (пятидневка).
+   *
+   * Множество обязано накрывать ВЕСЬ просматриваемый отрезок, включая
+   * сутки перед началом периода: смена, начавшаяся накануне, отдаёт
+   * периоду свой хвост.
+   */
+  readonly workingDays?: ReadonlySet<IsoDate>;
   /**
    * Правки графика: сутки, назначенные сменой или снятые с неё.
    *
@@ -327,9 +385,13 @@ export type ShiftOverride = "shift" | "off";
  * Нужно и расчёту, и разметке: правка, совпавшая с циклом, не хранится, и
  * узнать это можно только здесь.
  */
-export function onShiftCycle(knownShiftDate: IsoDate, day: IsoDate): boolean {
-  const delta = daysBetween(knownShiftDate, day);
-  return ((delta % SHIFT_CYCLE_DAYS) + SHIFT_CYCLE_DAYS) % SHIFT_CYCLE_DAYS === 0;
+export function onShiftCycle(
+  knownShiftDate: IsoDate,
+  day: IsoDate,
+  pattern?: SchedulePatternId,
+  workingDays?: ReadonlySet<IsoDate>,
+): boolean {
+  return onPatternCycle(knownShiftDate, day, schedulePatternOf(pattern), workingDays);
 }
 
 /**
@@ -351,23 +413,14 @@ export function shiftDates(
 ): IsoDate[] {
   if (periodEnd <= periodStart) return [];
 
-  // Ближайшее начало смены не раньше начала периода. Считается
-  // арифметикой, а не перебором от известной смены: перебор по году — 365
-  // итераций там, где хватает одного деления.
-  //
-  // Округление ВВЕРХ работает в обе стороны само: при известной смене
-  // позже начала периода разница отрицательна, `Math.ceil` даёт
-  // отрицательное число шагов, и отсчёт уходит назад ровно до первой
-  // смены внутри периода.
-  const delta = daysBetween(cycle.knownShiftDate, periodStart);
-  const steps = Math.ceil(delta / SHIFT_CYCLE_DAYS);
-
-  const dates: IsoDate[] = [];
-  let cursor = addDays(cycle.knownShiftDate, steps * SHIFT_CYCLE_DAYS);
-  while (cursor < periodEnd) {
-    if (cursor >= periodStart) dates.push(cursor);
-    cursor = addDays(cursor, SHIFT_CYCLE_DAYS);
-  }
+  const pattern = schedulePatternOf(cycle.pattern);
+  const dates = patternShiftDates(
+    cycle.knownShiftDate,
+    pattern,
+    periodStart,
+    periodEnd,
+    cycle.workingDays,
+  );
 
   // Правки поверх цикла. Их обычно единицы на год, поэтому перебирается
   // не период, а они сами: снятые сутки уходят из списка, назначенные
@@ -379,7 +432,7 @@ export function shiftDates(
   for (const [day, override] of overrides) {
     if (override !== "shift") continue;
     if (day < periodStart || day >= periodEnd) continue;
-    if (onShiftCycle(cycle.knownShiftDate, day)) continue;
+    if (onPatternCycle(cycle.knownShiftDate, day, pattern, cycle.workingDays)) continue;
     kept.push(day);
   }
   // Порядок дат — часть договора: по ним идёт разбор смен подряд.

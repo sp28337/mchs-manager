@@ -11,11 +11,13 @@ import { describe, expect, test } from "vitest";
 
 import {
   DEFAULT_SHIFT_START,
+  shiftMinutes,
   minutesToHours,
   parseTimeOfDay,
   shiftStartMinute,
   splitShift,
 } from "./shift-hours";
+import type { IsoDate } from "./plain-date";
 
 describe("время развода", () => {
   test("разбирается из ЧЧ:ММ", () => {
@@ -103,6 +105,68 @@ describe("другое время развода", () => {
         0,
       );
       expect(minutesToHours(total).toString()).toBe("8");
+    }
+  });
+});
+
+/**
+ * Продолжительность смены перестала быть константой, и от неё зависит
+ * главное: попадает ли смена в следующие сутки. Двенадцатичасовая с восьми
+ * утра не попадает вовсе, с восьми вечера — попадает; суточная попадает
+ * всегда. Ошибка здесь молча переносит часы между месяцами.
+ */
+describe("смена короче суток", () => {
+  test("двенадцать часов с утра целиком лежат в своих сутках", () => {
+    const parts = splitShift("2026-03-10" as IsoDate, shiftStartMinute("08:00"), shiftMinutes("12"));
+    expect(parts).toHaveLength(1);
+    expect(parts[0]?.minutes).toBe(12 * 60);
+    expect(parts[0]?.day).toBe("2026-03-10");
+    // С 08:00 до 20:00 ночных нет ни минуты.
+    expect(parts[0]?.nightMinutes).toBe(0);
+  });
+
+  test("двенадцать часов с вечера переваливают за полночь", () => {
+    const parts = splitShift("2026-03-10" as IsoDate, shiftStartMinute("20:00"), shiftMinutes("12"));
+    expect(parts).toHaveLength(2);
+    expect(parts[0]?.minutes).toBe(4 * 60);
+    expect(parts[1]?.day).toBe("2026-03-11");
+    expect(parts[1]?.minutes).toBe(8 * 60);
+    // Ночные: с 22:00 до полуночи — два часа, с полуночи до 06:00 — шесть.
+    expect(parts[0]?.nightMinutes).toBe(2 * 60);
+    expect(parts[1]?.nightMinutes).toBe(6 * 60);
+  });
+
+  test("восьмичасовая смена пятидневки не выходит за сутки", () => {
+    const parts = splitShift("2026-03-10" as IsoDate, shiftStartMinute("09:00"), shiftMinutes("8"));
+    expect(parts).toHaveLength(1);
+    expect(parts[0]?.minutes).toBe(8 * 60);
+  });
+
+  test("половина часа не теряется", () => {
+    expect(shiftMinutes("11,5")).toBe(11 * 60 + 30);
+    expect(shiftMinutes("11.5")).toBe(11 * 60 + 30);
+  });
+
+  test("бессмыслица читается как суточная смена, а не как ноль", () => {
+    // Смена нулевой длины — это не настройка, а поломка: показывать её
+    // расчётом молча нельзя.
+    for (const value of ["", "0", "-5", "чепуха", undefined]) {
+      expect(shiftMinutes(value), String(value)).toBe(24 * 60);
+    }
+    // Длиннее суток смена не бывает: она разложилась бы на трое суток.
+    expect(shiftMinutes("30")).toBe(24 * 60);
+  });
+
+  test("сумма кусков всегда равна продолжительности", () => {
+    for (const hours of ["8", "11,5", "12", "23", "24"]) {
+      for (const start of ["00:00", "08:00", "13:30", "20:00", "23:45"]) {
+        const total = splitShift(
+          "2026-03-10" as IsoDate,
+          shiftStartMinute(start),
+          shiftMinutes(hours),
+        ).reduce((sum, part) => sum + part.minutes, 0);
+        expect(total, `${hours} с ${start}`).toBe(shiftMinutes(hours));
+      }
     }
   });
 });

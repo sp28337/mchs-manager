@@ -10,16 +10,15 @@ import { Modal } from "@/components/ui/modal";
 import { Select } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 
-import { parseHours } from "../domain/decimal";
+import { formatHoursTrim as hoursTrim, parseHours } from "../domain/decimal";
 import { formatDateRu, formatDayMonthRu } from "../domain/format";
 import type { IsoDate } from "../domain/plain-date";
 import { statutoryCalendar } from "../domain/production-calendar";
 import {
   ABSENCE_KIND_BASIS,
   CALLOUT_KIND_BASIS,
-  onShiftCycle,
 } from "../domain/value-objects";
-import { withShiftAt } from "../model/derive";
+import { scheduledByPattern, withShiftAt } from "../model/derive";
 import {
   ABSENCE_EFFECT,
   ABSENCE_LABELS,
@@ -164,8 +163,11 @@ function DayForm({
   const lawful = statutoryCalendar(profile.accountingYear).get(day) ?? "working";
   const effective = profile.calendarOverrides[day] ?? lawful;
 
-  // Смена в этих сутках: по циклу или как поправил человек.
-  const onCycle = onShiftCycle(profile.firstShiftDate, day);
+  // Смена в этих сутках: по графику или как поправил человек. У пятидневки
+  // «по графику» означает «рабочий день по производственному календарю», и
+  // ответ на это даёт один общий помощник — иначе окно дня и расчёт могли
+  // бы разойтись.
+  const onCycle = scheduledByPattern(profile, day);
   const scheduled = profile.shiftOverrides[day] === "shift"
     ? true
     : profile.shiftOverrides[day] === "off"
@@ -422,7 +424,7 @@ function DayForm({
           />
           <p className="text-xs text-ink-muted" aria-live="polite">
             {shift
-              ? "Сутки идут в отработанное целиком: 24 часа с начала смены."
+              ? `Смена идёт в отработанное целиком: ${hoursTrim(profile.shiftDurationHours)} ч с её начала.`
               : "Выходной: ни часов, ни ночных."}
             {shift === onCycle
               ? " Это и есть график по циклу."

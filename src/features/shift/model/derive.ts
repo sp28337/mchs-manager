@@ -10,12 +10,14 @@
 import { Dec } from "../domain/decimal";
 import {
   calculatePeriod,
+  SCAN_LEAD_DAYS,
   type AbsencePeriod,
   type CalloutPeriod,
   type PeriodCalculation,
 } from "../domain/calculation";
-import { calendarFactsFor, type DayType } from "../domain/production-calendar";
+import { statutoryCalendar, calendarFactsFor, type DayType } from "../domain/production-calendar";
 import { addDays, type IsoDate } from "../domain/plain-date";
+import { schedulePatternOf } from "../domain/schedule-pattern";
 import {
   ACCOUNTING_PERIODS,
   deriveWeeklyNorm,
@@ -40,6 +42,7 @@ export function weeklyNormInputOf(profile: StoredProfile): WeeklyNormInput {
   return {
     conditions: profile.workingConditions,
     disabilityGroupIorII: profile.disabilityGroupIorII,
+    underSixteen: profile.underSixteen,
   };
 }
 
@@ -61,11 +64,15 @@ export function weeklyNormOf(profile: StoredProfile): WeeklyNorm {
  */
 export function weeklyNormGroundFacts(
   ground: WeeklyNormGround,
-): Pick<StoredProfile, "workingConditions" | "disabilityGroupIorII"> {
+): Pick<
+  StoredProfile,
+  "workingConditions" | "disabilityGroupIorII" | "underSixteen"
+> {
   const facts = weeklyNormGroundToFacts(ground);
   return {
     workingConditions: facts.conditions,
     disabilityGroupIorII: facts.disabilityGroupIorII,
+    underSixteen: facts.underSixteen,
   };
 }
 
@@ -121,7 +128,22 @@ export function calculateFor(
   periodStart: IsoDate,
   periodEnd: IsoDate,
 ): PeriodCalculation {
-  const facts = calendarFactsFor(periodStart, periodEnd, overridesByYear(profile));
+  const overrides = overridesByYear(profile);
+  const facts = calendarFactsFor(periodStart, periodEnd, overrides);
+
+  // Отдельный, СДВИНУТЫЙ НАЗАД просмотр календаря — для графиков, которые
+  // строятся по нему (пятидневка). Он шире периода ровно на то, на сколько
+  // расчёт заглядывает назад: смена, начавшаяся накануне, отдаёт периоду
+  // свой хвост, и без этих суток первое число месяца теряло бы её.
+  //
+  // Расширять сами `facts` нельзя: по ним считается НОРМА, и лишние сутки
+  // добавили бы к ней чужой рабочий день.
+  const scheduleFacts = calendarFactsFor(
+    addDays(periodStart, -SCAN_LEAD_DAYS),
+    periodEnd,
+    overrides,
+  );
+
   return calculatePeriod({
     periodStart,
     periodEnd,
@@ -131,6 +153,8 @@ export function calculateFor(
       // известная смена, — но переименовывать ключ значило бы сломать
       // сохранённые файлы профилей ради названия.
       knownShiftDate: profile.firstShiftDate,
+      pattern: profile.schedulePattern,
+      workingDays: scheduleFacts.workingDaySet,
       overrides: shiftOverridesOf(profile),
     },
     weekly: weeklyNormOf(profile),
@@ -141,6 +165,7 @@ export function calculateFor(
     workingDays: facts.workingDaySet,
     preHolidayDays: facts.preHolidayDaySet,
     shiftStartTime: profile.shiftStartTime,
+    shiftDurationHours: profile.shiftDurationHours,
   });
 }
 
@@ -214,6 +239,29 @@ export function statutoryBounds(
 
 
 /**
+ * Приходится ли на эти сутки смена ПО ГРАФИКУ, без правок человека.
+ *
+ * Один ответ на два разных вопроса, и в этом весь смысл: у цикличных
+ * графиков смену задаёт цикл вокруг названной даты, у пятидневки —
+ * производственный календарь вместе с правками человека. Спрашивать об
+ * этом в двух местах по-разному значило бы однажды получить два разных
+ * ответа: в окне дня одно, в расчёте другое.
+ *
+ * Календарь берётся ПО ГОДУ САМИХ СУТОК, а не по учётному году профиля:
+ * период может пересечь границу года, и декабрьский день соседнего года
+ * иначе достался бы чужому календарю.
+ */
+export function scheduledByPattern(profile: StoredProfile, day: IsoDate): boolean {
+  const pattern = schedulePatternOf(profile.schedulePattern);
+  if (pattern.source !== "calendar") {
+    return onShiftCycle(profile.firstShiftDate, day, profile.schedulePattern);
+  }
+  const lawful = statutoryCalendar(Number(day.slice(0, 4))).get(day) ?? "working";
+  const dayType = profile.calendarOverrides[day] ?? lawful;
+  return dayType === "working" || dayType === "pre_holiday";
+}
+
+/**
  * Правка графика на одни сутки: смена или выходной.
  *
  * --- Почему совпадение с циклом не хранится ------------------------------
@@ -233,7 +281,7 @@ export function withShiftAt(
   shift: boolean,
 ): StoredProfile {
   const shiftOverrides = { ...profile.shiftOverrides };
-  if (onShiftCycle(profile.firstShiftDate, day) === shift) {
+  if (scheduledByPattern(profile, day) === shift) {
     delete shiftOverrides[day];
   } else {
     shiftOverrides[day] = shift ? "shift" : "off";

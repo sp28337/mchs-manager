@@ -22,6 +22,9 @@ describe("правки графика", () => {
     firstShiftDate: "2026-01-01",
     accountingYear: 2026,
     shiftStartTime: "08:00",
+    schedulePattern: "1/3",
+    shiftDurationHours: "24",
+    underSixteen: false,
   });
 
   it("снятая смена записывается", () => {

@@ -199,6 +199,7 @@ export function Workspace({ profile, onChange, onForget }: WorkspaceProps) {
         calculation={calculation}
         accountingYear={profile.accountingYear}
         overtimeInDays={profile.overtimeInDays}
+        shiftDurationHours={profile.shiftDurationHours}
       />
 
       <div className="space-y-10">

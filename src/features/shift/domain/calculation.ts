@@ -47,7 +47,10 @@ import {
   minutesToHours,
   shiftStartMinute,
   splitShift,
+  shiftMinutes,
+  MINUTES_PER_HOUR,
 } from "./shift-hours";
+import { schedulePatternOf } from "./schedule-pattern";
 import {
   ABSENCE_REDUCES_NORM,
   shiftDates,
@@ -260,7 +263,25 @@ export interface CalculatePeriodInput {
    * итоги и число ночных на стыке месяцев.
    */
   shiftStartTime?: string;
+  /**
+   * Продолжительность смены в часах, строкой.
+   *
+   * Зависит от графика: сутки через трое — 24, два через два — 12,
+   * пятидневка — 8. Умолчание суточное, тот график, с которого приложение
+   * начиналось.
+   */
+  shiftDurationHours?: string;
 }
+
+/**
+ * На сколько суток раньше периода начинается просмотр смен.
+ *
+ * Смена, начавшаяся накануне, отдаёт периоду свой хвост — с полуночи до
+ * развода. Число вынесено сюда, потому что по нему же строится множество
+ * рабочих дней календаря для пятидневки: разойдись они — и первый день
+ * периода терял бы смену.
+ */
+export const SCAN_LEAD_DAYS = 1;
 
 /**
  * Полный расчёт периода по графику смен.
@@ -281,8 +302,10 @@ export function calculatePeriod({
   workingDays,
   preHolidayDays,
   shiftStartTime = DEFAULT_SHIFT_START,
+  shiftDurationHours,
 }: CalculatePeriodInput): PeriodCalculation {
   const startMinute = shiftStartMinute(shiftStartTime);
+  const durationMinutes = shiftMinutes(shiftDurationHours);
 
   const shifts: ShiftRecord[] = [];
   const days: DayRecord[] = [];
@@ -300,7 +323,8 @@ export function calculatePeriod({
   // год, и достраивать его назад значило выдумать смену, которой в графике
   // нет. Теперь человек называет ЛЮБУЮ свою смену, и цикл от неё
   // продолжается в обе стороны — обрезать не по чему и не за чем.
-  const scanFrom = addDays(periodStart, -1);
+  const scanFrom = addDays(periodStart, -SCAN_LEAD_DAYS);
+  const calendarDriven = schedulePatternOf(cycle.pattern).source === "calendar";
 
   for (const startedOn of shiftDates(cycle, scanFrom, periodEnd)) {
     // Отсутствие определяется по дате ЗАСТУПЛЕНИЯ, а не по каждым суткам:
@@ -309,7 +333,20 @@ export function calculatePeriod({
     const absence = absences.find((item) => absenceCovers(item, startedOn));
     const kind = absence ? absence.kind : null;
 
-    const inPeriod = splitShift(startedOn, startMinute).filter(
+    // Предпраздничный день короче на час (ст. 95 ТК РФ) — но только там,
+    // где смена и есть рабочий день календаря. У сменных графиков
+    // предпраздничное сокращение к суточной смене не применяется: она идёт
+    // как идёт, а час учитывается нормой периода.
+    //
+    // Без этой поправки у пятидневки появлялась бы переработка из ничего:
+    // норма вычитает за предпраздничный день час, а факт его не вычитал —
+    // и год заканчивался лишними часами, которых человек не работал.
+    const shiftMinutesHere =
+      calendarDriven && preHolidayDays.has(startedOn)
+        ? Math.max(0, durationMinutes - MINUTES_PER_HOUR)
+        : durationMinutes;
+
+    const inPeriod = splitShift(startedOn, startMinute, shiftMinutesHere).filter(
       (part) => periodStart <= part.day && part.day < periodEnd,
     );
     if (inPeriod.length === 0) continue;

@@ -7,6 +7,10 @@ import { Label } from "@/components/ui/label";
 import { Modal } from "@/components/ui/modal";
 import { cn } from "@/lib/utils/cn";
 
+import {
+  DEFAULT_SCHEDULE_PATTERN,
+  schedulePatternOf,
+} from "../domain/schedule-pattern";
 import { DEFAULT_SHIFT_START } from "../domain/shift-hours";
 import { todayIso } from "../domain/plain-date";
 import { weeklyNormGroundFacts } from "../model/derive";
@@ -74,6 +78,11 @@ export function blankProfile(): StoredProfile {
     firstShiftDate: todayIso(),
     accountingYear: CURRENT_YEAR,
     shiftStartTime: DEFAULT_SHIFT_START,
+    // График и продолжительность смены идут парой: второе следует из
+    // первого, и подставляются они вместе — здесь и при каждой смене
+    // графика в настройках.
+    schedulePattern: DEFAULT_SCHEDULE_PATTERN,
+    shiftDurationHours: schedulePatternOf(DEFAULT_SCHEDULE_PATTERN).defaultShiftHours,
   });
 }
 
