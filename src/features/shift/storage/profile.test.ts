@@ -18,6 +18,9 @@ function filledProfile(): StoredProfile {
     firstShiftDate: "2025-01-02" as IsoDate,
     accountingYear: 2025,
     shiftStartTime: "09:00",
+    schedulePattern: "1/3",
+    shiftDurationHours: "24",
+    underSixteen: false,
   });
   return {
     ...profile,

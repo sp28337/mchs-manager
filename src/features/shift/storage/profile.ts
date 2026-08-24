@@ -29,6 +29,10 @@
 
 import { z } from "zod";
 
+import {
+  DEFAULT_SCHEDULE_PATTERN,
+  type SchedulePatternId,
+} from "../domain/schedule-pattern";
 import { DEFAULT_SHIFT_START } from "../domain/shift-hours";
 import type { ShiftOverride } from "../domain/value-objects";
 import type { DayType } from "../domain/production-calendar";
@@ -111,6 +115,36 @@ export const storedProfileSchema = z.object({
     .string()
     .regex(/^([01]\d|2[0-3]):[0-5]\d$/, "время в формате ЧЧ:ММ")
     .default(DEFAULT_SHIFT_START),
+  /**
+   * График сменности: «1/3», «2/2», «5/2», «1/4».
+   *
+   * Необязательное с умолчанием: профили, сохранённые до появления
+   * выбора, читаются как «сутки через трое» — единственный график, который
+   * тогда и был.
+   */
+  schedulePattern: z
+    .enum(["1/3", "2/2", "5/2", "1/4"])
+    .default(DEFAULT_SCHEDULE_PATTERN),
+  /**
+   * Продолжительность смены в часах, строкой.
+   *
+   * Строкой по той же причине, что и часы вызова: 7,5 при первом же круге
+   * записи и чтения в JSON превратилось бы в 7.499999999999999.
+   *
+   * Значение следует из графика, но им не задаётся намертво: у
+   * двенадцатичасовых смен встречается одиннадцать с половиной, у
+   * суточных — двадцать три. Необязательное с умолчанием: профили,
+   * сохранённые до появления поля, читаются как суточные.
+   */
+  shiftDurationHours: z.string().min(1).max(6).default("24"),
+  /**
+   * Возраст до шестнадцати лет: самая короткая неделя, 24 часа.
+   *
+   * Признак, а не число, — как и остальные основания недельной нормы:
+   * норму выводит домен, а профиль хранит то, из чего она следует.
+   * Необязательное с умолчанием, профили без него читаются как есть.
+   */
+  underSixteen: z.boolean().default(false),
   /* Схема нестрогая намеренно: поля из неё со временем уходят — статус,
      пол, номер караула, северное сокращение, сверка с табелем, — а
      профили, сохранённые до этого, обязаны читаться как есть. Лишние
@@ -180,10 +214,13 @@ export interface NewProfileInput {
   displayName: string;
   workingConditions: StoredProfile["workingConditions"];
   disabilityGroupIorII: boolean;
+  underSixteen: boolean;
   /** Любые сутки, в которые человек выходил на смену или выйдет. */
   firstShiftDate: IsoDate;
   accountingYear: number;
   shiftStartTime: string;
+  schedulePattern: StoredProfile["schedulePattern"];
+  shiftDurationHours: string;
 }
 
 export function createProfile(input: NewProfileInput): StoredProfile {
@@ -271,9 +308,42 @@ export function hasStoredProfile(): boolean {
   return loadProfile().status === "ok";
 }
 
+/**
+ * Имя события «профиль изменился в ЭТОЙ вкладке».
+ *
+ * Родное `storage` для этого не годится: браузер шлёт его только другим
+ * вкладкам, а не той, что писала. Без своего события шапка узнавала бы о
+ * смене графика лишь при перезагрузке страницы — то есть никогда, потому
+ * что настройки правят и закрывают, не перезагружая.
+ */
+const PROFILE_EVENT = "shift-schedule.profile";
+
+function announceProfile(): void {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(new Event(PROFILE_EVENT));
+}
+
 export function subscribeToStoredProfile(onChange: () => void): () => void {
   window.addEventListener("storage", onChange);
-  return () => window.removeEventListener("storage", onChange);
+  window.addEventListener(PROFILE_EVENT, onChange);
+  return () => {
+    window.removeEventListener("storage", onChange);
+    window.removeEventListener(PROFILE_EVENT, onChange);
+  };
+}
+
+/**
+ * График из сохранённого профиля — строкой, а не объектом.
+ *
+ * Строкой намеренно: значение читает `useSyncExternalStore`, а тот
+ * сравнивает снимки по ссылке. Верни отсюда объект — и каждый снимок был
+ * бы новым, то есть «изменившимся», и подписка зациклилась бы.
+ */
+export function storedSchedulePattern(): SchedulePatternId {
+  const result = loadProfile();
+  return result.status === "ok"
+    ? result.profile.schedulePattern
+    : DEFAULT_SCHEDULE_PATTERN;
 }
 
 export class StorageUnavailableError extends Error {
@@ -297,6 +367,7 @@ export function saveProfile(profile: StoredProfile): StoredProfile {
     // Молча потерять правку нельзя: человек увидел бы «сохранено» и ушёл.
     throw new StorageUnavailableError();
   }
+  announceProfile();
   return next;
 }
 
@@ -307,6 +378,7 @@ export function clearProfile(): void {
   } catch {
     // Нечего чистить — и нечего сообщать.
   }
+  announceProfile();
 }
 
 /** Выгрузка в файл: единственный способ пережить очистку браузера. */

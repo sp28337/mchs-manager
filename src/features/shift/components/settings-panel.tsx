@@ -11,6 +11,10 @@ import { Select } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 
 import {
+  SCHEDULE_PATTERNS,
+  schedulePatternOf,
+} from "../domain/schedule-pattern";
+import {
   WEEKLY_NORM_GROUNDS,
   WEEKLY_NORM_GROUND_LABELS,
   type WeeklyNormGround,
@@ -21,6 +25,8 @@ import {
 } from "../model/derive";
 import { resetCalendar, type StoredProfile } from "../storage/profile";
 import { DateField } from "./date-field";
+import { formatHoursTrim as hoursTrim } from "../domain/decimal";
+import { HoursField } from "./hours-field";
 import { LiveModeSwitch } from "./live-mode";
 import { TimeField } from "./time-field";
 
@@ -81,8 +87,11 @@ export function SettingsPanel({
   const normId = useId();
   const shiftId = useId();
   const startId = useId();
+  const patternId = useId();
+  const durationId = useId();
 
   const ground = weeklyNormGroundOfProfile(profile);
+  const pattern = schedulePatternOf(profile.schedulePattern);
 
   return (
     <div className="space-y-4">
@@ -112,7 +121,7 @@ export function SettingsPanel({
             />
             <p className="text-xs text-ink-muted">
               {profile.overtimeInDays
-                ? "Показывается сменами и часами: «8 суток 20 ч». Сутки — это смена, 24 часа."
+                ? `Показывается сменами и часами. Смена здесь — ${hoursTrim(profile.shiftDurationHours)} ч, как указано ниже.`
                 : "Показывается часами: «212,0 ч»."}
             </p>
           </div>
@@ -132,6 +141,53 @@ export function SettingsPanel({
             onChange((previous) => ({ ...previous, displayName }));
           }}
         />
+      </Field>
+
+      {/* График стоит раньше нормы и даты: от него зависит и то, как
+          строится календарь, и обычная продолжительность смены. Ответив на
+          него первым, человек дальше правит уже подставленное, а не
+          заполняет с нуля. */}
+      <Field
+        id={patternId}
+        label="График"
+        hint={
+          <>
+            <p>
+              Сколько суток подряд рабочих и сколько за ними выходных. Цикл
+              скользящий: он повторяется от названной даты смены и строится в
+              обе стороны.
+            </p>
+            <p>
+              Привычная рабочая неделя — это «5/2», у которого датой смены
+              назван понедельник: цикл семидневный, и выходные тогда навсегда
+              встают на субботу с воскресеньем.
+            </p>
+          </>
+        }
+      >
+        <Select
+          id={patternId}
+          value={pattern.id}
+          onChange={(event) => {
+            const next = schedulePatternOf(event.target.value);
+            onChange((previous) => ({
+              ...previous,
+              schedulePattern: next.id,
+              // Продолжительность смены следует из графика: сутки через
+              // трое — 24 часа, два через два — 12, пятидневка — 8. Человек
+              // может поправить её ниже, но подставить обычное для графика
+              // значение приложение обязано само — иначе смена графика
+              // оставляла бы суточную смену в пятидневке.
+              shiftDurationHours: next.defaultShiftHours,
+            }));
+          }}
+        >
+          {SCHEDULE_PATTERNS.map((option) => (
+            <option key={option.id} value={option.id}>
+              {option.label} — {option.title.toLowerCase()}
+            </option>
+          ))}
+        </Select>
       </Field>
 
       <Field id={normId} label="Норма часов в неделю">
@@ -175,13 +231,35 @@ export function SettingsPanel({
       <Field
         id={startId}
         label="Время отсчёта смены"
-        hint="С этого времени отсчитывается 24 часа смены."
+        hint="С этого времени отсчитывается продолжительность смены."
       >
         <TimeField
           id={startId}
           value={profile.shiftStartTime}
           onChange={(shiftStartTime) =>
             onChange((previous) => ({ ...previous, shiftStartTime }))
+          }
+        />
+      </Field>
+
+      {/* Продолжительность стоит сразу за временем отсчёта: вместе они
+          отвечают на один вопрос — с какого часа и по какой длится смена. */}
+      <Field
+        id={durationId}
+        label="Продолжительность смены"
+        hint={
+          <p>
+            Обычная для выбранного графика подставляется сама, но правится:
+            у двенадцатичасовых смен встречается одиннадцать с половиной
+            (обед за свой счёт), у суточных — двадцать три.
+          </p>
+        }
+      >
+        <HoursField
+          id={durationId}
+          value={profile.shiftDurationHours}
+          onChange={(shiftDurationHours) =>
+            onChange((previous) => ({ ...previous, shiftDurationHours }))
           }
         />
       </Field>

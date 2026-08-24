@@ -40,6 +40,7 @@ export function weeklyNormInputOf(profile: StoredProfile): WeeklyNormInput {
   return {
     conditions: profile.workingConditions,
     disabilityGroupIorII: profile.disabilityGroupIorII,
+    underSixteen: profile.underSixteen,
   };
 }
 
@@ -61,11 +62,15 @@ export function weeklyNormOf(profile: StoredProfile): WeeklyNorm {
  */
 export function weeklyNormGroundFacts(
   ground: WeeklyNormGround,
-): Pick<StoredProfile, "workingConditions" | "disabilityGroupIorII"> {
+): Pick<
+  StoredProfile,
+  "workingConditions" | "disabilityGroupIorII" | "underSixteen"
+> {
   const facts = weeklyNormGroundToFacts(ground);
   return {
     workingConditions: facts.conditions,
     disabilityGroupIorII: facts.disabilityGroupIorII,
+    underSixteen: facts.underSixteen,
   };
 }
 
@@ -131,6 +136,7 @@ export function calculateFor(
       // известная смена, — но переименовывать ключ значило бы сломать
       // сохранённые файлы профилей ради названия.
       knownShiftDate: profile.firstShiftDate,
+      pattern: profile.schedulePattern,
       overrides: shiftOverridesOf(profile),
     },
     weekly: weeklyNormOf(profile),
@@ -141,6 +147,7 @@ export function calculateFor(
     workingDays: facts.workingDaySet,
     preHolidayDays: facts.preHolidayDaySet,
     shiftStartTime: profile.shiftStartTime,
+    shiftDurationHours: profile.shiftDurationHours,
   });
 }
 
@@ -233,7 +240,7 @@ export function withShiftAt(
   shift: boolean,
 ): StoredProfile {
   const shiftOverrides = { ...profile.shiftOverrides };
-  if (onShiftCycle(profile.firstShiftDate, day) === shift) {
+  if (onShiftCycle(profile.firstShiftDate, day, profile.schedulePattern) === shift) {
     delete shiftOverrides[day];
   } else {
     shiftOverrides[day] = shift ? "shift" : "off";

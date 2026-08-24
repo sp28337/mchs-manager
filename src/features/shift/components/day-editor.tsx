@@ -10,7 +10,7 @@ import { Modal } from "@/components/ui/modal";
 import { Select } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 
-import { parseHours } from "../domain/decimal";
+import { formatHoursTrim as hoursTrim, parseHours } from "../domain/decimal";
 import { formatDateRu, formatDayMonthRu } from "../domain/format";
 import type { IsoDate } from "../domain/plain-date";
 import { statutoryCalendar } from "../domain/production-calendar";
@@ -422,7 +422,7 @@ function DayForm({
           />
           <p className="text-xs text-ink-muted" aria-live="polite">
             {shift
-              ? "Сутки идут в отработанное целиком: 24 часа с начала смены."
+              ? `Смена идёт в отработанное целиком: ${hoursTrim(profile.shiftDurationHours)} ч с её начала.`
               : "Выходной: ни часов, ни ночных."}
             {shift === onCycle
               ? " Это и есть график по циклу."
