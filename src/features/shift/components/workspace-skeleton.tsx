@@ -173,7 +173,7 @@ export function WorkspaceSkeleton() {
             <div className="space-y-6 xl:flex xl:flex-row-reverse xl:gap-4">
               <div
                 className={cn(
-                  "grid gap-x-6 gap-y-5 max-sm:px-[5%] flex-1",
+                  "grid gap-x-6 gap-y-5 flex-1",
                   // Ступень масштаба взята из `YearView` целиком, вместе с
                   // кеглем: до 1024 точек расчёт открывается самой мелкой
                   // (`text-[11px]`), выше — на ступень крупнее (`text-xs`)
