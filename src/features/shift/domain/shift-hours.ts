@@ -31,7 +31,7 @@ import { Dec, type Decimal } from "./decimal";
 import { addDays, type IsoDate } from "./plain-date";
 
 const MINUTES_PER_DAY = 1440;
-const MINUTES_PER_HOUR = 60;
+export const MINUTES_PER_HOUR = 60;
 
 /** Продолжительность смены «сутки через трое» — 24 часа. */
 export const SHIFT_MINUTES = MINUTES_PER_DAY;
