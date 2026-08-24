@@ -22,6 +22,7 @@ import type { StoredProfile } from "../storage/profile";
  * «36 часов», а в расчёте получит 40.
  */
 const EXPECTED_HOURS: Record<WeeklyNormGround, string> = {
+  minor: "24",
   base: "40",
   harmful: "36",
   disability: "35",
@@ -43,8 +44,10 @@ describe("основание недельной нормы", () => {
       const norm = deriveWeeklyNorm(weeklyNormGroundToFacts(ground));
       expect(norm.hours.toFixed(0), ground).toBe(EXPECTED_HOURS[ground]);
       // Подпись начинается с того же числа: человек выбирает по нему.
+      // Форма слова при числе своя — «24 часа», но «40 часов», — поэтому
+      // проверяется число и то, что за ним идёт именно «час».
       expect(WEEKLY_NORM_GROUND_LABELS[ground]).toMatch(
-        new RegExp(`^${EXPECTED_HOURS[ground]} часов`),
+        new RegExp(`^${EXPECTED_HOURS[ground]} час(а|ов)$`),
       );
     }
   });
@@ -93,6 +96,9 @@ describe("основание недельной нормы", () => {
       disabilityGroupIorII: false,
       firstShiftDate: "2026-01-01",
       shiftStartTime: "08:00",
+      schedulePattern: "1/3",
+      shiftDurationHours: "24",
+      underSixteen: false,
       accountingYear: 2026,
       absences: [],
       callouts: [],

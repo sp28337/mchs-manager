@@ -47,6 +47,7 @@ import {
   minutesToHours,
   shiftStartMinute,
   splitShift,
+  shiftMinutes,
 } from "./shift-hours";
 import {
   ABSENCE_REDUCES_NORM,
@@ -260,6 +261,14 @@ export interface CalculatePeriodInput {
    * итоги и число ночных на стыке месяцев.
    */
   shiftStartTime?: string;
+  /**
+   * Продолжительность смены в часах, строкой.
+   *
+   * Зависит от графика: сутки через трое — 24, два через два — 12,
+   * пятидневка — 8. Умолчание суточное, тот график, с которого приложение
+   * начиналось.
+   */
+  shiftDurationHours?: string;
 }
 
 /**
@@ -281,8 +290,10 @@ export function calculatePeriod({
   workingDays,
   preHolidayDays,
   shiftStartTime = DEFAULT_SHIFT_START,
+  shiftDurationHours,
 }: CalculatePeriodInput): PeriodCalculation {
   const startMinute = shiftStartMinute(shiftStartTime);
+  const durationMinutes = shiftMinutes(shiftDurationHours);
 
   const shifts: ShiftRecord[] = [];
   const days: DayRecord[] = [];
@@ -309,7 +320,7 @@ export function calculatePeriod({
     const absence = absences.find((item) => absenceCovers(item, startedOn));
     const kind = absence ? absence.kind : null;
 
-    const inPeriod = splitShift(startedOn, startMinute).filter(
+    const inPeriod = splitShift(startedOn, startMinute, durationMinutes).filter(
       (part) => periodStart <= part.day && part.day < periodEnd,
     );
     if (inPeriod.length === 0) continue;

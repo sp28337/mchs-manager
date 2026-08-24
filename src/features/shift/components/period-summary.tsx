@@ -9,9 +9,11 @@ import { cn } from "@/lib/utils/cn";
 import {
   daysWord,
   formatHoursTrim as hoursTrim,
+  shiftsWord,
   splitIntoDays,
   type Decimal,
 } from "../domain/decimal";
+import { shiftMinutes } from "../domain/shift-hours";
 import { pendingTransfers } from "../domain/production-calendar";
 import type { PeriodCalculation } from "../domain/calculation";
 
@@ -58,16 +60,29 @@ export function PeriodSummary({
   calculation,
   accountingYear,
   overtimeInDays,
+  shiftDurationHours,
 }: {
   calculation: PeriodCalculation;
   accountingYear: number;
   /** В чём показывать переработку: в часах или сменами и часами. */
   overtimeInDays: boolean;
+  /**
+   * Продолжительность смены, часами.
+   *
+   * Переработка «сменами» делится именно на неё: у графика «два через
+   * два» смена двенадцатичасовая, и делить её переработку на сутки значило
+   * бы назвать вдвое меньше смен, чем человек отработал сверх нормы.
+   */
+  shiftDurationHours: string;
 }) {
   return (
     <>
       <div className="sticky top-24 z-40 -mx-6 -translate-y-8">
-        <FiguresRow calculation={calculation} inDays={overtimeInDays} />
+        <FiguresRow
+          calculation={calculation}
+          inDays={overtimeInDays}
+          shiftHours={shiftDurationHours}
+        />
       </div>
 
       <PendingNotice accountingYear={accountingYear} />
@@ -111,9 +126,11 @@ export function PeriodSummary({
 function FiguresRow({
   calculation,
   inDays,
+  shiftHours,
 }: {
   calculation: PeriodCalculation;
   inDays: boolean;
+  shiftHours: string;
 }) {
   const row = useRef<HTMLDivElement>(null);
   const probe = useRef<HTMLDivElement>(null);
@@ -159,7 +176,12 @@ function FiguresRow({
     // ними просвечивает календарь — он проезжает под закреплённой полосой,
     // и в зазорах видно, как едут клетки.
     <div ref={row} className="relative flex items-stretch gap-2 bg-paper px-6 pb-3">
-      <MainPlate calculation={calculation} inDays={inDays} grow={!fits} />
+      <MainPlate
+        calculation={calculation}
+        inDays={inDays}
+        shiftHours={shiftHours}
+        grow={!fits}
+      />
 
       {fits ? (
         <div className="flex h-14 min-w-0 flex-1 gap-2">
@@ -178,7 +200,12 @@ function FiguresRow({
         aria-hidden
         className="pointer-events-none invisible absolute bottom-0 left-6 flex h-14 gap-2 whitespace-nowrap"
       >
-        <MainPlate calculation={calculation} inDays={inDays} tight />
+        <MainPlate
+          calculation={calculation}
+          inDays={inDays}
+          shiftHours={shiftHours}
+          tight
+        />
         {items.map((item) => (
           <MinorPlate key={item.caption} {...item} tight />
         ))}
@@ -260,12 +287,15 @@ function MinorPlate({
 function MainPlate({
   calculation,
   inDays,
+  shiftHours,
   grow,
   tight,
 }: {
   calculation: PeriodCalculation;
   /** Переработку — сменами и часами, а не часами. */
   inDays: boolean;
+  /** Продолжительность смены: на неё делится переработка. */
+  shiftHours: string;
   /** Мелких итогов рядом нет — занять всю строку и развести числа. */
   grow?: boolean;
   /** Плашка эталона: по содержимому. */
@@ -298,7 +328,7 @@ function MainPlate({
         still={tight}
       />
       <Figure
-        parts={overtimeParts(balance, inDays)}
+        parts={overtimeParts(balance, inDays, shiftHours)}
         caption={<BalanceCaption under={under} />}
         // Ноль — это попадание в норму, и цвета у него нет: ни зелёного,
         // ни красного. Сигнальным становится только то, что требует
@@ -329,12 +359,26 @@ function MainPlate({
  * Она такая же разница часов, только с другим знаком, и показывать её в
  * другой мере значило бы предложить сравнивать несравнимое.
  */
-function overtimeParts(value: Decimal, inDays: boolean): FigurePart[] {
+function overtimeParts(
+  value: Decimal,
+  inDays: boolean,
+  shiftHours: string,
+): FigurePart[] {
   if (!inDays) return [{ value: hoursTrim(value), unit: "ч" }];
 
-  const { days: whole, hours: rest } = splitIntoDays(value);
+  // Мера — своя смена, а не астрономические сутки. У суточной смены слово
+  // остаётся прежним, «сутки»: так на этом графике и говорят. У всех
+  // остальных оно превратилось бы в неправду, поэтому там — «смены».
+  const perShift = shiftMinutes(shiftHours) / 60;
+  const whole24 = perShift === 24;
+  const { days: whole, hours: rest } = splitIntoDays(value, perShift);
   const parts: FigurePart[] = [];
-  if (whole > 0) parts.push({ value: String(whole), unit: daysWord(whole) });
+  if (whole > 0) {
+    parts.push({
+      value: String(whole),
+      unit: whole24 ? daysWord(whole) : shiftsWord(whole),
+    });
+  }
   // Ровные сутки не тянут за собой «0 ч», но и пустой строки не бывает:
   // меньше смены — значит просто часы.
   if (!rest.isZero() || whole === 0) {
