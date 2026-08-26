@@ -11,6 +11,9 @@ import { Select } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 
 import {
+  CUSTOM_PATTERN_ID,
+  MAX_CUSTOM_DAYS,
+  MIN_CUSTOM_DAYS,
   SCHEDULE_PATTERNS,
   schedulePatternOf,
 } from "../domain/schedule-pattern";
@@ -20,12 +23,14 @@ import {
   type WeeklyNormGround,
 } from "../domain/value-objects";
 import {
+  patternOfProfile,
   weeklyNormGroundFacts,
   weeklyNormGroundOfProfile,
 } from "../model/derive";
 import { resetCalendar, type StoredProfile } from "../storage/profile";
 import { DateField } from "./date-field";
 import { formatHoursTrim as hoursTrim } from "../domain/decimal";
+import { shiftMinutes } from "../domain/shift-hours";
 import { HoursField } from "./hours-field";
 import { LiveModeSwitch } from "./live-mode";
 import { TimeField } from "./time-field";
@@ -88,10 +93,12 @@ export function SettingsPanel({
   const shiftId = useId();
   const startId = useId();
   const patternId = useId();
+  const customId = useId();
   const durationId = useId();
 
   const ground = weeklyNormGroundOfProfile(profile);
-  const pattern = schedulePatternOf(profile.schedulePattern);
+  const pattern = patternOfProfile(profile);
+  const custom = profile.schedulePattern === CUSTOM_PATTERN_ID;
 
   return (
     <div className="space-y-4">
@@ -170,16 +177,24 @@ export function SettingsPanel({
           id={patternId}
           value={pattern.id}
           onChange={(event) => {
-            const next = schedulePatternOf(event.target.value);
+            const id = event.target.value as StoredProfile["schedulePattern"];
             onChange((previous) => ({
               ...previous,
-              schedulePattern: next.id,
+              schedulePattern: id,
               // Продолжительность смены следует из графика: сутки через
               // трое — 24 часа, два через два — 12, пятидневка — 8. Человек
               // может поправить её ниже, но подставить обычное для графика
               // значение приложение обязано само — иначе смена графика
               // оставляла бы суточную смену в пятидневке.
-              shiftDurationHours: next.defaultShiftHours,
+              //
+              // У своего цикла обычной продолжительности не бывает: 3/1
+              // водителя это восемь часов, а 3/1 сторожа — сутки. Поэтому
+              // при переходе на него поле остаётся тем, что человек уже
+              // поставил.
+              shiftDurationHours:
+                id === CUSTOM_PATTERN_ID
+                  ? previous.shiftDurationHours
+                  : schedulePatternOf(id).defaultShiftHours,
             }));
           }}
         >
@@ -188,8 +203,52 @@ export function SettingsPanel({
               {option.label} — {option.title.toLowerCase()}
             </option>
           ))}
+          {/* Заготовки — быстрый ответ на частый случай, а не перечень
+              допустимого: 3/1, 2/1, 4/4 на вахте в него не влезут никогда.
+              Поэтому последним пунктом стоит свой цикл. */}
+          <option value={CUSTOM_PATTERN_ID}>Свой график</option>
         </Select>
       </Field>
+
+      {custom ? (
+        <Field
+          id={customId}
+          label="Свой цикл"
+          hint={
+            <p>
+              Сколько суток подряд работать и сколько отдыхать. Цикл
+              повторяется от названной даты смены в обе стороны.
+            </p>
+          }
+        >
+          <div className="flex flex-wrap items-center gap-2">
+            <CycleDays
+              id={customId}
+              label="Рабочих суток"
+              value={profile.customWorkDays}
+              onChange={(customWorkDays) =>
+                onChange((previous) => ({ ...previous, customWorkDays }))
+              }
+            />
+            <span aria-hidden className="text-ink-faint">
+              /
+            </span>
+            <CycleDays
+              label="Выходных суток"
+              value={profile.customRestDays}
+              onChange={(customRestDays) =>
+                onChange((previous) => ({ ...previous, customRestDays }))
+              }
+            />
+            <span className="text-sm text-ink-muted">
+              — цикл в {pattern.cycleDays}{" "}
+              {pattern.cycleDays % 10 === 1 && pattern.cycleDays % 100 !== 11
+                ? "сутки"
+                : "суток"}
+            </span>
+          </div>
+        </Field>
+      ) : null}
 
       <Field id={normId} label="Норма часов в неделю">
         <Select
@@ -239,7 +298,7 @@ export function SettingsPanel({
 
       <Field
         id={startId}
-        label="Время отсчёта смены"
+        label="Начало смены"
         hint="С этого времени отсчитывается продолжительность смены."
       >
         <TimeField
@@ -272,6 +331,26 @@ export function SettingsPanel({
           }
         />
       </Field>
+
+      {/* Смены встык — не запрет, а предупреждение.
+          -------------------------------------------------------------
+          Суточная смена в цикле, где рабочих суток подряд несколько,
+          означает работу без единого перерыва: одна смена кончается ровно
+          тогда, когда начинается следующая. Арифметика при этом сходится,
+          и расчёт молча выдаёт восемь тысяч часов за год — то самое тихое
+          враньё, ради борьбы с которым приложение и существует.
+
+          Запрещать нельзя: вахта 15/15 по 24 часа встречается, и человек
+          знает про свой график больше нас. Но назвать это обязаны — тем
+          более что чаще сюда попадают не намеренно, а сменив график и не
+          заметив, что продолжительность осталась прежней. */}
+      {pattern.workDays > 1 && shiftMinutes(profile.shiftDurationHours) >= 24 * 60 ? (
+        <p className="rounded-xl bg-signal-soft px-4 py-3 text-xs">
+          {pattern.workDays} рабочих суток подряд по 24 часа — смены пойдут
+          встык, без перерыва между ними. Проверьте продолжительность: у
+          такого цикла она обычно 8 или 12 часов.
+        </p>
+      ) : null}
 
       {/* Учётного года здесь больше нет.
           -------------------------------------------------------------
@@ -369,6 +448,45 @@ function ResetCalendar({
         </Button>
       </div>
     </div>
+  );
+}
+
+/**
+ * Число суток в своём цикле.
+ *
+ * Список, а не поле с набором: значений всего тридцать одно, и все они
+ * целые. Списком нельзя ввести ни ноль, ни «два с половиной» — то есть
+ * ровно те значения, из-за которых поле пришлось бы стеречь проверкой и
+ * объяснять человеку, что он ввёл не то.
+ */
+function CycleDays({
+  id,
+  label,
+  value,
+  onChange,
+}: {
+  id?: string;
+  label: string;
+  value: number;
+  onChange: (value: number) => void;
+}) {
+  return (
+    <Select
+      id={id}
+      aria-label={label}
+      className="w-auto font-mono"
+      value={String(value)}
+      onChange={(event) => onChange(Number(event.target.value))}
+    >
+      {Array.from(
+        { length: MAX_CUSTOM_DAYS - MIN_CUSTOM_DAYS + 1 },
+        (_, index) => MIN_CUSTOM_DAYS + index,
+      ).map((days) => (
+        <option key={days} value={days}>
+          {days}
+        </option>
+      ))}
+    </Select>
   );
 }
 

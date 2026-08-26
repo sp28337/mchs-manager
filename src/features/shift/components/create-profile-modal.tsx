@@ -83,6 +83,10 @@ export function blankProfile(): StoredProfile {
     // графика в настройках.
     schedulePattern: DEFAULT_SCHEDULE_PATTERN,
     shiftDurationHours: schedulePatternOf(DEFAULT_SCHEDULE_PATTERN).defaultShiftHours,
+    // Свой цикл заполнен и у того, кто его не выбирал: числа хранятся
+    // всегда, чтобы не пропадать при возврате к заготовке.
+    customWorkDays: 1,
+    customRestDays: 3,
   });
 }
 
