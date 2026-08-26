@@ -178,8 +178,13 @@ export default function LandingPage() {
         <HowItWorks />
 
         {/* ------------------------------------------------------------ основания */}
-        <section aria-labelledby="law" className="space-y-5 border-b border-rule py-14">
-          <h2 id="law" className="text-2xl md:text-4xl">
+        {/* Поля по вертикали у всех разделов одни: раздел «Как работает»
+            стал выше и крупнее, и соседние рядом с ним выглядели поджатыми
+            — будто их дописали позже. Заголовки тоже вровень: разница в две
+            ступени между соседними заголовками читается не как иерархия, а
+            как недосмотр. */}
+        <section aria-labelledby="law" className="space-y-6 border-b border-rule py-16 md:py-20">
+          <h2 id="law" className="text-3xl md:text-5xl lg:text-6xl">
             Полезно знать
           </h2>
           <dl className="grid gap-x-10 gap-y-4 sm:grid-cols-2">
@@ -218,8 +223,8 @@ export default function LandingPage() {
         </section>
 
         {/* ---------------------------------------------------------------- вопросы */}
-        <section aria-labelledby="faq" className="space-y-5 py-14">
-          <h2 id="faq" className="text-2xl md:text-4xl">
+        <section aria-labelledby="faq" className="space-y-6 py-16 md:py-20">
+          <h2 id="faq" className="text-3xl md:text-5xl lg:text-6xl">
             Частые вопросы
           </h2>
           <div className="grid gap-2">

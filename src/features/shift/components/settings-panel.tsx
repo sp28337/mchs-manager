@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { cn } from "@/lib/utils/cn";
 
 import {
   CUSTOM_PATTERN_ID,
@@ -102,40 +103,56 @@ export function SettingsPanel({
 
   return (
     <div className="space-y-4">
-      {purpose === "settings" ? (
-        <>
-          {/* Режим стоит первым: он меняет не одну величину, а то, за какой
-              отрезок считается всё остальное. */}
-          <div className="space-y-1.5 border-b border-rule pb-4">
-            <LiveModeSwitch profile={profile} onChange={onChange} />
-            <p className="text-xs text-ink-muted">
-              {profile.liveMode
-                ? "Расчёт идёт с начала периода по сегодняшний день."
-                : "Расчёт идёт за весь выбранный период целиком."}
-            </p>
-          </div>
+      {/* Как показывать расчёт — отдельной карточкой и первой.
+          -------------------------------------------------------------
+          Оба тумблера меняют не расчёт, а то, каким его показать, и стоять
+          вперемежку с вопросами о человеке им незачем. Режим первый: он
+          решает, за какой отрезок считается всё остальное.
 
-          {/* Мера переработки — рядом с режимом, а не среди вопросов о
-              человеке: и то и другое меняет не расчёт, а то, каким его
-              показать. */}
-          <div className="space-y-1.5 border-b border-rule pb-4">
+          Пояснение под каждым — не подсказка, а СЛЕДСТВИЕ выбранного, и
+          меняется вместе с ним. Прятать его в подсказку значило бы прятать
+          ответ на вопрос «что я сейчас включил». */}
+      {purpose === "settings" ? (
+        <Card>
+          <Field
+            label=""
+            note={
+              profile.liveMode
+                ? "Расчёт идёт с начала периода по сегодняшний день."
+                : "Расчёт идёт за весь выбранный период целиком."
+            }
+            stack
+          >
+            <LiveModeSwitch profile={profile} onChange={onChange} spread />
+          </Field>
+
+          <Field
+            label=""
+            note={
+              profile.overtimeInDays
+                ? `Показывается сменами и часами. Смена здесь — ${hoursTrim(profile.shiftDurationHours)} ч, как указано ниже.`
+                : "Показывается часами: «212,0 ч»."
+            }
+            stack
+          >
             <Switch
               checked={profile.overtimeInDays}
               onChange={(overtimeInDays) =>
                 onChange((previous) => ({ ...previous, overtimeInDays }))
               }
               label="Переработка в сутках"
+              spread
             />
-            <p className="text-xs text-ink-muted">
-              {profile.overtimeInDays
-                ? `Показывается сменами и часами. Смена здесь — ${hoursTrim(profile.shiftDurationHours)} ч, как указано ниже.`
-                : "Показывается часами: «212,0 ч»."}
-            </p>
-          </div>
-        </>
+          </Field>
+        </Card>
       ) : null}
 
-      <Field id={nameId} label="Имя профиля">
+      {/* Вопросы о человеке и его графике — второй карточкой, в том
+          порядке, в каком они следуют друг из друга: график задаёт
+          продолжительность смены, норма и дата от него не зависят, но
+          читаются рядом. */}
+      <Card>
+      <Field id={nameId} label="Имя профиля" stack>
         <Input
           id={nameId}
           maxLength={200}
@@ -220,6 +237,11 @@ export function SettingsPanel({
               повторяется от названной даты смены в обе стороны.
             </p>
           }
+          note={`Цикл в ${pattern.cycleDays} ${
+            pattern.cycleDays % 10 === 1 && pattern.cycleDays % 100 !== 11
+              ? "сутки"
+              : "суток"
+          }.`}
         >
           <div className="flex flex-wrap items-center gap-2">
             <CycleDays
@@ -240,12 +262,6 @@ export function SettingsPanel({
                 onChange((previous) => ({ ...previous, customRestDays }))
               }
             />
-            <span className="text-sm text-ink-muted">
-              — цикл в {pattern.cycleDays}{" "}
-              {pattern.cycleDays % 10 === 1 && pattern.cycleDays % 100 !== 11
-                ? "сутки"
-                : "суток"}
-            </span>
           </div>
         </Field>
       ) : null}
@@ -346,6 +362,8 @@ export function SettingsPanel({
           знает про свой график больше нас. Но назвать это обязаны — тем
           более что чаще сюда попадают не намеренно, а сменив график и не
           заметив, что продолжительность осталась прежней. */}
+      </Card>
+
       {pattern.workDays > 1 && shiftMinutes(profile.shiftDurationHours) >= 24 * 60 ? (
         <p className="rounded-xl bg-signal-soft px-4 py-3 text-xs">
           {pattern.workDays} рабочих суток подряд по 24 часа — смены пойдут
@@ -363,6 +381,24 @@ export function SettingsPanel({
           где на него смотрят. */}
 
       {purpose === "settings" ? <ResetCalendar onChange={onChange} /> : null}
+    </div>
+  );
+}
+
+/**
+ * Карточка настроек: несколько строк «вопрос — ответ» под одной рамкой.
+ *
+ * Рамка здесь не украшение, а то, что делает список настроек списком.
+ * Прежде вопросы шли по странице сплошняком — подпись, поле, подпись,
+ * поле, — и на телефоне, где панель открыта окном во всю высоту, отличить
+ * конец одного вопроса от начала следующего можно было только по кеглю.
+ * Разделённые линиями строки под общей рамкой читаются рядами таблицы, и
+ * ответ у каждой стоит на своём месте, справа.
+ */
+function Card({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="divide-y divide-rule rounded-xl border border-rule bg-paper-raised px-4">
+      {children}
     </div>
   );
 }
@@ -502,20 +538,50 @@ function Field({
   id,
   label,
   hint,
+  note,
+  stack,
   children,
 }: {
-  id: string;
+  id?: string;
   label: string;
   hint?: React.ReactNode;
+  /** Строка под вопросом: что следует из выбранного ответа. */
+  note?: React.ReactNode;
+  /**
+   * Ответ под вопросом, а не справа от него.
+   *
+   * Для тех немногих ответов, которым строки не хватает: своего цикла из
+   * двух списков и имени профиля, где обрезанное поле в треть строки
+   * читается хуже пустого.
+   */
+  stack?: boolean;
   children: React.ReactNode;
 }) {
   return (
-    <div className="space-y-1.5">
-      <div className="flex items-center gap-1.5">
-        <Label htmlFor={id}>{label}</Label>
-        {hint && <Hint label={`Что такое «${label}»`}>{hint}</Hint>}
+    <div className={cn("py-3", stack ? "space-y-2" : "space-y-1")}>
+      <div
+        className={cn(
+          "flex gap-x-4 gap-y-2",
+          stack ? "flex-col" : "flex-wrap items-center justify-between",
+        )}
+      >
+        <div className="flex items-center gap-1.5">
+          <Label htmlFor={id}>{label}</Label>
+          {hint && <Hint label={`Что такое «${label}»`}>{hint}</Hint>}
+        </div>
+        {/* Ответ прижат к правому краю: так у столбца ответов появляется
+            своя ось, и глаз читает настройки как таблицу, а не как список
+            разной длины. На узком экране строка переносится, и ответ встаёт
+            под вопросом сам. */}
+        <div className={cn("flex items-center gap-2", stack ? "" : "justify-end")}>
+          {children}
+        </div>
       </div>
-      {children}
+      {note ? (
+        <p className="text-xs text-ink-muted" aria-live="polite">
+          {note}
+        </p>
+      ) : null}
     </div>
   );
 }
