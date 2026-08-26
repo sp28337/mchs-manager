@@ -13,7 +13,7 @@ import {
   onPatternCycle,
   patternShiftDates,
   schedulePatternOf,
-  type SchedulePatternId,
+  type SchedulePattern,
 } from "./schedule-pattern";
 
 /**
@@ -315,13 +315,16 @@ export interface ShiftCycle {
    */
   readonly knownShiftDate: IsoDate;
   /**
-   * Какой это график: «1/3», «2/2», «5/2», «1/4».
+   * Какой это график — уже СОБРАННЫЙ, а не его опознание.
    *
-   * Необязательное с умолчанием, а не новая версия формата: профили,
-   * сохранённые до появления выбора, читаются как «сутки через трое» —
-   * единственный график, который тогда и был.
+   * Собранный намеренно: у своего графика числа лежат в профиле, и из
+   * одного опознания он не восстанавливается. Собирает его тот, кто читает
+   * профиль (`patternOfProfile`), — здесь домен получает готовое.
+   *
+   * Необязательное с умолчанием: расчёт без указанного графика идёт по
+   * «суткам через трое», единственному, который был раньше.
    */
-  readonly pattern?: SchedulePatternId;
+  readonly pattern?: SchedulePattern;
   /**
    * Рабочие дни производственного календаря — для графиков, которые
    * строятся по нему, а не по циклу (пятидневка).
@@ -364,10 +367,15 @@ export type ShiftOverride = "shift" | "off";
 export function onShiftCycle(
   knownShiftDate: IsoDate,
   day: IsoDate,
-  pattern?: SchedulePatternId,
+  pattern?: SchedulePattern,
   workingDays?: ReadonlySet<IsoDate>,
 ): boolean {
-  return onPatternCycle(knownShiftDate, day, schedulePatternOf(pattern), workingDays);
+  return onPatternCycle(
+    knownShiftDate,
+    day,
+    pattern ?? schedulePatternOf(undefined),
+    workingDays,
+  );
 }
 
 /**
@@ -389,7 +397,7 @@ export function shiftDates(
 ): IsoDate[] {
   if (periodEnd <= periodStart) return [];
 
-  const pattern = schedulePatternOf(cycle.pattern);
+  const pattern = cycle.pattern ?? schedulePatternOf(undefined);
   const dates = patternShiftDates(
     cycle.knownShiftDate,
     pattern,

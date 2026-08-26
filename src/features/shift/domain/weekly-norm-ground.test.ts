@@ -95,6 +95,8 @@ describe("основание недельной нормы", () => {
       shiftStartTime: "08:00",
       schedulePattern: "1/3",
       shiftDurationHours: "24",
+      customWorkDays: 1,
+      customRestDays: 3,
       accountingYear: 2026,
       absences: [],
       callouts: [],

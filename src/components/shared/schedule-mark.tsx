@@ -2,13 +2,9 @@
 
 import { useEffect, useState, useSyncExternalStore } from "react";
 
+import { DEFAULT_SCHEDULE_LABEL } from "@/features/shift/domain/schedule-pattern";
 import {
-  DEFAULT_SCHEDULE_PATTERN,
-  schedulePatternOf,
-  type SchedulePatternId,
-} from "@/features/shift/domain/schedule-pattern";
-import {
-  storedSchedulePattern,
+  storedScheduleLabel,
   subscribeToStoredProfile,
 } from "@/features/shift/storage/profile";
 
@@ -56,21 +52,21 @@ const ASH_MS = 760;
 
 /** Догорающая пара со счётчиком: он отличает одно прогорание от другого. */
 interface Burning {
-  pattern: SchedulePatternId;
+  pattern: string;
   at: number;
 }
 
 export function ScheduleMark() {
   const pattern = useSyncExternalStore(
     subscribeToStoredProfile,
-    storedSchedulePattern,
-    () => DEFAULT_SCHEDULE_PATTERN,
+    storedScheduleLabel,
+    () => DEFAULT_SCHEDULE_LABEL,
   );
 
   // Что нарисовано сейчас и что догорает поверх. Второе живёт ровно до
   // конца анимации: держать его дольше значило бы оставить в шапке две
   // пары цифр, из которых одна уже ничего не значит.
-  const [shown, setShown] = useState<SchedulePatternId>(pattern);
+  const [shown, setShown] = useState<string>(pattern);
   const [burning, setBurning] = useState<Burning | null>(null);
 
   // Правка состояния ПРЯМО В ОТРИСОВКЕ, а не в эффекте, и это здесь
@@ -123,13 +119,14 @@ function Digits({
   ash,
   kindle,
 }: {
-  pattern: SchedulePatternId;
+  /** Подпись графика: «1/3», «2/2», «3/1». */
+  pattern: string;
   /** Эти цифры догорают: их сносит и растворяет. */
   ash?: boolean;
   /** Эти цифры приходят на смену догорающим. */
   kindle?: boolean;
 }) {
-  const [first = "1", second = "3"] = schedulePatternOf(pattern).label.split("/");
+  const [first = "1", second = "3"] = pattern.split("/");
   const digit = ash ? "mark-ash" : kindle ? "mark-kindle" : undefined;
 
   return (
