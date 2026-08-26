@@ -5,7 +5,7 @@ import {
   type CalculatePeriodInput,
 } from "./calculation";
 import { addDays, weekday, type IsoDate } from "./plain-date";
-import { spanMinutes, spanOfSchedule, type ShiftSpan } from "./shift-hours";
+import { spanMinutes, spanFrom, type ShiftSpan } from "./shift-hours";
 import { deriveWeeklyNorm } from "./value-objects";
 
 /**
@@ -76,16 +76,16 @@ describe("промежуток смены", () => {
   });
 
   test("часы по графику собираются из начала и продолжительности", () => {
-    expect(spanOfSchedule("08:00", 1440)).toEqual({ startsAt: "08:00", endsAt: "08:00" });
-    expect(spanOfSchedule("08:00", 720)).toEqual({ startsAt: "08:00", endsAt: "20:00" });
-    expect(spanOfSchedule("20:00", 720)).toEqual({ startsAt: "20:00", endsAt: "08:00" });
-    expect(spanOfSchedule("08:30", 690)).toEqual({ startsAt: "08:30", endsAt: "20:00" });
+    expect(spanFrom("08:00", 1440)).toEqual({ startsAt: "08:00", endsAt: "08:00" });
+    expect(spanFrom("08:00", 720)).toEqual({ startsAt: "08:00", endsAt: "20:00" });
+    expect(spanFrom("20:00", 720)).toEqual({ startsAt: "20:00", endsAt: "08:00" });
+    expect(spanFrom("08:30", 690)).toEqual({ startsAt: "08:30", endsAt: "20:00" });
   });
 
   /** Собранное из графика и разобранное обратно обязано сойтись. */
   test("сборка и разбор дают ту же продолжительность", () => {
     for (const minutes of [60, 480, 690, 720, 1380, 1440]) {
-      expect(spanMinutes(spanOfSchedule("08:00", minutes)), String(minutes)).toBe(minutes);
+      expect(spanMinutes(spanFrom("08:00", minutes)), String(minutes)).toBe(minutes);
     }
   });
 });

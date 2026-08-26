@@ -10,14 +10,18 @@ import { Modal } from "@/components/ui/modal";
 import { Select } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 
-import { parseHours } from "../domain/decimal";
+import { formatHoursTrim, parseHours } from "../domain/decimal";
 import { formatDateRu, formatDayMonthRu } from "../domain/format";
 import { addDays, type IsoDate } from "../domain/plain-date";
 import { statutoryCalendar } from "../domain/production-calendar";
 import {
   MINUTES_PER_DAY,
   MINUTES_PER_HOUR,
+  SHIFT_MINUTES,
+  minutesToHours,
   parseTimeOfDay,
+  shiftMinutes,
+  spanFrom,
   spanMinutes,
   type ShiftSpan,
 } from "../domain/shift-hours";
@@ -33,6 +37,7 @@ import {
   withShiftAt,
   withShiftTimeAt,
 } from "../model/derive";
+import { HoursField } from "./hours-field";
 import { TimeField } from "./time-field";
 import {
   ABSENCE_EFFECT,
@@ -187,7 +192,14 @@ function DayForm({
 
   const [dayType, setDayType] = useState<DayType>(effective);
   const [shift, setShift] = useState(scheduled);
-  const [span, setSpan] = useState<ShiftSpan>(() => shiftSpanAt(profile, day));
+  // Начало и продолжительность держатся врозь и строками — тем же, чем их
+  // набирают. Собрать из них промежуток можно в любой миг (`spanFrom`), а
+  // разобрать обратно на каждом нажатии значило бы стирать человеку
+  // запятую посреди «11,5».
+  const [startsAt, setStartsAt] = useState(() => shiftSpanAt(profile, day).startsAt);
+  const [durationHours, setDurationHours] = useState(() =>
+    spanHoursText(shiftSpanAt(profile, day)),
+  );
   const [choice, setChoice] = useState<DayChoice>("none");
   const [endsOn, setEndsOn] = useState<IsoDate | null>(day);
   const [hours, setHours] = useState(DEFAULT_CALLOUT_HOURS);
@@ -243,7 +255,7 @@ function DayForm({
     // Часы записываются ПОСЛЕ смены и только к ней: у выходного часов нет,
     // и оставшаяся от прежней смены запись однажды приписала бы чужой
     // распорядок той смене, которая встанет сюда потом.
-    return withShiftTimeAt(moved, day, shift ? span : null);
+    return withShiftTimeAt(moved, day, shift ? spanFrom(startsAt, shiftMinutes(durationHours)) : null);
   }
 
   function saveNote(next: StoredProfile, text: string): StoredProfile {
@@ -456,9 +468,16 @@ function DayForm({
         {kind === "shifts" && shift ? (
           <ShiftHoursField
             day={day}
-            span={span}
+            startsAt={startsAt}
+            hours={durationHours}
             schedule={scheduleSpanAt(profile, day)}
-            onChange={setSpan}
+            onStart={setStartsAt}
+            onHours={setDurationHours}
+            onReset={() => {
+              const schedule = scheduleSpanAt(profile, day);
+              setStartsAt(schedule.startsAt);
+              setDurationHours(spanHoursText(schedule));
+            }}
           />
         ) : null}
 
@@ -594,6 +613,16 @@ function overnightTailFrom(profile: StoredProfile, day: IsoDate): IsoDate | null
   return started + length > MINUTES_PER_DAY ? previous : null;
 }
 
+/**
+ * Продолжительность промежутка — строкой, как её набирают: «24», «11,5».
+ *
+ * Через `formatHoursTrim`, а не делением в уме: разделитель дробной части
+ * в этом приложении запятая, и поле часов принимает именно её.
+ */
+function spanHoursText(span: ShiftSpan): string {
+  return formatHoursTrim(minutesToHours(spanMinutes(span) ?? SHIFT_MINUTES));
+}
+
 /** «11 ч 30 мин» — столько, сколько между названными часами. */
 function formatSpanLength(minutes: number): string {
   const hours = Math.floor(minutes / MINUTES_PER_HOUR);
@@ -602,24 +631,28 @@ function formatSpanLength(minutes: number): string {
 }
 
 /**
- * Со скольки и до скольки человек отработал эту смену.
+ * Начало смены и её продолжительность в этих сутках.
  *
  * --- Почему это спрашивается на дне, а не в настройках ---------------------
  *
- * В настройках уже есть и начало смены, и её продолжительность — но это
- * ГРАФИК, одинаковый на все сутки года. Спор с работодателем идёт не о
- * графике: заступил в восемь, а сдал в одиннадцать вечера, потому что
- * смена не пришла; отпустили в шесть; подменял полсмены. Такие сутки —
- * единичные, и настройками их не выразить: поправив там, человек сдвинул
- * бы весь год.
+ * В настройках стоят те же две величины — но это ГРАФИК, одинаковый на все
+ * сутки года. Спор с работодателем идёт не о графике: заступил в восемь, а
+ * сдал в одиннадцать вечера, потому что смена не пришла; отпустили в шесть;
+ * подменял полсмены. Такие сутки единичные, и настройками их не выразить:
+ * поправив там, человек сдвинул бы весь год.
  *
- * --- Почему двумя часами, а не одной продолжительностью --------------------
+ * --- Почему теми же двумя величинами, что и в настройках -------------------
  *
- * Человек помнит границы — «с восьми до двадцати трёх», — и в этом же виде
- * они стоят в рапорте и в табеле, откуда он их и переписывает.
- * Продолжительность из границ следует, а обратно — нет: от начала зависит,
- * как смена ляжет на двое суток, а от этого ночные часы (ст. 96 ТК РФ) и
- * то, в каком месяце эти часы окажутся.
+ * Вопрос здесь тот же самый, только про одни сутки, — и задан он обязан
+ * быть так же. Человек, уже отвечавший про начало смены и её
+ * продолжительность в настройках, второй раз отвечает не глядя; спроси его
+ * тут иначе — «со скольки и до скольки», — и он сперва переводит одно в
+ * другое, а перевод в уме это место, где ошибаются.
+ *
+ * Конца смены поле не спрашивает вовсе: тот следует из двух названных
+ * чисел, и лишний ответ, который можно вычислить, — лишний способ
+ * ошибиться. Вычисленный конец при этом ПОКАЗАН, потому что отвечает на
+ * настоящий вопрос человека: когда сдавать и в какие сутки уйдут часы.
  *
  * --- Почему рядом стоит график ---------------------------------------------
  *
@@ -629,67 +662,70 @@ function formatSpanLength(minutes: number): string {
  */
 function ShiftHoursField({
   day,
-  span,
+  startsAt,
+  hours,
   schedule,
-  onChange,
+  onStart,
+  onHours,
+  onReset,
 }: {
   day: IsoDate;
-  span: ShiftSpan;
+  /** Начало смены, «ЧЧ:ММ». */
+  startsAt: string;
+  /**
+   * Продолжительность — строкой, как её набирают.
+   *
+   * Строкой, а не минутами: набирая «11,5», человек проходит через «11,»,
+   * и приведение к числу на каждом нажатии стирало бы у него запятую.
+   */
+  hours: string;
   /** Часы этой смены по графику — то, от чего человек отступает. */
   schedule: ShiftSpan;
-  onChange: (next: ShiftSpan) => void;
+  onStart: (startsAt: string) => void;
+  onHours: (hours: string) => void;
+  onReset: () => void;
 }) {
-  const fromId = useId();
-  const toId = useId();
+  const startId = useId();
+  const durationId = useId();
 
-  const length = spanMinutes(span);
-  const started = parseTimeOfDay(span.startsAt) ?? 0;
-  const overnight = length !== null && started + length > MINUTES_PER_DAY;
+  const length = shiftMinutes(hours);
+  const span = spanFrom(startsAt, length);
+  const overnight = (parseTimeOfDay(startsAt) ?? 0) + length > MINUTES_PER_DAY;
   const bySchedule =
     span.startsAt === schedule.startsAt && span.endsAt === schedule.endsAt;
+  const scheduleLength = spanMinutes(schedule);
 
   return (
-    <section className="space-y-2">
-      <h3 className="font-display text-xs font-bold uppercase tracking-wide text-ink-muted">
-        Со скольки и до скольки
-      </h3>
-
-      <div className="flex flex-wrap items-end gap-x-5 gap-y-3">
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-start gap-x-5 gap-y-3">
         <div className="space-y-1.5">
-          <Label htmlFor={fromId}>Заступил</Label>
-          <TimeField
-            id={fromId}
-            value={span.startsAt}
-            onChange={(startsAt) => onChange({ ...span, startsAt })}
-          />
+          <Label htmlFor={startId}>Начало смены</Label>
+          <TimeField id={startId} value={startsAt} onChange={onStart} />
         </div>
         <div className="space-y-1.5">
-          <Label htmlFor={toId}>Сдал</Label>
-          <TimeField
-            id={toId}
-            value={span.endsAt}
-            onChange={(endsAt) => onChange({ ...span, endsAt })}
-          />
+          <Label htmlFor={durationId}>Продолжительность</Label>
+          <HoursField id={durationId} value={hours} onChange={onHours} />
         </div>
       </div>
 
       <p className="text-xs text-ink-muted" aria-live="polite">
-        {length === null ? "Часы не разобраны." : formatSpanLength(length)}
         {/* Сдача назавтра названа датой, а не словом «ночная»: смена с
             двадцати ноль-ноль кончается первого числа следующего месяца, и
             человек должен видеть, куда уйдут эти часы. */}
-        {overnight ? `, сдача ${formatDayMonthRu(addDays(day, 1))}` : ""}.{" "}
+        Сдача {overnight ? `${formatDayMonthRu(addDays(day, 1))} ` : ""}в{" "}
+        {span.endsAt}.{" "}
         {bySchedule
           ? "Столько же, сколько по графику."
-          : `По графику здесь ${schedule.startsAt} — ${schedule.endsAt}: ваши часы это переопределят.`}
+          : `По графику здесь ${formatSpanLength(scheduleLength ?? 0)} с ` +
+            `${schedule.startsAt} — ваши часы это переопределят.`}
       </p>
 
       {bySchedule ? null : (
-        <Button type="button" variant="ghost" size="sm" onClick={() => onChange(schedule)}>
+        <Button type="button" variant="ghost" size="sm" onClick={onReset}>
           Вернуть часы по графику
         </Button>
       )}
-    </section>
+    </div>
   );
 }
 

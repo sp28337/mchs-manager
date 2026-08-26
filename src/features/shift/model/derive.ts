@@ -36,7 +36,7 @@ import {
   MINUTES_PER_HOUR,
   shiftMinutes,
   spanMinutes,
-  spanOfSchedule,
+  spanFrom,
   type ShiftSpan,
 } from "../domain/shift-hours";
 import {
@@ -326,7 +326,7 @@ export function scheduleSpanAt(profile: StoredProfile, day: IsoDate): ShiftSpan 
   const minutes = shiftMinutes(profile.shiftDurationHours);
   const shortened =
     patternOfProfile(profile).source === "calendar" && dayTypeAt(profile, day) === "pre_holiday";
-  return spanOfSchedule(
+  return spanFrom(
     profile.shiftStartTime,
     shortened ? Math.max(0, minutes - MINUTES_PER_HOUR) : minutes,
   );
