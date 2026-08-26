@@ -20,7 +20,8 @@ function filledProfile(): StoredProfile {
     shiftStartTime: "09:00",
     schedulePattern: "1/3",
     shiftDurationHours: "24",
-    underSixteen: false,
+    customWorkDays: 1,
+    customRestDays: 3,
   });
   return {
     ...profile,

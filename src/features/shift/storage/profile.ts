@@ -31,7 +31,9 @@ import { z } from "zod";
 
 import {
   DEFAULT_SCHEDULE_PATTERN,
-  type SchedulePatternId,
+  MAX_CUSTOM_DAYS,
+  MIN_CUSTOM_DAYS,
+  resolveSchedulePattern,
 } from "../domain/schedule-pattern";
 import { DEFAULT_SHIFT_START } from "../domain/shift-hours";
 import type { ShiftOverride } from "../domain/value-objects";
@@ -116,15 +118,34 @@ export const storedProfileSchema = z.object({
     .regex(/^([01]\d|2[0-3]):[0-5]\d$/, "время в формате ЧЧ:ММ")
     .default(DEFAULT_SHIFT_START),
   /**
-   * График сменности: «1/3», «2/2», «5/2», «1/4».
+   * График сменности: заготовка или `custom` — свой цикл.
    *
    * Необязательное с умолчанием: профили, сохранённые до появления
    * выбора, читаются как «сутки через трое» — единственный график, который
    * тогда и был.
    */
   schedulePattern: z
-    .enum(["1/3", "2/2", "5/2", "1/4"])
+    .enum(["1/3", "2/2", "5/2", "1/4", "custom"])
     .default(DEFAULT_SCHEDULE_PATTERN),
+  /**
+   * Свой цикл: сколько суток подряд рабочих и сколько выходных.
+   *
+   * Хранятся ВСЕГДА, а не только при выбранном «своём графике». Иначе
+   * человек, заглянувший в свой цикл и вернувшийся к заготовке, терял бы
+   * набранные числа — и вводил их заново при каждом возврате.
+   */
+  customWorkDays: z
+    .number()
+    .int()
+    .min(MIN_CUSTOM_DAYS)
+    .max(MAX_CUSTOM_DAYS)
+    .default(1),
+  customRestDays: z
+    .number()
+    .int()
+    .min(MIN_CUSTOM_DAYS)
+    .max(MAX_CUSTOM_DAYS)
+    .default(3),
   /**
    * Продолжительность смены в часах, строкой.
    *
@@ -137,14 +158,6 @@ export const storedProfileSchema = z.object({
    * сохранённые до появления поля, читаются как суточные.
    */
   shiftDurationHours: z.string().min(1).max(6).default("24"),
-  /**
-   * Возраст до шестнадцати лет: самая короткая неделя, 24 часа.
-   *
-   * Признак, а не число, — как и остальные основания недельной нормы:
-   * норму выводит домен, а профиль хранит то, из чего она следует.
-   * Необязательное с умолчанием, профили без него читаются как есть.
-   */
-  underSixteen: z.boolean().default(false),
   /* Схема нестрогая намеренно: поля из неё со временем уходят — статус,
      пол, номер караула, северное сокращение, сверка с табелем, — а
      профили, сохранённые до этого, обязаны читаться как есть. Лишние
@@ -214,12 +227,13 @@ export interface NewProfileInput {
   displayName: string;
   workingConditions: StoredProfile["workingConditions"];
   disabilityGroupIorII: boolean;
-  underSixteen: boolean;
   /** Любые сутки, в которые человек выходил на смену или выйдет. */
   firstShiftDate: IsoDate;
   accountingYear: number;
   shiftStartTime: string;
   schedulePattern: StoredProfile["schedulePattern"];
+  customWorkDays: number;
+  customRestDays: number;
   shiftDurationHours: string;
 }
 
@@ -333,17 +347,21 @@ export function subscribeToStoredProfile(onChange: () => void): () => void {
 }
 
 /**
- * График из сохранённого профиля — строкой, а не объектом.
+ * Подпись графика из сохранённого профиля — «1/3», «2/2», «3/1».
  *
- * Строкой намеренно: значение читает `useSyncExternalStore`, а тот
- * сравнивает снимки по ссылке. Верни отсюда объект — и каждый снимок был
- * бы новым, то есть «изменившимся», и подписка зациклилась бы.
+ * Строкой намеренно, и не опознанием, а именно подписью. Опознания мало:
+ * у своего графика оно одно на все циклы, а в шапке стоят сами числа.
+ * Строка же нужна потому, что значение читает `useSyncExternalStore`, а
+ * тот сравнивает снимки по ссылке: верни отсюда объект — и каждый снимок
+ * был бы новым, то есть «изменившимся», и подписка зациклилась бы.
  */
-export function storedSchedulePattern(): SchedulePatternId {
+export function storedScheduleLabel(): string {
   const result = loadProfile();
-  return result.status === "ok"
-    ? result.profile.schedulePattern
-    : DEFAULT_SCHEDULE_PATTERN;
+  if (result.status !== "ok") {
+    return resolveSchedulePattern(DEFAULT_SCHEDULE_PATTERN).label;
+  }
+  const { schedulePattern, customWorkDays, customRestDays } = result.profile;
+  return resolveSchedulePattern(schedulePattern, customWorkDays, customRestDays).label;
 }
 
 export class StorageUnavailableError extends Error {

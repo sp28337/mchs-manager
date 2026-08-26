@@ -50,7 +50,6 @@ import {
   shiftMinutes,
   MINUTES_PER_HOUR,
 } from "./shift-hours";
-import { schedulePatternOf } from "./schedule-pattern";
 import {
   ABSENCE_REDUCES_NORM,
   shiftDates,
@@ -324,7 +323,7 @@ export function calculatePeriod({
   // нет. Теперь человек называет ЛЮБУЮ свою смену, и цикл от неё
   // продолжается в обе стороны — обрезать не по чему и не за чем.
   const scanFrom = addDays(periodStart, -SCAN_LEAD_DAYS);
-  const calendarDriven = schedulePatternOf(cycle.pattern).source === "calendar";
+  const calendarDriven = cycle.pattern?.source === "calendar";
 
   for (const startedOn of shiftDates(cycle, scanFrom, periodEnd)) {
     // Отсутствие определяется по дате ЗАСТУПЛЕНИЯ, а не по каждым суткам:

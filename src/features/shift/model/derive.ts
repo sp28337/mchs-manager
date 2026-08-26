@@ -17,7 +17,10 @@ import {
 } from "../domain/calculation";
 import { statutoryCalendar, calendarFactsFor, type DayType } from "../domain/production-calendar";
 import { addDays, type IsoDate } from "../domain/plain-date";
-import { schedulePatternOf } from "../domain/schedule-pattern";
+import {
+  resolveSchedulePattern,
+  type SchedulePattern,
+} from "../domain/schedule-pattern";
 import {
   ACCOUNTING_PERIODS,
   deriveWeeklyNorm,
@@ -42,7 +45,6 @@ export function weeklyNormInputOf(profile: StoredProfile): WeeklyNormInput {
   return {
     conditions: profile.workingConditions,
     disabilityGroupIorII: profile.disabilityGroupIorII,
-    underSixteen: profile.underSixteen,
   };
 }
 
@@ -64,15 +66,11 @@ export function weeklyNormOf(profile: StoredProfile): WeeklyNorm {
  */
 export function weeklyNormGroundFacts(
   ground: WeeklyNormGround,
-): Pick<
-  StoredProfile,
-  "workingConditions" | "disabilityGroupIorII" | "underSixteen"
-> {
+): Pick<StoredProfile, "workingConditions" | "disabilityGroupIorII"> {
   const facts = weeklyNormGroundToFacts(ground);
   return {
     workingConditions: facts.conditions,
     disabilityGroupIorII: facts.disabilityGroupIorII,
-    underSixteen: facts.underSixteen,
   };
 }
 
@@ -153,7 +151,7 @@ export function calculateFor(
       // известная смена, — но переименовывать ключ значило бы сломать
       // сохранённые файлы профилей ради названия.
       knownShiftDate: profile.firstShiftDate,
-      pattern: profile.schedulePattern,
+      pattern: patternOfProfile(profile),
       workingDays: scheduleFacts.workingDaySet,
       overrides: shiftOverridesOf(profile),
     },
@@ -239,6 +237,22 @@ export function statutoryBounds(
 
 
 /**
+ * График профиля, собранный целиком.
+ *
+ * Одно место, где опознание из профиля превращается в график: у своего
+ * цикла числа лежат отдельными полями, и собрать его из одной строки
+ * нельзя. Всё остальное приложение зовёт эту функцию, а не разбирает
+ * профиль само.
+ */
+export function patternOfProfile(profile: StoredProfile): SchedulePattern {
+  return resolveSchedulePattern(
+    profile.schedulePattern,
+    profile.customWorkDays,
+    profile.customRestDays,
+  );
+}
+
+/**
  * Приходится ли на эти сутки смена ПО ГРАФИКУ, без правок человека.
  *
  * Один ответ на два разных вопроса, и в этом весь смысл: у цикличных
@@ -252,9 +266,9 @@ export function statutoryBounds(
  * иначе достался бы чужому календарю.
  */
 export function scheduledByPattern(profile: StoredProfile, day: IsoDate): boolean {
-  const pattern = schedulePatternOf(profile.schedulePattern);
+  const pattern = patternOfProfile(profile);
   if (pattern.source !== "calendar") {
-    return onShiftCycle(profile.firstShiftDate, day, profile.schedulePattern);
+    return onShiftCycle(profile.firstShiftDate, day, pattern);
   }
   const lawful = statutoryCalendar(Number(day.slice(0, 4))).get(day) ?? "working";
   const dayType = profile.calendarOverrides[day] ?? lawful;
