@@ -43,6 +43,15 @@ import {
  * предмет, у него своя рамка внутри, и вторая рамка вокруг превращает шаг
  * в скриншот в рамочке. Шаги теперь разделяет воздух, а не заливка.
  *
+ * --- Кегль -----------------------------------------------------------------
+ *
+ * Раздел идёт сразу за первым экраном, а там заголовок в восемь ступеней и
+ * подпись от руки в пять. Мелкий текст после такого читается как сноска —
+ * будто главное уже сказано, а дальше подробности для дотошных. Поэтому
+ * здесь свои ступени: заголовок раздела вровень с прочими на странице,
+ * заголовок шага — крупный и НЕ прописными (прописные на таком кегле
+ * превращаются в вывеску), текст шага на ступень крупнее обычного абзаца.
+ *
  * --- Раскладка ------------------------------------------------------------
  *
  * На узком экране колонка одна и порядок такой: заголовок, показ, текст.
@@ -115,12 +124,15 @@ export const HOW_STEPS: HowStep[] = [
 
 export function HowItWorks() {
   return (
-    <section aria-labelledby="what" className="border-b border-rule py-14">
-      <h2 id="what" className="text-2xl md:text-4xl">
+    <section aria-labelledby="what" className="border-b border-rule py-16 md:py-20">
+      {/* Заголовок по центру: под ним не колонка текста, а четыре шага,
+          которые идут змейкой то вправо, то влево. Прижатый к левому краю,
+          он объявлял бы левую колонку — а левой колонки у раздела нет. */}
+      <h2 id="what" className="text-center text-3xl md:text-5xl lg:text-6xl">
         Как работает
       </h2>
 
-      <div className="mt-6 md:mt-10">
+      <div className="mt-4 md:mt-8">
         {HOW_STEPS.map((step, index) => (
           <Step key={step.title} step={step} flipped={index % 2 === 1} />
         ))}
@@ -137,15 +149,20 @@ function Step({ step, flipped }: { step: HowStep; flipped: boolean }) {
         // соседние не лезут в поле зрения и не сбивают счёт. `svh`, а не
         // `vh`: на телефоне адресная строка съезжает, и высота в `vh`
         // прыгала бы на каждой прокрутке.
-        "grid min-h-[78svh] content-center items-center gap-x-10 gap-y-6 py-8",
-        "md:min-h-[62svh] md:grid-cols-2 md:grid-rows-[auto_auto] md:gap-x-14 md:py-10",
+        // Заголовок и текст стоят вплотную друг к другу — это один блок, а
+        // не два, — и весь он отбит от показа широким полем. Прежде зазор
+        // между строкой заголовка и абзацем был тот же, что между колонками,
+        // и шаг разваливался на три отдельные вещи.
+        "grid min-h-[78svh] content-center items-center gap-x-10 gap-y-5 py-10",
+        "md:min-h-[70svh] md:grid-cols-2 md:grid-rows-[auto_auto] md:gap-x-16 md:gap-y-4 md:py-12",
+        "lg:gap-x-20",
         // Порядок в разметке один — заголовок, показ, текст, — а местами
         // их меняет сетка. Об этом подробнее в шапке файла.
         "demo-step",
         flipped && "demo-step--flipped",
       )}
     >
-      <h3 className="demo-step__title font-display text-lg font-bold uppercase tracking-wide md:text-xl">
+      <h3 className="demo-step__title text-2xl leading-[1.1] text-balance md:text-3xl lg:text-4xl xl:text-5xl">
         {step.title}
       </h3>
 
@@ -153,7 +170,10 @@ function Step({ step, flipped }: { step: HowStep; flipped: boolean }) {
         {step.demo}
       </DemoStage>
 
-      <p className="demo-step__text max-w-prose text-sm leading-6 text-ink-muted md:text-md md:leading-7">
+      {/* Строка не длиннее полусотни знаков: колонка на широком экране
+          вдвое шире нужного, и абзац во всю её ширину глаз ведёт с трудом —
+          к концу строки теряется начало следующей. */}
+      <p className="demo-step__text max-w-[52ch] text-md leading-7 text-ink-muted text-pretty md:text-lg md:leading-8 xl:text-xl xl:leading-9">
         {step.text}
       </p>
     </article>
