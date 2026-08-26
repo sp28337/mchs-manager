@@ -1193,3 +1193,445 @@
     font-size: 1rem;
   }
 }
+
+/* ==========================================================================
+   РАЗДЕЛ «КАК РАБОТАЕТ»: РАСКЛАДКА ШАГА И ЧЕТЫРЕ ПОКАЗА.
+
+   Разметка шага одна и та же и читается сверху вниз: заголовок, показ,
+   текст. Так её читает программа чтения и так забирает поисковый робот.
+   На экране же шаги идут змейкой — у первого текст слева, у второго
+   справа, — и меняет их местами ТОЛЬКО сетка, ни одного лишнего узла в
+   разметке для этого не заведено.
+
+   Сами показы играют не при загрузке, а когда до них долистали: признак
+   `data-play` ставит `DemoStage`. Анимации назначены под этим признаком,
+   поэтому его снятие и возврат начинают историю заново — снятое и заново
+   назначенное имя анимации браузер играет с начала.
+
+   `prefers-reduced-motion` гасит их общим правилом в начале файла: там
+   длительность и задержка сводятся к нулю, и от каждого показа остаётся
+   сразу его КОНЕЧНЫЙ вид. Поэтому конечный кадр у всех четырёх — тот, что
+   нужно понять: перестроенный график, перенесённая смена, отмеченные
+   сутки, сохранённый файл.
+   ========================================================================== */
+
+@media (width >= 48rem) {
+  .demo-step {
+    grid-template-areas:
+      "title demo"
+      "text  demo";
+  }
+
+  .demo-step--flipped {
+    grid-template-areas:
+      "demo title"
+      "demo text";
+  }
+
+  .demo-step__title {
+    grid-area: title;
+    align-self: end;
+  }
+
+  .demo-step__text {
+    grid-area: text;
+    align-self: start;
+  }
+
+  .demo-step__demo {
+    grid-area: demo;
+  }
+}
+
+/* Показ до своего часа стоит в НАЧАЛЬНОМ кадре: анимации ему ещё не
+   назначены, и всё, чему положено появиться, скрыто здесь. Без этого
+   человек, долиставший до шага, заставал бы историю уже сыгранной. */
+.demo[data-play="off"] .demo-swap-in,
+.demo[data-play="off"] .demo-became,
+.demo[data-play="off"] .demo-carried,
+.demo[data-play="off"] .demo-pointer,
+.demo[data-play="off"] .demo-file,
+.demo[data-play="off"] .demo-uplink {
+  opacity: 0;
+}
+
+.demo[data-play="off"] .demo-strip-next {
+  opacity: 0;
+}
+
+/* --------------------------------------------------------------------------
+   ОБЩЕЕ ДЛЯ ВСЕХ ПОКАЗОВ: УКАЗАТЕЛЬ И ПРЕВРАЩЕНИЕ СУТОК.
+   -------------------------------------------------------------------------- */
+
+/* Кольцо нажатия: расходится и гаснет, как круг по воде. Оно и есть всё,
+   чем показано «нажал»: подпрыгивающий курсор читается как мультфильм. */
+@keyframes demo-press {
+  from {
+    opacity: 0;
+    transform: scale(0.4);
+  }
+
+  40% {
+    opacity: 0.9;
+  }
+
+  to {
+    opacity: 0;
+    transform: scale(1.15);
+  }
+}
+
+.demo-pointer__ring {
+  opacity: 0;
+}
+
+/* Превращение суток — тем же движением, что на первом экране: клетка на
+   мгновение приподнимается, будто её только что отметили рукой. Мгновенная
+   подмена цвета читается как сбой отрисовки, а не как действие. */
+@keyframes demo-became {
+  from {
+    opacity: 0;
+    transform: scale(0.72);
+  }
+
+  60% {
+    opacity: 1;
+    transform: scale(1.08);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.demo[data-play="on"] .demo-became {
+  animation: demo-became 520ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: calc(var(--at, 0) * 1ms);
+}
+
+/* Прежний вид суток гаснет под новым. Гаснет, а не закрашивается: рамка
+   рисуется по краю коробки, и накладка вровень с ней оставляла по контуру
+   зелёную дужку в полпикселя — на любом скруглении.
+
+   Гаснет медленнее, чем проявляется новый: к середине гашения тот уже
+   почти плотный, и просвета между ними не возникает. */
+.demo[data-play="on"] .demo-was {
+  animation: demo-was-out 360ms ease-out both;
+  animation-delay: calc(var(--at, 0) * 1ms + 120ms);
+}
+
+@keyframes demo-was-out {
+  to {
+    opacity: 0;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   ПОКАЗ 1. ГРАФИК ПЕРЕСТРАИВАЕТ КАЛЕНДАРЬ.
+
+   Указатель подходит к полю графика, нажимает; значение перегорает — тем
+   же приёмом, что цифры в названии сайта, — и полоса дней пересобирается
+   под новый цикл.
+
+   Расписание: 500 указатель на месте, 900 нажатие, 1100 значение
+   меняется, 1300 старая полоса уходит, 1400 новая собирается волной по
+   70 мс на клетку. Всё вместе — около двух с половиной секунд.
+   -------------------------------------------------------------------------- */
+
+@keyframes demo-approach {
+  from {
+    opacity: 0;
+    transform: translate(18px, 14px);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes demo-leave {
+  to {
+    opacity: 0;
+    transform: translate(14px, 18px);
+  }
+}
+
+.demo[data-play="on"] .demo-tap-schedule {
+  animation:
+    demo-approach 500ms cubic-bezier(0.22, 1, 0.36, 1) both,
+    demo-leave 400ms ease-in 1700ms both;
+}
+
+.demo[data-play="on"] .demo-tap-schedule .demo-pointer__ring {
+  animation: demo-press 520ms ease-out 900ms both;
+}
+
+/* Старое значение истлевает и его сносит вверх и вправо, новое
+   занимается на его месте. Те же кадры, что у цифр в названии сайта:
+   приём один, и человек, видевший его там, узнаёт его здесь. */
+@keyframes demo-swap-out {
+  to {
+    opacity: 0;
+    transform: translate(6px, -8px) rotate(4deg);
+    filter: blur(3px);
+  }
+}
+
+@keyframes demo-swap-in {
+  from {
+    opacity: 0;
+    transform: translateY(7px);
+    filter: blur(3px);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+    filter: none;
+  }
+}
+
+.demo[data-play="on"] .demo-swap-out {
+  animation: demo-swap-out 420ms ease-in 1100ms both;
+}
+
+.demo[data-play="on"] .demo-swap-in {
+  animation: demo-swap-in 420ms cubic-bezier(0.22, 1, 0.36, 1) 1300ms both;
+}
+
+@keyframes demo-strip-out {
+  to {
+    opacity: 0;
+    filter: blur(4px);
+  }
+}
+
+.demo[data-play="on"] .demo-strip-prev {
+  animation: demo-strip-out 320ms ease-in 1300ms both;
+}
+
+/* Новая полоса не «показывается», а СОБИРАЕТСЯ по клетке — тем же
+   движением, что месяц на первом экране: приходит из размытия, вспыхивает
+   на подлёте и садится на место. Волна слева направо, по 70 мс на клетку:
+   восемь клеток укладываются в полсекунды. */
+@keyframes demo-cell-in {
+  from {
+    opacity: 0;
+    transform: scale(0.55);
+    filter: blur(6px);
+  }
+
+  55% {
+    opacity: 1;
+    transform: scale(1.06);
+    filter: blur(0);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+    filter: none;
+  }
+}
+
+.demo[data-play="on"] .demo-cell-in {
+  animation: demo-cell-in 560ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: calc(var(--i, 0) * 70ms + 1400ms);
+}
+
+/* --------------------------------------------------------------------------
+   ПОКАЗ 2. ПЕРЕНОС СМЕНЫ.
+
+   Нажали, подержали, потянули, отпустили. Держать здесь не фигура речи:
+   между нажатием и началом движения стоит пауза — в приложении перенос
+   тоже начинается с удержания, иначе смена уезжала бы от случайного
+   касания при прокрутке.
+
+   Расписание: 300 указатель на смене, 700 нажатие, 1000 смена
+   отрывается и едет, 1700 приезжает, 1750 старые сутки гаснут и
+   загораются новые.
+
+   Путь задан в долях ширины полосы: клетка — седьмая часть, ехать нужно
+   на четыре клетки вправо. Считать в точках нельзя — полоса тянется.
+   -------------------------------------------------------------------------- */
+
+/* Каретка едет по колонкам. Шаг колонки выражается точно, потому что
+   каретка во всю ширину полосы: проценты в `translate` считаются от ширины
+   самого элемента, и для неё сто процентов — это и есть полоса.
+
+   Семь клеток и шесть зазоров по четыре точки: колонка — седьмая часть
+   остатка, шаг — колонка плюс зазор. */
+.demo-carriage {
+  --demo-pitch: calc((100% - 1.5rem) / 7 + 0.25rem);
+}
+
+@keyframes demo-carry-path {
+  from,
+  41% {
+    transform: translateX(calc(1 * var(--demo-pitch)));
+  }
+
+  71%,
+  to {
+    transform: translateX(calc(5 * var(--demo-pitch)));
+  }
+}
+
+.demo[data-play="on"] .demo-carriage {
+  animation: demo-carry-path 2400ms cubic-bezier(0.5, 0, 0.2, 1) both;
+}
+
+/* Несомая смена: появляется под нажатием, отрывается от сетки, едет
+   приподнятой и садится. Приподнята ровно настолько, чтобы было видно, что
+   она НАД сеткой, а не в ней. */
+@keyframes demo-carry {
+  from,
+  28% {
+    opacity: 0;
+    transform: none;
+  }
+
+  34% {
+    opacity: 1;
+    transform: translateY(-8%) scale(1.08);
+  }
+
+  71% {
+    opacity: 1;
+    transform: translateY(-8%) scale(1.08);
+  }
+
+  75%,
+  78% {
+    opacity: 1;
+    transform: none;
+  }
+
+  to {
+    opacity: 0;
+    transform: none;
+  }
+}
+
+.demo-carried {
+  opacity: 0;
+}
+
+.demo[data-play="on"] .demo-carried {
+  animation: demo-carry 2400ms cubic-bezier(0.5, 0, 0.2, 1) both;
+}
+
+/* Указатель едет вместе с кареткой, поэтому своего пути у него нет —
+   только приход и уход. */
+@keyframes demo-drag-fade {
+  from {
+    opacity: 0;
+    transform: translate(16px, 12px);
+  }
+
+  10%,
+  78% {
+    opacity: 1;
+    transform: none;
+  }
+
+  to {
+    opacity: 0;
+    transform: translate(10px, 14px);
+  }
+}
+
+.demo[data-play="on"] .demo-drag {
+  animation: demo-drag-fade 2400ms ease-out both;
+}
+
+.demo[data-play="on"] .demo-drag .demo-pointer__ring {
+  animation: demo-press 520ms ease-out 700ms both;
+}
+
+/* --------------------------------------------------------------------------
+   ПОКАЗ 4. СОХРАНЕНИЕ В ФАЙЛ И ТО, ЧЕГО НЕ ПРОИСХОДИТ.
+
+   Расписание: 400 указатель у кнопки, 800 нажатие и кнопка проседает,
+   1100 из неё выпадает файл, 1800 наверху проступает перечёркнутая
+   стрелка. Порядок обязателен: сперва человек видит, что файл ОСТАЛСЯ
+   здесь же, и только потом — что наружу не ушло ничего. В обратном
+   порядке второе читалось бы как оговорка к первому.
+   -------------------------------------------------------------------------- */
+
+.demo[data-play="on"] .demo-tap-save {
+  animation:
+    demo-approach 500ms cubic-bezier(0.22, 1, 0.36, 1) 400ms both,
+    demo-leave 400ms ease-in 1500ms both;
+}
+
+.demo[data-play="on"] .demo-tap-save .demo-pointer__ring {
+  animation: demo-press 520ms ease-out 800ms both;
+}
+
+/* Кнопка проседает под нажатием и отпускает. Это единственное, чем здесь
+   показано само действие: курсор до неё дошёл, а нажал или нет — видно
+   только по ней. */
+@keyframes demo-pressed {
+  from,
+  to {
+    transform: none;
+  }
+
+  40%,
+  60% {
+    transform: scale(0.95);
+  }
+}
+
+.demo[data-play="on"] .demo-save {
+  animation: demo-pressed 320ms ease-out 800ms both;
+}
+
+@keyframes demo-file-out {
+  from {
+    opacity: 0;
+    transform: translateY(-14px) scale(0.94);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.demo[data-play="on"] .demo-file {
+  animation: demo-file-out 460ms cubic-bezier(0.22, 1, 0.36, 1) 1100ms both;
+}
+
+@keyframes demo-uplink-in {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+/* Перечёркивание рисуется штрихом — линия проводится, а не проявляется:
+   отрицание должно выглядеть действием, иначе оно читается как значок. */
+@keyframes demo-cross {
+  from {
+    stroke-dasharray: 0 34;
+  }
+
+  to {
+    stroke-dasharray: 34 0;
+  }
+}
+
+.demo[data-play="on"] .demo-uplink {
+  animation: demo-uplink-in 420ms ease-out 1800ms both;
+}
+
+.demo[data-play="on"] .demo-uplink__cross {
+  animation: demo-cross 420ms ease-out 2100ms both;
+}

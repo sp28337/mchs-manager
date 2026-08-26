@@ -1,18 +1,10 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import {
-  CalendarCog,
-  CalendarDays,
-  ChevronDown,
-  Plane,
-  Scale,
-  ShieldCheck,
-  Siren,
-  type LucideIcon,
-} from "lucide-react";
+import { ChevronDown } from "lucide-react";
 
 import { LandingHero } from "@/components/landing/hero";
 import { HeroCta } from "@/components/landing/hero-cta";
+import { HOW_STEPS, HowItWorks } from "@/components/landing/how-it-works";
 import { SiteHeader } from "@/components/shared/site-header";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 
@@ -90,40 +82,6 @@ export const metadata: Metadata = {
   },
   alternates: { canonical: "/" },
 };
-
-/** Что делает приложение. Шесть карточек, по одному предложению в каждой. */
-const FEATURES: [Icon: LucideIcon, title: string, text: string][] = [
-  [
-    CalendarDays,
-    "Автоматический график",
-    "Укажите дату рабочей смены и график достроится сам, в обе стороны.",
-  ],
-  [
-    Scale,
-    "Норма периода",
-    "40, 36 или 35 часов в неделю по производственному календарю.",
-  ],
-  [
-    Plane,
-    "Отпуска и больничные",
-    "Отсутствие по уважительной причине вычитается из нормы и фактически отработанного времени.",
-  ],
-  [
-    Siren,
-    "Работа помимо графика",
-    "Выходы сверх своих смен прибавляются к фактически отработанным часам.",
-  ],
-  [
-    CalendarCog,
-    "Редактируемый календарь",
-    "При нажатии на день календаря можно указывать различные события необходимой продолжительности.",
-  ],
-  [
-    ShieldCheck,
-    "Данные в безопасности",
-    "Расчёт идёт в браузере. Профиль хранится на устройстве с возможностью сохранения в файл.",
-  ],
-];
 
 /** На чём стоит расчёт. Только то, что приложение действительно применяет. */
 const SOURCES: [source: string, what: string, href: string][] = [
@@ -217,29 +175,7 @@ export default function LandingPage() {
       <main className="mx-auto w-full max-w-4xl px-6 pb-16 xl:max-w-6xl 2xl:max-w-7xl">
         <LandingHero cta={<HeroCta />} />
 
-        {/* --------------------------------------------------------- что делает */}
-        <section aria-labelledby="what" className="space-y-5 border-b border-rule py-14">
-          <h2 id="what" className="text-2xl md:text-4xl">
-            Как работает
-          </h2>
-          <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-            {FEATURES.map(([Icon, title, text]) => (
-              <li key={title} className="space-y-3 rounded-xl bg-paper-raised p-5">
-                {/* Значки нейтральные. Шесть сигнальных плиток подряд
-                    превратили бы красный в оформление, а он на этой
-                    странице стоит ровно дважды: на слове в заголовке и на
-                    чипе с тем, ради чего сюда пришли. */}
-                <span className="flex size-10 items-center justify-center rounded-xl bg-paper-sunken">
-                  <Icon aria-hidden className="size-5 text-ink-muted" />
-                </span>
-                <h3 className="font-display text-base font-bold uppercase tracking-wide">
-                  {title}
-                </h3>
-                <p className="text-sm text-ink-muted">{text}</p>
-              </li>
-            ))}
-          </ul>
-        </section>
+        <HowItWorks />
 
         {/* ------------------------------------------------------------ основания */}
         <section aria-labelledby="law" className="space-y-5 border-b border-rule py-14">
@@ -358,7 +294,7 @@ export default function LandingPage() {
                 inLanguage: "ru-RU",
                 isAccessibleForFree: true,
                 offers: { "@type": "Offer", price: "0", priceCurrency: "RUB" },
-                featureList: FEATURES.map(([, title, text]) => `${title}: ${text}`),
+                featureList: HOW_STEPS.map((step) => `${step.title}: ${step.text}`),
               },
               {
                 "@type": "FAQPage",
