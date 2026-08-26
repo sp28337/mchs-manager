@@ -80,7 +80,7 @@ const MINOR_FIGURES = [
 
 export function WorkspaceSkeleton() {
   return (
-    <main aria-hidden className="mx-auto w-full px-6 pb-12 pt-26 2xl:max-w-[2000px]">
+    <main aria-hidden className="mx-auto w-full px-6 pt-26 2xl:max-w-[2000px]">
       {/* Имя человека — водяным знаком: по центру и почти прозрачное.
           Кость под ним такая же бледная, иначе плотный прямоугольник
           обещал бы блок, которого через мгновение почти не видно. Поле

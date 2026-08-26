@@ -1,18 +1,11 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import {
-  CalendarCog,
-  CalendarDays,
-  ChevronDown,
-  Plane,
-  Scale,
-  ShieldCheck,
-  Siren,
-  type LucideIcon,
-} from "lucide-react";
+import { ChevronDown } from "lucide-react";
 
 import { LandingHero } from "@/components/landing/hero";
 import { HeroCta } from "@/components/landing/hero-cta";
+import { HOW_STEPS, HowItWorks } from "@/components/landing/how-it-works";
+import { cn } from "@/lib/utils/cn";
 import { SiteHeader } from "@/components/shared/site-header";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 
@@ -91,67 +84,50 @@ export const metadata: Metadata = {
   alternates: { canonical: "/" },
 };
 
-/** Что делает приложение. Шесть карточек, по одному предложению в каждой. */
-const FEATURES: [Icon: LucideIcon, title: string, text: string][] = [
-  [
-    CalendarDays,
-    "Автоматический график",
-    "Укажите дату рабочей смены и график достроится сам, в обе стороны.",
-  ],
-  [
-    Scale,
-    "Норма периода",
-    "40, 36 или 35 часов в неделю по производственному календарю.",
-  ],
-  [
-    Plane,
-    "Отпуска и больничные",
-    "Отсутствие по уважительной причине вычитается из нормы и фактически отработанного времени.",
-  ],
-  [
-    Siren,
-    "Работа помимо графика",
-    "Выходы сверх своих смен прибавляются к фактически отработанным часам.",
-  ],
-  [
-    CalendarCog,
-    "Редактируемый календарь",
-    "При нажатии на день календаря можно указывать различные события необходимой продолжительности.",
-  ],
-  [
-    ShieldCheck,
-    "Данные в безопасности",
-    "Расчёт идёт в браузере. Профиль хранится на устройстве с возможностью сохранения в файл.",
-  ],
-];
+/**
+ * На чём стоит расчёт. Только то, что приложение действительно применяет.
+ *
+ * `wide` — источник, которому мало одной колонки: у Трудового кодекса
+ * перечень статей длиннее любого другого описания, и в узкой карточке он
+ * уходит в пять строк, пока соседние стоят в две. Заодно пять карточек в
+ * три колонки перестают оставлять дыру в последнем ряду.
+ */
+interface Source {
+  /** Название документа — оно же заголовок карточки. */
+  name: string;
+  /** Что именно из него применяется. */
+  what: string;
+  href: string;
+  wide?: boolean;
+}
 
-/** На чём стоит расчёт. Только то, что приложение действительно применяет. */
-const SOURCES: [source: string, what: string, href: string][] = [
-  [
-    "Трудовой кодекс РФ",
-    "Ст. 91, 92, 95, 99, 104, 108, 112, 152, 153: норма рабочего времени, сокращённая неделя, предпраздничные дни, суммированный учёт.",
-    "https://base.garant.ru/12125268/",
-  ],
-  [
-    "Приказ Минздравсоцразвития № 588н от 13.08.2009",
-    "Формула нормы рабочего времени на месяц, квартал и год.",
-    "https://normativ.kontur.ru/document?moduleId=1&documentId=143110",
-  ],
-  [
-    "Письмо Роструда № 550-6-1 от 01.03.2010",
-    "Уменьшение нормы учётного периода на часы отсутствия по уважительной причине.",
-    "https://base.garant.ru/12182312/",
-  ],
-  [
-    "Письмо Минздравсоцразвития № 22-2/377333-782 от 13.10.2011",
-    "Случаи уменьшения нормы рабочего времени работника.",
-    "https://base.garant.ru/55172417/",
-  ],
-  [
-    "Производственные календари",
-    "Рабочие, выходные и предпраздничные дни, переносы.",
-    "https://www.consultant.ru/law/ref/calendar/",
-  ],
+const SOURCES: Source[] = [
+  {
+    name: "Трудовой кодекс РФ",
+    what: "Ст. 91, 92, 95, 99, 104, 108, 112, 152, 153: норма рабочего времени, сокращённая неделя, предпраздничные дни, суммированный учёт.",
+    href: "https://base.garant.ru/12125268/",
+    wide: true,
+  },
+  {
+    name: "Приказ Минздравсоцразвития №\u00a0588н от\u00a013.08.2009",
+    what: "Формула нормы рабочего времени на месяц, квартал и год.",
+    href: "https://normativ.kontur.ru/document?moduleId=1&documentId=143110",
+  },
+  {
+    name: "Письмо Роструда №\u00a0550\u20116\u20111 от\u00a001.03.2010",
+    what: "Уменьшение нормы учётного периода на часы отсутствия по уважительной причине.",
+    href: "https://base.garant.ru/12182312/",
+  },
+  {
+    name: "Письмо Минздравсоцразвития №\u00a022\u20112/377333\u2011782 от\u00a013.10.2011",
+    what: "Случаи уменьшения нормы рабочего времени работника.",
+    href: "https://base.garant.ru/55172417/",
+  },
+  {
+    name: "Производственные календари",
+    what: "Рабочие, выходные и предпраздничные дни, переносы.",
+    href: "https://www.consultant.ru/law/ref/calendar/",
+  },
 ];
 
 /**
@@ -198,6 +174,33 @@ const FAQ: { question: string; answer: string }[] = [
   },
 ];
 
+/**
+ * Значок «ведёт наружу» — в правом верхнем углу карточки.
+ *
+ * Приглушён, пока карточку не трогают: он не содержание, а свойство
+ * ссылки. Под указателем набирает плотность вместе с подчёркиванием
+ * названия — обе перемены об одном и том же, и происходить они обязаны
+ * разом.
+ */
+function ExternalMark() {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 24 24"
+      className="absolute right-4 top-4 size-4 shrink-0 text-ink-faint transition-colors group-hover:text-ink-muted"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+      <polyline points="15 3 21 3 21 9" />
+      <line x1="10" y1="14" x2="21" y2="3" />
+    </svg>
+  );
+}
+
 export default function LandingPage() {
   return (
     <>
@@ -214,76 +217,73 @@ export default function LandingPage() {
           туда через четыре экрана. */}
       <SiteHeader action={<ThemeToggle />} className="items-center" />
 
-      <main className="mx-auto w-full max-w-4xl px-6 pb-16 xl:max-w-6xl 2xl:max-w-7xl">
+      <main className="mx-auto w-full max-w-4xl px-6 xl:max-w-6xl 2xl:max-w-7xl">
         <LandingHero cta={<HeroCta />} />
 
-        {/* --------------------------------------------------------- что делает */}
-        <section aria-labelledby="what" className="space-y-5 border-b border-rule py-14">
-          <h2 id="what" className="text-2xl md:text-4xl">
-            Как работает
+        <HowItWorks />
+
+        {/* ------------------------------------------------------------ основания */}
+        {/* Поля по вертикали у всех разделов одни: раздел «Как работает»
+            стал выше и крупнее, и соседние рядом с ним выглядели поджатыми
+            — будто их дописали позже. Заголовки тоже вровень: разница в две
+            ступени между соседними заголовками читается не как иерархия, а
+            как недосмотр. */}
+        <section aria-labelledby="law" className="space-y-6 border-b border-rule py-16 md:py-20">
+          <h2 id="law" className="text-3xl md:text-5xl lg:text-6xl">
+            Полезно знать
           </h2>
-          <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-            {FEATURES.map(([Icon, title, text]) => (
-              <li key={title} className="space-y-3 rounded-xl bg-paper-raised p-5">
-                {/* Значки нейтральные. Шесть сигнальных плиток подряд
-                    превратили бы красный в оформление, а он на этой
-                    странице стоит ровно дважды: на слове в заголовке и на
-                    чипе с тем, ради чего сюда пришли. */}
-                <span className="flex size-10 items-center justify-center rounded-xl bg-paper-sunken">
-                  <Icon aria-hidden className="size-5 text-ink-muted" />
-                </span>
-                <h3 className="font-display text-base font-bold uppercase tracking-wide">
-                  {title}
-                </h3>
-                <p className="text-sm text-ink-muted">{text}</p>
+          {/* Каждый документ — карточкой на плашке.
+              -------------------------------------------------------------
+              Список из пяти строк, где название набрано ссылкой, а
+              пояснение под ней обычным текстом, читается сплошняком:
+              где кончается один документ и начинается следующий, видно
+              только по кеглю. Плашка отвечает на это сама — ровно тем же
+              способом, каким прежде держались плитки «Как работает».
+
+              Нажимается ВСЯ карточка, а не одно название: цель размером в
+              три слова на телефоне — промах через раз, а здесь она в
+              полкарточки. Значок внешней ссылки при этом ушёл из строки
+              заголовка в правый верхний угол плашки: в строке он ехал за
+              последним словом и у длинных названий оказывался посреди
+              текста, а в углу стоит на одном месте у всех пяти.
+
+              Про новую вкладку сказано словами, а не одним значком:
+              значок видят не все (WCAG 3.2.5), а уход на чужой сайт —
+              как раз то, о чём предупреждают. */}
+          <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {SOURCES.map((item) => (
+              <li key={item.name} className={cn(item.wide && "lg:col-span-2")}>
+                <a
+                  href={item.href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={cn(
+                    "group relative flex h-full flex-col gap-1.5 rounded-xl bg-paper-raised p-5 pr-12",
+                    "transition-colors hover:bg-paper-sunken",
+                    "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-trace",
+                  )}
+                >
+                  <ExternalMark />
+                  {/* Перенос по смыслу, а не по месту: `text-balance`
+                      выравнивает строки заголовка, а неразрывные пробелы в
+                      самих названиях держат номер при знаке «№», а дату при
+                      предлоге. Дефисы внутри номеров неразрывные (U+2011):
+                      обычный дефис — законное место переноса, и «550-6-1»
+                      разрывалось посреди номера документа. */}
+                  <span className="font-medium text-ink text-balance group-hover:underline">
+                    {item.name}
+                    <span className="sr-only"> — откроется в новой вкладке</span>
+                  </span>
+                  <span className="text-sm leading-6 text-ink-muted">{item.what}</span>
+                </a>
               </li>
             ))}
           </ul>
         </section>
 
-        {/* ------------------------------------------------------------ основания */}
-        <section aria-labelledby="law" className="space-y-5 border-b border-rule py-14">
-          <h2 id="law" className="text-2xl md:text-4xl">
-            Полезно знать
-          </h2>
-          <dl className="grid gap-x-10 gap-y-4 sm:grid-cols-2">
-            {SOURCES.map(([source, what, href]) => (
-              <div key={source} className="group space-y-0.5">
-                <dt className="text-sm font-medium">
-                  <a
-                    href={href}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 text-ink group-hover:underline"
-                  >
-                    {source}
-                    <svg
-                      aria-hidden="true"
-                      viewBox="0 0 24 24"
-                      width="12"
-                      height="12"
-                      className="shrink-0 text-ink-muted"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
-                      <polyline points="15 3 21 3 21 9" />
-                      <line x1="10" y1="14" x2="21" y2="3" />
-                    </svg>
-                  </a>
-                </dt>
-                <dd className="text-sm text-ink-muted">{what}</dd>
-              </div>
-            ))}
-          </dl>
-        </section>
-
         {/* ---------------------------------------------------------------- вопросы */}
-        <section aria-labelledby="faq" className="space-y-5 py-14">
-          <h2 id="faq" className="text-2xl md:text-4xl">
+        <section aria-labelledby="faq" className="space-y-6 py-16 md:py-20">
+          <h2 id="faq" className="text-3xl md:text-5xl lg:text-6xl">
             Частые вопросы
           </h2>
           <div className="grid gap-2">
@@ -309,7 +309,7 @@ export default function LandingPage() {
 
       </main>
 
-      <footer className="mt-16 border-t border-rule">
+      <footer className="border-t border-rule">
         <div className="mx-auto flex w-full max-w-4xl flex-col gap-6 px-6 py-8 sm:flex-row sm:items-end sm:justify-between xl:max-w-6xl 2xl:max-w-7xl">
           <div className="max-w-prose space-y-2 text-xs text-ink-muted">
             <p>
@@ -358,7 +358,7 @@ export default function LandingPage() {
                 inLanguage: "ru-RU",
                 isAccessibleForFree: true,
                 offers: { "@type": "Offer", price: "0", priceCurrency: "RUB" },
-                featureList: FEATURES.map(([, title, text]) => `${title}: ${text}`),
+                featureList: HOW_STEPS.map((step) => `${step.title}: ${step.text}`),
               },
               {
                 "@type": "FAQPage",

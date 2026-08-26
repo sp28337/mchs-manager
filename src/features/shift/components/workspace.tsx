@@ -181,7 +181,7 @@ export function Workspace({ profile, onChange, onForget }: WorkspaceProps) {
         }
       />
 
-      <main className="mx-auto w-full px-6 pb-12 pt-26 2xl:max-w-[2000px]">
+      <main className="mx-auto w-full px-6 pt-26 2xl:max-w-[2000px]">
       {/* Поле под именем — не про воздух: полоса с числами закрывает над
           собой двенадцать точек бумаги (щиток в `PeriodSummary`, он гасит
           просвет под шапкой), и без этого зазора щиток лёг бы прямо на
