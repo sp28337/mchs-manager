@@ -28,18 +28,22 @@ import type { StoredProfile } from "../storage/profile";
 export function LiveModeSwitch({
   profile,
   onChange,
+  spread,
   className,
 }: {
   profile: StoredProfile;
   onChange: (change: (previous: StoredProfile) => StoredProfile) => void;
+  /** Подпись слева, дорожка справа — для строки настроек. */
+  spread?: boolean;
   className?: string;
 }) {
   return (
-    <span className={cn("inline-flex items-center gap-1.5", className)}>
+    <span className={cn("inline-flex items-center gap-1.5", spread && "w-full", className)}>
       <Switch
         checked={profile.liveMode}
         onChange={(liveMode) => onChange((previous) => ({ ...previous, liveMode }))}
         label="Онлайн"
+        spread={spread}
       />
     </span>
   );

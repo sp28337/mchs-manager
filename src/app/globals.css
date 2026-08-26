@@ -1193,3 +1193,723 @@
     font-size: 1rem;
   }
 }
+
+/* ==========================================================================
+   РАЗДЕЛ «КАК РАБОТАЕТ»: РАСКЛАДКА ШАГА И ЧЕТЫРЕ ПОКАЗА.
+
+   --- Раскладка ---------------------------------------------------------
+
+   Разметка шага одна и та же и читается сверху вниз: заголовок, показ,
+   текст. Так её читает программа чтения и так забирает поисковый робот.
+   На экране же шаги идут змейкой — у первого текст слева, у второго
+   справа, — и меняет их местами ТОЛЬКО сетка, ни одного лишнего узла в
+   разметке для этого не заведено.
+
+   --- Круг в шесть секунд ------------------------------------------------
+
+   Показы идут по кругу: три секунды история, три секунды покой. Пауза не
+   роскошь — без неё раздел из четырёх непрерывно шевелящихся картинок
+   читать нельзя, глаз всё время дёргается на движение.
+
+   Круг ОДИН на всё (`--demo-cycle`), и расписание считается его долями:
+   один процент — шестьдесят миллисекунд. Держать доли, а не миллисекунды,
+   приходится потому, что зациклить можно только целую анимацию: у каждой
+   части своя доля круга, и вне её она просто стоит.
+
+   Из этого же следует последнее правило: круг обязан ЗАКАНЧИВАТЬСЯ там
+   же, где начался. Иначе на стыке кругов картинка щёлкает — собранный
+   календарь исчезает в один кадр. Поэтому у каждой части в конце есть
+   тихий возврат: с 88 до 96 процентов всё сделанное отыгрывает назад, и
+   последние четверть секунды круга картинка снова та, с которой он
+   начинался.
+
+   Показы играют не при загрузке, а когда до них долистали: признак
+   `data-play` ставит `DemoStage`. Анимации назначены под этим признаком,
+   поэтому его снятие и возврат начинают историю заново.
+
+   `prefers-reduced-motion` гасит их общим правилом в начале файла: там
+   длительность и задержка сводятся к нулю, а число кругов к одному, и от
+   каждого показа остаётся его последний кадр — то есть та самая картинка,
+   с которой круг начинается. Она осмысленная: собранный график, месяц с
+   отметками, открытое окно выгрузки.
+   ========================================================================== */
+
+@media (width >= 48rem) {
+  .demo-step {
+    grid-template-areas:
+      "title demo"
+      "text  demo";
+  }
+
+  .demo-step--flipped {
+    grid-template-areas:
+      "demo title"
+      "demo text";
+  }
+
+  .demo-step__title {
+    grid-area: title;
+    align-self: end;
+  }
+
+  .demo-step__text {
+    grid-area: text;
+    align-self: start;
+  }
+
+  .demo-step__demo {
+    grid-area: demo;
+  }
+}
+
+.demo {
+  /* Три секунды история, три секунды покой. */
+  --demo-cycle: 6000ms;
+}
+
+/* Пока до показа не долистали, он стоит в НАЧАЛЬНОМ кадре: анимации ему
+   ещё не назначены, и всё, чему положено появиться, скрыто здесь. */
+.demo[data-play="off"] .demo-swap-in,
+.demo[data-play="off"] .demo-became,
+.demo[data-play="off"] .demo-carried,
+.demo[data-play="off"] .demo-pointer,
+.demo[data-play="off"] .demo-strip-next,
+.demo[data-play="off"] .demo-dialog,
+.demo[data-play="off"] .demo-file,
+.demo[data-play="off"] .demo-caret,
+.demo[data-play="off"] .demo-uplink {
+  opacity: 0;
+}
+
+/* --------------------------------------------------------------------------
+   ОБЩЕЕ: НАЖАТИЕ И ПРЕВРАЩЕНИЕ СУТОК.
+   -------------------------------------------------------------------------- */
+
+/* Кольцо нажатия расходится и гаснет, как круг по воде. Оно и есть всё,
+   чем показано «нажал». Доли круга у каждого показа свои — задаёт их
+   `--press`, доля, на которой палец опустился. */
+@keyframes demo-press {
+  0%,
+  100% {
+    opacity: 0;
+    transform: scale(0.35);
+  }
+
+  2% {
+    opacity: 0.85;
+    transform: scale(0.6);
+  }
+
+  9% {
+    opacity: 0;
+    transform: scale(1.2);
+  }
+}
+
+.demo-pointer__ring {
+  opacity: 0;
+}
+
+.demo[data-play="on"] .demo-pointer__ring {
+  animation: demo-press var(--demo-cycle) linear infinite both;
+  animation-delay: calc(var(--press, 0) * var(--demo-cycle) / 100);
+}
+
+/* Превращение суток — тем же движением, что отметки на первом экране:
+   клетка на мгновение приподнимается, будто её только что отметили рукой.
+
+   Черёд считается из двух чисел: `--step` — номер записи, `--order` —
+   место суток внутри неё. Период ложится днями подряд, а не разом: так
+   видно, что это именно период, а не одни сутки. */
+@keyframes demo-became {
+  0%,
+  8% {
+    opacity: 0;
+    transform: scale(0.72);
+  }
+
+  13% {
+    opacity: 1;
+    transform: scale(1.08);
+  }
+
+  17%,
+  88% {
+    opacity: 1;
+    transform: none;
+  }
+
+  93%,
+  100% {
+    opacity: 0;
+    transform: none;
+  }
+}
+
+@keyframes demo-was-out {
+  0%,
+  11% {
+    opacity: 1;
+  }
+
+  16%,
+  90% {
+    opacity: 0;
+  }
+
+  95%,
+  100% {
+    opacity: 1;
+  }
+}
+
+.demo[data-play="on"] .demo-became,
+.demo[data-play="on"] .demo-was {
+  animation-duration: var(--demo-cycle);
+  animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+  animation-iteration-count: infinite;
+  animation-fill-mode: both;
+  /* Запись за записью, а внутри записи — сутки за сутками.
+
+     Отсчёт от начала круга, без поправок: сама анимация держит первый кадр
+     до восьмой доли, и запись с `--step: 0` ложится на полсекунды после
+     начала. Следующая — через шесть сотых круга, чтобы человек успел
+     увидеть предыдущую. */
+  animation-delay: calc((var(--step, 0) * 640ms) + (var(--order, 0) * 90ms));
+}
+
+.demo[data-play="on"] .demo-became {
+  animation-name: demo-became;
+}
+
+.demo[data-play="on"] .demo-was {
+  animation-name: demo-was-out;
+}
+
+/* --------------------------------------------------------------------------
+   ПОКАЗ 1. ГРАФИК ПЕРЕСТРАИВАЕТ КАЛЕНДАРЬ.
+
+   Доли круга: 5 указатель подходит, 13 нажимает, 17 значение перегорает,
+   20 старая полоса уходит, 22 новая собирается волной по клетке, 30
+   указатель уходит. Дальше покой до 88, потом тихий возврат.
+   -------------------------------------------------------------------------- */
+
+@keyframes demo-tap {
+  0%,
+  4% {
+    opacity: 0;
+    transform: translate(16px, 13px);
+  }
+
+  11%,
+  30% {
+    opacity: 1;
+    transform: none;
+  }
+
+  36%,
+  100% {
+    opacity: 0;
+    transform: translate(12px, 15px);
+  }
+}
+
+.demo[data-play="on"] .demo-tap-schedule {
+  --press: 13;
+  animation: demo-tap var(--demo-cycle) cubic-bezier(0.22, 1, 0.36, 1) infinite both;
+}
+
+/* Старое значение истлевает и его сносит вверх и вправо, новое
+   занимается на его месте. Те же кадры, что у цифр в названии сайта. */
+@keyframes demo-swap-out {
+  0%,
+  17% {
+    opacity: 1;
+    transform: none;
+    filter: none;
+  }
+
+  24%,
+  88% {
+    opacity: 0;
+    transform: translate(6px, -8px) rotate(4deg);
+    filter: blur(3px);
+  }
+
+  95%,
+  100% {
+    opacity: 1;
+    transform: none;
+    filter: none;
+  }
+}
+
+@keyframes demo-swap-in {
+  0%,
+  20% {
+    opacity: 0;
+    transform: translateY(7px);
+    filter: blur(3px);
+  }
+
+  27%,
+  88% {
+    opacity: 1;
+    transform: none;
+    filter: none;
+  }
+
+  93%,
+  100% {
+    opacity: 0;
+    transform: translateY(7px);
+    filter: blur(3px);
+  }
+}
+
+.demo[data-play="on"] .demo-swap-out {
+  animation: demo-swap-out var(--demo-cycle) ease-in-out infinite both;
+}
+
+.demo[data-play="on"] .demo-swap-in {
+  animation: demo-swap-in var(--demo-cycle) cubic-bezier(0.22, 1, 0.36, 1) infinite both;
+}
+
+@keyframes demo-strip-out {
+  0%,
+  20% {
+    opacity: 1;
+    filter: none;
+  }
+
+  25%,
+  88% {
+    opacity: 0;
+    filter: blur(4px);
+  }
+
+  95%,
+  100% {
+    opacity: 1;
+    filter: none;
+  }
+}
+
+.demo[data-play="on"] .demo-strip-prev {
+  animation: demo-strip-out var(--demo-cycle) ease-in-out infinite both;
+}
+
+/* Новая полоса не «показывается», а СОБИРАЕТСЯ по клетке — тем же
+   движением, что месяц на первом экране: приходит из размытия, вспыхивает
+   на подлёте и садится на место. Волна слева направо. */
+@keyframes demo-cell-in {
+  0%,
+  22% {
+    opacity: 0;
+    transform: scale(0.55);
+    filter: blur(6px);
+  }
+
+  27% {
+    opacity: 1;
+    transform: scale(1.06);
+    filter: blur(0);
+  }
+
+  31%,
+  86% {
+    opacity: 1;
+    transform: none;
+    filter: none;
+  }
+
+  91%,
+  100% {
+    opacity: 0;
+    transform: none;
+    filter: blur(4px);
+  }
+}
+
+.demo[data-play="on"] .demo-cell-in {
+  animation: demo-cell-in var(--demo-cycle) cubic-bezier(0.22, 1, 0.36, 1) infinite both;
+  animation-delay: calc(var(--i, 0) * 70ms);
+}
+
+/* --------------------------------------------------------------------------
+   ПОКАЗ 2. ПЕРЕНОС СМЕНЫ.
+
+   Нажали, подержали, потянули, отпустили. Держать здесь не фигура речи:
+   между нажатием и началом движения стоит пауза — в приложении перенос
+   тоже начинается с удержания, иначе смена уезжала бы от случайного
+   касания при прокрутке.
+
+   Доли круга: 8 указатель на смене, 12 нажатие, 17 смена отрывается, 28
+   доехала, 30 легла и сутки поменялись.
+
+   Путь считается колонками. Каретка во всю ширину полосы, поэтому сто
+   процентов для неё — это и есть полоса: семь клеток и шесть зазоров по
+   четыре точки.
+   -------------------------------------------------------------------------- */
+
+.demo-carriage {
+  /* Сетка сомкнута — клетки стоят вплотную, — поэтому шаг колонки ровно
+     седьмая часть ширины. Каретка во всю ширину сетки, и сто процентов в
+     её `translate` — это и есть сетка. */
+  --demo-pitch: calc(100% / 7);
+}
+
+@keyframes demo-carry-path {
+  0%,
+  17% {
+    transform: translateX(calc(1 * var(--demo-pitch)));
+  }
+
+  29%,
+  92% {
+    transform: translateX(calc(5 * var(--demo-pitch)));
+  }
+
+  100% {
+    transform: translateX(calc(1 * var(--demo-pitch)));
+  }
+}
+
+.demo[data-play="on"] .demo-carriage {
+  animation: demo-carry-path var(--demo-cycle) cubic-bezier(0.5, 0, 0.2, 1) infinite both;
+}
+
+/* Несомая смена: та же клетка, что летит под указателем в расчёте, вплоть
+   до наклона, увеличения и тени (`.shift-ghost`). */
+@keyframes demo-carry {
+  0%,
+  12% {
+    opacity: 0;
+    transform: scale(1) rotate(0deg);
+  }
+
+  16%,
+  29% {
+    opacity: 1;
+    transform: translateY(-7%) scale(1.18) rotate(-1.5deg);
+    filter: drop-shadow(0 8px 16px rgb(0 0 0 / 0.28));
+  }
+
+  32% {
+    opacity: 0;
+    transform: scale(1) rotate(0deg);
+  }
+
+  100% {
+    opacity: 0;
+    transform: scale(1) rotate(0deg);
+  }
+}
+
+.demo-carried {
+  opacity: 0;
+}
+
+.demo[data-play="on"] .demo-carried {
+  animation: demo-carry var(--demo-cycle) cubic-bezier(0.5, 0, 0.2, 1) infinite both;
+}
+
+/* Указатель едет вместе с кареткой, поэтому своего пути у него нет. */
+@keyframes demo-drag-fade {
+  0%,
+  4% {
+    opacity: 0;
+    transform: translate(14px, 11px);
+  }
+
+  9%,
+  31% {
+    opacity: 1;
+    transform: none;
+  }
+
+  37%,
+  100% {
+    opacity: 0;
+    transform: translate(10px, 13px);
+  }
+}
+
+.demo[data-play="on"] .demo-drag {
+  --press: 12;
+  animation: demo-drag-fade var(--demo-cycle) ease-out infinite both;
+}
+
+/* Сутки, откуда смену несут, гаснут до трети плотности — ровно как в
+   расчёте (`carried && "opacity-30"`). */
+@keyframes demo-source {
+  0%,
+  14% {
+    opacity: 1;
+  }
+
+  17%,
+  29% {
+    opacity: 0.3;
+  }
+
+  32%,
+  100% {
+    opacity: 1;
+  }
+}
+
+.demo[data-play="on"] .demo-source {
+  animation: demo-source var(--demo-cycle) ease-out infinite both;
+}
+
+/* Сутки под указателем обведены изнутри — как `target` в расчёте: клетки
+   стоят вплотную, и рамка наружу сдвинула бы соседей. */
+@keyframes demo-target {
+  0%,
+  23% {
+    box-shadow: none;
+  }
+
+  26%,
+  29% {
+    box-shadow: inset 0 0 0 2px var(--color-verify);
+  }
+
+  32%,
+  100% {
+    box-shadow: none;
+  }
+}
+
+.demo[data-play="on"] .demo-target {
+  border-radius: 0.375rem;
+  animation: demo-target var(--demo-cycle) steps(1, end) infinite both;
+}
+
+/* --------------------------------------------------------------------------
+   ПОКАЗ 4. ВЫГРУЗКА В ФАЙЛ.
+
+   Доли круга: 5 указатель у кнопки, 12 нажатие, 15 окно открывается, 22
+   имя набирается, 40 файл лёг, 47 проступает перечёркнутая стрелка.
+
+   Порядок обязателен: сперва человек видит, что файл ОСТАЛСЯ здесь же, и
+   только потом — что наружу не ушло ничего. В обратном порядке второе
+   читалось бы как оговорка к первому.
+   -------------------------------------------------------------------------- */
+
+.demo[data-play="on"] .demo-tap-save {
+  --press: 12;
+  animation: demo-tap var(--demo-cycle) cubic-bezier(0.22, 1, 0.36, 1) infinite both;
+}
+
+/* Кнопка проседает под нажатием и отпускает. */
+@keyframes demo-pressed {
+  0%,
+  12%,
+  17%,
+  100% {
+    transform: none;
+    background-color: var(--color-paper-sunken);
+  }
+
+  14% {
+    transform: scale(0.95);
+    background-color: var(--color-rule);
+  }
+}
+
+.demo[data-play="on"] .demo-save-button {
+  animation: demo-pressed var(--demo-cycle) ease-out infinite both;
+}
+
+/* Окно выгрузки. Открывается тем же движением, что и настоящее: приходит
+   снизу, коротко и без отскока — окно не игрушка. */
+@keyframes demo-dialog {
+  0%,
+  15% {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.98);
+  }
+
+  21%,
+  90% {
+    opacity: 1;
+    transform: none;
+  }
+
+  95%,
+  100% {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.98);
+  }
+}
+
+.demo[data-play="on"] .demo-dialog {
+  animation: demo-dialog var(--demo-cycle) cubic-bezier(0.22, 1, 0.36, 1) infinite both;
+}
+
+/* Имя набирается: полоса раскрывается знак за знаком, ступенями по числу
+   знаков — иначе буквы выезжали бы наполовину. «Мой график» — десять
+   знаков вместе с пробелом. */
+@keyframes demo-typed {
+  0%,
+  22% {
+    width: 0;
+  }
+
+  36%,
+  90% {
+    width: 10ch;
+  }
+
+  95%,
+  100% {
+    width: 0;
+  }
+}
+
+.demo-typed {
+  display: inline-block;
+  overflow: hidden;
+  white-space: nowrap;
+  width: 0;
+  vertical-align: bottom;
+}
+
+.demo[data-play="on"] .demo-typed {
+  animation: demo-typed var(--demo-cycle) steps(10, end) infinite both;
+}
+
+/* Каретка мигает, пока набирают, и пропадает, когда имя готово. */
+@keyframes demo-caret {
+  0%,
+  20% {
+    opacity: 0;
+  }
+
+  22%,
+  38% {
+    opacity: 1;
+  }
+
+  40%,
+  100% {
+    opacity: 0;
+  }
+}
+
+.demo[data-play="on"] .demo-caret {
+  animation: demo-caret var(--demo-cycle) steps(2, jump-none) infinite both;
+}
+
+/* Кнопка окна нажимается, и файл ложится вниз. */
+@keyframes demo-confirm {
+  0%,
+  38%,
+  43%,
+  100% {
+    transform: none;
+  }
+
+  40% {
+    transform: scale(0.95);
+  }
+}
+
+.demo[data-play="on"] .demo-confirm {
+  animation: demo-confirm var(--demo-cycle) ease-out infinite both;
+}
+
+@keyframes demo-file-out {
+  0%,
+  42% {
+    opacity: 0;
+    transform: translateY(-10px) scale(0.96);
+  }
+
+  48%,
+  90% {
+    opacity: 1;
+    transform: none;
+  }
+
+  95%,
+  100% {
+    opacity: 0;
+    transform: translateY(-10px) scale(0.96);
+  }
+}
+
+.demo[data-play="on"] .demo-file {
+  animation: demo-file-out var(--demo-cycle) cubic-bezier(0.22, 1, 0.36, 1) infinite both;
+}
+
+@keyframes demo-uplink-in {
+  0%,
+  50% {
+    opacity: 0;
+  }
+
+  56%,
+  90% {
+    opacity: 1;
+  }
+
+  95%,
+  100% {
+    opacity: 0;
+  }
+}
+
+.demo[data-play="on"] .demo-uplink {
+  animation: demo-uplink-in var(--demo-cycle) ease-out infinite both;
+}
+
+/* --------------------------------------------------------------------------
+   ПОКАЗЫ БЕЗ АНИМАЦИИ.
+
+   Общее правило в начале файла сводит длительность к нулю, а число кругов
+   к одному, — и анимация замирает на своём ПОСЛЕДНЕМ кадре. Для показов
+   это неверно: последний кадр круга — тихий возврат к началу, то есть
+   пустое место. Человек с отключённой анимацией видел бы шапку без окна,
+   неделю без графика и месяц без единой отметки.
+
+   Поэтому здесь названо, чем показ обязан ОСТАТЬСЯ: тем кадром, ради
+   которого он и сделан. Через `!important`, потому что иначе его перебьёт
+   заливка анимации — по правилам каскада важное объявление автора старше
+   анимации.
+   -------------------------------------------------------------------------- */
+@media (prefers-reduced-motion: reduce) {
+  /* Сделанное — видно. */
+  .demo .demo-swap-in,
+  .demo .demo-became,
+  .demo .demo-strip-next,
+  .demo .demo-cell-in,
+  .demo .demo-dialog,
+  .demo .demo-file,
+  .demo .demo-uplink {
+    opacity: 1 !important;
+    transform: none !important;
+    filter: none !important;
+  }
+
+  /* Прежнее — нет. */
+  .demo .demo-swap-out,
+  .demo .demo-strip-prev,
+  .demo .demo-was,
+  .demo .demo-carried,
+  .demo .demo-pointer,
+  .demo .demo-caret {
+    opacity: 0 !important;
+  }
+
+  /* Имя файла набрано целиком, каретка снята, каретка переноса на месте. */
+  .demo .demo-typed {
+    width: 10ch !important;
+  }
+
+  .demo .demo-carriage {
+    transform: none !important;
+  }
+}
