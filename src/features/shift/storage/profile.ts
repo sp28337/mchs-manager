@@ -31,9 +31,11 @@ import { z } from "zod";
 
 import {
   DEFAULT_SCHEDULE_PATTERN,
-  type SchedulePatternId,
+  MAX_CUSTOM_DAYS,
+  MIN_CUSTOM_DAYS,
+  resolveSchedulePattern,
 } from "../domain/schedule-pattern";
-import { DEFAULT_SHIFT_START } from "../domain/shift-hours";
+import { DEFAULT_SHIFT_START, type ShiftSpan } from "../domain/shift-hours";
 import type { ShiftOverride } from "../domain/value-objects";
 import type { DayType } from "../domain/production-calendar";
 import type { IsoDate } from "../domain/plain-date";
@@ -116,15 +118,34 @@ export const storedProfileSchema = z.object({
     .regex(/^([01]\d|2[0-3]):[0-5]\d$/, "время в формате ЧЧ:ММ")
     .default(DEFAULT_SHIFT_START),
   /**
-   * График сменности: «1/3», «2/2», «5/2», «1/4».
+   * График сменности: заготовка или `custom` — свой цикл.
    *
    * Необязательное с умолчанием: профили, сохранённые до появления
    * выбора, читаются как «сутки через трое» — единственный график, который
    * тогда и был.
    */
   schedulePattern: z
-    .enum(["1/3", "2/2", "5/2", "1/4"])
+    .enum(["1/3", "2/2", "5/2", "1/4", "custom"])
     .default(DEFAULT_SCHEDULE_PATTERN),
+  /**
+   * Свой цикл: сколько суток подряд рабочих и сколько выходных.
+   *
+   * Хранятся ВСЕГДА, а не только при выбранном «своём графике». Иначе
+   * человек, заглянувший в свой цикл и вернувшийся к заготовке, терял бы
+   * набранные числа — и вводил их заново при каждом возврате.
+   */
+  customWorkDays: z
+    .number()
+    .int()
+    .min(MIN_CUSTOM_DAYS)
+    .max(MAX_CUSTOM_DAYS)
+    .default(1),
+  customRestDays: z
+    .number()
+    .int()
+    .min(MIN_CUSTOM_DAYS)
+    .max(MAX_CUSTOM_DAYS)
+    .default(3),
   /**
    * Продолжительность смены в часах, строкой.
    *
@@ -137,14 +158,6 @@ export const storedProfileSchema = z.object({
    * сохранённые до появления поля, читаются как суточные.
    */
   shiftDurationHours: z.string().min(1).max(6).default("24"),
-  /**
-   * Возраст до шестнадцати лет: самая короткая неделя, 24 часа.
-   *
-   * Признак, а не число, — как и остальные основания недельной нормы:
-   * норму выводит домен, а профиль хранит то, из чего она следует.
-   * Необязательное с умолчанием, профили без него читаются как есть.
-   */
-  underSixteen: z.boolean().default(false),
   /* Схема нестрогая намеренно: поля из неё со временем уходят — статус,
      пол, номер караула, северное сокращение, сверка с табелем, — а
      профили, сохранённые до этого, обязаны читаться как есть. Лишние
@@ -169,6 +182,36 @@ export const storedProfileSchema = z.object({
    * переносов, обязаны читаться как есть.
    */
   shiftOverrides: z.record(isoDate, z.enum(["shift", "off"])).default({}),
+  /**
+   * Часы отдельных смен: дата заступления → со скольки и до скольки.
+   *
+   * График говорит, КОГДА смена, настройки — сколько она длится; здесь
+   * лежит то, что было на самом деле. Заступил в восемь, а сдал в
+   * одиннадцать вечера, потому что смена не пришла; отпустили в шесть;
+   * подменял полсмены. Именно об этих часах и идёт спор с работодателем, а
+   * до этого поля приложение умело показывать только график — ту самую
+   * цифру, которую человек оспаривает.
+   *
+   * Ключ — дата ЗАСТУПЛЕНИЯ, тот же, которым ищутся отсутствия: смена одна,
+   * и часы у неё одни, в каких бы двух календарных днях она ни лежала.
+   *
+   * Хранятся ИСКЛЮЧЕНИЯ: часы, совпавшие с графиком, не пишутся. Иначе
+   * запись зажила бы своей жизнью — поправь человек начало смены в
+   * настройках, и старые «подтверждения» графика остались бы прежними,
+   * молча удерживая часть года на прежнем распорядке.
+   *
+   * Необязательное с умолчанием: профили, сохранённые до появления часов,
+   * обязаны читаться как есть.
+   */
+  shiftTimes: z
+    .record(
+      isoDate,
+      z.object({
+        startsAt: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "время в формате ЧЧ:ММ"),
+        endsAt: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "время в формате ЧЧ:ММ"),
+      }),
+    )
+    .default({}),
   /**
    * Заметки к суткам: дата → текст.
    *
@@ -214,12 +257,13 @@ export interface NewProfileInput {
   displayName: string;
   workingConditions: StoredProfile["workingConditions"];
   disabilityGroupIorII: boolean;
-  underSixteen: boolean;
   /** Любые сутки, в которые человек выходил на смену или выйдет. */
   firstShiftDate: IsoDate;
   accountingYear: number;
   shiftStartTime: string;
   schedulePattern: StoredProfile["schedulePattern"];
+  customWorkDays: number;
+  customRestDays: number;
   shiftDurationHours: string;
 }
 
@@ -235,6 +279,7 @@ export function createProfile(input: NewProfileInput): StoredProfile {
     callouts: [],
     calendarOverrides: {},
     shiftOverrides: {},
+    shiftTimes: {},
     dayNotes: {},
     liveMode: false,
     overtimeInDays: false,
@@ -333,17 +378,21 @@ export function subscribeToStoredProfile(onChange: () => void): () => void {
 }
 
 /**
- * График из сохранённого профиля — строкой, а не объектом.
+ * Подпись графика из сохранённого профиля — «1/3», «2/2», «3/1».
  *
- * Строкой намеренно: значение читает `useSyncExternalStore`, а тот
- * сравнивает снимки по ссылке. Верни отсюда объект — и каждый снимок был
- * бы новым, то есть «изменившимся», и подписка зациклилась бы.
+ * Строкой намеренно, и не опознанием, а именно подписью. Опознания мало:
+ * у своего графика оно одно на все циклы, а в шапке стоят сами числа.
+ * Строка же нужна потому, что значение читает `useSyncExternalStore`, а
+ * тот сравнивает снимки по ссылке: верни отсюда объект — и каждый снимок
+ * был бы новым, то есть «изменившимся», и подписка зациклилась бы.
  */
-export function storedSchedulePattern(): SchedulePatternId {
+export function storedScheduleLabel(): string {
   const result = loadProfile();
-  return result.status === "ok"
-    ? result.profile.schedulePattern
-    : DEFAULT_SCHEDULE_PATTERN;
+  if (result.status !== "ok") {
+    return resolveSchedulePattern(DEFAULT_SCHEDULE_PATTERN).label;
+  }
+  const { schedulePattern, customWorkDays, customRestDays } = result.profile;
+  return resolveSchedulePattern(schedulePattern, customWorkDays, customRestDays).label;
 }
 
 export class StorageUnavailableError extends Error {
@@ -414,9 +463,10 @@ export const DEFAULT_PROFILE_NAME = "Мой график";
  * --- Что сбрасывается ------------------------------------------------------
  *
  * Всё, что человек НАСТАВИЛ НА СЕТКАХ: отпуска и больничные, вызовы,
- * правки производственного календаря, переносы и отмены смен, заметки к
- * суткам. Это единственное действие, стирающее их разом: по одному они
- * снимаются в окне дня, а после года ведения таких дней бывает две сотни.
+ * правки производственного календаря, переносы и отмены смен, часы
+ * отдельных смен, заметки к суткам. Это единственное действие, стирающее
+ * их разом: по одному они снимаются в окне дня, а после года ведения таких
+ * дней бывает две сотни.
  *
  * --- Что остаётся ----------------------------------------------------------
  *
@@ -438,6 +488,7 @@ export function resetCalendar(profile: StoredProfile): StoredProfile {
     callouts: [],
     calendarOverrides: {},
     shiftOverrides: {},
+    shiftTimes: {},
     dayNotes: {},
   };
 }
@@ -450,4 +501,9 @@ export function overridesOf(profile: StoredProfile): Map<IsoDate, DayType> {
 /** Правки графика в виде, который понимает домен. */
 export function shiftOverridesOf(profile: StoredProfile): Map<IsoDate, ShiftOverride> {
   return new Map(Object.entries(profile.shiftOverrides) as [IsoDate, ShiftOverride][]);
+}
+
+/** Названные часы смен в виде, который понимает домен. */
+export function shiftTimesOf(profile: StoredProfile): Map<IsoDate, ShiftSpan> {
+  return new Map(Object.entries(profile.shiftTimes) as [IsoDate, ShiftSpan][]);
 }

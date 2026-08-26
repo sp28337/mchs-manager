@@ -2,6 +2,7 @@
 
 import { useMemo } from "react";
 
+import { CountedNumber } from "@/components/ui/counted-number";
 import { cn } from "@/lib/utils/cn";
 
 import { formatDateRu } from "../domain/format";
@@ -83,6 +84,99 @@ import { MonthGrid, WEEKDAY_LABELS } from "./month-grid";
  * на нажатие «Производственный календарь» человек получает кнопку
  * «Открыть календарь».
  */
+
+/**
+ * Итог месяца по календарю: рабочие дни, праздники и сокращённые часы.
+ *
+ * --- Зачем он здесь --------------------------------------------------------
+ *
+ * У месяца в графике смен такая подпись есть с самого начала — «8 см /
+ * 192,0 ч / ноч. 64,0», — и она отвечает на вопрос «что у меня вышло за
+ * этот месяц», не заставляя считать клетки глазами. У производственного
+ * календаря того же вопроса не было вовсе: человек видел раскрашенную
+ * сетку и пересчитывал рабочие дни пальцем — при том, что именно из них
+ * получается норма, о которой весь спор.
+ *
+ * --- Что в неё попало ------------------------------------------------------
+ *
+ * Ровно те три величины, из которых считается норма месяца: рабочие дни,
+ * праздники и час, снимаемый за каждый предпраздничный день (ст. 95 ТК
+ * РФ). Ни ночных, ни смен здесь нет и быть не может — календарь не знает
+ * ничьего графика.
+ *
+ * Предпраздничные показаны ЧАСАМИ, а не днями, и со знаком минус: в норме
+ * они участвуют именно вычитаемым часом. «4 предпраздничных» человеку
+ * пришлось бы переводить в «минус 4 часа» самому.
+ */
+interface MonthFacts {
+  working: number;
+  holidays: number;
+  preHolidayHours: number;
+}
+
+function monthFacts(days: readonly CalendarDay[]): MonthFacts {
+  let working = 0;
+  let holidays = 0;
+  let preHolidayHours = 0;
+  for (const { dayType } of days) {
+    // Предпраздничный день — рабочий, просто короче на час. Исключить его
+    // из рабочих значило бы вычесть за него восемь часов вместо одного.
+    if (dayType === "working" || dayType === "pre_holiday") working += 1;
+    if (dayType === "pre_holiday") preHolidayHours += 1;
+    if (dayType === "holiday") holidays += 1;
+  }
+  return { working, holidays, preHolidayHours };
+}
+
+/**
+ * Подпись месяца — тем же строем, что у месяца в графике смен.
+ *
+ * Разделитель, порядок и приглушённый тон у необязательных частей взяты
+ * оттуда же: человек переключается между сеткой графика и календарём
+ * кнопкой, и две подписи разного вида на одном месте читались бы как две
+ * разные вещи.
+ *
+ * Праздники и предпраздничные часы показываются, только когда они есть: в
+ * августе их не бывает, и «0 праздничных» занимало бы место, ничего не
+ * сообщая.
+ *
+ * --- Почему слова целиком --------------------------------------------------
+ *
+ * Первыми были «раб» и «пра» — короче некуда, и подпись держалась в одну
+ * строку при любой ширине. Но обрубок читается не как слово, а как код: за
+ * «пра» человек сначала видит незнакомое сокращение и только потом
+ * догадывается, что это праздники. Экономия при этом мнимая — строка тут
+ * своя, под названием месяца, и место в ней есть.
+ *
+ * В графике смен сокращения остались («см», «ч», «ноч.»), и это не
+ * разнобой: там за ними стоят единицы измерения, привычные до полной
+ * прозрачности, а здесь — существительные, которые нужно узнать.
+ */
+function MonthMeta({ facts, edited }: { facts: MonthFacts; edited: number }) {
+  return (
+    <>
+      <CountedNumber value={String(facts.working)} /> рабочих
+      {facts.holidays > 0 ? (
+        <span className="text-signal">
+          {" / "}
+          <CountedNumber value={String(facts.holidays)} /> праздничных
+        </span>
+      ) : null}
+      {facts.preHolidayHours > 0 ? (
+        <span className="text-ink-faint">
+          {" / −"}
+          <CountedNumber value={String(facts.preHolidayHours)} /> ч
+        </span>
+      ) : null}
+      {edited > 0 ? (
+        <span className="text-trace">
+          {" / правок "}
+          <CountedNumber value={String(edited)} />
+        </span>
+      ) : null}
+    </>
+  );
+}
 
 export interface YearCalendarEditorProps {
   profile: StoredProfile;
@@ -176,11 +270,14 @@ export function YearCalendarEditor({
       >
         {groups.map((group) => {
           const edited = group.days.filter((item) => item.source === "override").length;
+          const facts = monthFacts(group.days);
           return (
             <MonthGrid
               key={`${group.year}-${group.month}`}
               title={MONTH_NAMES[group.month]}
-              meta={edited > 0 ? <span className="text-ink">правок: {edited}</span> : null}
+              meta={
+                <MonthMeta facts={facts} edited={edited} />
+              }
               days={group.days.map((item) => item.day)}
               joined
               assemble
