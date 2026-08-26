@@ -45,10 +45,13 @@ import { addDays, datesInRange, type IsoDate } from "./plain-date";
 import {
   DEFAULT_SHIFT_START,
   minutesToHours,
+  parseTimeOfDay,
   shiftStartMinute,
+  spanMinutes,
   splitShift,
   shiftMinutes,
   MINUTES_PER_HOUR,
+  type ShiftSpan,
 } from "./shift-hours";
 import {
   ABSENCE_REDUCES_NORM,
@@ -270,6 +273,18 @@ export interface CalculatePeriodInput {
    * начиналось.
    */
   shiftDurationHours?: string;
+  /**
+   * Часы отдельных смен, названные человеком: дата ЗАСТУПЛЕНИЯ → с и до.
+   *
+   * Ключ — дата заступления, а не всякие сутки, которых смена коснулась:
+   * смена одна, и часы у неё одни, в каких бы двух днях она ни лежала. Тем
+   * же ключом расчёт ищет отсутствия — иначе одна смена отвечала бы на два
+   * разных вопроса по двум разным датам.
+   *
+   * Названные часы отменяют для этих суток и общее начало, и общую
+   * продолжительность: человек утверждает факт, а не поправляет график.
+   */
+  shiftSpans?: ReadonlyMap<IsoDate, ShiftSpan>;
 }
 
 /**
@@ -302,6 +317,7 @@ export function calculatePeriod({
   preHolidayDays,
   shiftStartTime = DEFAULT_SHIFT_START,
   shiftDurationHours,
+  shiftSpans,
 }: CalculatePeriodInput): PeriodCalculation {
   const startMinute = shiftStartMinute(shiftStartTime);
   const durationMinutes = shiftMinutes(shiftDurationHours);
@@ -332,6 +348,14 @@ export function calculatePeriod({
     const absence = absences.find((item) => absenceCovers(item, startedOn));
     const kind = absence ? absence.kind : null;
 
+    // Часы, названные на этих сутках, — это ФАКТ, и он старше всего
+    // остального: и общего начала смены, и её продолжительности по
+    // графику, и предпраздничного сокращения ниже. Человек говорит, во
+    // сколько заступил и во сколько сдал; спорить с ним графиком здесь
+    // не о чем — график как раз и есть то, что он оспаривает.
+    const span = shiftSpans?.get(startedOn);
+    const spanned = span ? spanMinutes(span) : null;
+
     // Предпраздничный день короче на час (ст. 95 ТК РФ) — но только там,
     // где смена и есть рабочий день календаря. У сменных графиков
     // предпраздничное сокращение к суточной смене не применяется: она идёт
@@ -341,11 +365,15 @@ export function calculatePeriod({
     // норма вычитает за предпраздничный день час, а факт его не вычитал —
     // и год заканчивался лишними часами, которых человек не работал.
     const shiftMinutesHere =
-      calendarDriven && preHolidayDays.has(startedOn)
+      spanned ??
+      (calendarDriven && preHolidayDays.has(startedOn)
         ? Math.max(0, durationMinutes - MINUTES_PER_HOUR)
-        : durationMinutes;
+        : durationMinutes);
 
-    const inPeriod = splitShift(startedOn, startMinute, shiftMinutesHere).filter(
+    const startMinuteHere =
+      spanned !== null && span ? (parseTimeOfDay(span.startsAt) ?? startMinute) : startMinute;
+
+    const inPeriod = splitShift(startedOn, startMinuteHere, shiftMinutesHere).filter(
       (part) => periodStart <= part.day && part.day < periodEnd,
     );
     if (inPeriod.length === 0) continue;
