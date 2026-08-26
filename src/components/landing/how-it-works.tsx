@@ -158,8 +158,8 @@ function Step({ step, flipped }: { step: HowStep; flipped: boolean }) {
         // не два, — и весь он отбит от показа широким полем. Прежде зазор
         // между строкой заголовка и абзацем был тот же, что между колонками,
         // и шаг разваливался на три отдельные вещи.
-        "grid min-h-[78svh] content-center items-center gap-x-10 gap-y-5 py-10",
-        "md:min-h-[70svh] md:grid-cols-2 md:grid-rows-[auto_auto] md:gap-x-16 md:gap-y-4 md:py-12",
+        "grid min-h-[58svh] content-center items-center gap-x-10 gap-y-5 py-10",
+        "md:min-h-[50svh] md:grid-cols-2 md:grid-rows-[auto_auto] md:gap-x-16 md:gap-y-4 md:py-12",
         "lg:gap-x-20",
         // Порядок в разметке один — заголовок, показ, текст, — а местами
         // их меняет сетка. Об этом подробнее в шапке файла.

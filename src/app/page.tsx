@@ -217,7 +217,7 @@ export default function LandingPage() {
           туда через четыре экрана. */}
       <SiteHeader action={<ThemeToggle />} className="items-center" />
 
-      <main className="mx-auto w-full max-w-4xl px-6 pb-16 xl:max-w-6xl 2xl:max-w-7xl">
+      <main className="mx-auto w-full max-w-4xl px-6 xl:max-w-6xl 2xl:max-w-7xl">
         <LandingHero cta={<HeroCta />} />
 
         <HowItWorks />
@@ -309,7 +309,7 @@ export default function LandingPage() {
 
       </main>
 
-      <footer className="mt-16 border-t border-rule">
+      <footer className="border-t border-rule">
         <div className="mx-auto flex w-full max-w-4xl flex-col gap-6 px-6 py-8 sm:flex-row sm:items-end sm:justify-between xl:max-w-6xl 2xl:max-w-7xl">
           <div className="max-w-prose space-y-2 text-xs text-ink-muted">
             <p>

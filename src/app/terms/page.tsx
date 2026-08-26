@@ -322,7 +322,7 @@ export default function TermsPage() {
         </p>
       </main>
 
-      <footer className="mt-16 border-t border-rule">
+      <footer className="border-t border-rule">
         <div className="mx-auto flex w-full max-w-3xl justify-center px-6 py-8">
           <ThemeToggle />
         </div>
