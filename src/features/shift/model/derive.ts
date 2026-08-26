@@ -32,7 +32,19 @@ import {
   type WeeklyNormGround,
   type WeeklyNormInput,
 } from "../domain/value-objects";
-import { overridesOf, shiftOverridesOf, type StoredProfile } from "../storage/profile";
+import {
+  MINUTES_PER_HOUR,
+  shiftMinutes,
+  spanMinutes,
+  spanOfSchedule,
+  type ShiftSpan,
+} from "../domain/shift-hours";
+import {
+  overridesOf,
+  shiftOverridesOf,
+  shiftTimesOf,
+  type StoredProfile,
+} from "../storage/profile";
 
 /**
  * Профиль на языке домена.
@@ -164,6 +176,7 @@ export function calculateFor(
     preHolidayDays: facts.preHolidayDaySet,
     shiftStartTime: profile.shiftStartTime,
     shiftDurationHours: profile.shiftDurationHours,
+    shiftSpans: shiftTimesOf(profile),
   });
 }
 
@@ -270,9 +283,96 @@ export function scheduledByPattern(profile: StoredProfile, day: IsoDate): boolea
   if (pattern.source !== "calendar") {
     return onShiftCycle(profile.firstShiftDate, day, pattern);
   }
-  const lawful = statutoryCalendar(Number(day.slice(0, 4))).get(day) ?? "working";
-  const dayType = profile.calendarOverrides[day] ?? lawful;
+  const dayType = dayTypeAt(profile, day);
   return dayType === "working" || dayType === "pre_holiday";
+}
+
+/**
+ * Есть ли смена в этих сутках — по графику и с правками человека.
+ *
+ * Тот же вопрос, что задаёт себе расчёт, и ответ на него обязан быть один:
+ * окно дня, сетка и расчёт спрашивают об одном и том же дне.
+ */
+export function shiftOn(profile: StoredProfile, day: IsoDate): boolean {
+  const override = profile.shiftOverrides[day];
+  if (override === "shift") return true;
+  if (override === "off") return false;
+  return scheduledByPattern(profile, day);
+}
+
+/**
+ * Вид этих суток по производственному календарю, с поправками человека.
+ *
+ * Календарь берётся ПО ГОДУ САМИХ СУТОК: период может пересечь границу
+ * года, и декабрьский день соседнего года иначе достался бы чужому
+ * календарю.
+ */
+export function dayTypeAt(profile: StoredProfile, day: IsoDate): DayType {
+  const lawful = statutoryCalendar(Number(day.slice(0, 4))).get(day) ?? "working";
+  return profile.calendarOverrides[day] ?? lawful;
+}
+
+/**
+ * Часы смены на этих сутках ПО ГРАФИКУ — то, от чего человек отсчитывает.
+ *
+ * Считается на конкретные сутки, а не на график вообще, из-за
+ * предпраздничного часа: у графиков, которые строятся по
+ * производственному календарю, смена накануне праздника короче на час
+ * (ст. 95 ТК РФ), и расчёт это делает сам. Покажи окно дня в такие сутки
+ * обычные восемь часов — и человек, ничего не трогая, увидел бы в поле
+ * одно, а в клетке другое.
+ */
+export function scheduleSpanAt(profile: StoredProfile, day: IsoDate): ShiftSpan {
+  const minutes = shiftMinutes(profile.shiftDurationHours);
+  const shortened =
+    patternOfProfile(profile).source === "calendar" && dayTypeAt(profile, day) === "pre_holiday";
+  return spanOfSchedule(
+    profile.shiftStartTime,
+    shortened ? Math.max(0, minutes - MINUTES_PER_HOUR) : minutes,
+  );
+}
+
+/** Часы смены на этих сутках: названные человеком или, если он молчит, по графику. */
+export function shiftSpanAt(profile: StoredProfile, day: IsoDate): ShiftSpan {
+  return profile.shiftTimes[day] ?? scheduleSpanAt(profile, day);
+}
+
+/** Названы ли часы этой смены человеком, а не взяты из графика. */
+export function hasOwnShiftTime(profile: StoredProfile, day: IsoDate): boolean {
+  return profile.shiftTimes[day] !== undefined;
+}
+
+/**
+ * Часы одной смены: со скольки и до скольки человек её отработал.
+ *
+ * --- Почему совпадение с графиком не хранится ------------------------------
+ *
+ * Тот же приём, что у правок календаря и переносов смен: в профиле лежит
+ * только то, что человек утверждает ВОПРЕКИ расчёту. Запиши сюда часы,
+ * совпавшие с графиком, — и они зажили бы своей жизнью: поправь потом
+ * начало смены в настройках, и все прежние «подтверждения» остались бы
+ * прежними, молча удерживая часть года на старом распорядке. Человек при
+ * этом уверен, что поменял всё разом.
+ *
+ * `null` снимает названные часы: смена возвращается к графику.
+ */
+export function withShiftTimeAt(
+  profile: StoredProfile,
+  day: IsoDate,
+  span: ShiftSpan | null,
+): StoredProfile {
+  const shiftTimes = { ...profile.shiftTimes };
+  const schedule = scheduleSpanAt(profile, day);
+  if (
+    span === null ||
+    spanMinutes(span) === null ||
+    (span.startsAt === schedule.startsAt && span.endsAt === schedule.endsAt)
+  ) {
+    delete shiftTimes[day];
+  } else {
+    shiftTimes[day] = { startsAt: span.startsAt, endsAt: span.endsAt };
+  }
+  return { ...profile, shiftTimes };
 }
 
 /**
@@ -300,7 +400,12 @@ export function withShiftAt(
   } else {
     shiftOverrides[day] = shift ? "shift" : "off";
   }
-  return { ...profile, shiftOverrides };
+  // Снятая смена уносит с собой и свои часы. Часы описывают смену, а не
+  // сутки: оставь их здесь — и они пролежат до тех пор, пока смена в эти
+  // сутки не вернётся, чтобы тогда молча приписать ей чужой распорядок.
+  const shiftTimes = { ...profile.shiftTimes };
+  if (!shift) delete shiftTimes[day];
+  return { ...profile, shiftOverrides, shiftTimes };
 }
 
 /**
@@ -317,5 +422,10 @@ export function withShiftMoved(
   to: IsoDate,
 ): StoredProfile {
   if (from === to) return profile;
-  return withShiftAt(withShiftAt(profile, from, false), to, true);
+  // Часы переезжают вместе со сменой. «Смену отдали на седьмое» — это та же
+  // смена, и если человек уже сказал, что отработал её с восьми до
+  // одиннадцати вечера, переносом это знание не отменяется.
+  const carried = profile.shiftTimes[from] ?? null;
+  const moved = withShiftAt(withShiftAt(profile, from, false), to, true);
+  return carried === null ? moved : withShiftTimeAt(moved, to, carried);
 }

@@ -102,6 +102,7 @@ describe("основание недельной нормы", () => {
       callouts: [],
       calendarOverrides: {},
       shiftOverrides: {},
+      shiftTimes: {},
       dayNotes: {},
       liveMode: false,
       overtimeInDays: false,
