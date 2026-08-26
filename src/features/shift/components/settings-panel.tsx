@@ -239,7 +239,7 @@ export function SettingsPanel({
 
       <Field
         id={startId}
-        label="Время отсчёта смены"
+        label="Начало смены"
         hint="С этого времени отсчитывается продолжительность смены."
       >
         <TimeField

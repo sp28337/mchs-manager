@@ -137,14 +137,6 @@ export const storedProfileSchema = z.object({
    * сохранённые до появления поля, читаются как суточные.
    */
   shiftDurationHours: z.string().min(1).max(6).default("24"),
-  /**
-   * Возраст до шестнадцати лет: самая короткая неделя, 24 часа.
-   *
-   * Признак, а не число, — как и остальные основания недельной нормы:
-   * норму выводит домен, а профиль хранит то, из чего она следует.
-   * Необязательное с умолчанием, профили без него читаются как есть.
-   */
-  underSixteen: z.boolean().default(false),
   /* Схема нестрогая намеренно: поля из неё со временем уходят — статус,
      пол, номер караула, северное сокращение, сверка с табелем, — а
      профили, сохранённые до этого, обязаны читаться как есть. Лишние
@@ -214,7 +206,6 @@ export interface NewProfileInput {
   displayName: string;
   workingConditions: StoredProfile["workingConditions"];
   disabilityGroupIorII: boolean;
-  underSixteen: boolean;
   /** Любые сутки, в которые человек выходил на смену или выйдет. */
   firstShiftDate: IsoDate;
   accountingYear: number;

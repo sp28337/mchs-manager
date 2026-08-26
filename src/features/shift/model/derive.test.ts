@@ -24,7 +24,6 @@ describe("правки графика", () => {
     shiftStartTime: "08:00",
     schedulePattern: "1/3",
     shiftDurationHours: "24",
-    underSixteen: false,
   });
 
   it("снятая смена записывается", () => {

@@ -132,9 +132,6 @@ export const REDUCED_WEEKLY_HOURS = new Dec(36);
 /** Абз. 4 ч. 1 ст. 92 ТК РФ — инвалиды I или II группы. */
 export const DISABILITY_WEEKLY_HOURS = new Dec(35);
 
-/** Абз. 2 ч. 1 ст. 92 ТК РФ — работники в возрасте до шестнадцати лет. */
-export const MINOR_WEEKLY_HOURS = new Dec(24);
-
 /**
  * Недельная норма вместе с основанием, по которому она получена.
  *
@@ -150,13 +147,6 @@ export interface WeeklyNorm {
 export interface WeeklyNormInput {
   conditions: WorkingConditions;
   disabilityGroupIorII?: boolean;
-  /**
-   * Возраст до шестнадцати лет — самая короткая неделя из возможных.
-   *
-   * Необязательное с умолчанием: профили, сохранённые до появления этого
-   * основания, читаются как есть.
-   */
-  underSixteen?: boolean;
 }
 
 /**
@@ -182,23 +172,14 @@ export interface WeeklyNormInput {
  * --- Порядок проверок ----------------------------------------------------
  *
  * Сокращения не складываются. Проверки идут по убыванию силы основания,
- * и первое сработавшее и есть ответ: возраст до шестнадцати стоит первым,
- * потому что даёт самую короткую неделю — 24 часа, — за ним инвалидность
- * с её тридцатью пятью. Поставь любое из них ниже, и человек получил бы
- * норму длиннее той, на которую имеет право.
+ * и первое сработавшее и есть ответ: инвалидность стоит первой, потому
+ * что даёт самую короткую неделю — 35 часов; поставь её ниже, и человек с
+ * инвалидностью во вредных условиях получил бы 36 вместо 35.
  */
 export function deriveWeeklyNorm({
   conditions,
   disabilityGroupIorII = false,
-  underSixteen = false,
 }: WeeklyNormInput): WeeklyNorm {
-  if (underSixteen) {
-    return {
-      hours: MINOR_WEEKLY_HOURS,
-      basis: "Абз. 2 ч. 1 ст. 92 ТК РФ: возраст до шестнадцати лет",
-    };
-  }
-
   if (disabilityGroupIorII) {
     return {
       hours: DISABILITY_WEEKLY_HOURS,
@@ -246,7 +227,7 @@ export function deriveWeeklyNorm({
  * они разойдутся, человек увидит в настройках «36 часов», а в расчёте
  * получит 40. Оба живут в одном файле и покрыты общим тестом.
  */
-export type WeeklyNormGround = "base" | "harmful" | "disability" | "minor";
+export type WeeklyNormGround = "base" | "harmful" | "disability";
 
 /**
  * Все основания списком, в порядке от общего к самому редкому.
@@ -259,26 +240,22 @@ export const WEEKLY_NORM_GROUNDS: readonly WeeklyNormGround[] = [
   "base",
   "harmful",
   "disability",
-  "minor",
 ];
 
 export const WEEKLY_NORM_GROUND_LABELS: Record<WeeklyNormGround, string> = {
   base: "40 часов",
   harmful: "36 часов",
   disability: "35 часов",
-  minor: "24 часа",
 };
 
 /** Признаки, которые задаёт выбранное основание. */
 export function weeklyNormGroundToFacts(ground: WeeklyNormGround): {
   conditions: WorkingConditions;
   disabilityGroupIorII: boolean;
-  underSixteen: boolean;
 } {
   return {
     conditions: ground === "harmful" ? "harmful_or_dangerous" : "normal",
     disabilityGroupIorII: ground === "disability",
-    underSixteen: ground === "minor",
   };
 }
 
@@ -290,7 +267,6 @@ export function weeklyNormGroundToFacts(ground: WeeklyNormGround): {
  * настройки показали бы «36», а расчёт взял бы 35.
  */
 export function weeklyNormGroundOf(input: WeeklyNormInput): WeeklyNormGround {
-  if (input.underSixteen) return "minor";
   if (input.disabilityGroupIorII) return "disability";
   if (input.conditions === "harmful_or_dangerous") return "harmful";
   return "base";

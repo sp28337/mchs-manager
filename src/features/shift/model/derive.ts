@@ -42,7 +42,6 @@ export function weeklyNormInputOf(profile: StoredProfile): WeeklyNormInput {
   return {
     conditions: profile.workingConditions,
     disabilityGroupIorII: profile.disabilityGroupIorII,
-    underSixteen: profile.underSixteen,
   };
 }
 
@@ -64,15 +63,11 @@ export function weeklyNormOf(profile: StoredProfile): WeeklyNorm {
  */
 export function weeklyNormGroundFacts(
   ground: WeeklyNormGround,
-): Pick<
-  StoredProfile,
-  "workingConditions" | "disabilityGroupIorII" | "underSixteen"
-> {
+): Pick<StoredProfile, "workingConditions" | "disabilityGroupIorII"> {
   const facts = weeklyNormGroundToFacts(ground);
   return {
     workingConditions: facts.conditions,
     disabilityGroupIorII: facts.disabilityGroupIorII,
-    underSixteen: facts.underSixteen,
   };
 }
 
