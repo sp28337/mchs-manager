@@ -135,7 +135,19 @@ function Day({
 }) {
   return (
     <div
-      className={cn("relative", corners && "bg-paper-raised", corners, className)}
+      // Плашка месяца лежит под КАЖДОЙ клеткой, а не только под угловыми.
+      // Скругления `corners` сетка отдаёт лишь тем клеткам, что стоят на
+      // контуре, — у остальных приходит пустая строка, и проверка «есть ли
+      // скругления» оставляла середину месяца без фона: свободные сутки
+      // светились страницей насквозь, а плашка была только у последнего
+      // столбца. Признак того, что клетка в сомкнутой сетке, — САМО
+      // наличие `corners`, пусть и пустых.
+      className={cn(
+        "relative",
+        corners !== undefined && "bg-paper-raised",
+        corners,
+        className,
+      )}
       style={{
         ...style,
         ...(becomes
@@ -312,7 +324,12 @@ export function DemoSchedule() {
   return (
     <Panel>
       <div className="w-full max-w-104 space-y-5">
-        <div className="relative space-y-3 rounded-xl border border-rule bg-paper-raised p-4">
+        {/* Карточка держится заливкой, а не рамкой — как и всё на этой
+            странице. Рамка вокруг плашки, да ещё и вокруг каждого значения
+            внутри, давала три вложенных контура на одну строку: настройки
+            выглядели чертежом, а не настройками. Заливки хватает: карточка
+            на тон выше страницы, значение на тон ниже карточки. */}
+        <div className="relative space-y-3 rounded-xl bg-paper-raised p-4">
           <Field label="График">
             {/* Значение перегорает — тем же приёмом, что цифры в названии
                 сайта при смене графика: старое истлевает и его сносит,
@@ -354,7 +371,7 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
       <span className="font-display text-[0.7em] font-bold uppercase tracking-wide text-ink-muted">
         {label}
       </span>
-      <span className="rounded-lg border border-rule-strong bg-paper px-3 py-1 font-mono text-[0.9em]">
+      <span className="rounded-lg bg-paper px-3 py-1 font-mono text-[0.9em]">
         {children}
       </span>
     </div>
@@ -419,11 +436,17 @@ export function DemoMove() {
         <WeekGrid
           cells={MOVE_WEEK}
           becomes={(index) => MOVE_BECOMES[index]}
-          // Сутки, откуда несут, гаснут; сутки, куда положат, обводятся.
           cellClassName={(index) =>
             cn(
+              // Сутки, откуда несут, гаснут — обе, и начало и продолжение.
               (index === 1 || index === 2) && "demo-source",
-              (index === 5 || index === 6) && "demo-target",
+              // А обводятся только те, что ПОД указателем. Обводка стояла
+              // на паре — и на 15-м, и на 16-м, — а несомая клетка висела
+              // над 15-м: выходило, что подсвечен ещё и следующий день,
+              // которого человек не выбирал. В расчёте обведены ровно те
+              // сутки, куда положат (`target` в `DayCell`), а продолжение
+              // достроится само и заранее себя не объявляет.
+              index === 5 && "demo-target",
             )
           }
         />
