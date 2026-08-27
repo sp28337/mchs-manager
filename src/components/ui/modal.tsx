@@ -293,7 +293,7 @@ export function Modal({
     >
       <header
         className={cn(
-          "flex shrink-0 items-start gap-4 border-b border-rule px-5 py-4 bg-paper-raised",
+          "flex shrink-0 items-start gap-4 border-b border-rule px-5 py-4",
           // Шапка листа встаёт ровно на место шапки страницы: та же высота
           // содержимого (`4rem` — она же `BAR_HEIGHT` в `sheet-origin.ts`),
           // те же поля (`px-6`), та же вертикальная середина.
