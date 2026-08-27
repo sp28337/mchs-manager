@@ -34,9 +34,9 @@ export interface ProfileFooterProps {
 
 export function ProfileFooter({ profile }: ProfileFooterProps) {
   return (
-    <footer className="space-y-4 border-t border-rule pt-6 text-sm">
+    <footer className="space-y-4 border-t border-rule py-6 text-sm">
       <div className="flex flex-col md:flex-row-reverse justify-between items-center">
-        <div className="flex justify-center pt-8 pb-12 md:ml-auto md:pb-2">
+        <div className="flex justify-center pt-8 pb-12 md:ml-auto md:pb-8 ">
           <ThemeToggle/>
         </div>
 

@@ -433,7 +433,7 @@ function SegmentBone({
 /** Подвал профиля: те же абзацы, кнопка и переключатель темы. */
 function ProfileFooterBones() {
   return (
-    <footer className="space-y-4 border-t border-rule pt-6 text-sm">
+    <footer className="space-y-4 border-t border-rule py-6 text-sm">
       <div className="max-w-prose space-y-2">
         <h2 className="font-display text-xl font-bold uppercase tracking-wide text-ink-muted">
           <BoneText skeleton>Где лежат ваши данные</BoneText>
@@ -463,7 +463,7 @@ function ProfileFooterBones() {
       </div>
 
       <div className="flex flex-col items-center justify-between md:flex-row-reverse">
-        <div className="flex justify-center pt-8 pb-12 md:ml-auto md:pb-2">
+        <div className="flex justify-center pt-8 pb-12 md:ml-auto md:pb-8 ">
           {/* Переключатель темы: рамка, поле в полточки и три кнопки по
               двадцать восемь — тридцать четыре точки в высоту, а не
               «примерно тридцать два». */}
