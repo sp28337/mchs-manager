@@ -120,7 +120,12 @@ export function CreateProfileModal({
   }
 
   return (
-    <Modal open={open} onClose={onClose} title="Создать профиль">
+    <Modal
+      open={open}
+      onClose={onClose}
+      sheet
+      title="Создать профиль"
+    >
       <div className="space-y-5">
         {notice}
 
@@ -130,7 +135,7 @@ export function CreateProfileModal({
 
         <SettingsPanel profile={draft} onChange={setDraft} purpose="create" />
 
-        <div className="space-y-5 border-t border-rule pt-4">
+        <div className="space-y-5 pt-4">
           <Button type="button" className="w-full" onClick={submit}>
             Построить мой график
           </Button>

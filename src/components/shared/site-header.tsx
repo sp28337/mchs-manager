@@ -66,6 +66,12 @@ export function SiteHeader({ action, tools, className }: SiteHeaderProps) {
       <div className="mx-auto flex h-16 w-full flex-nowrap items-center gap-x-4 py-3 px-6 sm:gap-x-6 2xl:max-w-[2000px]">
         <Link
           href="/"
+          // Знак и кнопки помечены не для оформления: на телефоне окно
+          // настроек открывается листом во весь экран, и его шапка
+          // ЗАМЕЩАЕТ эту — значок настроек уезжает на место знака, а знак
+          // и кнопки к этому времени должны уйти. Метка даёт переходу
+          // зацепку и точку отсчёта для замера пути (`header-tools.tsx`).
+          data-brand
           className="group flex min-w-0 items-center gap-2.5 rounded-xs focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-trace"
         >
           <Logo className="size-7 shrink-0 text-signal" />
@@ -82,7 +88,7 @@ export function SiteHeader({ action, tools, className }: SiteHeaderProps) {
 
         {/* Кнопки не сжимаются ни при какой ширине: сжатая кнопка — это
             обрезанная подпись, а не выигранное место. Уступает название. */}
-        <div className="ml-auto flex shrink-0 items-center gap-2 sm:gap-3">
+        <div data-tools className="ml-auto flex shrink-0 items-center gap-2 sm:gap-3">
           {tools}
           {action}
         </div>

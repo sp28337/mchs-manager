@@ -1,7 +1,12 @@
 import { describe, expect, it } from "vitest";
 
 import type { IsoDate } from "../domain/plain-date";
-import { createProfile, resetCalendar, type StoredProfile } from "./profile";
+import {
+  createProfile,
+  importProfile,
+  resetCalendar,
+  type StoredProfile,
+} from "./profile";
 
 /**
  * Сброс — единственное необратимое действие внутри профиля, и граница у
@@ -18,7 +23,7 @@ function filledProfile(): StoredProfile {
     firstShiftDate: "2025-01-02" as IsoDate,
     accountingYear: 2025,
     shiftStartTime: "09:00",
-    schedulePattern: "1/3",
+    schedulePattern: "1|3",
     shiftDurationHours: "24",
     customWorkDays: 1,
     customRestDays: 3,
@@ -83,5 +88,53 @@ describe("сброс календаря и графика", () => {
 
     expect(before.absences).toHaveLength(1);
     expect(before.dayNotes).toEqual({ "2025-04-07": "подменял Петрова" });
+  });
+});
+
+/**
+ * Старое написание графика — «1/3» вместо «1|3».
+ *
+ * Косая черта стояла в опознании графика всё время, пока он был выбором, и
+ * профили с ней лежат в браузерах у людей. Отказать такому профилю в
+ * чтении значило бы стереть человеку год внесённых отпусков из-за смены
+ * знака в служебной строке, поэтому старое написание читается наравне с
+ * новым и заменяется новым — молча, без единого действия человека.
+ */
+describe("профиль, записанный до смены знака в графике", () => {
+  function legacy(schedulePattern: string): string {
+    return JSON.stringify({
+      schemaVersion: 1,
+      displayName: "Смена А",
+      workingConditions: "normal",
+      disabilityGroupIorII: false,
+      firstShiftDate: "2025-01-02",
+      accountingYear: 2025,
+      schedulePattern,
+      absences: [],
+      calendarOverrides: {},
+      savedAt: "2025-01-02T00:00:00.000Z",
+    });
+  }
+
+  it("читается и приходит уже с новым знаком", () => {
+    expect(importProfile(legacy("1/3")).schedulePattern).toBe("1|3");
+    expect(importProfile(legacy("1/4")).schedulePattern).toBe("1|4");
+    expect(importProfile(legacy("2/2")).schedulePattern).toBe("2|2");
+    expect(importProfile(legacy("5/2")).schedulePattern).toBe("5|2");
+  });
+
+  it("новый знак читается как был", () => {
+    expect(importProfile(legacy("1|3")).schedulePattern).toBe("1|3");
+    expect(importProfile(legacy("custom")).schedulePattern).toBe("custom");
+  });
+
+  /**
+   * Замена идёт только по замкнутому списку прежних заготовок. Строка,
+   * похожая на график, но никогда не бывшая опознанием, — это испорченный
+   * профиль, и молча превращать её в чей-то чужой график нельзя.
+   */
+  it("чужая строка профилем не считается", () => {
+    expect(() => importProfile(legacy("7/7"))).toThrow();
+    expect(() => importProfile(legacy("3|1"))).toThrow();
   });
 });

@@ -73,7 +73,7 @@ export function HoursField({
           value={value}
           onChange={(event) => onChange(event.target.value)}
         />
-        <span className="text-sm text-ink-muted">часов</span>
+        <span className="text-sm text-ink-muted">ч</span>
       </div>
       {error ? (
         <p id={errorId} className="text-xs text-signal">

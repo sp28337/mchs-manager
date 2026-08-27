@@ -1,7 +1,7 @@
 "use client";
 
 import { Save, Settings2, type LucideIcon } from "lucide-react";
-import { useState } from "react";
+import { useRef, useState, type CSSProperties } from "react";
 
 import { Modal } from "@/components/ui/modal";
 import { cn } from "@/lib/utils/cn";
@@ -37,6 +37,27 @@ import { SettingsPanel } from "./settings-panel";
  * занимают меньше места, чем один значок меню, и ведут прямо к делу, а не
  * к списку из двух пунктов. Подписи появляются, как только для них
  * хватает ширины, — порог назначен замером и стоит в `LABELS_FROM`.
+ *
+ * --- Настройки на телефоне: лист, а не окно ------------------------------
+ *
+ * Ниже `sm` окно настроек занимает экран целиком, и открывается оно не
+ * появлением поверх страницы, а ПЕРЕХОДОМ из шапки: значок настроек
+ * уезжает на место знака сайта, знак и кнопки к этому времени гаснут,
+ * рядом со значком проступает слово «Настройки», страница под ним
+ * заливается бумагой, и на ней поднимаются поля.
+ *
+ * Так человек видит, ЧТО открылось и откуда: полноэкранное окно, возникшее
+ * рывком, на телефоне неотличимо от перехода на другую страницу, и кнопка
+ * «назад» браузера кажется правильным способом его закрыть (а она уводит с
+ * сайта).
+ *
+ * Шапку листа рисует сам лист, а не страница: `dialog` живёт в верхнем
+ * слое, и шапка страницы под ним недосягаема. Поэтому шапка листа встаёт
+ * ровно на её место — та же высота, те же поля, — а настоящая гасится
+ * меткой `data-sheet` на корне документа. Отсюда же и замер: путь значка
+ * это расстояние от него до знака сайта, и знать его заранее нельзя —
+ * ширина экрана и наличие подписей на кнопках меняют его на десятки точек.
+ * Замер делается в момент нажатия и уезжает в CSS переменной.
  */
 
 type ToolId = "settings" | "save";
@@ -67,14 +88,43 @@ const LABELS_FROM = "hidden xs:inline";
 export function HeaderTools({
   profile,
   onChange,
+  onForget,
   className,
 }: {
   profile: StoredProfile;
   onChange: (change: (previous: StoredProfile) => StoredProfile) => void;
+  /** Удалить профиль с устройства — из настроек, рядом со сбросом. */
+  onForget?: () => void;
   className?: string;
 }) {
   const [open, setOpen] = useState(false);
   const save = useSaveToFile(profile);
+
+  // Путь значка: замеряется в момент нажатия, потому что до нажатия он
+  // неизвестен — подписи на кнопках появляются с 448 точек и сдвигают
+  // значок вправо на всю ширину слова. Остальную мерку (откуда растёт
+  // заливка шапки) снимает сам лист по кнопке.
+  const icon = useRef<SVGSVGElement>(null);
+  const word = useRef<HTMLSpanElement>(null);
+  const [button, setButton] = useState<HTMLButtonElement | null>(null);
+  const [travel, setTravel] = useState<number | null>(null);
+  // Видна ли на кнопке подпись. От этого зависит, что именно уезжает в
+  // шапку листа: подробности у самой шапки листа, ниже.
+  const [labelled, setLabelled] = useState(false);
+
+  function openSettings(pressed: HTMLButtonElement) {
+    const from = icon.current?.getBoundingClientRect();
+    const to = document.querySelector("[data-brand]")?.getBoundingClientRect();
+    // Не замерилось — не беда: без переменной значок просто проступит на
+    // своём месте, остальной переход не зависит от неё.
+    setTravel(from && to ? Math.round(from.left - to.left) : null);
+    // Спрашивается разметка, а не ширина экрана: порог подписи назначен
+    // классом (`LABELS_FROM`), и второе его написание здесь рано или поздно
+    // разошлось бы с первым.
+    setLabelled((word.current?.getBoundingClientRect().width ?? 0) > 0);
+    setButton(pressed);
+    setOpen(true);
+  }
 
   return (
     <>
@@ -89,7 +139,9 @@ export function HeaderTools({
             <button
               key={id}
               type="button"
-              onClick={() => (id === "save" ? save.ask() : setOpen(true))}
+              onClick={(event) =>
+                id === "save" ? save.ask() : openSettings(event.currentTarget)
+              }
               // Имя кнопки не зависит от того, видна подпись или нет:
               // на узком экране от кнопки остаётся значок, и без имени она
               // стала бы для программы чтения безымянной.
@@ -103,8 +155,14 @@ export function HeaderTools({
                 "focus-visible:outline-trace",
               )}
             >
-              <Icon aria-hidden className="size-4.5 shrink-0 text-ink-muted" />
-              <span className={LABELS_FROM}>{label}</span>
+              <Icon
+                ref={id === "settings" ? icon : undefined}
+                aria-hidden
+                className="size-4.5 shrink-0 text-ink-muted"
+              />
+              <span ref={id === "settings" ? word : undefined} className={LABELS_FROM}>
+                {label}
+              </span>
             </button>
           );
         })}
@@ -113,14 +171,58 @@ export function HeaderTools({
       <Modal
         open={open}
         onClose={() => setOpen(false)}
+        sheet
+        from={button}
+        style={
+          travel === null
+            ? undefined
+            : ({ "--sheet-mark-travel": `${travel}px` } as CSSProperties)
+        }
+        // Что уезжает в шапку листа, решает сама кнопка.
+        //
+        // Когда от неё остался один значок, в шапке появляются две вещи:
+        // значок приезжает на место знака сайта, а слово «Настройки»
+        // проступает справа от него — там, где на кнопке его и не было.
+        //
+        // Когда подпись на кнопке видна, слову появляться неоткуда: оно уже
+        // едет вместе со значком, и второе его появление на том же месте
+        // читалось бы как мигание. Поэтому в этом случае метка перехода
+        // стоит на паре целиком, а отдельного проявления слова нет.
         title={
-          <span className="flex items-center gap-2">
-            <Settings2 aria-hidden className="size-5 shrink-0 text-ink-faint" />
-            Настройки
+          <span
+            // Блочный `flex` с шириной по содержимому — и то и другое
+            // обязательно.
+            //
+            // Ширина по содержимому: метка перехода едет целиком, и
+            // растянутая на всю ширину заголовка коробка возила бы за собой
+            // пустоту — вместе с точкой, от которой считается масштаб.
+            //
+            // Блочный, а не `inline-flex`: строчный бокс встаёт в строке ПО
+            // БАЗОВОЙ ЛИНИИ, а базовая линия у `inline-flex` — это нижний
+            // край первого элемента, то есть значка. Значок выше строчной
+            // высоты заголовка, и всю пару выносило на 2,7 точки вверх
+            // (замерено) — на кнопке слово стояло на 32, а в шапке листа
+            // оказывалось на 29,3, и в момент нажатия оно подпрыгивало.
+            // `leading-5` ровно по высоте значка: пока строчная высота
+            // заголовка (24,75) была выше значка (20), она и задавала
+            // середину пары, и та не совпадала с серединой шапки на пол-точки.
+            className={cn(
+              "flex w-fit items-center gap-2 leading-5",
+              labelled && "sheet__mark",
+            )}
+          >
+            <Settings2
+              aria-hidden
+              className={cn(
+                "size-5 shrink-0 text-ink-muted",
+                !labelled && "sheet__mark",
+              )}
+            />
+            <span className={labelled ? undefined : "sheet__word"}>Настройки</span>
           </span>
         }
       >
-        <SettingsPanel profile={profile} onChange={onChange} />
+        <SettingsPanel profile={profile} onChange={onChange} onForget={onForget} />
       </Modal>
 
       {save.dialog}

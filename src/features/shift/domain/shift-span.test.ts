@@ -191,12 +191,12 @@ describe("названные часы в расчёте", () => {
     const cycle = {
       knownShiftDate: "2026-03-02" as IsoDate,
       pattern: {
-        id: "5/2" as const,
+        id: "5|2" as const,
         source: "calendar" as const,
         cycleDays: 7,
         workDays: 5,
         defaultShiftHours: "8",
-        label: "5/2",
+        label: "5|2",
         title: "Рабочая неделя",
       },
       workingDays: MARCH_WORKING,

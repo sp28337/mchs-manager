@@ -137,20 +137,34 @@ export interface DayEditorProps {
 }
 
 export function DayEditor({ day, kind, profile, onChange, onClose }: DayEditorProps) {
+  // Последние показанные сутки — чтобы окно уходило не пустым.
+  //
+  // Закрывается окно не мгновенно: оно гаснет за 130 миллисекунд, и всё
+  // это время оно на экране. А `day` становится `null` в первый же кадр
+  // закрытия — форма и заголовок исчезали, и человек видел, как окно
+  // сначала опустошается, а потом гаснет. Ровно то мигание, ради которого
+  // плавное закрытие и делалось.
+  //
+  // Поэтому показывается последнее, что в окне было. На следующем открытии
+  // `day` уже другой, и ключ по нему по-прежнему даёт чистые поля.
+  const [shown, setShown] = useState<IsoDate | null>(day);
+  if (day !== null && day !== shown) setShown(day);
+
   return (
     <Modal
       open={day !== null}
       onClose={onClose}
-      title={day ? formatDayMonthRu(day) : ""}
+      sheet
+      title={shown ? formatDayMonthRu(shown) : ""}
     >
       {/* Ключ по дню: открыв второй день подряд, человек обязан увидеть
           чистые поля, а не остатки первого — иначе он запишет их не туда.
           Сброс ключом, а не эффектом: эффект сделал бы лишнюю отрисовку
           ради того, что React умеет сам. */}
-      {day !== null ? (
+      {shown !== null ? (
         <DayForm
-          key={day}
-          day={day}
+          key={shown}
+          day={shown}
           kind={kind}
           profile={profile}
           onChange={onChange}
@@ -573,14 +587,11 @@ function DayForm({
             value={note}
             maxLength={500}
             rows={3}
-            placeholder="Например: вызов в резерв"
+            placeholder=""
             onChange={(event) => setNote(event.target.value)}
-            className="block w-full rounded-sm border border-rule-strong bg-paper px-3 py-2 text-sm text-ink placeholder:text-ink-faint"
+            className="block w-full rounded-lg bg-paper px-3 py-2 text-sm text-ink transition-all
+                       placeholder:text-ink-faint hover:border hover:border-ink-muted duration-200"
           />
-          <p className="text-xs text-ink-muted">
-            Только для вашей памяти: на расчёт не влияет, но в календаре видно,
-            что запись есть.
-          </p>
         </div>
 
         <div className="flex flex-wrap gap-2 border-t border-rule pt-4">

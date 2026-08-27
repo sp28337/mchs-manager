@@ -40,10 +40,10 @@ export function Select({
     <div className="relative">
       <select
         className={cn(
-          "block h-9 w-full cursor-pointer appearance-none rounded-sm",
-          "border border-rule-strong bg-paper py-1 pl-3 pr-9",
+          "block h-9 w-full cursor-pointer appearance-none rounded-lg",
+          "bg-paper py-1 pl-3 pr-9 border border-paper hover:border-ink-muted",
           "text-sm text-ink transition-colors hover:border-ink-muted",
-          "disabled:cursor-not-allowed disabled:opacity-50",
+          "disabled:cursor-not-allowed disabled:opacity-50 transition-all duration-200",
           className,
         )}
         {...props}
