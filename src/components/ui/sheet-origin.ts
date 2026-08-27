@@ -15,23 +15,17 @@ import type { CSSProperties } from "react";
  * уезжает в лист переменными CSS, а вся хореография остаётся в
  * `globals.css`.
  *
- * --- Два роста: в шапку и в страницу --------------------------------------
+ * --- Почему растёт только то, что открыто ИЗ ШАПКИ -------------------------
  *
- * Кнопка, стоявшая В ШАПКЕ (настройки), растёт в шапку и на её краях
+ * Кнопка, стоявшая в шапке (настройки), растёт в шапку и на её краях
  * останавливается: шапка листа встаёт на место шапки страницы, и рост
- * читается как «кнопка развернулась в полосу, где стояла». Дорасти при
- * этом до всего экрана она не может — тогда заливка проскочила бы шапку за
- * первые кадры, и от перехода осталась бы вспышка.
+ * читается как «кнопка развернулась в полосу, где стояла».
  *
- * Кнопка СО СТРАНИЦЫ (первый экран, клетка дня) растёт в страницу: из неё
- * вырастает весь лист, а шапка — верхняя полоса того же роста, просто
- * другого цвета. Останови такой рост на шапке — и человек увидел бы, как
- * полоса наверху заливается сама по себе, без всякой связи с тем местом,
- * куда он нажал.
- *
- * Обе полосы — шапка и остальной лист — растут ОДНОЙ фигурой в один и тот
- * же масштаб, поэтому шва между ними не бывает: это одна форма, крашенная
- * в два цвета.
+ * Кнопке со страницы — первого экрана, клетке дня — расти некуда. До шапки
+ * ей далеко, и заливка, ползущая снизу вверх через весь экран, показывает
+ * не связь с местом нажатия, а мельтешение. Пробовали: и рост в шапку, и
+ * рост во весь экран читались хуже, чем ничего. Поэтому мерки у таких
+ * кнопок нет вовсе, и лист просто проступает целиком.
  *
  * --- Почему мерка снимается в момент нажатия ------------------------------
  *
@@ -67,58 +61,43 @@ const BAR_HEIGHT = 64;
 /** Запас поверх точного покрытия: гасит шов в полпикселя по краю. */
 const MARGIN = 1.02;
 
-/** Куда растёт заливка: до краёв шапки или до краёв экрана. */
-export type SheetGrowth = "bar" | "page";
-
-export interface SheetOrigin {
-  growth: SheetGrowth;
-  style: CSSProperties;
-}
-
 /**
- * Мерка с кнопки, из которой растёт лист. `undefined` — если мерить
- * нечего: тогда лист откроется заливкой во всю шапку, без роста.
+ * Мерка с кнопки, из которой растёт лист. `undefined` — если расти
+ * неоткуда: кнопка не в шапке, её нет вовсе или окно открылось само.
+ * Тогда лист просто проступает целиком.
  */
 export function sheetOrigin(
   from: HTMLElement | null | undefined,
-): SheetOrigin | undefined {
+): CSSProperties | undefined {
   if (!from) return undefined;
 
   const rect = from.getBoundingClientRect();
   if (rect.width === 0 || rect.height === 0) return undefined;
 
+  // Растёт только начавшееся в полосе шапки. Граница по ВЕРХУ кнопки, а не
+  // по её середине: кнопка шапки целиком лежит в этой полосе, а всё, что
+  // начинается ниже, к шапке уже не относится.
+  if (rect.top >= BAR_HEIGHT) return undefined;
+
   const style = getComputedStyle(from);
   const radius = radiusOf(style.borderTopLeftRadius, rect);
 
-  // Начавшееся в полосе шапки там же и кончается. Граница по ВЕРХУ кнопки,
-  // а не по её середине: кнопка шапки целиком лежит в этой полосе, а всё,
-  // что начинается ниже, к шапке уже не относится.
-  const growth: SheetGrowth = rect.top < BAR_HEIGHT ? "bar" : "page";
-
   // Шапка листа стоит в левом верхнем углу экрана, поэтому мерка с экрана
   // ложится в неё как есть, без пересчёта координат.
-  const area =
-    growth === "bar"
-      ? { width: window.innerWidth, height: BAR_HEIGHT }
-      : { width: window.innerWidth, height: window.innerHeight };
+  const area = { width: window.innerWidth, height: BAR_HEIGHT };
 
   return {
-    growth,
-    style: {
-      "--sheet-fill-x": `${round(rect.left)}px`,
-      "--sheet-fill-y": `${round(rect.top)}px`,
-      "--sheet-fill-w": `${round(rect.width)}px`,
-      "--sheet-fill-h": `${round(rect.height)}px`,
-      "--sheet-fill-r": `${round(radius)}px`,
-      "--sheet-fill-scale": round(coverScale(rect, radius, area) * MARGIN, 3),
-      // Цвет — тот, что человек видел под пальцем. Прозрачную подложку
-      // (у дня календаря она бывает такой) подменяет цвет шапки: иначе
-      // заливка началась бы с пустого места.
-      "--sheet-fill-tint": opaque(style.backgroundColor)
-        ? style.backgroundColor
-        : "var(--color-paper-raised)",
-    } as CSSProperties,
-  };
+    "--sheet-fill-x": `${round(rect.left)}px`,
+    "--sheet-fill-y": `${round(rect.top)}px`,
+    "--sheet-fill-w": `${round(rect.width)}px`,
+    "--sheet-fill-h": `${round(rect.height)}px`,
+    "--sheet-fill-r": `${round(radius)}px`,
+    "--sheet-fill-scale": round(coverScale(rect, radius, area) * MARGIN, 3),
+    // Цвет — тот, что человек видел под пальцем.
+    "--sheet-fill-tint": opaque(style.backgroundColor)
+      ? style.backgroundColor
+      : "var(--color-paper-raised)",
+  } as CSSProperties;
 }
 
 /**

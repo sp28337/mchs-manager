@@ -53,22 +53,12 @@ export function HeroCta() {
   const built = useSyncExternalStore(subscribeToStoredProfile, hasStoredProfile, () => false);
   const router = useRouter();
   const [open, setOpen] = useState(false);
-  // Кнопка, по которой нажали: на телефоне окно вырастает из неё, и лист
-  // заливается её же оранжевым, остывающим по дороге до цвета шапки.
-  const [button, setButton] = useState<HTMLButtonElement | null>(null);
 
   if (built) return <ToCalculator>Открыть график</ToCalculator>;
 
   return (
     <>
-      <button
-        type="button"
-        className={ctaClass()}
-        onClick={(event) => {
-          setButton(event.currentTarget);
-          setOpen(true);
-        }}
-      >
+      <button type="button" className={ctaClass()} onClick={() => setOpen(true)}>
         <CtaIcon />
         Построить график
       </button>
@@ -76,7 +66,6 @@ export function HeroCta() {
       <CreateProfileModal
         open={open}
         onClose={() => setOpen(false)}
-        from={button}
         onCreated={(profile) => {
           // Профиль пишется здесь, а не на странице расчёта: та узнала бы
           // о нём только из хранилища и первым делом показала бы заглушку

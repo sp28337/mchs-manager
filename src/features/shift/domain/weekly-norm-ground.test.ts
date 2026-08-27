@@ -43,8 +43,13 @@ describe("основание недельной нормы", () => {
       const norm = deriveWeeklyNorm(weeklyNormGroundToFacts(ground));
       expect(norm.hours.toFixed(0), ground).toBe(EXPECTED_HOURS[ground]);
       // Подпись начинается с того же числа: человек выбирает по нему.
+      //
+      // Проверяется ЧИСЛО, а не вся строка целиком. Слово при нём — дело
+      // вёрстки: в списке настроек, где подпись стоит справа от вопроса,
+      // «40 часов» не влезало, и осталось «40 ч». Привязывать тест к
+      // такому значило бы ломать его при каждой правке ширины колонки.
       expect(WEEKLY_NORM_GROUND_LABELS[ground]).toMatch(
-        new RegExp(`^${EXPECTED_HOURS[ground]} часов$`),
+        new RegExp(`^${EXPECTED_HOURS[ground]}\\s`),
       );
     }
   });

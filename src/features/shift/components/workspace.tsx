@@ -168,9 +168,6 @@ export function Workspace({ profile, onChange, onForget }: WorkspaceProps) {
   // спорит, и переносить их дату в отдельную форму глазами — лишний шаг,
   // в котором и ошибаются.
   const [pickedDay, setPickedDay] = useState<IsoDate | null>(null);
-  // Клетка, по которой нажали: на телефоне окно суток вырастает из неё —
-  // из того самого дня, а не из ниоткуда.
-  const [pickedCell, setPickedCell] = useState<HTMLElement | null>(null);
 
   return (
     <>
@@ -180,7 +177,7 @@ export function Workspace({ profile, onChange, onForget }: WorkspaceProps) {
           поднять туда и выбор периода, то есть половину этого экрана. */}
       <SiteHeader
         tools={
-          <HeaderTools profile={profile} onChange={onChange} />
+          <HeaderTools profile={profile} onChange={onChange} onForget={onForget} />
         }
       />
 
@@ -231,10 +228,7 @@ export function Workspace({ profile, onChange, onForget }: WorkspaceProps) {
           onStatutory={setStatutory}
           month={month}
           onMonth={setMonth}
-          onPickDay={(day, cell) => {
-            setPickedCell(cell);
-            setPickedDay(day);
-          }}
+          onPickDay={setPickedDay}
           // Перенос смены — одно событие, и в профиль он попадает одной
           // правкой: снять здесь, назначить там (`withShiftMoved`).
           onMoveShift={(from, to) =>
@@ -243,7 +237,7 @@ export function Workspace({ profile, onChange, onForget }: WorkspaceProps) {
         />
       </section>
 
-      <ProfileFooter profile={profile} onForget={onForget} />
+      <ProfileFooter profile={profile} />
       </div>
 
       {/* О чём спросить в открытых сутках, решает сетка, с которой по ним
@@ -252,7 +246,6 @@ export function Workspace({ profile, onChange, onForget }: WorkspaceProps) {
           (`yearView`), и второго источника правды заводить не нужно. */}
       <DayEditor
         day={pickedDay}
-        from={pickedCell}
         kind={yearView === "calendar" ? "calendar" : "shifts"}
         profile={profile}
         onChange={onChange}

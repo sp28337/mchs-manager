@@ -1,90 +1,40 @@
 "use client";
 
-import { useState } from "react";
-
 import Link from "next/link";
 
-import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import type { StoredProfile } from "../storage/profile";
-import { useSaveToFile } from "./save-to-file";
 
 /**
- * Где лежат данные и как их не потерять.
+ * Подвал рабочего экрана: тема, условия, время последней правки.
  *
- * --- Почему об этом сказано прямо на экране -----------------------------
+ * --- Что отсюда ушло и почему ---------------------------------------------
  *
- * Профиль хранится в браузере, и это решение с двумя последствиями,
- * которые человек обязан знать ОБА. Первое хорошее: ни больничные, ни
- * инвалидность никуда не отправляются, истребовать их не у кого. Второе
- * неудобное: очистка данных браузера стирает всё, и другое устройство
- * профиля не увидит.
+ * Здесь стоял рассказ о том, где лежат данные, и под ним две кнопки —
+ * выгрузка профиля в файл и его удаление с устройства. Ни одной из них тут
+ * больше нет, и текста тоже.
  *
- * Назвать только первое было бы рекламой. Человек, потерявший год
- * внесённых отпусков после чистки кэша, справедливо решит, что его
- * обманули, — поэтому выгрузка стоит рядом с обещанием, а не в настройках.
+ * Рассказ повторял то, что и так сказано на посадочной странице и в
+ * условиях использования, — а на рабочем экране, куда человек приходит
+ * считать часы, он занимал экран объяснением, которое читают один раз.
+ *
+ * Кнопки разъехались туда, куда за ними идут. Выгрузка — в шапку: она
+ * нужна отовсюду, а не только с самого низа страницы, докуда ещё надо
+ * долистать. Удаление — в настройки, рядом со сбросом календаря: это одна
+ * и та же мысль «начать заново» на двух глубинах, и выбирать между ними,
+ * не видя обеих, было нельзя.
+ *
+ * Остаётся то, чему место действительно внизу: переключатель темы, ссылки
+ * на условия и строка о том, когда профиль сохранялся в последний раз.
  */
 
 export interface ProfileFooterProps {
   profile: StoredProfile;
-  onForget: () => void;
 }
 
-export function ProfileFooter({ profile, onForget }: ProfileFooterProps) {
-  const [confirming, setConfirming] = useState(false);
-  const save = useSaveToFile(profile);
-
+export function ProfileFooter({ profile }: ProfileFooterProps) {
   return (
     <footer className="space-y-4 border-t border-rule pt-6 text-sm">
-      <div className="max-w-prose space-y-2">
-        <h2 className="font-display text-xl font-bold uppercase tracking-wide text-ink-muted">
-          Где лежат ваши данные
-        </h2>
-        <p>
-          <strong>Только в этом браузере.</strong> Сервера у приложения нет:
-          график, отпуска, больничные и правки календаря никуда не
-          отправляются. Расчёт считается непосредственно на вашем устройстве. Страница
-          работает без интернета.
-        </p>
-        <p className="text-ink-muted">
-          Обратная сторона: если вы очистите данные браузера, профиль исчезнет,
-          и на другом устройстве его не будет. Сохраните файл — из него всё
-          восстанавливается.
-        </p>
-      </div>
-
-      <div className="flex flex-wrap items-center gap-3">
-        <Button type="button" variant="outline" size="sm" onClick={save.ask} className="rounded-xl">
-          Сохранить профиль в файл
-        </Button>
-
-        {confirming ? (
-          <span className="flex flex-wrap items-center gap-2">
-            <span className="text-ink-muted">
-              Удалить профиль с этого устройства? Отменить будет нельзя.
-            </span>
-            <Button type="button" size="sm" onClick={onForget}>
-              Да, удалить
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={() => setConfirming(false)}
-            >
-              Отмена
-            </Button>
-          </span>
-        ) : (
-          <button
-            type="button"
-            className="text-xs text-ink-muted underline underline-offset-2 hover:text-signal"
-            onClick={() => setConfirming(true)}
-          >
-            Удалить профиль с этого устройства
-          </button>
-        )}
-      </div>
       <div className="flex flex-col md:flex-row-reverse justify-between items-center">
         <div className="flex justify-center pt-8 pb-12 md:ml-auto md:pb-2">
           <ThemeToggle/>
@@ -107,7 +57,6 @@ export function ProfileFooter({ profile, onForget }: ProfileFooterProps) {
           </span>
         </p>
       </div>
-      {save.dialog}
     </footer>
   );
 }

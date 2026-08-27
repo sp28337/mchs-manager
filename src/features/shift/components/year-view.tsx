@@ -136,7 +136,7 @@ export function YearView({
   /** Месяц внутри периода или `null` — «весь период». */
   month: number | null;
   onMonth: (month: number | null) => void;
-  onPickDay: (day: IsoDate, from: HTMLElement) => void;
+  onPickDay: (day: IsoDate) => void;
   /** Перенос смены перетаскиванием по сетке графика. */
   onMoveShift: (from: IsoDate, to: IsoDate) => void;
 }) {

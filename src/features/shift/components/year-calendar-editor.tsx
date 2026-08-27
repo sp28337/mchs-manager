@@ -199,9 +199,8 @@ export interface YearCalendarEditorProps {
   gridClassName?: string;
   /** Заметки к суткам: их наличие видно прямо в клетке, как в графике. */
   dayNotes: Readonly<Record<string, string>>;
-  /** Нажатие по клетке: открыть правку этих суток. Вторым доводом идёт
-   *  сама клетка — на телефоне окно суток вырастает из неё. */
-  onPickDay: (day: IsoDate, from: HTMLElement) => void;
+  /** Нажатие по клетке: открыть правку этих суток. */
+  onPickDay: (day: IsoDate) => void;
 }
 
 export function YearCalendarEditor({
@@ -290,7 +289,7 @@ export function YearCalendarEditor({
                     corners={corners}
                     note={dayNotes[day]}
                     upcoming={upcoming != null && day >= upcoming}
-                    onPick={(cell) => onPickDay(day, cell)}
+                    onPick={() => onPickDay(day)}
                   />
                 ) : null;
               }}
@@ -400,7 +399,7 @@ function DayButton({
   note?: string;
   /** Сутки ещё не наступили: показаны, но в расчёт не входят. */
   upcoming?: boolean;
-  onPick: (cell: HTMLElement) => void;
+  onPick: () => void;
 }) {
   const date = dayOfMonth(item.day);
   const month = (MONTH_NAMES[monthIndex(item.day)] ?? "").toLowerCase();
@@ -417,7 +416,7 @@ function DayButton({
       type="button"
       title={label}
       aria-label={label}
-      onClick={(event) => onPick(event.currentTarget)}
+      onClick={onPick}
       className={cn(
         "relative flex aspect-square w-full min-w-0 cursor-pointer flex-col bg-paper-raised",
         corners,

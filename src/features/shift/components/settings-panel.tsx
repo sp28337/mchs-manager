@@ -1,9 +1,10 @@
 "use client";
 
-import { RotateCcw } from "lucide-react";
+import { RotateCcw, Trash2 } from "lucide-react";
 import { useId, useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Hint } from "@/components/ui/hint";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -83,10 +84,23 @@ export type SettingsPanelPurpose = "settings" | "create";
 export function SettingsPanel({
   profile,
   onChange,
+  onForget,
   purpose = "settings",
 }: {
   profile: StoredProfile;
   onChange: (change: (previous: StoredProfile) => StoredProfile) => void;
+  /**
+   * Удалить профиль с устройства.
+   *
+   * Стояло в подвале рабочего экрана, рядом с рассказом о том, где лежат
+   * данные. Место было выбрано по смыслу текста, а не по тому, куда пойдёт
+   * человек: тот, кто решил завести график заново, идёт в настройки — там
+   * же, где сброс календаря, — а не листает страницу до конца.
+   *
+   * В окне «Создать профиль» довода нет и быть не может: удалять там
+   * нечего.
+   */
+  onForget?: () => void;
   purpose?: SettingsPanelPurpose;
 }) {
   const nameId = useId();
@@ -380,7 +394,9 @@ export function SettingsPanel({
           окно выбора периода, к отрезкам и месяцам, и меняется там же,
           где на него смотрят. */}
 
-      {purpose === "settings" ? <ResetCalendar onChange={onChange} /> : null}
+      {purpose === "settings" ? (
+        <DangerActions onChange={onChange} onForget={onForget} />
+      ) : null}
     </div>
   );
 }
@@ -404,87 +420,111 @@ function Card({ children }: { children: React.ReactNode }) {
 }
 
 /**
- * Сброс календаря и графика — с подтверждением и с прямым перечнем
- * последствий.
+ * Два необратимых действия — сброс календаря и удаление профиля.
  *
- * --- Почему сбрасывается именно это ---------------------------------------
+ * --- Почему они рядом ------------------------------------------------------
  *
- * Стирается то, что человек наставил на сетках: отпуска и больничные,
- * вызовы, правки производственного календаря, переносы и отмены смен,
- * заметки. Это единственный способ убрать их разом — по одному они
- * снимаются в окне дня, и после года ведения таких дней бывает две сотни.
+ * Это одна и та же мысль на двух глубинах: «начать заново». Мельче — убрать
+ * наставленное на сетках, оставив настройки; крупнее — стереть с устройства
+ * вообще всё. Человек, идущий за одним, обязан видеть второе: половина тех,
+ * кто ищет «удалить профиль», на самом деле хочет чистый календарь, и
+ * наоборот.
+ *
+ * Раньше они стояли в разных местах — сброс в настройках, удаление в подвале
+ * рабочего экрана, — и выбрать между ними, не видя обоих, было нельзя.
+ *
+ * --- Что именно стирает сброс ---------------------------------------------
+ *
+ * То, что человек наставил на сетках: отпуска и больничные, вызовы, правки
+ * производственного календаря, переносы и отмены смен, заметки. Это
+ * единственный способ убрать их разом — по одному они снимаются в окне дня,
+ * а после года ведения таких дней бывает две сотни.
  *
  * Настройки при этом остаются: имя, норма, дата рабочей смены, время
- * отсчёта, оба переключателя. Сбрасывать их незачем — они видны тут же,
+ * отсчёта, оба переключателя. Сбрасывать их незачем — они стоят тут же,
  * над кнопкой, и правятся полем, а не сбросом. Дата смены остаётся ещё и
  * потому, что задаёт сам цикл: после сброса человек обязан увидеть свой
  * чистый график, а не чужой.
  *
- * Для «стереть всё» есть отдельный, честно названный способ — удалить
- * профиль с устройства, он в подвале.
+ * --- Почему у обоих знаки -------------------------------------------------
  *
- * --- Почему подтверждение прямо здесь, а не окном -------------------------
- *
- * Настройки на телефоне сами открыты окном, и второе окно поверх первого
- * — это два крестика, из которых один закрывает не то. Подтверждение
- * разворачивается на месте кнопки: тот же приём, что у удаления профиля в
- * подвале, и человек уже видел его там.
- *
- * Вопрос называет и то, что уцелеет: настройки и дата смены. Без этой
- * половины человек честно испугается нажать.
+ * Действия необратимые, и стоят они последними в длинной форме — там, где
+ * глаз уже скользит. Знак останавливает его раньше, чем человек прочитает
+ * надпись, и заодно отличает одно от другого с одного взгляда: стрелка
+ * назад — вернуть как было, урна — стереть.
  */
-function ResetCalendar({
+function DangerActions({
   onChange,
+  onForget,
 }: {
   onChange: (change: (previous: StoredProfile) => StoredProfile) => void;
+  onForget?: () => void;
 }) {
-  const [confirming, setConfirming] = useState(false);
-
-  if (!confirming) {
-    return (
-      <div className="border-t border-rule pt-4 text-center">
-        <button
-          type="button"
-          className="text-xs text-ink-muted underline underline-offset-2 hover:text-signal cursor-pointer"
-          onClick={() => setConfirming(true)}
-        >
-          Сбросить настройки календаря
-        </button>
-      </div>
-    );
-  }
+  const [asking, setAsking] = useState<"reset" | "forget" | null>(null);
 
   return (
-    <div className="space-y-2 border-t border-rule pt-4">
-      <p className="text-sm">
-        Убрать с календаря и графика всё отмеченное — отпуска, вызовы, правки
-        видов дней, переносы и отмены смен, заметки?
-      </p>
-      <p className="text-xs text-ink-muted">
-        Имя, норма, дата рабочей смены, время отсчёта и оба переключателя
-        останутся на месте.
-      </p>
-      <div className="flex flex-wrap items-center gap-2 pt-1">
-        <Button
-          type="button"
-          size="sm"
-          onClick={() => {
-            onChange(resetCalendar);
-            setConfirming(false);
-          }}
-        >
-          <RotateCcw aria-hidden />
-          Да, сбросить
-        </Button>
+    <div className="border-t border-rule pt-4">
+      <div className="flex flex-wrap items-center justify-center gap-2">
         <Button
           type="button"
           variant="ghost"
           size="sm"
-          onClick={() => setConfirming(false)}
+          onClick={() => setAsking("reset")}
         >
-          Отмена
+          <RotateCcw aria-hidden />
+          Сбросить календарь
         </Button>
+
+        {onForget ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() => setAsking("forget")}
+          >
+            <Trash2 aria-hidden />
+            Удалить профиль
+          </Button>
+        ) : null}
       </div>
+
+      <ConfirmDialog
+        open={asking === "reset"}
+        onClose={() => setAsking(null)}
+        onConfirm={() => onChange(resetCalendar)}
+        title="Сбросить календарь"
+        confirm="Сбросить"
+        icon={<RotateCcw aria-hidden />}
+      >
+        <p>
+          Убрать с календаря и графика всё отмеченное — отсутствия, вызовы,
+          правки видов дней, переносы и отмены смен, заметки?
+        </p>
+        <p className="text-ink-muted">
+          Имя, норма, график, дата рабочей смены и время её начала останутся на
+          месте.
+        </p>
+      </ConfirmDialog>
+
+      <ConfirmDialog
+        open={asking === "forget"}
+        onClose={() => setAsking(null)}
+        onConfirm={() => onForget?.()}
+        title="Удалить профиль"
+        confirm="Удалить"
+        icon={<Trash2 aria-hidden />}
+        destructive
+      >
+        <p>
+          Стереть профиль с этого устройства целиком — вместе с настройками,
+          календарём и всем, что отмечено на сетках?
+        </p>
+        <p className="text-ink-muted">
+          Отменить будет нельзя: данные лежат только здесь, копии на сервере
+          нет. Если график ещё может понадобиться, сначала сохраните его в файл
+          — кнопка в шапке.
+        </p>
+      </ConfirmDialog>
     </div>
   );
 }

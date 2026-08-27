@@ -88,10 +88,13 @@ const LABELS_FROM = "hidden xs:inline";
 export function HeaderTools({
   profile,
   onChange,
+  onForget,
   className,
 }: {
   profile: StoredProfile;
   onChange: (change: (previous: StoredProfile) => StoredProfile) => void;
+  /** Удалить профиль с устройства — из настроек, рядом со сбросом. */
+  onForget?: () => void;
   className?: string;
 }) {
   const [open, setOpen] = useState(false);
@@ -102,8 +105,12 @@ export function HeaderTools({
   // значок вправо на всю ширину слова. Остальную мерку (откуда растёт
   // заливка шапки) снимает сам лист по кнопке.
   const icon = useRef<SVGSVGElement>(null);
+  const word = useRef<HTMLSpanElement>(null);
   const [button, setButton] = useState<HTMLButtonElement | null>(null);
   const [travel, setTravel] = useState<number | null>(null);
+  // Видна ли на кнопке подпись. От этого зависит, что именно уезжает в
+  // шапку листа: подробности у самой шапки листа, ниже.
+  const [labelled, setLabelled] = useState(false);
 
   function openSettings(pressed: HTMLButtonElement) {
     const from = icon.current?.getBoundingClientRect();
@@ -111,6 +118,10 @@ export function HeaderTools({
     // Не замерилось — не беда: без переменной значок просто проступит на
     // своём месте, остальной переход не зависит от неё.
     setTravel(from && to ? Math.round(from.left - to.left) : null);
+    // Спрашивается разметка, а не ширина экрана: порог подписи назначен
+    // классом (`LABELS_FROM`), и второе его написание здесь рано или поздно
+    // разошлось бы с первым.
+    setLabelled((word.current?.getBoundingClientRect().width ?? 0) > 0);
     setButton(pressed);
     setOpen(true);
   }
@@ -149,7 +160,9 @@ export function HeaderTools({
                 aria-hidden
                 className="size-4.5 shrink-0 text-ink-muted"
               />
-              <span className={LABELS_FROM}>{label}</span>
+              <span ref={id === "settings" ? word : undefined} className={LABELS_FROM}>
+                {label}
+              </span>
             </button>
           );
         })}
@@ -165,14 +178,35 @@ export function HeaderTools({
             ? undefined
             : ({ "--sheet-mark-travel": `${travel}px` } as CSSProperties)
         }
+        // Что уезжает в шапку листа, решает сама кнопка.
+        //
+        // Когда от неё остался один значок, в шапке появляются две вещи:
+        // значок приезжает на место знака сайта, а слово «Настройки»
+        // проступает справа от него — там, где на кнопке его и не было.
+        //
+        // Когда подпись на кнопке видна, слову появляться неоткуда: оно уже
+        // едет вместе со значком, и второе его появление на том же месте
+        // читалось бы как мигание. Поэтому в этом случае метка перехода
+        // стоит на паре целиком, а отдельного проявления слова нет.
         title={
-          <span className="flex items-center gap-2">
-            <Settings2 aria-hidden className="sheet__mark size-5 shrink-0 text-ink-muted" />
-            <span className="sheet__word">Настройки</span>
+          <span
+            // `inline-flex`, а не `flex`: метка перехода едет целиком, и
+            // растянутая на всю ширину заголовка коробка возила бы за собой
+            // пустоту — вместе с точкой, от которой считается масштаб.
+            className={cn("inline-flex items-center gap-2", labelled && "sheet__mark")}
+          >
+            <Settings2
+              aria-hidden
+              className={cn(
+                "size-5 shrink-0 text-ink-muted",
+                !labelled && "sheet__mark",
+              )}
+            />
+            <span className={labelled ? undefined : "sheet__word"}>Настройки</span>
           </span>
         }
       >
-        <SettingsPanel profile={profile} onChange={onChange} />
+        <SettingsPanel profile={profile} onChange={onChange} onForget={onForget} />
       </Modal>
 
       {save.dialog}

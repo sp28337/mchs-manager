@@ -94,14 +94,11 @@ export function CreateProfileModal({
   open,
   onClose,
   onCreated,
-  from,
   notice,
 }: {
   open: boolean;
   onClose: () => void;
   onCreated: (profile: StoredProfile) => void;
-  /** Кнопка, которой окно открыли: на телефоне лист вырастает из неё. */
-  from?: HTMLElement | null;
   /** Сообщение о нечитаемом профиле, если он был. Место ему — в окне. */
   notice?: ReactNode;
 }) {
@@ -127,8 +124,7 @@ export function CreateProfileModal({
       open={open}
       onClose={onClose}
       sheet
-      from={from}
-      title={<span className="sheet__word">Создать профиль</span>}
+      title="Создать профиль"
     >
       <div className="space-y-5">
         {notice}

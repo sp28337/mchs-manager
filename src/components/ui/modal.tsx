@@ -150,15 +150,17 @@ export function Modal({
     else if (!open && dialog.open) dialog.close();
   }, [open]);
 
-  // Метка, которой лист гасит страницу под собой.
+  // Метка, которой РАСТУЩИЙ лист гасит страницу под собой. Листу, который
+  // просто проступает, гасить нечего: он закрывает страницу сам, и
+  // одновременное угасание под ним читалось бы как двойная вспышка.
   useEffect(() => {
-    if (!open || !sheet) return;
+    if (!open || !sheet || !origin) return;
     const root = document.documentElement;
     root.dataset.sheet = "";
     return () => {
       delete root.dataset.sheet;
     };
-  }, [open, sheet]);
+  }, [open, sheet, origin]);
 
   useEffect(() => {
     if (!open) return;
@@ -213,7 +215,17 @@ export function Modal({
       // `close` срабатывает и на Esc, и на кнопку, и на вызов `close()`.
       // Слушать нужно именно его: иначе состояние снаружи останется
       // «открыто», и повторное нажатие не откроет окно снова.
-      onClose={onClose}
+      //
+      // Проверка отправителя — не перестраховка, а лечение конкретной
+      // поломки. Родное событие `close` НЕ всплывает, но React разносит
+      // его по своему дереву так же, как всплывающие, и обработчик
+      // предка получает чужое закрытие. Окна у нас теперь вложены:
+      // подтверждение сброса живёт внутри настроек, и без этой строки
+      // «Отмена» в подтверждении закрывала заодно и настройки.
+      onClose={(event) => {
+        if (event.target !== ref.current) return;
+        onClose();
+      }}
       // Клик мимо окна. У модального `dialog` подложка — часть самого
       // элемента, поэтому щелчок по ней приходит с `target` равным
       // диалогу. Отступов у него нет намеренно: с ними в эту же ветку
@@ -222,10 +234,10 @@ export function Modal({
         if (event.target === ref.current) onClose();
       }}
       aria-labelledby={titleId}
-      // Куда растёт заливка, решает мерка: кнопка из шапки растёт в шапку,
-      // кнопка со страницы — в страницу. Без мерки роста нет вовсе.
-      data-grow={sheet ? (origin?.growth ?? "none") : undefined}
-      style={{ ...origin?.style, ...style }}
+      // Растёт лист или просто проступает, решает мерка: она есть только у
+      // кнопки, стоявшей в шапке.
+      data-grow={sheet ? (origin ? "bar" : "none") : undefined}
+      style={{ ...origin, ...style }}
       className={cn(
         "m-auto w-[min(44rem,calc(100vw-2rem))] max-h-[min(85dvh,52rem)]",
         "rounded-xl bg-paper p-0 text-ink",

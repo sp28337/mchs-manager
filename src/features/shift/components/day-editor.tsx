@@ -134,25 +134,15 @@ export interface DayEditorProps {
   profile: StoredProfile;
   onChange: (change: (previous: StoredProfile) => StoredProfile) => void;
   onClose: () => void;
-  /** Клетка, по которой нажали: на телефоне окно вырастает из неё. */
-  from?: HTMLElement | null;
 }
 
-export function DayEditor({
-  day,
-  kind,
-  profile,
-  onChange,
-  onClose,
-  from,
-}: DayEditorProps) {
+export function DayEditor({ day, kind, profile, onChange, onClose }: DayEditorProps) {
   return (
     <Modal
       open={day !== null}
       onClose={onClose}
       sheet
-      from={from}
-      title={<span className="sheet__word">{day ? formatDayMonthRu(day) : ""}</span>}
+      title={day ? formatDayMonthRu(day) : ""}
     >
       {/* Ключ по дню: открыв второй день подряд, человек обязан увидеть
           чистые поля, а не остатки первого — иначе он запишет их не туда.
