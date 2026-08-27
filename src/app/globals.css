@@ -2008,13 +2008,14 @@
   }
   /* Цвет приходит к своему раньше, чем фигура к своему размеру: пока фигура
      мала и стоит на месте кнопки, цвет её — цвет кнопки; дальше она уже
-     часть листа. */
+     часть листа, и цвет у неё бумаги, как у всего листа. Шапку от тела
+     отделяет линовка, а не заливка. */
   55% {
-    background-color: var(--color-paper-raised);
+    background-color: var(--color-paper);
   }
   to {
     transform: scale(var(--sheet-fill-scale));
-    background-color: var(--color-paper-raised);
+    background-color: var(--color-paper);
   }
 }
 
@@ -2138,12 +2139,12 @@
     transition: opacity 160ms ease-out;
   }
 
-  .sheet[data-grow="bar"] {
+  .sheet[data-grow="bar"][data-play] {
     animation: sheet-paper var(--sheet-yield) ease-out both;
   }
 
   /* Шапка листа: своей заливки у неё нет — её кладёт растущая подложка. */
-  .sheet[data-grow="bar"] .sheet__bar {
+  .sheet[data-grow="bar"][data-play] .sheet__bar {
     position: relative;
     /* Своя система наложения: без неё подложка с отрицательным номером
        ушла бы за фон самого листа и пропала. С ней она ложится поверх
@@ -2158,7 +2159,7 @@
     animation: sheet-line 200ms ease-out 360ms both;
   }
 
-  .sheet[data-grow="bar"] .sheet__bar::before {
+  .sheet[data-grow="bar"][data-play] .sheet__bar::before {
     content: "";
     position: absolute;
     z-index: -1;
@@ -2167,7 +2168,7 @@
     width: var(--sheet-fill-w);
     height: var(--sheet-fill-h);
     border-radius: var(--sheet-fill-r);
-    background-color: var(--color-paper-raised);
+    background-color: var(--color-paper);
 
     animation: sheet-fill var(--sheet-grow) var(--sheet-ease) both;
   }
@@ -2176,24 +2177,24 @@
      один значок, иногда значок с подписью — решает `header-tools.tsx`.
      Начало отсчёта в левом краю: масштаб поправляет разницу в кегле, и
      считать её от середины значило бы сдвинуть саму точку прилёта. */
-  .sheet[data-grow="bar"] .sheet__mark {
+  .sheet[data-grow="bar"][data-play] .sheet__mark {
     transform-origin: left center;
     animation: sheet-fly var(--sheet-fly) var(--sheet-ease) both;
   }
 
-  .sheet[data-grow="bar"] .sheet__word {
+  .sheet[data-grow="bar"][data-play] .sheet__word {
     animation: sheet-word 300ms ease-out 320ms both;
   }
 
   /* Крестик — последним. Он единственное, чего на месте шапки страницы не
      было: появись он сразу, лист начался бы с кнопки «закрыть». */
-  .sheet[data-grow="bar"] .sheet__bar .modal-close {
+  .sheet[data-grow="bar"][data-play] .sheet__bar .modal-close {
     animation: sheet-appear 240ms ease-out 400ms both;
   }
 
   /* Поля поднимаются одновременно с заголовком, а не раньше него: раньше
      получалось, что содержимое приходит в окно, у которого ещё нет имени. */
-  .sheet[data-grow="bar"] .sheet__body {
+  .sheet[data-grow="bar"][data-play] .sheet__body {
     animation: sheet-body 380ms ease-out 320ms both;
   }
 }

@@ -182,7 +182,7 @@ export function Modal({
 
     if (open && !dialog.open) {
       dialog.showModal();
-      restartAnimations(dialog);
+      restartSheet(dialog);
     } else if (!open && dialog.open) {
       dialog.close();
     }
@@ -200,8 +200,16 @@ export function Modal({
     };
   }, [open, sheet, origin]);
 
+  // Отложенный возврат прокрутки: заведён в поле, чтобы повторное открытие
+  // успело его отменить. Подробности — ниже, у самого возврата.
+  const unlocking = useRef<number | null>(null);
+
   useEffect(() => {
     if (!open) return;
+    if (unlocking.current !== null) {
+      window.clearTimeout(unlocking.current);
+      unlocking.current = null;
+    }
     const previous = document.body.style.overflow;
     const previousPadding = document.body.style.paddingRight;
 
@@ -223,8 +231,22 @@ export function Modal({
     if (!gutter && bar > 0) document.body.style.paddingRight = `${bar}px`;
 
     return () => {
-      document.body.style.overflow = previous;
-      document.body.style.paddingRight = previousPadding;
+      // Возврат прокрутки — ПОСЛЕ того, как окно догорит, а не в первый кадр
+      // закрытия.
+      //
+      // Возвращать её сразу значит менять страницу под ещё видимым окном, и
+      // на телефоне это видно: снятая прокрутка держит адресную строку
+      // раскрытой, возвращённая — отпускает её, высота окна браузера
+      // меняется, а вместе с ней и `dvh`, которым лист меряет себя. Окно
+      // подпрыгивало на долю секунды прямо перед тем, как исчезнуть.
+      //
+      // Пока окно на экране, прокручивать всё равно нечего: оно закрывает
+      // собой страницу целиком. Поэтому возврат просто ждёт конца ухода.
+      unlocking.current = window.setTimeout(() => {
+        document.body.style.overflow = previous;
+        document.body.style.paddingRight = previousPadding;
+        unlocking.current = null;
+      }, EXIT_MS);
     };
   }, [open]);
 
@@ -351,7 +373,18 @@ export function Modal({
 }
 
 /**
+ * Сколько окно ещё на экране после того, как его закрыли.
+ *
+ * Столько же стоит в `globals.css` у перехода ухода. Число здесь — то же
+ * число, и разъехаться им нельзя: по нему откладывается всё, что нельзя
+ * делать, пока окно видно.
+ */
+const EXIT_MS = 130;
+
+/**
  * Завести анимации листа заново.
+ *
+ * --- Зачем это вообще ------------------------------------------------------
  *
  * Обычно их заводит сам браузер: пока окно закрыто, оно скрыто правилом
  * `display: none`, а всё, что не показано, анимаций не имеет — и получает
@@ -365,14 +398,25 @@ export function Modal({
  * окно — и лист открывался бы ГОТОВЫМ: заливка шапки уже разрослась, значок
  * уже приехал, ничего не движется.
  *
- * Поэтому анимации перезаводятся руками, а не по счастливому стечению
- * обстоятельств. Переходы при этом не трогаются: их ведёт сам браузер, и
- * сброс уничтожил бы недоигранный уход вместо того, чтобы его развернуть.
+ * --- Почему меткой, а не через `Animation` --------------------------------
+ *
+ * Первым заходом анимации перезаводились разговором с ними напрямую:
+ * `cancel()` и следом `play()`. На настольном браузере это работало, а на
+ * телефоне оставляло их отменёнными навсегда: заливка шапки замирала
+ * скруглённым прямоугольником ровно там и такого размера, какой была кнопка,
+ * — то есть показывала СВОЙ БАЗОВЫЙ вид, из которого её должна была вывести
+ * анимация.
+ *
+ * Метка надёжнее и проще: снятая, она убирает у правил само имя анимации, и
+ * анимаций не остаётся; поставленная заново — заводит их с нуля. Между двумя
+ * этими действиями нужна принудительная перевёрстка, иначе браузер склеит их
+ * в одно и не заметит, что что-то менялось. Тем же приёмом заведены показы
+ * на посадочной (`data-play` в `demo-stage.tsx`).
  */
-function restartAnimations(dialog: HTMLDialogElement): void {
-  for (const animation of dialog.getAnimations({ subtree: true })) {
-    if (!("animationName" in animation)) continue;
-    animation.cancel();
-    animation.play();
-  }
+function restartSheet(dialog: HTMLDialogElement): void {
+  dialog.removeAttribute("data-play");
+  // Чтение размера — та самая перевёрстка. Значение не нужно, нужен сам
+  // факт: без него снятие и возврат метки схлопнутся в одно изменение.
+  void dialog.offsetWidth;
+  dialog.setAttribute("data-play", "");
 }
