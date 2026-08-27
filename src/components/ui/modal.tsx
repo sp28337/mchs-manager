@@ -1,7 +1,7 @@
 "use client";
 
 import { X } from "lucide-react";
-import { useEffect, useId, useRef, type ReactNode } from "react";
+import { useEffect, useId, useRef, type CSSProperties, type ReactNode } from "react";
 
 import { cn } from "@/lib/utils/cn";
 
@@ -55,20 +55,45 @@ import { cn } from "@/lib/utils/cn";
  * `min-height: 0` при этом обязателен по-прежнему: без него тело не даёт
  * себя сжать ниже содержимого, и вместо прокрутки ВНУТРИ окна получается
  * окно выше экрана.
+ *
+ * --- Лист во весь экран (`sheet`) ----------------------------------------
+ *
+ * На телефоне окно шириной в экран минус два поля и высотой в 85 процентов
+ * — это не окно, а страница с полями. Полей этих хватает ровно на то,
+ * чтобы показать полоску чужого содержимого по краям и отнять у формы
+ * четыре строки.
+ *
+ * Поэтому у окна есть второй вид: ниже `sm` оно занимает экран целиком, без
+ * скруглений и рамки. Всё остальное — перехват фокуса, Esc, возврат фокуса,
+ * снятая прокрутка — остаётся тем же, потому что это тот же `dialog`.
+ * Заводить ради полноэкранного вида отдельную деталь значило бы завести
+ * второй такой же список подводных камней.
  */
 export function Modal({
   open,
   onClose,
   title,
+  sheet,
   children,
   className,
+  style,
+  headerClassName,
+  bodyClassName,
 }: {
   open: boolean;
   onClose: () => void;
   /** Заголовок окна: он же его имя для экранного диктора. */
   title: ReactNode;
+  /** Ниже `sm` — во весь экран, без скруглений и рамки. */
+  sheet?: boolean;
   children: ReactNode;
   className?: string;
+  /** Замеренные величины перехода — переменными CSS. */
+  style?: CSSProperties;
+  /** Шапка окна: за неё цепляется переход из шапки сайта. */
+  headerClassName?: string;
+  /** Тело окна: за него цепляется появление содержимого. */
+  bodyClassName?: string;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
   // Опознаватель заголовка выдаётся, а не пишется руками: окон на
@@ -128,15 +153,30 @@ export function Modal({
         if (event.target === ref.current) onClose();
       }}
       aria-labelledby={titleId}
+      style={style}
       className={cn(
         "m-auto w-[min(44rem,calc(100vw-2rem))] max-h-[min(85dvh,52rem)]",
         "rounded-xl border border-rule bg-paper p-0 text-ink",
         "backdrop:bg-black/60",
         "open:flex open:flex-col",
+        sheet && [
+          "max-sm:m-0 max-sm:h-dvh max-sm:max-h-none",
+          "max-sm:w-screen max-sm:max-w-none",
+          "max-sm:rounded-none max-sm:border-0",
+          // Затемнения под листом нет: он и так закрывает экран целиком, а
+          // затемнение легло бы мгновенно и съело переход, ради которого
+          // всё и затевалось — страницу под собой лист гасит сам, заливкой.
+          "max-sm:backdrop:bg-transparent",
+        ],
         className,
       )}
     >
-      <header className="flex shrink-0 items-start gap-4 border-b border-rule px-5 py-4">
+      <header
+        className={cn(
+          "flex shrink-0 items-start gap-4 border-b border-rule px-5 py-4",
+          headerClassName,
+        )}
+      >
         <h2 id={titleId} className="min-w-0 flex-1 text-lg leading-snug">
           {title}
         </h2>
@@ -145,7 +185,15 @@ export function Modal({
           onClick={onClose}
           aria-label="Закрыть"
           className={cn(
+            // Имя класса — зацепка для перехода: у листа крестик проступает
+            // вместе с заголовком, а не стоит готовым над ещё видимой
+            // страницей.
+            "modal-close",
             "-mr-1 -mt-1 shrink-0 cursor-pointer rounded-sm p-1.5 text-ink-muted",
+            // В обычном окне шапка выровнена по верху, и крестик поднят к
+            // первой строке заголовка. У листа шапка выровнена по середине,
+            // и подъём увёл бы крестик выше неё.
+            sheet && "max-sm:mt-0",
             "transition-colors hover:bg-paper-sunken hover:text-ink",
             "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-trace",
           )}
@@ -158,7 +206,12 @@ export function Modal({
           так, написано у самого окна. `overscroll-contain` не пускает
           прокрутку дальше края тела: докрутив список до низа, человек на
           телефоне утаскивал за собой страницу под окном. */}
-      <div className="min-h-0 flex-auto overflow-y-auto overscroll-contain px-5 py-4">
+      <div
+        className={cn(
+          "min-h-0 flex-auto overflow-y-auto overscroll-contain px-5 py-4",
+          bodyClassName,
+        )}
+      >
         {children}
       </div>
     </dialog>

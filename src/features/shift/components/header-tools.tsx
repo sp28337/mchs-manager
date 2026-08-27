@@ -1,7 +1,7 @@
 "use client";
 
 import { Save, Settings2, type LucideIcon } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 
 import { Modal } from "@/components/ui/modal";
 import { cn } from "@/lib/utils/cn";
@@ -37,6 +37,27 @@ import { SettingsPanel } from "./settings-panel";
  * занимают меньше места, чем один значок меню, и ведут прямо к делу, а не
  * к списку из двух пунктов. Подписи появляются, как только для них
  * хватает ширины, — порог назначен замером и стоит в `LABELS_FROM`.
+ *
+ * --- Настройки на телефоне: лист, а не окно ------------------------------
+ *
+ * Ниже `sm` окно настроек занимает экран целиком, и открывается оно не
+ * появлением поверх страницы, а ПЕРЕХОДОМ из шапки: значок настроек
+ * уезжает на место знака сайта, знак и кнопки к этому времени гаснут,
+ * рядом со значком проступает слово «Настройки», страница под ним
+ * заливается бумагой, и на ней поднимаются поля.
+ *
+ * Так человек видит, ЧТО открылось и откуда: полноэкранное окно, возникшее
+ * рывком, на телефоне неотличимо от перехода на другую страницу, и кнопка
+ * «назад» браузера кажется правильным способом его закрыть (а она уводит с
+ * сайта).
+ *
+ * Шапку листа рисует сам лист, а не страница: `dialog` живёт в верхнем
+ * слое, и шапка страницы под ним недосягаема. Поэтому шапка листа встаёт
+ * ровно на её место — та же высота, те же поля, — а настоящая гасится
+ * меткой `data-sheet` на корне документа. Отсюда же и замер: путь значка
+ * это расстояние от него до знака сайта, и знать его заранее нельзя —
+ * ширина экрана и наличие подписей на кнопках меняют его на десятки точек.
+ * Замер делается в момент нажатия и уезжает в CSS переменной.
  */
 
 type ToolId = "settings" | "save";
@@ -76,6 +97,33 @@ export function HeaderTools({
   const [open, setOpen] = useState(false);
   const save = useSaveToFile(profile);
 
+  // Путь значка: замеряется в момент нажатия, потому что до нажатия он
+  // неизвестен — подписи на кнопках появляются с 448 точек и сдвигают
+  // значок вправо на всю ширину слова.
+  const icon = useRef<SVGSVGElement>(null);
+  const [travel, setTravel] = useState<number | null>(null);
+
+  function openSettings() {
+    const from = icon.current?.getBoundingClientRect();
+    const to = document.querySelector("[data-brand]")?.getBoundingClientRect();
+    // Не замерилось — не беда: без переменной значок просто проступит на
+    // своём месте, остальной переход не зависит от неё.
+    setTravel(from && to ? Math.round(from.left - to.left) : null);
+    setOpen(true);
+  }
+
+  // Метка на корне документа: ею лист гасит настоящую шапку и содержимое
+  // страницы под собой. Изнутри `dialog` до них не дотянуться — он в
+  // верхнем слое, и никакой его потомок не может выбрать соседа страницы.
+  useEffect(() => {
+    if (!open) return;
+    const root = document.documentElement;
+    root.dataset.sheet = "settings";
+    return () => {
+      delete root.dataset.sheet;
+    };
+  }, [open]);
+
   return (
     <>
       <div
@@ -89,7 +137,7 @@ export function HeaderTools({
             <button
               key={id}
               type="button"
-              onClick={() => (id === "save" ? save.ask() : setOpen(true))}
+              onClick={() => (id === "save" ? save.ask() : openSettings())}
               // Имя кнопки не зависит от того, видна подпись или нет:
               // на узком экране от кнопки остаётся значок, и без имени она
               // стала бы для программы чтения безымянной.
@@ -103,7 +151,11 @@ export function HeaderTools({
                 "focus-visible:outline-trace",
               )}
             >
-              <Icon aria-hidden className="size-4.5 shrink-0 text-ink-muted" />
+              <Icon
+                ref={id === "settings" ? icon : undefined}
+                aria-hidden
+                className="size-4.5 shrink-0 text-ink-muted"
+              />
               <span className={LABELS_FROM}>{label}</span>
             </button>
           );
@@ -113,10 +165,26 @@ export function HeaderTools({
       <Modal
         open={open}
         onClose={() => setOpen(false)}
+        sheet
+        style={
+          travel === null
+            ? undefined
+            : ({ "--settings-travel": `${travel}px` } as CSSProperties)
+        }
+        className="settings-sheet"
+        // Шапка листа встаёт на место шапки страницы: та же высота (`h-16`),
+        // те же поля (`px-6`), та же вертикальная середина. Отбивки снизу у
+        // неё нет — у шапки страницы её тоже нет, а линия на этом месте
+        // выдала бы подмену.
+        headerClassName="settings-sheet__bar max-sm:h-16 max-sm:items-center max-sm:border-b-0 max-sm:px-6 max-sm:py-0"
+        bodyClassName="settings-sheet__body max-sm:px-6"
         title={
           <span className="flex items-center gap-2">
-            <Settings2 aria-hidden className="size-5 shrink-0 text-ink-faint" />
-            Настройки
+            <Settings2
+              aria-hidden
+              className="settings-sheet__icon size-5 shrink-0 text-ink-muted"
+            />
+            <span className="settings-sheet__word">Настройки</span>
           </span>
         }
       >
