@@ -28,15 +28,29 @@ const at = (day: string) => day as IsoDate;
  */
 describe("графики сменности", () => {
   it("список и умолчание сходятся", () => {
-    expect(SCHEDULE_PATTERNS.map((p) => p.id)).toEqual(["1/3", "1/4", "2/2", "5/2"]);
-    expect(schedulePatternOf(DEFAULT_SCHEDULE_PATTERN).id).toBe("1/3");
+    expect(SCHEDULE_PATTERNS.map((p) => p.id)).toEqual(["1|3", "1|4", "2|2", "5|2"]);
+    expect(schedulePatternOf(DEFAULT_SCHEDULE_PATTERN).id).toBe("1|3");
   });
 
   it("неизвестное значение читается как график по умолчанию", () => {
     // Профиль мог быть записан версией, где список был другим. Белый экран
     // вместо расчёта человек не починит, а неверный график — увидит.
-    expect(schedulePatternOf("7/7").id).toBe("1/3");
-    expect(schedulePatternOf(undefined).id).toBe("1/3");
+    expect(schedulePatternOf("7|7").id).toBe("1|3");
+    expect(schedulePatternOf(undefined).id).toBe("1|3");
+  });
+
+  /**
+   * Опознания графиков писались через косую черту, пока знак не поменяли на
+   * вертикальную черту — ту же, что разделяет цифры в названии сайта.
+   * Старое написание лежит в профилях у людей, поэтому опознаётся здесь же,
+   * а не только при чтении профиля: строка со старым знаком приходит и из
+   * файла, и из вкладки, открытой до обновления.
+   */
+  it("старое написание через косую черту опознаётся", () => {
+    expect(schedulePatternOf("1/3").id).toBe("1|3");
+    expect(schedulePatternOf("1/4").id).toBe("1|4");
+    expect(schedulePatternOf("2/2").id).toBe("2|2");
+    expect(schedulePatternOf("5/2").id).toBe("5|2");
   });
 
   it("у каждого графика длина цикла больше числа рабочих суток", () => {
@@ -52,7 +66,7 @@ describe("цикл вокруг названной смены", () => {
   const anchor = at("2026-01-05");
 
   it("сутки через трое: рабочие каждые четвёртые", () => {
-    const pattern = schedulePatternOf("1/3");
+    const pattern = schedulePatternOf("1|3");
     for (const [day, expected] of [
       ["2026-01-05", true],
       ["2026-01-06", false],
@@ -67,7 +81,7 @@ describe("цикл вокруг названной смены", () => {
   it("два через два: названные сутки — ПЕРВЫЕ из двух", () => {
     // Вторые сутки череды цикл достраивает сам. Иначе человеку пришлось бы
     // называть каждую пару отдельно, и график перестал бы строиться.
-    const pattern = schedulePatternOf("2/2");
+    const pattern = schedulePatternOf("2|2");
     for (const [day, expected] of [
       ["2026-01-05", true],
       ["2026-01-06", true],
@@ -82,7 +96,7 @@ describe("цикл вокруг названной смены", () => {
   it("цикл идёт и НАЗАД от названной смены", () => {
     // Человек называет любую свою смену, в том числе завтрашнюю: график до
     // неё обязан строиться так же, как после.
-    const pattern = schedulePatternOf("1/3");
+    const pattern = schedulePatternOf("1|3");
     expect(onPatternCycle(anchor, at("2026-01-01"), pattern)).toBe(true);
     expect(onPatternCycle(anchor, at("2025-12-28"), pattern)).toBe(true);
     expect(onPatternCycle(anchor, at("2025-12-29"), pattern)).toBe(false);
@@ -93,7 +107,7 @@ describe("цикл вокруг названной смены", () => {
     // НЕДЕЛЯ, и определяет её производственный календарь, а не арифметика.
     // Названная дата смены на неё не влияет вовсе — здесь она заведомо
     // «неудобная», суббота, и всё равно ничего не меняет.
-    const pattern = schedulePatternOf("5/2");
+    const pattern = schedulePatternOf("5|2");
     const saturday = at("2026-01-03");
     expect(weekday(saturday)).toBe(5);
 
@@ -106,7 +120,7 @@ describe("цикл вокруг названной смены", () => {
     // Выдумать рабочий день, не зная, не праздник ли он, нельзя. Молча
     // показать его сменой значило бы соврать — а врать этому приложению
     // нельзя по определению.
-    const pattern = schedulePatternOf("5/2");
+    const pattern = schedulePatternOf("5|2");
     expect(onPatternCycle(at("2026-01-05"), at("2026-01-06"), pattern)).toBe(false);
     expect(
       patternShiftDates(at("2026-01-05"), pattern, at("2026-01-01"), at("2026-02-01")),
@@ -118,13 +132,13 @@ describe("даты смен за период", () => {
   const anchor = at("2026-01-05");
 
   it("границы полуинтервала: левая входит, правая нет", () => {
-    const pattern = schedulePatternOf("1/3");
+    const pattern = schedulePatternOf("1|3");
     const dates = patternShiftDates(anchor, pattern, at("2026-01-05"), at("2026-01-09"));
     expect(dates).toEqual(["2026-01-05"]);
   });
 
   it("два через два отдаёт обе смены пары", () => {
-    const pattern = schedulePatternOf("2/2");
+    const pattern = schedulePatternOf("2|2");
     const dates = patternShiftDates(anchor, pattern, at("2026-01-05"), at("2026-01-13"));
     expect(dates).toEqual([
       "2026-01-05",
@@ -137,14 +151,14 @@ describe("даты смен за период", () => {
   it("пара, начавшаяся ДО периода, отдаёт периоду свой хвост", () => {
     // Период начинается вторыми сутками чужой пары. Потеряй мы их — в
     // первом дне месяца пропала бы отработанная смена.
-    const pattern = schedulePatternOf("2/2");
+    const pattern = schedulePatternOf("2|2");
     const dates = patternShiftDates(anchor, pattern, at("2026-01-06"), at("2026-01-10"));
     expect(dates).toEqual(["2026-01-06", "2026-01-09"]);
   });
 
   it("известная смена ПОЗЖЕ периода строит его так же", () => {
     const later = at("2026-08-03");
-    const pattern = schedulePatternOf("1/4");
+    const pattern = schedulePatternOf("1|4");
     const dates = patternShiftDates(later, pattern, at("2026-01-01"), at("2026-01-16"));
     // Считано вручную: от 3 августа назад пятёрками — 5, 10 и 15 января.
     // Двадцатое уже за правой границей, а она исключающая.
@@ -155,7 +169,7 @@ describe("даты смен за период", () => {
   });
 
   it("пустой период не даёт смен", () => {
-    const pattern = schedulePatternOf("1/3");
+    const pattern = schedulePatternOf("1|3");
     expect(patternShiftDates(anchor, pattern, at("2026-01-05"), at("2026-01-05"))).toEqual([]);
     expect(patternShiftDates(anchor, pattern, at("2026-01-09"), at("2026-01-05"))).toEqual([]);
   });
@@ -194,7 +208,7 @@ describe("даты смен за период", () => {
 describe("пятидневка по производственному календарю", () => {
   const YEAR_START = at("2026-01-01");
   const YEAR_END = at("2027-01-01");
-  const pattern = schedulePatternOf("5/2");
+  const pattern = schedulePatternOf("5|2");
 
   const facts = calendarFactsFor(YEAR_START, YEAR_END, new Map());
   const shifts = patternShiftDates(
@@ -271,7 +285,7 @@ describe("пятидневка по производственному кале�
 /**
  * Свой график — цикл, названный человеком двумя числами.
  *
- * Заготовок четыре, а циклов в жизни больше: 3/1, 2/1, 4/4 на вахте.
+ * Заготовок четыре, а циклов в жизни больше: 3|1, 2|1, 4|4 на вахте.
  * Проверяется здесь то же, что и у заготовок, — арифметика цикла, — плюс
  * границы: за ними цикл перестаёт быть циклом, и приложение обязано их
  * держать само, а не полагаться на то, что человек введёт разумное.
@@ -285,11 +299,11 @@ describe("свой график", () => {
     expect(pattern.source).toBe("cycle");
     expect(pattern.cycleDays).toBe(4);
     expect(pattern.workDays).toBe(3);
-    expect(pattern.label).toBe("3/1");
+    expect(pattern.label).toBe("3|1");
   });
 
   it("считает цикл так же, как заготовка", () => {
-    // 3/1 — те же четверо суток, что у «сутки через трое», только рабочих
+    // 3|1 — те же четверо суток, что у «сутки через трое», только рабочих
     // трое. Если арифметика цикла у своего графика своя, здесь это видно.
     const pattern = customSchedulePattern(3, 1);
     for (const [day, expected] of [
@@ -304,10 +318,10 @@ describe("свой график", () => {
   });
 
   it("совпадает с заготовкой, если числа те же", () => {
-    // Свой «1/3» обязан дать ровно то же, что заготовка: два разных ответа
+    // Свой «1|3» обязан дать ровно то же, что заготовка: два разных ответа
     // на один и тот же цикл означали бы, что где-то из них ошибка.
     const own = customSchedulePattern(1, 3);
-    const preset = schedulePatternOf("1/3");
+    const preset = schedulePatternOf("1|3");
     const from = at("2026-01-01");
     const to = at("2026-04-01");
     expect(patternShiftDates(anchor, own, from, to)).toEqual(
@@ -323,16 +337,16 @@ describe("свой график", () => {
     expect(customSchedulePattern(0, 0).cycleDays).toBe(MIN_CUSTOM_DAYS * 2);
     expect(customSchedulePattern(999, 999).workDays).toBe(MAX_CUSTOM_DAYS);
     expect(customSchedulePattern(2.7, 1.2).workDays).toBe(2);
-    expect(customSchedulePattern(undefined, undefined).label).toBe("1/3");
+    expect(customSchedulePattern(undefined, undefined).label).toBe("1|3");
   });
 
   it("собирается из профиля только через общий разбор", () => {
     // Опознание у своего графика одно на все циклы, и числа к нему идут
     // отдельно: собрать его из одной строки нельзя.
-    expect(resolveSchedulePattern(CUSTOM_PATTERN_ID, 4, 4).label).toBe("4/4");
-    expect(resolveSchedulePattern("2/2", 4, 4).label).toBe("2/2");
+    expect(resolveSchedulePattern(CUSTOM_PATTERN_ID, 4, 4).label).toBe("4|4");
+    expect(resolveSchedulePattern("2|2", 4, 4).label).toBe("2|2");
     // Числа своего цикла не влияют на заготовку — иначе человек, заглянувший
-    // в свой график и вернувшийся к 2/2, получил бы чужой цикл.
-    expect(resolveSchedulePattern("2/2", 9, 9).cycleDays).toBe(4);
+    // в свой график и вернувшийся к 2|2, получил бы чужой цикл.
+    expect(resolveSchedulePattern("2|2", 9, 9).cycleDays).toBe(4);
   });
 });
