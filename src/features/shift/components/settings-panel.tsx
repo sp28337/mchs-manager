@@ -5,12 +5,10 @@ import { useId, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-import { Hint } from "@/components/ui/hint";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { Card, Field } from "@/components/ui/panel";
 import { Select } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { cn } from "@/lib/utils/cn";
 
 import {
   CUSTOM_PATTERN_ID,
@@ -402,20 +400,41 @@ export function SettingsPanel({
 }
 
 /**
- * Карточка настроек: несколько строк «вопрос — ответ» под одной рамкой.
+ * Число суток в своём цикле.
  *
- * Рамка здесь не украшение, а то, что делает список настроек списком.
- * Прежде вопросы шли по странице сплошняком — подпись, поле, подпись,
- * поле, — и на телефоне, где панель открыта окном во всю высоту, отличить
- * конец одного вопроса от начала следующего можно было только по кеглю.
- * Разделённые линиями строки под общей рамкой читаются рядами таблицы, и
- * ответ у каждой стоит на своём месте, справа.
+ * Список, а не поле с набором: значений всего тридцать одно, и все они
+ * целые. Списком нельзя ввести ни ноль, ни «два с половиной» — то есть
+ * ровно те значения, из-за которых поле пришлось бы стеречь проверкой и
+ * объяснять человеку, что он ввёл не то.
  */
-function Card({ children }: { children: React.ReactNode }) {
+function CycleDays({
+  id,
+  label,
+  value,
+  onChange,
+}: {
+  id?: string;
+  label: string;
+  value: number;
+  onChange: (value: number) => void;
+}) {
   return (
-    <div className="divide-y divide-rule rounded-xl bg-paper-raised px-4">
-      {children}
-    </div>
+    <Select
+      id={id}
+      aria-label={label}
+      className="w-auto font-mono"
+      value={String(value)}
+      onChange={(event) => onChange(Number(event.target.value))}
+    >
+      {Array.from(
+        { length: MAX_CUSTOM_DAYS - MIN_CUSTOM_DAYS + 1 },
+        (_, index) => MIN_CUSTOM_DAYS + index,
+      ).map((days) => (
+        <option key={days} value={days}>
+          {days}
+        </option>
+      ))}
+    </Select>
   );
 }
 
@@ -525,103 +544,6 @@ function DangerActions({
           — кнопка в шапке.
         </p>
       </ConfirmDialog>
-    </div>
-  );
-}
-
-/**
- * Число суток в своём цикле.
- *
- * Список, а не поле с набором: значений всего тридцать одно, и все они
- * целые. Списком нельзя ввести ни ноль, ни «два с половиной» — то есть
- * ровно те значения, из-за которых поле пришлось бы стеречь проверкой и
- * объяснять человеку, что он ввёл не то.
- */
-function CycleDays({
-  id,
-  label,
-  value,
-  onChange,
-}: {
-  id?: string;
-  label: string;
-  value: number;
-  onChange: (value: number) => void;
-}) {
-  return (
-    <Select
-      id={id}
-      aria-label={label}
-      className="w-auto font-mono"
-      value={String(value)}
-      onChange={(event) => onChange(Number(event.target.value))}
-    >
-      {Array.from(
-        { length: MAX_CUSTOM_DAYS - MIN_CUSTOM_DAYS + 1 },
-        (_, index) => MIN_CUSTOM_DAYS + index,
-      ).map((days) => (
-        <option key={days} value={days}>
-          {days}
-        </option>
-      ))}
-    </Select>
-  );
-}
-
-/**
- * Подпись, знак вопроса и само поле.
- *
- * Знак вопроса стоит у подписи, а не под полем: пояснение отвечает на
- * вопрос «что здесь выбрать», и читают его до выбора, а не после.
- */
-function Field({
-  id,
-  label,
-  hint,
-  note,
-  stack,
-  children,
-}: {
-  id?: string;
-  label: string;
-  hint?: React.ReactNode;
-  /** Строка под вопросом: что следует из выбранного ответа. */
-  note?: React.ReactNode;
-  /**
-   * Ответ под вопросом, а не справа от него.
-   *
-   * Для тех немногих ответов, которым строки не хватает: своего цикла из
-   * двух списков и имени профиля, где обрезанное поле в треть строки
-   * читается хуже пустого.
-   */
-  stack?: boolean;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className={cn("py-3", stack ? "space-y-2" : "space-y-1")}>
-      <div
-        className={cn(
-          "flex gap-x-4 gap-y-2",
-          stack ? "flex-col" : "flex-wrap items-center justify-between",
-        )}
-      >
-        <div className="flex items-center gap-1.5">
-          <Label htmlFor={id}>{label}</Label>
-          {hint && <Hint label={`Что такое «${label}»`}>{hint}</Hint>}
-        </div>
-        {/* Ответ прижат к правому краю: так у столбца ответов появляется
-            своя ось, и глаз читает настройки как таблицу, а не как список
-            разной длины. На узком экране строка переносится, и ответ встаёт
-            под вопросом сам. */}
-        <div className={cn("flex items-center gap-2", stack ? "" : "justify-end")}>
-          {children}
-        </div>
-      </div>
-      {note ? (
-        <p className="text-xs text-ink-muted" aria-live="polite">
-          {note}
-        </p>
-      ) : null}
     </div>
   );
 }

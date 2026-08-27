@@ -5,6 +5,7 @@ import { useId, useState, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Modal } from "@/components/ui/modal";
+import { Card, Field } from "@/components/ui/panel";
 import { cn } from "@/lib/utils/cn";
 
 import {
@@ -135,12 +136,16 @@ export function CreateProfileModal({
 
         <SettingsPanel profile={draft} onChange={setDraft} purpose="create" />
 
-        <div className="space-y-5 pt-4">
+        <div className="space-y-4 pt-1">
           <Button type="button" className="w-full" onClick={submit}>
             Построить мой график
           </Button>
 
-          <ImportBlock onImported={onCreated} />
+          <Card>
+            <Field label="" stack>
+              <ImportBlock onImported={onCreated} />
+            </Field>
+          </Card>
         </div>
       </div>
     </Modal>
