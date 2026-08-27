@@ -100,6 +100,7 @@ function SaveDialog({
             id={nameId}
             value={name}
             maxLength={100}
+            className="bg-paper-raised"
             placeholder={suggested}
             onChange={(event) => onName(event.target.value)}
             onKeyDown={(event) => {

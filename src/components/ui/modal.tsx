@@ -297,7 +297,7 @@ export function Modal({
           телефоне утаскивал за собой страницу под окном. */}
       <div
         className={cn(
-          "min-h-0 flex-auto overflow-y-auto overscroll-contain px-4 py-4 bg-paper-raised",
+          "min-h-0 flex-auto overflow-y-auto overscroll-contain px-4 py-4 bg-paper",
           sheet && "sheet__body max-sm:px-4",
           bodyClassName,
         )}

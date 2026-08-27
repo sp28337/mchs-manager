@@ -463,8 +463,8 @@ function DangerActions({
   const [asking, setAsking] = useState<"reset" | "forget" | null>(null);
 
   return (
-    <div className="border-t border-rule pt-4">
-      <div className="flex flex-wrap items-center justify-center gap-2">
+    <div className="pt-4">
+      <div className="flex flex-wrap items-center justify-evenly gap-2">
         <Button
           type="button"
           variant="ghost"
