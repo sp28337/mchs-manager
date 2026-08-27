@@ -4,8 +4,8 @@ import { X } from "lucide-react";
 import {
   useEffect,
   useId,
-  useMemo,
   useRef,
+  useState,
   type CSSProperties,
   type ReactNode,
 } from "react";
@@ -150,13 +150,22 @@ export function Modal({
 
   // Мерка снимается ЗДЕСЬ, при отрисовке открытия, а не в эффекте: к
   // эффекту лист уже открыт и закрыл собой то, что нужно измерить. Замер
-  // ничего не меняет на странице — он только читает.
-  const origin = useMemo(
-    () => (open && sheet ? sheetOrigin(from) : undefined),
-    // Кнопку и открытие ставит одно и то же нажатие, поэтому пересчёт
-    // привязан к обоим: `from` без `open` — прошлое нажатие.
-    [open, sheet, from],
-  );
+  // ничего не меняет на странице — он только читает, а `showModal()`
+  // вызывается позже, из эффекта.
+  //
+  // И ОСТАЁТСЯ после закрытия, до следующего открытия. Окно гаснет за 130
+  // миллисекунд, и всё это время оно на экране: сбрось мерку в первый кадр
+  // закрытия — и с ней пропадут заливка шапки, её цвет и признак роста, то
+  // есть лист посреди ухода сменил бы вид.
+  //
+  // Держится состоянием и правится по ходу отрисовки — тем самым приёмом,
+  // которым React велит подгонять состояние под изменившийся довод.
+  const [origin, setOrigin] = useState<CSSProperties | undefined>(undefined);
+  const [opened, setOpened] = useState(open);
+  if (open !== opened) {
+    setOpened(open);
+    if (open && sheet) setOrigin(sheetOrigin(from));
+  }
 
   useEffect(() => {
     const dialog = ref.current;
@@ -262,7 +271,14 @@ export function Modal({
         "m-auto w-[min(44rem,calc(100vw-2rem))] max-h-[min(85dvh,52rem)]",
         "rounded-xl bg-paper p-0 text-ink",
         "backdrop:bg-black/60",
-        "open:flex open:flex-col",
+        // Вариантом `open:` задан ТОЛЬКО показ — и только он и должен быть
+        // им задан. Направление столбца стоит без условия, и это не
+        // косметика: закрытие теперь идёт переходом, и всё это время окно
+        // ещё показано (`display` держится `allow-discrete`), а вот класс
+        // `open:flex-col` в первый же кадр закрытия отваливается. Шапка и
+        // тело вставали в РЯД и разъезжались по горизонтали — окно
+        // перекашивало ровно в тот миг, когда оно должно тихо гаснуть.
+        "flex-col open:flex",
         sheet && [
           "sheet",
           "max-sm:m-0 max-sm:h-dvh max-sm:max-h-none",
@@ -280,9 +296,16 @@ export function Modal({
         className={cn(
           "flex shrink-0 items-start gap-4 border-b border-rule px-5 py-4 bg-paper-raised",
           // Шапка листа встаёт ровно на место шапки страницы: та же высота
-          // (`h-16` — она же `BAR_HEIGHT` в `sheet-origin.ts`), те же поля
-          // (`px-6`), та же вертикальная середина.
-          sheet && "sheet__bar max-sm:h-16 max-sm:items-center max-sm:px-6 max-sm:py-0",
+          // содержимого (`4rem` — она же `BAR_HEIGHT` в `sheet-origin.ts`),
+          // те же поля (`px-6`), та же вертикальная середина.
+          //
+          // Высота с добавкой в точку — не придирка. У шапки страницы линии
+          // снизу нет, у шапки листа есть, а размеры здесь считаются по
+          // внешнему краю (`border-box`): при ровных четырёх ремах линия
+          // съедала бы точку у содержимого, и заголовок вставал на пол-точки
+          // выше, чем стояла кнопка, из которой он приехал.
+          sheet &&
+            "sheet__bar max-sm:h-[calc(4rem+1px)] max-sm:items-center max-sm:px-6 max-sm:py-0",
           headerClassName,
         )}
       >

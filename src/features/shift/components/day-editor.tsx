@@ -137,21 +137,34 @@ export interface DayEditorProps {
 }
 
 export function DayEditor({ day, kind, profile, onChange, onClose }: DayEditorProps) {
+  // Последние показанные сутки — чтобы окно уходило не пустым.
+  //
+  // Закрывается окно не мгновенно: оно гаснет за 130 миллисекунд, и всё
+  // это время оно на экране. А `day` становится `null` в первый же кадр
+  // закрытия — форма и заголовок исчезали, и человек видел, как окно
+  // сначала опустошается, а потом гаснет. Ровно то мигание, ради которого
+  // плавное закрытие и делалось.
+  //
+  // Поэтому показывается последнее, что в окне было. На следующем открытии
+  // `day` уже другой, и ключ по нему по-прежнему даёт чистые поля.
+  const [shown, setShown] = useState<IsoDate | null>(day);
+  if (day !== null && day !== shown) setShown(day);
+
   return (
     <Modal
       open={day !== null}
       onClose={onClose}
       sheet
-      title={day ? formatDayMonthRu(day) : ""}
+      title={shown ? formatDayMonthRu(shown) : ""}
     >
       {/* Ключ по дню: открыв второй день подряд, человек обязан увидеть
           чистые поля, а не остатки первого — иначе он запишет их не туда.
           Сброс ключом, а не эффектом: эффект сделал бы лишнюю отрисовку
           ради того, что React умеет сам. */}
-      {day !== null ? (
+      {shown !== null ? (
         <DayForm
-          key={day}
-          day={day}
+          key={shown}
+          day={shown}
           kind={kind}
           profile={profile}
           onChange={onChange}
