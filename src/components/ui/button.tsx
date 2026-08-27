@@ -62,7 +62,7 @@ export function Button({
   const Comp = asChild ? Slot : "button";
   return (
     <Comp
-      className={cn(buttonVariants({ variant, size }), className, 'cursor-pointer')}
+      className={cn(buttonVariants({ variant, size }), className, 'cursor-pointer rounded-xl')}
       {...props}
     />
   );

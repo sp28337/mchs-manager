@@ -217,7 +217,7 @@ export function SettingsPanel({
         >
           {SCHEDULE_PATTERNS.map((option) => (
             <option key={option.id} value={option.id}>
-              {option.label} — {option.title.toLowerCase()}
+              {option.label}
             </option>
           ))}
           {/* Заготовки — быстрый ответ на частый случай, а не перечень
@@ -230,7 +230,7 @@ export function SettingsPanel({
       {custom ? (
         <Field
           id={customId}
-          label="Свой цикл"
+          label="Цикл"
           hint={
             <p>
               Сколько суток подряд работать и сколько отдыхать. Цикл
@@ -266,7 +266,7 @@ export function SettingsPanel({
         </Field>
       ) : null}
 
-      <Field id={normId} label="Норма часов в неделю">
+      <Field id={normId} label="Норма в неделю">
         <Select
           id={normId}
           value={ground}
@@ -298,8 +298,8 @@ export function SettingsPanel({
       {pattern.source === "calendar" ? null : (
         <Field
           id={shiftId}
-          label="Дата рабочей смены"
-          hint="Необходима для построения графика."
+          label="Дата смены"
+          // hint="Необходима для построения графика."
         >
           <DateField
             id={shiftId}
@@ -315,7 +315,7 @@ export function SettingsPanel({
       <Field
         id={startId}
         label="Начало смены"
-        hint="С этого времени отсчитывается продолжительность смены."
+        // hint="С этого времени отсчитывается продолжительность смены."
       >
         <TimeField
           id={startId}
@@ -330,16 +330,16 @@ export function SettingsPanel({
           отвечают на один вопрос — с какого часа и по какой длится смена. */}
       <Field
         id={durationId}
-        label="Продолжительность смены"
-        hint={
-          <p>
-            Обычная для выбранного графика подставляется сама, но правится:
-            у двенадцатичасовых смен встречается одиннадцать с половиной
-            (обед за свой счёт), у суточных — двадцать три. Это график на
-            весь год; если отдельную смену сдали раньше или заступили не в
-            своё время, часы правятся в самом дне — нажмите по нему в сетке.
-          </p>
-        }
+        label="Длительность"
+        // hint={
+        //   <p>
+        //     Обычная для выбранного графика подставляется сама, но правится:
+        //     у двенадцатичасовых смен встречается одиннадцать с половиной
+        //     (обед за свой счёт), у суточных — двадцать три. Это график на
+        //     весь год; если отдельную смену сдали раньше или заступили не в
+        //     своё время, часы правятся в самом дне — нажмите по нему в сетке.
+        //   </p>
+        // }
       >
         <HoursField
           id={durationId}
@@ -397,7 +397,7 @@ export function SettingsPanel({
  */
 function Card({ children }: { children: React.ReactNode }) {
   return (
-    <div className="divide-y divide-rule rounded-xl border border-rule bg-paper-raised px-4">
+    <div className="divide-y divide-rule rounded-xl bg-paper-raised px-4">
       {children}
     </div>
   );
@@ -442,10 +442,10 @@ function ResetCalendar({
 
   if (!confirming) {
     return (
-      <div className="border-t border-rule pt-4">
+      <div className="border-t border-rule pt-4 text-center">
         <button
           type="button"
-          className="text-xs text-ink-muted underline underline-offset-2 hover:text-signal"
+          className="text-xs text-ink-muted underline underline-offset-2 hover:text-signal cursor-pointer"
           onClick={() => setConfirming(true)}
         >
           Сбросить настройки календаря

@@ -228,7 +228,7 @@ export function Modal({
       style={{ ...origin?.style, ...style }}
       className={cn(
         "m-auto w-[min(44rem,calc(100vw-2rem))] max-h-[min(85dvh,52rem)]",
-        "rounded-xl border border-rule bg-paper p-0 text-ink",
+        "rounded-xl bg-paper p-0 text-ink",
         "backdrop:bg-black/60",
         "open:flex open:flex-col",
         sheet && [
@@ -246,7 +246,7 @@ export function Modal({
     >
       <header
         className={cn(
-          "flex shrink-0 items-start gap-4 border-b border-rule px-5 py-4",
+          "flex shrink-0 items-start gap-4 border-b border-rule px-5 py-4 bg-paper-raised",
           // Шапка листа встаёт ровно на место шапки страницы: та же высота
           // (`h-16` — она же `BAR_HEIGHT` в `sheet-origin.ts`), те же поля
           // (`px-6`), та же вертикальная середина.
@@ -285,8 +285,8 @@ export function Modal({
           телефоне утаскивал за собой страницу под окном. */}
       <div
         className={cn(
-          "min-h-0 flex-auto overflow-y-auto overscroll-contain px-5 py-4",
-          sheet && "sheet__body max-sm:px-6",
+          "min-h-0 flex-auto overflow-y-auto overscroll-contain px-4 py-4 bg-paper-raised",
+          sheet && "sheet__body max-sm:px-4",
           bodyClassName,
         )}
       >

@@ -584,14 +584,11 @@ function DayForm({
             value={note}
             maxLength={500}
             rows={3}
-            placeholder="Например: вызов в резерв"
+            placeholder=""
             onChange={(event) => setNote(event.target.value)}
-            className="block w-full rounded-sm border border-rule-strong bg-paper px-3 py-2 text-sm text-ink placeholder:text-ink-faint"
+            className="block w-full rounded-lg bg-paper px-3 py-2 text-sm text-ink transition-all
+                       placeholder:text-ink-faint hover:border hover:border-ink-muted duration-200"
           />
-          <p className="text-xs text-ink-muted">
-            Только для вашей памяти: на расчёт не влияет, но в календаре видно,
-            что запись есть.
-          </p>
         </div>
 
         <div className="flex flex-wrap gap-2 border-t border-rule pt-4">
