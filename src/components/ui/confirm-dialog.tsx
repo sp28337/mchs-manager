@@ -78,7 +78,12 @@ export function ConfirmDialog({
       className="w-[min(26rem,calc(100vw-2rem))]"
     >
       <div className="space-y-4">
-        <div className="space-y-2 text-sm">{children}</div>
+        {/* Тот же вид, что у карточки настроек: вопрос стоит на поднятой
+            бумаге, кнопки — на самой странице окна. Строк «вопрос — ответ»
+            здесь нет, поэтому и карточка взята без них — одной заливкой. */}
+        <div className="space-y-2 rounded-xl bg-paper-raised px-4 py-3 text-sm">
+          {children}
+        </div>
 
         <div className="flex flex-wrap items-center gap-2">
           <Button

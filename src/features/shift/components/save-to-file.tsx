@@ -4,8 +4,8 @@ import { useId, useState, type ReactNode } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Modal } from "@/components/ui/modal";
+import { Card, Field } from "@/components/ui/panel";
 
 import { exportProfile, type StoredProfile } from "../storage/profile";
 
@@ -94,26 +94,27 @@ function SaveDialog({
   return (
     <Modal open={open} onClose={onClose} title="Сохранить профиль в файл">
       <div className="space-y-4">
-        <div className="space-y-1.5">
-          <Label htmlFor={nameId}>Имя файла</Label>
-          <Input
+        <Card>
+          <Field
             id={nameId}
-            value={name}
-            maxLength={100}
-            className="bg-paper-raised"
-            placeholder={suggested}
-            onChange={(event) => onName(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === "Enter") submit();
-            }}
-          />
-          <p className="text-xs text-ink-muted">
-            Расширение «.json» допишется само. Запрещённые в именах файлов
-            знаки заменятся на дефис.
-          </p>
-        </div>
+            label="Имя файла"
+            note="Расширение «.json» допишется само. Запрещённые в именах файлов знаки заменятся на дефис."
+            stack
+          >
+            <Input
+              id={nameId}
+              value={name}
+              maxLength={100}
+              placeholder={suggested}
+              onChange={(event) => onName(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") submit();
+              }}
+            />
+          </Field>
+        </Card>
 
-        <div className="flex flex-wrap gap-2 border-t border-rule pt-4">
+        <div className="flex flex-wrap gap-2 pt-1">
           <Button type="button" onClick={submit}>
             Сохранить
           </Button>
