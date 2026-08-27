@@ -75,7 +75,7 @@ export function ScheduleMark() {
   // прыжок. React такую правку поощряет — она сворачивается в ту же
   // отрисовку, до показа.
   if (pattern !== shown) {
-    // Счётчик, а не просто график: переключи 1/3 → 2/2 → 1/3, и догорать
+    // Счётчик, а не просто график: переключи 1|3 → 2|2 → 1|3, и догорать
     // будет дважды один и тот же — без счётчика второй раз не отличить от
     // первого, и таймер бы не перезапустился.
     setBurning({ pattern: shown, at: (burning?.at ?? 0) + 1 });
@@ -119,14 +119,14 @@ function Digits({
   ash,
   kindle,
 }: {
-  /** Подпись графика: «1/3», «2/2», «3/1». */
+  /** Подпись графика: «1|3», «2|2», «3|1». */
   pattern: string;
   /** Эти цифры догорают: их сносит и растворяет. */
   ash?: boolean;
   /** Эти цифры приходят на смену догорающим. */
   kindle?: boolean;
 }) {
-  const [first = "1", second = "3"] = pattern.split("/");
+  const [first = "1", second = "3"] = pattern.split("|");
   const digit = ash ? "mark-ash" : kindle ? "mark-kindle" : undefined;
 
   return (

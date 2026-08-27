@@ -243,9 +243,9 @@ export const WEEKLY_NORM_GROUNDS: readonly WeeklyNormGround[] = [
 ];
 
 export const WEEKLY_NORM_GROUND_LABELS: Record<WeeklyNormGround, string> = {
-  base: "40 часов",
-  harmful: "36 часов",
-  disability: "35 часов",
+  base: "40 ч",
+  harmful: "36 ч",
+  disability: "35 ч",
 };
 
 /** Признаки, которые задаёт выбранное основание. */

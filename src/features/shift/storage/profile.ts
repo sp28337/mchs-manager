@@ -31,9 +31,12 @@ import { z } from "zod";
 
 import {
   DEFAULT_SCHEDULE_PATTERN,
+  LEGACY_PATTERN_IDS,
   MAX_CUSTOM_DAYS,
   MIN_CUSTOM_DAYS,
+  migrateSchedulePatternId,
   resolveSchedulePattern,
+  type SchedulePatternId,
 } from "../domain/schedule-pattern";
 import { DEFAULT_SHIFT_START, type ShiftSpan } from "../domain/shift-hours";
 import type { ShiftOverride } from "../domain/value-objects";
@@ -123,10 +126,25 @@ export const storedProfileSchema = z.object({
    * Необязательное с умолчанием: профили, сохранённые до появления
    * выбора, читаются как «сутки через трое» — единственный график, который
    * тогда и был.
+   *
+   * Старое написание через косую черту («1/3») читается наравне с нынешним
+   * и тут же заменяется нынешним. Отказать в чтении было нельзя: такие
+   * профили лежат в браузерах у людей, и профиль, не открывшийся из-за
+   * смены знака в служебной строке, — это потерянный год внесённых
+   * отпусков. Обратно в хранилище уходит уже новое написание, при первой
+   * же записи, — человек ничего не делает и ничего не замечает.
    */
   schedulePattern: z
-    .enum(["1/3", "2/2", "5/2", "1/4", "custom"])
-    .default(DEFAULT_SCHEDULE_PATTERN),
+    .enum([
+      "1|3",
+      "2|2",
+      "5|2",
+      "1|4",
+      "custom",
+      ...(Object.keys(LEGACY_PATTERN_IDS) as [string, ...string[]]),
+    ])
+    .default(DEFAULT_SCHEDULE_PATTERN)
+    .transform((id) => migrateSchedulePatternId(id) as SchedulePatternId),
   /**
    * Свой цикл: сколько суток подряд рабочих и сколько выходных.
    *
@@ -378,7 +396,7 @@ export function subscribeToStoredProfile(onChange: () => void): () => void {
 }
 
 /**
- * Подпись графика из сохранённого профиля — «1/3», «2/2», «3/1».
+ * Подпись графика из сохранённого профиля — «1|3», «2|2», «3|1».
  *
  * Строкой намеренно, и не опознанием, а именно подписью. Опознания мало:
  * у своего графика оно одно на все циклы, а в шапке стоят сами числа.

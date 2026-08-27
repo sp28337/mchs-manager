@@ -31,7 +31,7 @@ describe("правки графика", () => {
     firstShiftDate: "2026-01-01",
     accountingYear: 2026,
     shiftStartTime: "08:00",
-    schedulePattern: "1/3",
+    schedulePattern: "1|3",
     shiftDurationHours: "24",
     customWorkDays: 1,
     customRestDays: 3,
@@ -125,7 +125,7 @@ describe("часы смены", () => {
     firstShiftDate: "2026-01-01",
     accountingYear: 2026,
     shiftStartTime: "08:00",
-    schedulePattern: "1/3",
+    schedulePattern: "1|3",
     shiftDurationHours: "24",
     customWorkDays: 1,
     customRestDays: 3,
@@ -218,7 +218,7 @@ describe("часы смены", () => {
   it("предпраздничный день короче на час и в часах по графику", () => {
     const week = {
       ...profile,
-      schedulePattern: "5/2" as const,
+      schedulePattern: "5|2" as const,
       shiftDurationHours: "8",
     };
     // Предпраздничных дней в 2026 году четыре: 30 апреля, 8 мая, 11 июня и

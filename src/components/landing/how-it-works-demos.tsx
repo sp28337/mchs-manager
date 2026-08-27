@@ -335,8 +335,8 @@ export function DemoSchedule() {
                 сайта при смене графика: старое истлевает и его сносит,
                 новое занимается на его месте. */}
             <span className="relative inline-block">
-              <span className="demo-swap-out">1/3</span>
-              <span className="demo-swap-in absolute left-0 top-0">2/2</span>
+              <span className="demo-swap-out">1|3</span>
+              <span className="demo-swap-in absolute left-0 top-0">2|2</span>
             </span>
           </Field>
           <Field label="Норма в неделю">40 часов</Field>

@@ -257,8 +257,8 @@ function CalendarPopover({
           onOpenChange(!open);
         }}
         className={cn(
-          "flex size-9 items-center justify-center rounded-xs border border-rule-strong bg-paper",
-          "hover:border-ink focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-trace",
+          "flex size-9 items-center justify-center rounded-lg cursor-pointer bg-paper transition-all duration-200",
+          "hover:border-ink hover:border focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-trace",
           open && "border-ink",
         )}
       >
