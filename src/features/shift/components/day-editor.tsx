@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Modal } from "@/components/ui/modal";
+import { Card, Field } from "@/components/ui/panel";
 import { Select } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 
@@ -422,12 +423,30 @@ function DayForm({
           </section>
         ) : null}
 
+        {/* Вопросы — одной карточкой, тем же строем, что и настройки:
+            строки под общей рамкой, ответ у каждой на своём месте. Прежде
+            они шли по окну сплошняком, и на телефоне, где окно во весь
+            экран, конец одного вопроса от начала следующего отличался
+            только кеглем. */}
+        <Card>
+
         {/* Вид дня — вопрос производственного календаря, и спрашивается
             он там же, где календарь: на сетке графика этому списку взяться
             неоткуда. */}
         {kind === "calendar" ? (
-        <div className="space-y-1.5">
-          <Label htmlFor={dayTypeId}>Что это за день по календарю</Label>
+        <Field
+          id={dayTypeId}
+          label="Что это за день по календарю"
+          stack
+          note={
+            <>
+              {DAY_TYPE_EFFECT[dayType]}.
+              {dayType === lawful
+                ? " Это и есть значение по закону."
+                : ` По закону здесь ${DAY_TYPE_LABELS[lawful].toLowerCase()} — ваша правка это переопределит.`}
+            </>
+          }
+        >
           <Select
             id={dayTypeId}
             value={dayType}
@@ -440,13 +459,7 @@ function DayForm({
               </option>
             ))}
           </Select>
-          <p className="text-xs text-ink-muted" aria-live="polite">
-            {DAY_TYPE_EFFECT[dayType]}.
-            {dayType === lawful
-              ? " Это и есть значение по закону."
-              : ` По закону здесь ${DAY_TYPE_LABELS[lawful].toLowerCase()} — ваша правка это переопределит.`}
-          </p>
-        </div>
+        </Field>
         ) : null}
 
         {/* Смена или выходной — самый частый вопрос на сетке графика после
@@ -461,25 +474,26 @@ function DayForm({
             тумблером, потому что это его смысл, а не второе состояние
             какого-то другого переключателя. */}
         {kind === "shifts" ? (
-        <div className="space-y-1.5">
-          <Switch
-            checked={shift}
-            onChange={setShift}
-            label="Смена в этот день"
-            className="font-display text-xs font-bold uppercase tracking-wide"
-          />
-          <p className="text-xs text-ink-muted" aria-live="polite">
-            {shift ? "Часы смены идут в отработанное." : "Выходной: ни часов, ни ночных."}
-            {shift === onCycle
-              ? " Это и есть график по циклу."
-              : ` По циклу здесь ${onCycle ? "смена" : "выходной"} — ваша правка это переопределит.`}
-          </p>
-        </div>
+        <Field
+          label=""
+          stack
+          note={
+            <>
+              {shift ? "Часы смены идут в отработанное." : "Выходной: ни часов, ни ночных."}
+              {shift === onCycle
+                ? " Это и есть график по циклу."
+                : ` По циклу здесь ${onCycle ? "смена" : "выходной"} — ваша правка это переопределит.`}
+            </>
+          }
+        >
+          <Switch checked={shift} onChange={setShift} label="Смена в этот день" spread />
+        </Field>
         ) : null}
 
         {/* Со скольки и до скольки. Спрашивается только там, где часы есть,
             — у смены; на выходном отвечать было бы не о чем. */}
         {kind === "shifts" && shift ? (
+          <Field label="" stack>
           <ShiftHoursField
             day={day}
             startsAt={startsAt}
@@ -493,6 +507,7 @@ function DayForm({
               setDurationHours(spanHoursText(schedule));
             }}
           />
+          </Field>
         ) : null}
 
         {/* Сутки без своей смены, но с чужими часами: сюда дотянулась смена,
@@ -500,18 +515,36 @@ function DayForm({
             одна смена правилась бы из двух разных дней, и правки эти
             неминуемо разошлись бы. */}
         {kind === "shifts" && !shift && tailFrom !== null ? (
-          <p className="rounded-xl bg-paper-sunken px-4 py-3 text-xs text-ink-muted">
-            Эти сутки — продолжение смены с {formatDayMonthRu(tailFrom)}: её
-            хвост от полуночи до сдачи посчитан здесь. Часы правятся в тех
-            сутках, где смена началась.
-          </p>
+          <Field
+            label=""
+            stack
+            note={
+              <>
+                Эти сутки — продолжение смены с {formatDayMonthRu(tailFrom)}: её
+                хвост от полуночи до сдачи посчитан здесь. Часы правятся в тех
+                сутках, где смена началась.
+              </>
+            }
+          >
+            {null}
+          </Field>
         ) : null}
 
         {/* Отпуск, больничный и вызов — про самого человека, и место им на
             сетке его смен. */}
         {kind === "shifts" ? (
-        <div className="space-y-1.5">
-          <Label htmlFor={choiceId}>Что в этот день</Label>
+        <Field
+          id={choiceId}
+          label="Что в этот день"
+          stack
+          note={
+            isAbsence
+              ? ABSENCE_EFFECT[(parts?.[1] ?? "annual_leave") as AbsenceKind]
+              : isCallout
+                ? "Часы прибавляются к отработанному, норму не трогают (ч. 1 ст. 54 ФЗ-141, ст. 91 ТК РФ)."
+                : undefined
+          }
+        >
           <Select
             id={choiceId}
             value={choice}
@@ -536,23 +569,15 @@ function DayForm({
               ))}
             </optgroup>
           </Select>
-          {isAbsence ? (
-            <p className="text-xs text-ink-muted" aria-live="polite">
-              {ABSENCE_EFFECT[(parts?.[1] ?? "annual_leave") as AbsenceKind]}
-            </p>
-          ) : null}
-          {isCallout ? (
-            <p className="text-xs text-ink-muted" aria-live="polite">
-              Часы прибавляются к отработанному, норму не трогают (ч. 1 ст. 54
-              ФЗ-141, ст. 91 ТК РФ).
-            </p>
-          ) : null}
-        </div>
+        </Field>
         ) : null}
 
         {/* Вторая дата и часы появляются только у того, чему они нужны:
             пустые поля «на всякий случай» человек читает как обязательные. */}
+        {/* Подпись у второй даты своя — поле само её рисует вместе с
+            подсказкой, поэтому строка карточки берёт его целиком. */}
         {choice !== "none" ? (
+          <Field label="" stack>
           <DateField
             key={choice}
             label="По дату включительно"
@@ -565,11 +590,11 @@ function DayForm({
             }
             onChange={setEndsOn}
           />
+          </Field>
         ) : null}
 
         {isCallout ? (
-          <div className="space-y-1.5">
-            <Label htmlFor={hoursId}>Часов в сутки</Label>
+          <Field id={hoursId} label="Часов в сутки">
             <Input
               id={hoursId}
               inputMode="decimal"
@@ -577,11 +602,10 @@ function DayForm({
               onChange={(event) => setHours(event.target.value)}
               className="w-28 font-mono"
             />
-          </div>
+          </Field>
         ) : null}
 
-        <div className="space-y-1.5">
-          <Label htmlFor={noteId}>Заметка</Label>
+        <Field id={noteId} label="Заметка" stack>
           <textarea
             id={noteId}
             value={note}
@@ -592,9 +616,10 @@ function DayForm({
             className="block w-full rounded-lg bg-paper px-3 py-2 text-sm text-ink transition-all
                        placeholder:text-ink-faint hover:border hover:border-ink-muted duration-200"
           />
-        </div>
+        </Field>
+        </Card>
 
-        <div className="flex flex-wrap gap-2 border-t border-rule pt-4">
+        <div className="flex flex-wrap gap-2 pt-1">
           <Button type="button" onClick={submit}>
             Сохранить
           </Button>

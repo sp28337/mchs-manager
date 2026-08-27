@@ -4,9 +4,8 @@ import { CalendarRange } from "lucide-react";
 import { useId, useState } from "react";
 
 import { Button } from "@/components/ui/button";
-import { Hint } from "@/components/ui/hint";
-import { Label } from "@/components/ui/label";
 import { Modal } from "@/components/ui/modal";
+import { Card, Field } from "@/components/ui/panel";
 import { Select } from "@/components/ui/select";
 import { cn } from "@/lib/utils/cn";
 
@@ -185,6 +184,7 @@ export function PeriodPicker({
 
       <Modal open={open} onClose={() => setOpen(false)} title="За какой период">
         <div className="space-y-4">
+          <Card>
           <Field
             id={partId}
             label="Учётный период"
@@ -244,8 +244,9 @@ export function PeriodPicker({
               ))}
             </Select>
           </Field>
+          </Card>
 
-          <div className="border-t border-rule pt-4">
+          <div className="pt-1">
             <Button type="button" onClick={() => setOpen(false)}>
               Готово
             </Button>
@@ -262,24 +263,3 @@ export function PeriodPicker({
  * Знак вопроса стоит у подписи, а не под полем: пояснение отвечает на
  * вопрос «что здесь выбрать», и читают его до выбора, а не после.
  */
-function Field({
-  id,
-  label,
-  hint,
-  children,
-}: {
-  id: string;
-  label: string;
-  hint?: React.ReactNode;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="space-y-1.5">
-      <div className="flex items-center gap-1.5">
-        <Label htmlFor={id}>{label}</Label>
-        {hint ? <Hint label={`Что такое «${label}»`}>{hint}</Hint> : null}
-      </div>
-      {children}
-    </div>
-  );
-}
