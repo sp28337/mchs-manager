@@ -87,7 +87,7 @@ export function WorkspaceSkeleton() {
           под ним — то же, что в рабочем экране: полоса итога поднята на
           восемь точек и легла бы прямо на имя. */}
       <header className="pb-12">
-        <h1 className="text-3xl sm:text-4xl opacity-10 leading-tight text-center">
+        <h1 className="text-3xl font-hand sm:text-5xl opacity-10 leading-tight text-center">
           <BoneText skeleton className="rounded-xl">
             Мой график
           </BoneText>

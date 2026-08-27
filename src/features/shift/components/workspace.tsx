@@ -187,7 +187,7 @@ export function Workspace({ profile, onChange, onForget }: WorkspaceProps) {
           просвет под шапкой), и без этого зазора щиток лёг бы прямо на
           имя. */}
       <header className="pb-12">
-        <h1 className="text-3xl sm:text-4xl opacity-10 leading-tight text-center">{profile.displayName}</h1>
+        <h1 className="text-3xl font-hand sm:text-5xl opacity-10 leading-tight text-center">{profile.displayName}</h1>
       </header>
 
       {/* Итог — закреплённой полосой, календарь — во всю ширину под ней.
