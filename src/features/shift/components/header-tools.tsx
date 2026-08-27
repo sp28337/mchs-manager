@@ -1,7 +1,7 @@
 "use client";
 
 import { Save, Settings2, type LucideIcon } from "lucide-react";
-import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { useRef, useState, type CSSProperties } from "react";
 
 import { Modal } from "@/components/ui/modal";
 import { cn } from "@/lib/utils/cn";
@@ -99,30 +99,21 @@ export function HeaderTools({
 
   // Путь значка: замеряется в момент нажатия, потому что до нажатия он
   // неизвестен — подписи на кнопках появляются с 448 точек и сдвигают
-  // значок вправо на всю ширину слова.
+  // значок вправо на всю ширину слова. Остальную мерку (откуда растёт
+  // заливка шапки) снимает сам лист по кнопке.
   const icon = useRef<SVGSVGElement>(null);
+  const [button, setButton] = useState<HTMLButtonElement | null>(null);
   const [travel, setTravel] = useState<number | null>(null);
 
-  function openSettings() {
+  function openSettings(pressed: HTMLButtonElement) {
     const from = icon.current?.getBoundingClientRect();
     const to = document.querySelector("[data-brand]")?.getBoundingClientRect();
     // Не замерилось — не беда: без переменной значок просто проступит на
     // своём месте, остальной переход не зависит от неё.
     setTravel(from && to ? Math.round(from.left - to.left) : null);
+    setButton(pressed);
     setOpen(true);
   }
-
-  // Метка на корне документа: ею лист гасит настоящую шапку и содержимое
-  // страницы под собой. Изнутри `dialog` до них не дотянуться — он в
-  // верхнем слое, и никакой его потомок не может выбрать соседа страницы.
-  useEffect(() => {
-    if (!open) return;
-    const root = document.documentElement;
-    root.dataset.sheet = "settings";
-    return () => {
-      delete root.dataset.sheet;
-    };
-  }, [open]);
 
   return (
     <>
@@ -137,7 +128,9 @@ export function HeaderTools({
             <button
               key={id}
               type="button"
-              onClick={() => (id === "save" ? save.ask() : openSettings())}
+              onClick={(event) =>
+                id === "save" ? save.ask() : openSettings(event.currentTarget)
+              }
               // Имя кнопки не зависит от того, видна подпись или нет:
               // на узком экране от кнопки остаётся значок, и без имени она
               // стала бы для программы чтения безымянной.
@@ -166,25 +159,16 @@ export function HeaderTools({
         open={open}
         onClose={() => setOpen(false)}
         sheet
+        from={button}
         style={
           travel === null
             ? undefined
-            : ({ "--settings-travel": `${travel}px` } as CSSProperties)
+            : ({ "--sheet-mark-travel": `${travel}px` } as CSSProperties)
         }
-        className="settings-sheet"
-        // Шапка листа встаёт на место шапки страницы: та же высота (`h-16`),
-        // те же поля (`px-6`), та же вертикальная середина. Отбивки снизу у
-        // неё нет — у шапки страницы её тоже нет, а линия на этом месте
-        // выдала бы подмену.
-        headerClassName="settings-sheet__bar max-sm:h-16 max-sm:items-center max-sm:border-b-0 max-sm:px-6 max-sm:py-0"
-        bodyClassName="settings-sheet__body max-sm:px-6"
         title={
           <span className="flex items-center gap-2">
-            <Settings2
-              aria-hidden
-              className="settings-sheet__icon size-5 shrink-0 text-ink-muted"
-            />
-            <span className="settings-sheet__word">Настройки</span>
+            <Settings2 aria-hidden className="sheet__mark size-5 shrink-0 text-ink-muted" />
+            <span className="sheet__word">Настройки</span>
           </span>
         }
       >

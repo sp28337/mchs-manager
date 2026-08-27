@@ -168,6 +168,9 @@ export function Workspace({ profile, onChange, onForget }: WorkspaceProps) {
   // спорит, и переносить их дату в отдельную форму глазами — лишний шаг,
   // в котором и ошибаются.
   const [pickedDay, setPickedDay] = useState<IsoDate | null>(null);
+  // Клетка, по которой нажали: на телефоне окно суток вырастает из неё —
+  // из того самого дня, а не из ниоткуда.
+  const [pickedCell, setPickedCell] = useState<HTMLElement | null>(null);
 
   return (
     <>
@@ -228,7 +231,10 @@ export function Workspace({ profile, onChange, onForget }: WorkspaceProps) {
           onStatutory={setStatutory}
           month={month}
           onMonth={setMonth}
-          onPickDay={setPickedDay}
+          onPickDay={(day, cell) => {
+            setPickedCell(cell);
+            setPickedDay(day);
+          }}
           // Перенос смены — одно событие, и в профиль он попадает одной
           // правкой: снять здесь, назначить там (`withShiftMoved`).
           onMoveShift={(from, to) =>
@@ -246,6 +252,7 @@ export function Workspace({ profile, onChange, onForget }: WorkspaceProps) {
           (`yearView`), и второго источника правды заводить не нужно. */}
       <DayEditor
         day={pickedDay}
+        from={pickedCell}
         kind={yearView === "calendar" ? "calendar" : "shifts"}
         profile={profile}
         onChange={onChange}

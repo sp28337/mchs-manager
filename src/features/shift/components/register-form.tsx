@@ -33,6 +33,9 @@ export interface RegisterFormProps {
 
 export function RegisterForm({ onCreated, notice }: RegisterFormProps) {
   const [open, setOpen] = useState(true);
+  // Кнопка, по которой нажали. При первом показе её нет — окно открыто
+  // сразу, никто его не открывал, — и лист заливается без роста.
+  const [button, setButton] = useState<HTMLButtonElement | null>(null);
 
   return (
     <>
@@ -46,7 +49,10 @@ export function RegisterForm({ onCreated, notice }: RegisterFormProps) {
               type="button"
               size="lg"
               className="rounded-xl text-base font-bold"
-              onClick={() => setOpen(true)}
+              onClick={(event) => {
+                setButton(event.currentTarget);
+                setOpen(true);
+              }}
             >
               <CtaIcon />
               Заполнить профиль
@@ -58,6 +64,7 @@ export function RegisterForm({ onCreated, notice }: RegisterFormProps) {
       <CreateProfileModal
         open={open}
         onClose={() => setOpen(false)}
+        from={button}
         onCreated={onCreated}
         notice={notice}
       />

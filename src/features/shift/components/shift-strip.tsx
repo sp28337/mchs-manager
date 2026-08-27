@@ -182,8 +182,9 @@ export function ShiftStrip({
   gridClassName?: string;
   /** Заметки к суткам: их наличие видно прямо в клетке. */
   dayNotes: Readonly<Record<string, string>>;
-  /** Нажатие по клетке: открыть правку этих суток. */
-  onPickDay: (day: IsoDate) => void;
+  /** Нажатие по клетке: открыть правку этих суток. Вторым доводом идёт
+   *  сама клетка — на телефоне окно суток вырастает из неё. */
+  onPickDay: (day: IsoDate, from: HTMLElement) => void;
   /**
    * Перенос смены на другие сутки.
    *
@@ -346,7 +347,7 @@ export function ShiftStrip({
                 upcoming={upcoming != null && day >= upcoming}
                 drag={drag}
                 draggable={onMoveShift !== undefined && starts.has(day)}
-                onPick={() => onPickDay(day)}
+                onPick={(cell) => onPickDay(day, cell)}
               />
             )}
           />
@@ -494,7 +495,7 @@ function DayCell({
   drag: ShiftDrag;
   /** Есть ли в этих сутках смена, которую можно унести. */
   draggable: boolean;
-  onPick: () => void;
+  onPick: (cell: HTMLElement) => void;
 }) {
   const date = dayOfMonth(day);
   const weekdayName = WEEKDAY_LABELS[weekday(day)] ?? "";
@@ -593,7 +594,7 @@ function DayCell({
     <button
       type="button"
       title={full}
-      onClick={onPick}
+      onClick={(event) => onPick(event.currentTarget)}
       {...drag.cellProps(day, draggable)}
       className={cn(
         "relative flex aspect-square w-full min-w-0 cursor-pointer flex-col",

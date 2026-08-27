@@ -1,9 +1,18 @@
 "use client";
 
 import { X } from "lucide-react";
-import { useEffect, useId, useRef, type CSSProperties, type ReactNode } from "react";
+import {
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  type CSSProperties,
+  type ReactNode,
+} from "react";
 
 import { cn } from "@/lib/utils/cn";
+
+import { sheetOrigin } from "./sheet-origin";
 
 /**
  * Модальное окно со справкой.
@@ -68,12 +77,27 @@ import { cn } from "@/lib/utils/cn";
  * снятая прокрутка — остаётся тем же, потому что это тот же `dialog`.
  * Заводить ради полноэкранного вида отдельную деталь значило бы завести
  * второй такой же список подводных камней.
+ *
+ * Лист не появляется рывком, а ВЫРАСТАЕТ из того, по чему нажали: шапка
+ * листа встаёт на место шапки страницы и заливается фоном самой кнопки —
+ * будто её подложка со всеми скруглениями выросла, пока не накрыла шапку
+ * целиком; страница под листом гаснет, поля поднимаются. Полноэкранное
+ * окно, возникшее мгновенно, на телефоне неотличимо от перехода на другую
+ * страницу: человек видит другой экран и тянется к кнопке «назад»
+ * браузера, а она уводит с сайта.
+ *
+ * Мерку с кнопки снимает `sheetOrigin`, хореография — в `globals.css`,
+ * здесь только имена, за которые она цепляется, и метка `data-sheet` на
+ * корне документа. Метка нужна потому, что `dialog` живёт в верхнем слое:
+ * изнутри него до шапки страницы и её содержимого не дотянуться никаким
+ * селектором.
  */
 export function Modal({
   open,
   onClose,
   title,
   sheet,
+  from,
   children,
   className,
   style,
@@ -86,6 +110,12 @@ export function Modal({
   title: ReactNode;
   /** Ниже `sm` — во весь экран, без скруглений и рамки. */
   sheet?: boolean;
+  /**
+   * Кнопка, из которой вырос лист. Без неё лист откроется заливкой во всю
+   * шапку, без роста, — так открывается окно, которое человек не открывал
+   * (испорченный профиль показывает своё сразу).
+   */
+  from?: HTMLElement | null;
   children: ReactNode;
   className?: string;
   /** Замеренные величины перехода — переменными CSS. */
@@ -102,6 +132,16 @@ export function Modal({
   // недопустимая разметка, и `aria-labelledby`, указывающий не туда.
   const titleId = useId();
 
+  // Мерка снимается ЗДЕСЬ, при отрисовке открытия, а не в эффекте: к
+  // эффекту лист уже открыт и закрыл собой то, что нужно измерить. Замер
+  // ничего не меняет на странице — он только читает.
+  const origin = useMemo(
+    () => (open && sheet ? sheetOrigin(from) : undefined),
+    // Кнопку и открытие ставит одно и то же нажатие, поэтому пересчёт
+    // привязан к обоим: `from` без `open` — прошлое нажатие.
+    [open, sheet, from],
+  );
+
   useEffect(() => {
     const dialog = ref.current;
     if (!dialog) return;
@@ -109,6 +149,16 @@ export function Modal({
     if (open && !dialog.open) dialog.showModal();
     else if (!open && dialog.open) dialog.close();
   }, [open]);
+
+  // Метка, которой лист гасит страницу под собой.
+  useEffect(() => {
+    if (!open || !sheet) return;
+    const root = document.documentElement;
+    root.dataset.sheet = "";
+    return () => {
+      delete root.dataset.sheet;
+    };
+  }, [open, sheet]);
 
   useEffect(() => {
     if (!open) return;
@@ -132,11 +182,30 @@ export function Modal({
     document.body.style.overflow = "hidden";
     if (!gutter && bar > 0) document.body.style.paddingRight = `${bar}px`;
 
+    // Лист — исключение: место под полосу ему вредит.
+    //
+    // Оставленное под полосу место рисуется ПОВЕРХ верхнего слоя, где живёт
+    // открытый `dialog`. Обычному окну это ничего не стоит — оно с полями и
+    // до края экрана не достаёт, — а лист занимает экран целиком, и у его
+    // правого края остаётся белая полоска шириной ровно в полосу прокрутки
+    // (замером: десять точек). Выглядит она как непрокрашенный край листа.
+    //
+    // Пока лист открыт, места под полосу не держим: прокрутки всё равно
+    // нет, а страница, ради которой место и держалось, не видна. Ширина
+    // страницы под листом при этом меняется, и в этом весь смысл проверки
+    // ширины — на настольном экране лист не открывается, там окно как окно,
+    // и трогать раскладку не за чем.
+    const root = document.documentElement;
+    const previousGutter = root.style.scrollbarGutter;
+    const asSheet = sheet === true && window.matchMedia("(width < 40rem)").matches;
+    if (asSheet) root.style.scrollbarGutter = "auto";
+
     return () => {
       document.body.style.overflow = previous;
       document.body.style.paddingRight = previousPadding;
+      if (asSheet) root.style.scrollbarGutter = previousGutter;
     };
-  }, [open]);
+  }, [open, sheet]);
 
   return (
     <dialog
@@ -153,13 +222,17 @@ export function Modal({
         if (event.target === ref.current) onClose();
       }}
       aria-labelledby={titleId}
-      style={style}
+      // Куда растёт заливка, решает мерка: кнопка из шапки растёт в шапку,
+      // кнопка со страницы — в страницу. Без мерки роста нет вовсе.
+      data-grow={sheet ? (origin?.growth ?? "none") : undefined}
+      style={{ ...origin?.style, ...style }}
       className={cn(
         "m-auto w-[min(44rem,calc(100vw-2rem))] max-h-[min(85dvh,52rem)]",
         "rounded-xl border border-rule bg-paper p-0 text-ink",
         "backdrop:bg-black/60",
         "open:flex open:flex-col",
         sheet && [
+          "sheet",
           "max-sm:m-0 max-sm:h-dvh max-sm:max-h-none",
           "max-sm:w-screen max-sm:max-w-none",
           "max-sm:rounded-none max-sm:border-0",
@@ -174,6 +247,10 @@ export function Modal({
       <header
         className={cn(
           "flex shrink-0 items-start gap-4 border-b border-rule px-5 py-4",
+          // Шапка листа встаёт ровно на место шапки страницы: та же высота
+          // (`h-16` — она же `BAR_HEIGHT` в `sheet-origin.ts`), те же поля
+          // (`px-6`), та же вертикальная середина.
+          sheet && "sheet__bar max-sm:h-16 max-sm:items-center max-sm:px-6 max-sm:py-0",
           headerClassName,
         )}
       >
@@ -209,6 +286,7 @@ export function Modal({
       <div
         className={cn(
           "min-h-0 flex-auto overflow-y-auto overscroll-contain px-5 py-4",
+          sheet && "sheet__body max-sm:px-6",
           bodyClassName,
         )}
       >
