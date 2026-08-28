@@ -175,7 +175,7 @@ function FiguresRow({
     // Полоса залита бумагой, хотя плашки в ней и свои: без заливки между
     // ними просвечивает календарь — он проезжает под закреплённой полосой,
     // и в зазорах видно, как едут клетки.
-    <div ref={row} className="relative flex items-stretch gap-2 bg-paper px-6 pb-3">
+    <div ref={row} className="relative flex items-stretch gap-2  px-6 pb-3">
       <MainPlate
         calculation={calculation}
         inDays={inDays}

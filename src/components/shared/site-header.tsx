@@ -62,7 +62,7 @@ export interface SiteHeaderProps {
 
 export function SiteHeader({ action, tools, className }: SiteHeaderProps) {
   return (
-    <header className={cn("fixed z-100 w-full bg-paper group", className)}>
+    <header className={cn("fixed z-100 w-full group", className)}>
       <div className="mx-auto flex h-16 w-full flex-nowrap items-center gap-x-4 py-3 px-6 sm:gap-x-6 2xl:max-w-[2000px]">
         <Link
           href="/"

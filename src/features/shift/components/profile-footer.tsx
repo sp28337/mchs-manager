@@ -41,10 +41,10 @@ export function ProfileFooter({ profile }: ProfileFooterProps) {
         </div>
 
         <p className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-xs text-ink-muted">
-          <Link href="/terms" className="text-ink-muted">
+          <Link href="/terms" className="text-ink-muted hover:underline">
             Условия использования
           </Link>
-          <Link href="/terms#data" className="text-ink-muted">
+          <Link href="/terms#data" className="text-ink-muted hover:underline">
             Данные и приватность
           </Link>
           <span>

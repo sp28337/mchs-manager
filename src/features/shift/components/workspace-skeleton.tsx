@@ -97,7 +97,7 @@ export function WorkspaceSkeleton() {
       {/* Полоса итога. Закреплена так же, как настоящая: иначе при
           прокрутке заглушка вела бы себя иначе, чем расчёт. */}
       <div className="sticky top-24 z-40 -mx-6 -translate-y-8">
-        <div className="relative flex items-stretch gap-2 bg-paper px-6 pb-3">
+        <div className="relative flex items-stretch gap-2  px-6 pb-3">
           <MainPlateBone />
 
           {/* Мелкие плашки появляются там же, где в расчёте: тот меряет
@@ -467,7 +467,7 @@ function ProfileFooterBones() {
           {/* Переключатель темы: рамка, поле в полточки и три кнопки по
               двадцать восемь — тридцать четыре точки в высоту, а не
               «примерно тридцать два». */}
-          <span className="flex w-fit items-center gap-0.5 rounded-xl border border-rule p-0.5">
+          <span className="flex w-fit items-center gap-0.5 rounded-xl p-0.5">
             <Bone className="size-7 rounded-xl" />
             <Bone className="size-7 rounded-xl" />
             <Bone className="size-7 rounded-xl" />
