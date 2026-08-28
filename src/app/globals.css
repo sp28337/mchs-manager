@@ -1897,11 +1897,13 @@
 
 /* Пока до показа не долистали, он стоит в НАЧАЛЬНОМ кадре: анимации ему
    ещё не назначены, и всё, чему положено появиться, скрыто здесь. */
+.demo[data-play="off"] .demo-swap-mid,
 .demo[data-play="off"] .demo-swap-in,
 .demo[data-play="off"] .demo-became,
 .demo[data-play="off"] .demo-carried,
 .demo[data-play="off"] .demo-pointer,
-.demo[data-play="off"] .demo-strip-next,
+.demo[data-play="off"] .demo-cell-mid,
+.demo[data-play="off"] .demo-cell-last,
 .demo[data-play="off"] .demo-dialog,
 .demo[data-play="off"] .demo-file,
 .demo[data-play="off"] .demo-caret,
@@ -2017,10 +2019,38 @@
 /* --------------------------------------------------------------------------
    ПОКАЗ 1. ГРАФИК ПЕРЕСТРАИВАЕТ КАЛЕНДАРЬ.
 
-   Доли круга: 5 указатель подходит, 13 нажимает, 17 значение перегорает,
-   20 старая полоса уходит, 22 новая собирается волной по клетке, 30
-   указатель уходит. Дальше покой до 88, потом тихий возврат.
+   Нажатий здесь ДВА, и графиков поэтому три: «сутки через трое» → «два
+   через два» → «пять через два». Одного нажатия было мало: оно
+   показывало, что график меняется, но не показывало главного — что
+   меняется он НА ЛЮБОЙ, и последний из трёх устроен вовсе иначе
+   (пятидневку задаёт производственный календарь, а не скользящий цикл).
+
+   Круг у показа свой, восьмисекундный, вместо общего шестисекундного:
+   два нажатия в шесть секунд влезают, но между ними остаётся полсекунды —
+   меньше, чем нужно, чтобы прочитать собравшуюся полосу. Величина приходит
+   переменной, поэтому все доли ниже считаются уже от неё.
+
+   Доли круга:
+
+      4-11  указатель подходит к значению
+        13  нажимает
+        15  «1|3» перегорает в «2|2»
+        17  полоса «сутки через трое» уходит
+        20  полоса «два через два» собирается волной по клетке
+     30-36  указатель уходит
+     42-49  подходит второй раз
+        51  нажимает
+        53  «2|2» перегорает в «5|2»
+        55  полоса «два через два» уходит
+        58  полоса «пять через два» собирается
+     66-72  указатель уходит
+
+   Дальше покой до 88, потом тихий возврат к началу.
    -------------------------------------------------------------------------- */
+
+.demo-schedule {
+  --demo-cycle: 8000ms;
+}
 
 @keyframes demo-tap {
   0%,
@@ -2047,17 +2077,48 @@
   animation: demo-tap var(--demo-cycle) cubic-bezier(0.22, 1, 0.36, 1) infinite both;
 }
 
+/* Второе нажатие — своими кадрами, а не первыми со сдвигом.
+   Сдвиг задержкой был бы короче, но у бесконечной анимации он уносит за
+   край круга и хвост — возврат к началу: тот пришёлся бы на следующий
+   круг, посреди чужого хода. Кадры, целиком лежащие внутри круга, такого
+   не делают. */
+@keyframes demo-tap-again {
+  0%,
+  42% {
+    opacity: 0;
+    transform: translate(16px, 13px);
+  }
+
+  49%,
+  66% {
+    opacity: 1;
+    transform: none;
+  }
+
+  72%,
+  100% {
+    opacity: 0;
+    transform: translate(12px, 15px);
+  }
+}
+
+.demo[data-play="on"] .demo-tap-schedule-again {
+  --press: 51;
+  animation: demo-tap-again var(--demo-cycle) cubic-bezier(0.22, 1, 0.36, 1)
+    infinite both;
+}
+
 /* Старое значение истлевает и его сносит вверх и вправо, новое
    занимается на его месте. Те же кадры, что у цифр в названии сайта. */
 @keyframes demo-swap-out {
   0%,
-  17% {
+  15% {
     opacity: 1;
     transform: none;
     filter: none;
   }
 
-  24%,
+  22%,
   88% {
     opacity: 0;
     transform: translate(6px, -8px) rotate(4deg);
@@ -2072,22 +2133,49 @@
   }
 }
 
-@keyframes demo-swap-in {
+/* Среднее значение: приходит на первое нажатие и уходит на второе — то
+   есть делает и то и другое, и потому кадры у него свои, а не «приход» и
+   «уход» двумя анимациями. Две анимации на одном элементе спорили бы за
+   прозрачность и снос, и побеждала бы последняя. */
+@keyframes demo-swap-mid {
   0%,
-  20% {
+  17% {
     opacity: 0;
     transform: translateY(7px);
     filter: blur(3px);
   }
 
-  27%,
+  24%,
+  53% {
+    opacity: 1;
+    transform: none;
+    filter: none;
+  }
+
+  60%,
+  100% {
+    opacity: 0;
+    transform: translate(6px, -8px) rotate(4deg);
+    filter: blur(3px);
+  }
+}
+
+@keyframes demo-swap-in {
+  0%,
+  55% {
+    opacity: 0;
+    transform: translateY(7px);
+    filter: blur(3px);
+  }
+
+  62%,
   88% {
     opacity: 1;
     transform: none;
     filter: none;
   }
 
-  93%,
+  95%,
   100% {
     opacity: 0;
     transform: translateY(7px);
@@ -2099,18 +2187,22 @@
   animation: demo-swap-out var(--demo-cycle) ease-in-out infinite both;
 }
 
+.demo[data-play="on"] .demo-swap-mid {
+  animation: demo-swap-mid var(--demo-cycle) ease-in-out infinite both;
+}
+
 .demo[data-play="on"] .demo-swap-in {
   animation: demo-swap-in var(--demo-cycle) cubic-bezier(0.22, 1, 0.36, 1) infinite both;
 }
 
 @keyframes demo-strip-out {
   0%,
-  20% {
+  17% {
     opacity: 1;
     filter: none;
   }
 
-  25%,
+  22%,
   88% {
     opacity: 0;
     filter: blur(4px);
@@ -2127,24 +2219,76 @@
   animation: demo-strip-out var(--demo-cycle) ease-in-out infinite both;
 }
 
+/* Средняя полоса уходит на втором нажатии. ПРИХОД у неё не здесь: её
+   клетки приходят сами, волной, и обёртке остаётся только увести их
+   разом.
+
+   К началу круга обёртка возвращается скачком, без кадров возврата, и это
+   не небрежность: в тот же миг её клетки стоят на своём нулевом кадре, то
+   есть невидимы, и возвращать плавно нечего. Кадры возврата, наоборот,
+   показали бы полосу там, где её быть не должно. */
+@keyframes demo-strip-mid-out {
+  0%,
+  55% {
+    opacity: 1;
+    filter: none;
+  }
+
+  60%,
+  100% {
+    opacity: 0;
+    filter: blur(4px);
+  }
+}
+
+.demo[data-play="on"] .demo-strip-mid {
+  animation: demo-strip-mid-out var(--demo-cycle) ease-in-out infinite both;
+}
+
 /* Новая полоса не «показывается», а СОБИРАЕТСЯ по клетке — тем же
    движением, что месяц на первом экране: приходит из размытия, вспыхивает
-   на подлёте и садится на место. Волна слева направо. */
-@keyframes demo-cell-in {
+   на подлёте и садится на место. Волна слева направо.
+
+   Кадров два набора: средняя полоса собирается на первом нажатии,
+   последняя — на втором. Уход у средней ложится на обёртку, поэтому здесь
+   у неё только приход. */
+@keyframes demo-cell-mid {
   0%,
-  22% {
+  20% {
     opacity: 0;
     transform: scale(0.55);
     filter: blur(6px);
   }
 
-  27% {
+  25% {
     opacity: 1;
     transform: scale(1.06);
     filter: blur(0);
   }
 
-  31%,
+  29%,
+  100% {
+    opacity: 1;
+    transform: none;
+    filter: none;
+  }
+}
+
+@keyframes demo-cell-last {
+  0%,
+  58% {
+    opacity: 0;
+    transform: scale(0.55);
+    filter: blur(6px);
+  }
+
+  63% {
+    opacity: 1;
+    transform: scale(1.06);
+    filter: blur(0);
+  }
+
+  67%,
   86% {
     opacity: 1;
     transform: none;
@@ -2159,8 +2303,13 @@
   }
 }
 
-.demo[data-play="on"] .demo-cell-in {
-  animation: demo-cell-in var(--demo-cycle) cubic-bezier(0.22, 1, 0.36, 1) infinite both;
+.demo[data-play="on"] .demo-cell-mid {
+  animation: demo-cell-mid var(--demo-cycle) cubic-bezier(0.22, 1, 0.36, 1) infinite both;
+  animation-delay: calc(var(--i, 0) * 70ms);
+}
+
+.demo[data-play="on"] .demo-cell-last {
+  animation: demo-cell-last var(--demo-cycle) cubic-bezier(0.22, 1, 0.36, 1) infinite both;
   animation-delay: calc(var(--i, 0) * 70ms);
 }
 
@@ -2512,8 +2661,7 @@
   /* Сделанное — видно. */
   .demo .demo-swap-in,
   .demo .demo-became,
-  .demo .demo-strip-next,
-  .demo .demo-cell-in,
+  .demo .demo-cell-last,
   .demo .demo-dialog,
   .demo .demo-file,
   .demo .demo-uplink {
@@ -2522,9 +2670,13 @@
     filter: none !important;
   }
 
-  /* Прежнее — нет. */
+  /* Прежнее — нет. Средний график и его полоса стоят здесь же: показу с
+     отключённой анимацией достаётся ПОСЛЕДНИЙ кадр, а «два через два» в
+     нём такое же прежнее, как и «сутки через трое». */
   .demo .demo-swap-out,
+  .demo .demo-swap-mid,
   .demo .demo-strip-prev,
+  .demo .demo-strip-mid,
   .demo .demo-was,
   .demo .demo-carried,
   .demo .demo-pointer,
