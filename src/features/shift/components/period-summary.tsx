@@ -80,7 +80,7 @@ export function PeriodSummary({
       {/* `data-summary` — примета для дымки под закреплёнными полосами
           (`globals.css`): по ней она узнаёт, что под шапкой стоит ещё и
           полоса с числами, и растворение нужно длиннее — до её дна. */}
-      <div data-summary className="sticky top-24 z-40 -mx-6 -translate-y-8">
+      <div data-summary className="sticky top-[calc(6rem+var(--safe-top))] z-40 -mx-6 -translate-y-8">
         <FiguresRow
           calculation={calculation}
           inDays={overtimeInDays}
