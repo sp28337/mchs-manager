@@ -77,7 +77,10 @@ export function PeriodSummary({
 }) {
   return (
     <>
-      <div className="sticky top-24 z-40 -mx-6 -translate-y-8">
+      {/* `data-summary` — примета для дымки под закреплёнными полосами
+          (`globals.css`): по ней она узнаёт, что под шапкой стоит ещё и
+          полоса с числами, и растворение нужно длиннее — до её дна. */}
+      <div data-summary className="sticky top-24 z-40 -mx-6 -translate-y-8">
         <FiguresRow
           calculation={calculation}
           inDays={overtimeInDays}
@@ -175,7 +178,7 @@ function FiguresRow({
     // Полоса залита бумагой, хотя плашки в ней и свои: без заливки между
     // ними просвечивает календарь — он проезжает под закреплённой полосой,
     // и в зазорах видно, как едут клетки.
-    <div ref={row} className="relative flex items-stretch gap-2 bg-paper px-6 pb-3">
+    <div ref={row} className="relative flex items-stretch gap-2  px-6 pb-3">
       <MainPlate
         calculation={calculation}
         inDays={inDays}
@@ -254,7 +257,9 @@ function MinorPlate({
     <div
       className={cn(
         "flex min-w-0 flex-col items-center justify-end rounded-xl bg-paper-raised px-3 pb-2",
-        tight ? "shrink-0" : "flex-1",
+        // Свет лампы: блик по верху, тень вниз. У эталона его нет — тот
+        // невидим, и лишняя тень в нём только сбила бы замер ширины.
+        tight ? "shrink-0" : "lit flex-1",
       )}
     >
       <dd className="whitespace-nowrap font-mono text-base leading-none text-ink">
@@ -308,6 +313,9 @@ function MainPlate({
     <dl
       className={cn(
         "flex h-14 items-center rounded-xl bg-paper-raised px-4 py-2 lg:min-w-92.5 justify-around",
+        // Свет лампы — на видимой плашке, но не на эталоне: тот невидим и
+        // служит линейкой, а лишняя тень сбила бы замер ширины.
+        !tight && "lit",
         // Пока мелких итогов нет, плашка занимает строку целиком, а числа
         // расходятся по ней: три числа, сжатые в левый угол полосы во всю
         // ширину экрана, читаются как незаконченная вёрстка.
