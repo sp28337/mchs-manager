@@ -96,7 +96,11 @@ export function WorkspaceSkeleton() {
 
       {/* Полоса итога. Закреплена так же, как настоящая: иначе при
           прокрутке заглушка вела бы себя иначе, чем расчёт. */}
-      <div className="sticky top-24 z-40 -mx-6 -translate-y-8">
+      {/* Та же примета, что у настоящей полосы: дымка обязана быть той же
+          высоты и в заглушке — иначе в миг подстановки она поменяла бы
+          высоту, и страница дёрнулась бы ровно там, где заглушка и
+          существует, чтобы этого не случилось. */}
+      <div data-summary className="sticky top-24 z-40 -mx-6 -translate-y-8">
         <div className="relative flex items-stretch gap-2  px-6 pb-3">
           <MainPlateBone />
 
