@@ -62,6 +62,11 @@ export interface SiteHeaderProps {
 
 export function SiteHeader({ action, tools, className }: SiteHeaderProps) {
   return (
+    // Шапка закреплена, но БЕЗ `top`: стоит она там, где стояла бы в
+    // потоке, то есть по верхней кромке содержимого страницы. Отступ на
+    // полосу под часами задан один раз на `body` (`globals.css`,
+    // «Безопасные зоны телефона»), и шапка получает его вместе со всем
+    // остальным — собственный отступ здесь сложился бы с ним вдвое.
     <header className={cn("fixed z-100 w-full group", className)}>
       <div className="mx-auto flex h-16 w-full flex-nowrap items-center gap-x-4 py-3 px-6 sm:gap-x-6 2xl:max-w-[2000px]">
         <Link

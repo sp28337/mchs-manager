@@ -100,7 +100,7 @@ export function WorkspaceSkeleton() {
           высоты и в заглушке — иначе в миг подстановки она поменяла бы
           высоту, и страница дёрнулась бы ровно там, где заглушка и
           существует, чтобы этого не случилось. */}
-      <div data-summary className="sticky top-24 z-40 -mx-6 -translate-y-8">
+      <div data-summary className="sticky top-[calc(6rem+var(--safe-top))] z-40 -mx-6 -translate-y-8">
         <div className="relative flex items-stretch gap-2  px-6 pb-3">
           <MainPlateBone />
 
