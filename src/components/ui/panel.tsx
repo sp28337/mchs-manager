@@ -27,7 +27,10 @@ import { cn } from "@/lib/utils/cn";
  */
 export function Card({ children }: { children: ReactNode }) {
   return (
-    <div className="divide-y divide-rule rounded-xl bg-paper-raised px-4">
+    // `lit` — карточка ловит свет лампы: блик по верхней кромке, мягкая
+    // тень вниз. Без него плашка лежит на бумаге как наклейка, вырезанная
+    // ножницами; с ним у неё появляется толщина.
+    <div className="lit divide-y divide-rule rounded-xl bg-paper-raised px-4">
       {children}
     </div>
   );

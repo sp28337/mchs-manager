@@ -6,6 +6,8 @@ import {
   PT_Sans_Narrow,
 } from "next/font/google";
 
+import { Lamp } from "@/components/shared/lamp";
+
 import { Providers } from "./providers";
 import "./globals.css";
 
@@ -107,6 +109,16 @@ export default function RootLayout({
         <div className="overflow-x-clip">
           <Providers>{children}</Providers>
         </div>
+
+        {/* Лампа принадлежит ОКНУ, а не странице: она светит и на главной,
+            и в расчёте, и в условиях использования — комната одна.
+
+            Стоит последней намеренно. Она интерактивна, то есть попадает в
+            обход по клавише, и с любого другого места оказалась бы
+            остановкой ПЕРЕД содержимым: человек, идущий с клавиатуры к
+            расчёту, натыкался бы сперва на светильник. Место у неё
+            закреплённое и от порядка в разметке не зависит. */}
+        <Lamp />
       </body>
     </html>
   );

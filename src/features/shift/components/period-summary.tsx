@@ -254,7 +254,9 @@ function MinorPlate({
     <div
       className={cn(
         "flex min-w-0 flex-col items-center justify-end rounded-xl bg-paper-raised px-3 pb-2",
-        tight ? "shrink-0" : "flex-1",
+        // Свет лампы: блик по верху, тень вниз. У эталона его нет — тот
+        // невидим, и лишняя тень в нём только сбила бы замер ширины.
+        tight ? "shrink-0" : "lit flex-1",
       )}
     >
       <dd className="whitespace-nowrap font-mono text-base leading-none text-ink">
@@ -308,6 +310,9 @@ function MainPlate({
     <dl
       className={cn(
         "flex h-14 items-center rounded-xl bg-paper-raised px-4 py-2 lg:min-w-92.5 justify-around",
+        // Свет лампы — на видимой плашке, но не на эталоне: тот невидим и
+        // служит линейкой, а лишняя тень сбила бы замер ширины.
+        !tight && "lit",
         // Пока мелких итогов нет, плашка занимает строку целиком, а числа
         // расходятся по ней: три числа, сжатые в левый угол полосы во всю
         // ширину экрана, читаются как незаконченная вёрстка.
