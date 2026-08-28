@@ -9,6 +9,7 @@ import { useMediaQuery } from "@/lib/hooks/use-media-query";
 import { cn } from "@/lib/utils/cn";
 
 import type { PeriodCalculation } from "../domain/calculation";
+import { formatDateRu } from "../domain/format";
 import type { IsoDate } from "../domain/plain-date";
 import type { StoredProfile } from "../storage/profile";
 import { LiveModeSwitch } from "./live-mode";
@@ -249,7 +250,9 @@ export function YearView({
           одинаковая у обоих видов. Поэтому при переключении клетка
           остаётся ровно на своём месте: проверено замером, положение
           первой клетки и прокрутка страницы не меняются ни на пиксель. */}
-      {view === "shifts" ? (
+      {calculation.periodStart >= calculation.periodEnd ? (
+        <EmptyPeriod countFrom={profile.countFrom} />
+      ) : view === "shifts" ? (
         <ShiftStrip
           calculation={calculation}
           upcoming={upcoming}
@@ -274,5 +277,32 @@ export function YearView({
         />
       )}
     </div>
+  );
+}
+
+/**
+ * Отрезок, целиком лежащий до начала отсчёта.
+ *
+ * Такое бывает ровно в одном случае: человек указал, что работает здесь с
+ * августа, и выбрал март. Сетка тогда пуста, и полоса итога над ней тоже —
+ * ноль смен, ноль часов, ноль нормы.
+ *
+ * Молча показать пустое место нельзя: ноль на экране расчёта читается как
+ * «приложение не посчитало» или «данные потерялись», а не как «этих суток
+ * у вас не было». Поэтому вместо сетки стоит строка, называющая причину и
+ * место, где её менять.
+ *
+ * Месяцы до начала отсчёта при этом остаются в выборе периода, а не
+ * пропадают из него. Пропав, они молча объявили бы, что до августа года не
+ * существует, — а человек, поставивший дату по ошибке, не нашёл бы, где
+ * ошибся: список выглядел бы нормальным.
+ */
+function EmptyPeriod({ countFrom }: { countFrom: IsoDate | null }) {
+  return (
+    <p className="max-w-prose rounded-xl bg-paper-raised px-4 py-3 text-sm text-ink-muted">
+      Выбранный период целиком раньше начала отсчёта
+      {countFrom ? ` (${formatDateRu(countFrom)})` : ""} — показывать нечего.
+      Выберите период позже или поправьте начало отсчёта в настройках.
+    </p>
   );
 }

@@ -50,6 +50,7 @@ function filledProfile(): StoredProfile {
     calendarOverrides: { "2025-03-10": "holiday" },
     shiftOverrides: { "2025-04-04": "off", "2025-04-07": "shift" },
     dayNotes: { "2025-04-07": "подменял Петрова" },
+    countFrom: "2025-03-01" as IsoDate,
     liveMode: true,
     overtimeInDays: true,
   };
@@ -77,6 +78,7 @@ describe("сброс календаря и графика", () => {
     expect(after.workingConditions).toBe(before.workingConditions);
     expect(after.disabilityGroupIorII).toBe(before.disabilityGroupIorII);
     expect(after.shiftStartTime).toBe(before.shiftStartTime);
+    expect(after.countFrom).toBe(before.countFrom);
     expect(after.accountingYear).toBe(before.accountingYear);
     expect(after.liveMode).toBe(before.liveMode);
     expect(after.overtimeInDays).toBe(before.overtimeInDays);
@@ -136,5 +138,15 @@ describe("профиль, записанный до смены знака в г�
   it("чужая строка профилем не считается", () => {
     expect(() => importProfile(legacy("7/7"))).toThrow();
     expect(() => importProfile(legacy("3|1"))).toThrow();
+  });
+
+  /**
+   * Начала отсчёта в таких профилях нет вовсе — поле появилось позже. Оно
+   * обязано читаться пустым, и пустое обязано означать РОВНО ПРЕЖНЕЕ
+   * поведение: считать выбранный период целиком. Иначе выпуск с новым
+   * полем молча пересчитал бы норму всем, кто ни о чём не просил.
+   */
+  it("начало отсчёта у старого профиля пустое", () => {
+    expect(importProfile(legacy("1|3")).countFrom).toBeNull();
   });
 });

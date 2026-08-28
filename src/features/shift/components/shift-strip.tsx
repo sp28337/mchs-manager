@@ -17,6 +17,7 @@ import {
   datesInRange,
   dayOfMonth,
   monthIndex,
+  todayIso,
   weekday,
   year as yearOf,
   type IsoDate,
@@ -112,7 +113,7 @@ const ABSENCE_TONE_QUIET: Record<AbsenceKind, string> = {
   study_leave: "border-dashed border-study/20 bg-study-soft/40 text-study/70 rounded-md",
 };
 import { MONTH_NAMES } from "./month-names";
-import { MonthGrid, WEEKDAY_LABELS } from "./month-grid";
+import { MonthGrid, TODAY_MARK, WEEKDAY_LABELS } from "./month-grid";
 import { useShiftDrag, type ShiftDrag } from "./use-shift-drag";
 
 /**
@@ -253,6 +254,11 @@ export function ShiftStrip({
   const shown = new Set<IsoDate>();
   for (const group of groups) for (const day of group.days) shown.add(day);
 
+  // Сегодняшний день берётся один раз за отрисовку: страницу открывают и
+  // закрывают в тот же день, и переживать полночь ей не приходится. Тот же
+  // довод, по которому так поступает и режим «Онлайн».
+  const today = todayIso();
+
   const drag = useShiftDrag({
     // Класть смену можно в любые ПОКАЗАННЫЕ сутки без смены. Ограничение
     // показанным — не придирка: сутки за краем сетки человек не видит, и
@@ -344,6 +350,7 @@ export function ShiftStrip({
                 note={dayNotes[day]}
                 corners={corners}
                 upcoming={upcoming != null && day >= upcoming}
+                today={day === today}
                 drag={drag}
                 draggable={onMoveShift !== undefined && starts.has(day)}
                 onPick={() => onPickDay(day)}
@@ -473,6 +480,7 @@ function DayCell({
   note,
   corners,
   upcoming,
+  today,
   drag,
   draggable,
   onPick,
@@ -490,6 +498,8 @@ function DayCell({
   corners: string;
   /** Сутки ещё не наступили: показаны, но в расчёт не входят. */
   upcoming?: boolean;
+  /** Это сегодня — единственная клетка года с отметкой. */
+  today?: boolean;
   /** Общее состояние переноса: что несут и куда сейчас положат. */
   drag: ShiftDrag;
   /** Есть ли в этих сутках смена, которую можно унести. */
@@ -582,8 +592,14 @@ function DayCell({
   //
   // То же и с гашёными сутками: штриховку он не увидит, а «в расчёт не
   // входит» — единственное, что эти сутки отличает.
+  // Красный контур сегодняшних суток незрячий читатель не увидит, а
+  // ориентируется по нему так же — поэтому «сегодня» сказано и словом.
+  // Стоит оно раньше заметки: это про то, ГДЕ человек находится, а не про
+  // содержимое клетки.
   const full =
-    (note ? `${label}. Заметка: ${note}` : label) +
+    label +
+    (today ? ". Сегодня" : "") +
+    (note ? `. Заметка: ${note}` : "") +
     (upcoming ? ". Ещё не наступило, в расчёт не входит" : "");
 
   const carried = drag.from === day;
@@ -593,6 +609,10 @@ function DayCell({
     <button
       type="button"
       title={full}
+      // Родная разметка «текущего» — та же, которой помечен сегодняшний
+      // день во всплывающем календаре выбора даты. Программа чтения
+      // объявляет её сама, независимо от того, как день выглядит.
+      aria-current={today ? "date" : undefined}
       onClick={onPick}
       {...drag.cellProps(day, draggable)}
       className={cn(
@@ -623,6 +643,10 @@ function DayCell({
           // тот ни был. Сами цвета остаются, чтобы будущую смену было
           // видно сменой, а не пустой клеткой.
           upcoming && "cell-upcoming",
+          // Отметка сегодняшних суток — после гашения и после всех видов
+          // дня: она ничего не заменяет, а лежит поверх. Что бы в клетке
+          // ни стояло, найти в году себя человек должен всегда.
+          today && TODAY_MARK,
           // Смену несут: на своём месте от неё остаётся след, а не дырка.
           // Пустое место читалось бы как «уже перенёс», хотя палец ещё не
           // отпущен и бросок можно отменить.

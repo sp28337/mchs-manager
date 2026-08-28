@@ -29,6 +29,7 @@ import {
 } from "../model/derive";
 import { resetCalendar, type StoredProfile } from "../storage/profile";
 import { DateField } from "./date-field";
+import { formatDateRu } from "../domain/format";
 import { formatHoursTrim as hoursTrim } from "../domain/decimal";
 import { shiftMinutes } from "../domain/shift-hours";
 import { HoursField } from "./hours-field";
@@ -104,6 +105,7 @@ export function SettingsPanel({
   const nameId = useId();
   const normId = useId();
   const shiftId = useId();
+  const countId = useId();
   const startId = useId();
   const patternId = useId();
   const customId = useId();
@@ -323,6 +325,52 @@ export function SettingsPanel({
           />
         </Field>
       )}
+
+      {/* Начало отсчёта — сразу за датой смены, и это соседство намеренное:
+          обе даты, и перепутать их легче всего именно здесь.
+
+          «Дата смены» задаёт ЦИКЛ и отвечает на вопрос «когда вы на
+          смене»; она может быть хоть завтрашней, и цикл достраивается от
+          неё назад бесконечно — в том числе на годы до трудоустройства.
+          «Начало отсчёта» отвечает на другой вопрос — «с какого числа этот
+          график ваш», — и обрезает период слева.
+
+          Пояснение под полем — не подсказка, а СЛЕДСТВИЕ введённого, как у
+          тумблеров наверху: человек видит, что именно поменялось в расчёте
+          от того, что он поставил дату. */}
+      <Field
+        id={countId}
+        label="Начало отсчёта"
+        hint={
+          <>
+            <p>
+              С какого числа считать. Нужно тому, кто устроился не с начала
+              учётного периода: до этой даты график не его, и норма за те дни
+              тоже.
+            </p>
+            <p>
+              Это НЕ дата смены выше. Та задаёт цикл — от неё график строится
+              в обе стороны, — а эта говорит, откуда начинать счёт. Пустое
+              поле значит «с начала выбранного периода».
+            </p>
+          </>
+        }
+        note={
+          profile.countFrom
+            ? `Расчёт и сетка начинаются с ${formatDateRu(profile.countFrom)}; всё, что раньше, в норму не входит.`
+            : "Расчёт идёт с начала выбранного периода."
+        }
+      >
+        <DateField
+          id={countId}
+          defaultValue={profile.countFrom ?? undefined}
+          // Пустое поле — не ошибка, а ответ «считать с начала периода»,
+          // поэтому `null` записывается наравне с датой.
+          onChange={(countFrom) =>
+            onChange((previous) => ({ ...previous, countFrom }))
+          }
+        />
+      </Field>
 
       <Field
         id={startId}

@@ -97,6 +97,7 @@ describe("основание недельной нормы", () => {
       workingConditions: "normal",
       disabilityGroupIorII: false,
       firstShiftDate: "2026-01-01",
+      countFrom: null,
       shiftStartTime: "08:00",
       schedulePattern: "1|3",
       shiftDurationHours: "24",

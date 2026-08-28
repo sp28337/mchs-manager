@@ -10,6 +10,7 @@ import {
   datesInRange,
   dayOfMonth,
   monthIndex,
+  todayIso,
   weekday,
   year as yearOf,
   type IsoDate,
@@ -28,7 +29,7 @@ import {
   type DayType,
 } from "../schemas";
 import { MONTH_NAMES } from "./month-names";
-import { MonthGrid, WEEKDAY_LABELS } from "./month-grid";
+import { MonthGrid, TODAY_MARK, WEEKDAY_LABELS } from "./month-grid";
 
 /**
  * Календарь учётного года: какие дни нерабочие.
@@ -234,6 +235,11 @@ export function YearCalendarEditor({
     return map;
   }, [periodStart, periodEnd, overrides]);
 
+  // Сегодня отмечается и здесь, тем же контуром, что в графике смен:
+  // человек переключается между сетками кнопкой, и метка, стоящая в одной,
+  // но не в другой, читалась бы как разница между самими сетками.
+  const today = todayIso();
+
   const overrideCount = Object.keys(overrides).length;
   const pending = pendingTransfers(year).filter((day) => overrides[day] === undefined);
 
@@ -289,6 +295,7 @@ export function YearCalendarEditor({
                     corners={corners}
                     note={dayNotes[day]}
                     upcoming={upcoming != null && day >= upcoming}
+                    today={day === today}
                     onPick={() => onPickDay(day)}
                   />
                 ) : null;
@@ -391,6 +398,7 @@ function DayButton({
   corners,
   note,
   upcoming,
+  today,
   onPick,
 }: {
   item: CalendarDay;
@@ -399,6 +407,8 @@ function DayButton({
   note?: string;
   /** Сутки ещё не наступили: показаны, но в расчёт не входят. */
   upcoming?: boolean;
+  /** Это сегодня — единственная клетка года с отметкой. */
+  today?: boolean;
   onPick: () => void;
 }) {
   const date = dayOfMonth(item.day);
@@ -408,6 +418,9 @@ function DayButton({
   const label =
     `${date} ${month}, ${weekdayName} — ${DAY_TYPE_LABELS[item.dayType].toLowerCase()}` +
     (item.source === "override" ? ", изменено вами" : "") +
+    // Красный контур незрячий читатель не увидит — «сегодня» сказано и
+    // словом, как в графике смен.
+    (today ? ". Сегодня" : "") +
     (note ? `. Заметка: ${note}` : "") +
     (upcoming ? ". Ещё не наступило, в расчёт не входит" : "");
 
@@ -416,6 +429,7 @@ function DayButton({
       type="button"
       title={label}
       aria-label={label}
+      aria-current={today ? "date" : undefined}
       onClick={onPick}
       className={cn(
         "relative flex aspect-square w-full min-w-0 cursor-pointer flex-col bg-paper-raised",
@@ -439,6 +453,9 @@ function DayButton({
           // Гашение — последним: поверх любого вида дня. Та же штриховка,
           // что в графике смен, потому что означает то же самое.
           upcoming && "cell-upcoming",
+          // И отметка сегодняшних суток — поверх и гашения: она ничего не
+          // заменяет, а лежит сверху. Тот же контур, что в графике смен.
+          today && TODAY_MARK,
         )}
       >
         {/* Кегль в `em`: клетка следует за масштабом сетки, и число вместе
