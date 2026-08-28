@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { createProfile } from "../storage/profile";
 import {
   calculateFor,
+  countedBounds,
   hasOwnShiftTime,
   scheduleSpanAt,
   shiftOn,
@@ -261,5 +262,87 @@ describe("часы смены", () => {
     expect(shiftOn(profile, "2026-01-06")).toBe(false);
     expect(shiftOn(withShiftAt(profile, "2026-01-05", false), "2026-01-05")).toBe(false);
     expect(shiftOn(withShiftAt(profile, "2026-01-06", true), "2026-01-06")).toBe(true);
+  });
+});
+
+/**
+ * Начало отсчёта: с какого числа период вообще принадлежит человеку.
+ *
+ * Проверяется главное следствие — НОРМА. Обрезается сам отрезок, а не итог,
+ * и это не мелочь: норма считается по рабочим дням внутри отрезка
+ * (ст. 104 ТК РФ), и «посчитать год и вычесть лишнее» дало бы другое число
+ * — не то, которое стоит в приказе.
+ */
+describe("начало отсчёта", () => {
+  const profile = createProfile({
+    displayName: "Тест",
+    workingConditions: "normal",
+    disabilityGroupIorII: false,
+    firstShiftDate: "2026-01-01",
+    accountingYear: 2026,
+    shiftStartTime: "08:00",
+    schedulePattern: "1|3",
+    shiftDurationHours: "24",
+    customWorkDays: 1,
+    customRestDays: 3,
+  });
+
+  const year = { periodStart: "2026-01-01", periodEnd: "2027-01-01" };
+
+  it("пустое начало не трогает отрезок", () => {
+    expect(countedBounds(year, null)).toEqual(year);
+  });
+
+  it("дата раньше начала периода ничего не меняет", () => {
+    expect(countedBounds(year, "2025-06-01")).toEqual(year);
+  });
+
+  it("дата внутри периода двигает его начало", () => {
+    expect(countedBounds(year, "2026-08-03")).toEqual({
+      periodStart: "2026-08-03",
+      periodEnd: "2027-01-01",
+    });
+  });
+
+  /**
+   * Март у того, кто устроился в августе, — это ноль суток, а не
+   * отрицательный отрезок. Пустое приложение показать умеет, отрицательное
+   * — нет.
+   */
+  it("отрезок целиком раньше начала становится пустым, а не отрицательным", () => {
+    const march = { periodStart: "2026-03-01", periodEnd: "2026-04-01" };
+    expect(countedBounds(march, "2026-08-03")).toEqual({
+      periodStart: "2026-04-01",
+      periodEnd: "2026-04-01",
+    });
+  });
+
+  /**
+   * То, ради чего всё и делалось: годовая норма перестаёт включать месяцы
+   * до устройства. Устроившемуся 3 августа приложение показывало 1972,4
+   * часа за год — полторы тысячи из них не его.
+   */
+  it("норма считается от названной даты, а не с января", () => {
+    const whole = calculateFor(profile, year.periodStart, year.periodEnd);
+    const since = countedBounds(year, "2026-08-03");
+    const part = calculateFor(profile, since.periodStart, since.periodEnd);
+
+    // Числа взяты не на глаз, а из производственного календаря 2026 года.
+    // За год: 247 рабочих дней и 4 предпраздничных, то есть 8 × 247 − 4.
+    // С 3 августа: 107 рабочих и 1 предпраздничный — 8 × 107 − 1.
+    expect(whole.normHours.toString()).toBe("1972");
+    expect(part.normHours.toString()).toBe("855");
+  });
+
+  /** Пустой отрезок считается в ноль, а не падает и не выдаёт годовую норму. */
+  it("пустой отрезок даёт нулевую норму", () => {
+    const empty = countedBounds(
+      { periodStart: "2026-03-01", periodEnd: "2026-04-01" },
+      "2026-08-03",
+    );
+    const calculation = calculateFor(profile, empty.periodStart, empty.periodEnd);
+
+    expect(calculation.normHours.toString()).toBe("0");
+    expect(calculation.scheduledShifts).toBe(0);
   });
 });

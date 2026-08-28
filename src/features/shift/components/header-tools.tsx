@@ -148,6 +148,11 @@ export function HeaderTools({
               aria-label={title}
               title={title}
               className={cn(
+                // `lit` — кнопка ловит свет лампы. Стоит она у правого
+                // края, дальше конца трубки, и блик ложится не сверху, а
+                // по верхней и левой кромке: сторону считает сама лампа
+                // замером (`shared/lamp.tsx`).
+                "lit",
                 "inline-flex h-9 shrink-0 cursor-pointer items-center gap-2 rounded-xl",
                 "bg-paper-raised px-3 text-sm font-medium",
                 "text-ink transition-colors hover:bg-paper-sunken",

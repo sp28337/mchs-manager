@@ -8,6 +8,7 @@ import { todayIso, type IsoDate } from "../domain/plain-date";
 import {
   accountingPeriodsOf,
   calculateFor,
+  countedBounds,
   liveBounds,
   monthBounds,
   statutoryBounds,
@@ -116,10 +117,16 @@ export function Workspace({ profile, onChange, onForget }: WorkspaceProps) {
   // период — вернуться к нему можно было, только вспомнив, какой он был.
   const [month, setMonth] = useState<number | null>(null);
 
-  const chosen =
+  // Выбранный отрезок — и сразу обрезанный началом отсчёта: до него
+  // человек в этом графике не работал, и часы за те дни не его. Обрезка
+  // стоит здесь, выше обоих расчётов, потому что отрезок у них общий: один
+  // считает числа наверху, другой рисует сетку, и разойтись им нельзя.
+  const chosen = countedBounds(
     month === null
       ? statutoryBounds(profile.accountingYear, statutory.kind, statutory.index)
-      : monthBounds(profile.accountingYear, month);
+      : monthBounds(profile.accountingYear, month),
+    profile.countFrom,
+  );
 
   // Режим «веду учёт» обрезает выбранный отрезок живым временем: по
   // сегодняшний день включительно. Сегодняшний день берётся один раз за

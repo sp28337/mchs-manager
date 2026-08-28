@@ -1,14 +1,13 @@
 "use client";
 
 import { CalendarCog, CalendarDays, ZoomIn, ZoomOut } from "lucide-react";
-import { useState } from "react";
+import { useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 
-import { Button } from "@/components/ui/button";
 import { Segmented, SegmentedItem } from "@/components/ui/segmented";
 import { useMediaQuery } from "@/lib/hooks/use-media-query";
-import { cn } from "@/lib/utils/cn";
 
 import type { PeriodCalculation } from "../domain/calculation";
+import { formatDateRu } from "../domain/format";
 import type { IsoDate } from "../domain/plain-date";
 import type { StoredProfile } from "../storage/profile";
 import { LiveModeSwitch } from "./live-mode";
@@ -68,38 +67,115 @@ export type { StatutoryChoice };
  */
 
 /**
- * Ступени масштаба — числом месяцев в ряду на широком экране.
+ * Масштаб — ЧИСЛО МЕСЯЦЕВ В РЯДУ.
  *
- * Классы записаны целиком, а не собраны из кусков: Tailwind ищет имена
- * классов в тексте программы, и `lg:grid-cols-${n}` он не найдёт.
+ * --- Почему число, а не ширина --------------------------------------------
  *
- * Вместе с числом колонок меняется и КЕГЛЬ в клетке: клетка квадратная и
- * растёт вместе с шириной месяца, а число внутри без этого осталось бы
- * прежним — получались бы пустые квадраты с мелкой цифрой в середине.
- * Размеры внутри клетки заданы в `em` и потому следуют за этим классом.
+ * Ползунок сперва задавал ширину месяца: тянешь — месяц растёт непрерывно,
+ * а сколько их встанет в ряд, решает `auto-fill`. Плавно выходило, но в
+ * ряду оставалось непотраченное место — до ста сорока точек, — и сетка
+ * стояла с откушенным правым краем.
+ *
+ * Одновременно плавным и во всю ширину масштаб быть не может, и это не
+ * недоделка, а арифметика: пока месяцы делят ширину ПОРОВНУ, размер месяца
+ * — это ширина, делённая на их число. Число целое, значит и размеров
+ * ровно столько, сколько бывает делителей: на тысяче точек это 146, 180,
+ * 231, 316, 486 — пять величин, и никакого «между».
+ *
+ * Из двух свойств выбрано второе: сетка во всю ширину. Ползунок от этого
+ * не стал хуже — он и раньше давал те же пять-шесть заметных состояний,
+ * только между ними тянулись доли, на которых не менялось ничего. Теперь
+ * каждая отметка — это другая раскладка.
+ *
+ * --- Пределы --------------------------------------------------------------
+ *
+ * Два месяца в ряд снизу: один на всю колонку — это уже не сетка года, а
+ * одна страница календаря, и смотреть на неё незачем. Восемь сверху — но
+ * реально предел ставит не это число, а ширина колонки: месяц уже девяти
+ * рем даёт клетку в два десятка точек, где число ещё читается, а код
+ * вызова уже нет. Сколько влезает, считается замером
+ * (`monthsThatFit`), и правый конец ползунка стоит ровно там: отметок
+ * впустую нет.
+ *
+ * --- Кегль ----------------------------------------------------------------
+ *
+ * Клетка квадратная и растёт вместе с шириной месяца, а число внутри без
+ * этого осталось бы прежним — получались бы пустые квадраты с мелкой
+ * цифрой посередине. Но и пропорционально кегль расти не должен: у мелкого
+ * масштаба есть порог читаемости, ниже которого цифру не разобрать вовсе.
+ *
+ * Отсюда наклонная, а не доля: прямая проведена по прежним ступеням — на
+ * них было 11 точек при самом мелком масштабе и 14 при самом крупном, — и
+ * в промежуточных точках сходится с ними: 11,7 против 12 на четырёх
+ * месяцах в ряд, 12,5 против 12 на трёх. Само правило — в `globals.css`,
+ * там же, где сетка; сюда приходит только ширина месяца, посчитанная по
+ * замеру колонки.
  */
-const SCALES = [
-  { columns: 2, grid: "grid-cols-1 sm:grid-cols-2", text: "text-sm" },
-  { columns: 3, grid: "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3", text: "text-xs" },
-  { columns: 4, grid: "grid-cols-1 sm:grid-cols-2 lg:grid-cols-4", text: "text-xs" },
-  { columns: 6, grid: "grid-cols-1 sm:grid-cols-2 lg:grid-cols-6", text: "text-[11px]" },
-] as const;
+const MONTHS_MIN = 2;
+const MONTHS_CAP = 8;
 
 /**
- * Умолчание масштаба — по тому, есть ли чем его менять.
+ * Сколько месяцев в ряду при первом открытии широкого экрана — четыре.
  *
- * Кнопки масштаба стоят только на широком экране (`lg`): на телефоне
- * месяцы всё равно идут в одну-две колонки, и регулировать там нечего.
- * Значит, там, где менять НЕЛЬЗЯ, сетка обязана сразу быть самой
- * компактной — иначе человек остаётся с раскладкой, которая ему не
- * подходит, и без способа это исправить.
+ * Столько же было и раньше: прежнее умолчание задавалось теми же словами,
+ * «четыре в ряд», и на 1440 давало месяц около 231 точки. Экран, открытый
+ * впервые, выглядит ровно так же, как выглядел.
  *
- * Там, где менять можно, умолчание на ступень крупнее: шесть месяцев в
- * ряд на тысяче точек дают клетку в два десятка пикселей, и открывать
- * экран на ней значило бы заставить первым делом нажать «крупнее».
+ * Ниже `lg` число задаёт `globals.css`: там оно зависит от ширины экрана,
+ * ползунка нет, и менять его некому.
  */
-const SMALLEST_SCALE = SCALES.length - 1;
-const DEFAULT_ZOOMABLE_SCALE = SCALES.length - 2;
+const DEFAULT_MONTHS = 4;
+
+/**
+ * Зазор между месяцами — тот же, что стоит классом на сетке (`gap-x-6`).
+ *
+ * Повторён здесь числом: из него считаются и предел «сколько влезает», и
+ * ширина месяца для кегля. Прочитать его из вычисленных стилей было бы
+ * можно, но ради полутора рем пришлось бы держать ссылку на саму сетку —
+ * а её на пустом периоде нет вовсе.
+ */
+const GAP_REM = 1.5;
+
+/** Уже этого месяц не читается: клетка выходит в два десятка точек. */
+const MONTH_FLOOR_REM = 9;
+
+function rootFontSize(): number {
+  return Number.parseFloat(getComputedStyle(document.documentElement).fontSize);
+}
+
+/** Сколько месяцев влезает в колонку такой ширины, не мельчая до нечитаемого. */
+function monthsThatFit(width: number): number {
+  const rem = rootFontSize();
+  return Math.floor(
+    (width + GAP_REM * rem) / ((MONTH_FLOOR_REM + GAP_REM) * rem),
+  );
+}
+
+/** Какой ширины выйдет месяц, если их в ряду столько. */
+function monthWidth(width: number, months: number): number {
+  const gap = GAP_REM * rootFontSize();
+  return Math.max(0, (width - (months - 1) * gap) / months);
+}
+
+/**
+ * «Месяц» или «месяца» — для программы чтения.
+ *
+ * Она произносит подпись ползунка вслух, и «4 месяц в ряду» там слышно
+ * так же отчётливо, как читалось бы на экране. Форм нужно две: пределы
+ * ползунка — от двух до восьми, и «один месяц» в этот отрезок не попадает.
+ */
+function monthsWord(count: number): string {
+  return count >= 5 ? "месяцев" : "месяца";
+}
+
+/**
+ * Раскладка сетки месяцев — одна на обе, и вся в `globals.css`.
+ *
+ * Классов здесь больше не собирается: ширину колонки и кегль задаёт одно
+ * правило по ширине месяца, а та приходит переменной. Осталось только
+ * место в строке (`flex-1`) — оно к масштабу отношения не имеет.
+ */
+const GRID = "year-grid gap-x-6 gap-y-5 flex-1";
 
 export type YearViewKind = "shifts" | "calendar";
 
@@ -140,28 +216,70 @@ export function YearView({
   /** Перенос смены перетаскиванием по сетке графика. */
   onMoveShift: (from: IsoDate, to: IsoDate) => void;
 }) {
-  // Кнопки масштаба появляются с `lg` — тем же порогом, что и колонки в
-  // сетке. Условие продублировано здесь, а не выведено из классов: узнать
-  // из Tailwind, применился ли `lg:`, нельзя.
+  // Ползунок масштаба появляется с `lg`: на телефоне месяц и так шире
+  // экрана и занимает его целиком, растить его некуда, а мельчить —
+  // значит получить клетку, в которую не попасть пальцем.
   const zoomable = useMediaQuery("(min-width: 1024px)");
 
-  // Выбор человека, пока его не было — `null`. Так умолчание остаётся
-  // живым: окно расширили до кнопок масштаба — раскладка стала крупнее
-  // сама, а не осталась той, что сложилась на узком экране. Как только
-  // человек нажал кнопку, его выбор перестаёт слушать ширину.
-  const [chosen, setChosen] = useState<number | null>(null);
-  const scale = chosen ?? (zoomable ? DEFAULT_ZOOMABLE_SCALE : SMALLEST_SCALE);
+  const room = useRef<HTMLDivElement>(null);
+  const [asked, setAsked] = useState(DEFAULT_MONTHS);
+  const [roomWidth, setRoomWidth] = useState(0);
 
-  const step = SCALES[scale] ?? SCALES[1]!;
-  // Отступ по краям на телефоне: месяц во всю ширину экрана растягивался
-  // на двенадцать громоздких блоков подряд. Вместе с полем самой страницы
-  // получается примерно четыре пятых ширины экрана — месяц снова похож на
-  // страницу календаря, а клетка остаётся достаточно крупной, чтобы по
-  // ней попасть пальцем.
-  const grid = cn("grid gap-x-6 gap-y-5 flex-1", step.grid, step.text);
+  /**
+   * Ширина колонки под сетку — замером, а не догадкой.
+   *
+   * Из неё следуют две вещи: сколько месяцев в ряд ВООБЩЕ поместится (ниже
+   * девяти рем клетка перестаёт читаться) и какой ширины выйдет месяц при
+   * выбранном числе — а от неё пляшет кегль в клетке.
+   *
+   * Мерить нужно САМУ СЕТКУ, а не эту обёртку. С `xl` рядом с сеткой
+   * встаёт легенда и забирает у неё около трёхсот точек: на окне 1280
+   * обёртка 1232 точки, а сетка 836, и по обёртке ползунок разрешал семь
+   * месяцев в ряду там, где помещается пять. Клетка выходила в четырнадцать
+   * точек — с числом, которое в неё не влезает.
+   *
+   * Пока период пуст, сетки нет вовсе; тогда берётся обёртка — показывать
+   * всё равно нечего, а ноль сломал бы расчёт кегля.
+   *
+   * Наблюдатель, а не разовый замер: колонку меняет и ширина окна, и
+   * появление полосы прокрутки, и переход через порог, на котором легенда
+   * встаёт сбоку.
+   */
+  useLayoutEffect(() => {
+    const box = room.current;
+    if (box === null) return;
+    const measure = () => {
+      const grid = box.querySelector(".year-grid");
+      setRoomWidth(grid instanceof HTMLElement ? grid.clientWidth : box.clientWidth);
+    };
+    measure();
+    const watcher = new ResizeObserver(measure);
+    watcher.observe(box);
+    return () => watcher.disconnect();
+  }, []);
+
+  const fits = roomWidth === 0 ? MONTHS_CAP : monthsThatFit(roomWidth);
+  // Ползунок не даёт выбрать то, чего не бывает: его правый конец — это
+  // столько месяцев, сколько влезает в эту колонку, и ни одной отметки
+  // впустую.
+  const most = Math.max(MONTHS_MIN, Math.min(MONTHS_CAP, fits));
+  const months = Math.min(asked, most);
 
   return (
-    <div className="space-y-4">
+    <div
+      ref={room}
+      className="year-room space-y-4"
+      // Ниже `lg` число месяцев в ряду задаёт `globals.css` — там оно
+      // зависит от ширины экрана, а ползунка нет и менять его некому.
+      style={
+        zoomable
+          ? ({
+              "--months": months,
+              "--month-w": `${monthWidth(roomWidth, months)}px`,
+            } as CSSProperties)
+          : undefined
+      }
+    >
       {/* Одна панель на всё управление сеткой: что показать, за какой
           период и каким размером. Разнеси это по углам — и человек будет
           искать, где переключается год.
@@ -214,33 +332,36 @@ export function YearView({
               нарисовано в сетке, — значит, стоит там, где на это смотрят. */}
           <LiveModeSwitch profile={profile} onChange={onChange} />
 
-          <div className="ml-auto hidden items-center gap-1 lg:flex">
-            <span className="mr-1 font-display text-[11px] font-bold uppercase tracking-wide text-ink-muted">
-              Масштаб
-            </span>
-            <Button
-              type="button"
-              size="icon"
-              variant="ghost"
-              className="rounded-xl"
-              aria-label="Крупнее: меньше месяцев в ряду"
-              disabled={scale === 0}
-              onClick={() => setChosen(Math.max(0, scale - 1))}
-            >
-              <ZoomIn aria-hidden />
-            </Button>
-            <Button
-              type="button"
-              size="icon"
-              variant="ghost"
-              className="rounded-xl"
-              aria-label="Мельче: больше месяцев в ряду"
-              disabled={scale === SMALLEST_SCALE}
-              onClick={() => setChosen(Math.min(SMALLEST_SCALE, scale + 1))}
-            >
-              <ZoomOut aria-hidden />
-            </Button>
-          </div>
+          {zoomable ? (
+            <div className="ml-auto flex items-center gap-2">
+              <span className="font-display text-[11px] font-bold uppercase tracking-wide text-ink-muted">
+                Масштаб
+              </span>
+              {/* Значки по краям — не кнопки, а подписи концов: они
+                  говорят, в какую сторону тянуть. Нажимать их незачем,
+                  ползунок сам делает и то и другое, а две кнопки рядом с
+                  ним были бы третьим и четвёртым органом управления на
+                  один выбор. */}
+              <ZoomOut aria-hidden className="size-4 shrink-0 text-ink-faint" />
+              {/* Шкала перевёрнута: вправо — крупнее, то есть МЕНЬШЕ
+                  месяцев в ряду. Тянуть вправо, чтобы получалось мельче,
+                  не стал бы никто. */}
+              <input
+                type="range"
+                className="zoom-slider"
+                min={MONTHS_MIN}
+                max={most}
+                step={1}
+                value={MONTHS_MIN + most - months}
+                aria-label="Размер календарей"
+                aria-valuetext={`${months} ${monthsWord(months)} в ряду`}
+                onChange={(event) =>
+                  setAsked(MONTHS_MIN + most - event.currentTarget.valueAsNumber)
+                }
+              />
+              <ZoomIn aria-hidden className="size-4 shrink-0 text-ink-faint" />
+            </div>
+          ) : null}
         </div>
 
       </div>
@@ -249,11 +370,13 @@ export function YearView({
           одинаковая у обоих видов. Поэтому при переключении клетка
           остаётся ровно на своём месте: проверено замером, положение
           первой клетки и прокрутка страницы не меняются ни на пиксель. */}
-      {view === "shifts" ? (
+      {calculation.periodStart >= calculation.periodEnd ? (
+        <EmptyPeriod countFrom={profile.countFrom} />
+      ) : view === "shifts" ? (
         <ShiftStrip
           calculation={calculation}
           upcoming={upcoming}
-          gridClassName={grid}
+          gridClassName={GRID}
           dayNotes={profile.dayNotes}
           onPickDay={onPickDay}
           onMoveShift={onMoveShift}
@@ -268,11 +391,38 @@ export function YearView({
           periodStart={calculation.periodStart}
           periodEnd={calculation.periodEnd}
           upcoming={upcoming}
-          gridClassName={grid}
+          gridClassName={GRID}
           dayNotes={profile.dayNotes}
           onPickDay={onPickDay}
         />
       )}
     </div>
+  );
+}
+
+/**
+ * Отрезок, целиком лежащий до начала отсчёта.
+ *
+ * Такое бывает ровно в одном случае: человек указал, что работает здесь с
+ * августа, и выбрал март. Сетка тогда пуста, и полоса итога над ней тоже —
+ * ноль смен, ноль часов, ноль нормы.
+ *
+ * Молча показать пустое место нельзя: ноль на экране расчёта читается как
+ * «приложение не посчитало» или «данные потерялись», а не как «этих суток
+ * у вас не было». Поэтому вместо сетки стоит строка, называющая причину и
+ * место, где её менять.
+ *
+ * Месяцы до начала отсчёта при этом остаются в выборе периода, а не
+ * пропадают из него. Пропав, они молча объявили бы, что до августа года не
+ * существует, — а человек, поставивший дату по ошибке, не нашёл бы, где
+ * ошибся: список выглядел бы нормальным.
+ */
+function EmptyPeriod({ countFrom }: { countFrom: IsoDate | null }) {
+  return (
+    <p className="max-w-prose rounded-xl bg-paper-raised px-4 py-3 text-sm text-ink-muted">
+      Выбранный период целиком раньше начала отсчёта
+      {countFrom ? ` (${formatDateRu(countFrom)})` : ""} — показывать нечего.
+      Выберите период позже или поправьте начало отсчёта в настройках.
+    </p>
   );
 }

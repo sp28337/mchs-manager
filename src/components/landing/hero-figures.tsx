@@ -6,7 +6,7 @@ import { BalanceCaption, BALANCE_SWAP_MS } from "@/components/ui/balance-caption
 import { CountedNumber } from "@/components/ui/counted-number";
 import { cn } from "@/lib/utils/cn";
 
-import { HERO_FIGURES_AT, HERO_STAGES, type HeroStage } from "./hero-scenario";
+import { HERO_FIGURE_STEPS, HERO_STAGES, type HeroStage } from "./hero-scenario";
 
 /**
  * Три числа первого экрана — той же плашкой, что в расчёте.
@@ -21,12 +21,12 @@ import { HERO_FIGURES_AT, HERO_STAGES, type HeroStage } from "./hero-scenario";
  *
  * --- Почему числа перещёлкиваются ----------------------------------------
  *
- * Это и есть предмет разговора. Сначала отпуск на первую смену месяца — и
- * уходят двадцать четыре часа из отработанного, а норма стоит: отпуск лёг
- * на субботу с воскресеньем, рабочих дней внутри него нет, исключать из
- * нормы нечего. Потом тринадцатого отгул за переработку — уходит ещё одна
- * смена, норма опять на месте, и восьми часов переработки на суточный
- * отгул не хватает: разница уходит в недоработку.
+ * Это и есть предмет разговора. Человек отмечает на сетке отпуск на первую
+ * смену месяца и отгул за переработку тринадцатого — двух смен как не
+ * бывало, — и числа отвечают: отработанного стало на сорок восемь часов
+ * меньше, а НОРМА НЕ ДВИНУЛАСЬ. Оба отсутствия легли так, что рабочих дней
+ * внутри них нет, исключать из нормы нечего, и восьми часов переработки на
+ * суточный отгул не хватило: разница ушла в недоработку.
  *
  * Что норма считается по производственному календарю, а не по графику
  * смен, можно объяснить абзацем текста, а можно показать: два числа
@@ -131,7 +131,7 @@ function Figure({
  * разметку, и расходиться ей с браузером нельзя.
  */
 function useStageTimeline(): HeroStage {
-  const [index, setIndex] = useState(0);
+  const [index, setIndex] = useState(HERO_FIGURE_STEPS[0]?.stage ?? 0);
 
   useEffect(() => {
     // Отключённая анимация — сразу итог. Показать первый кадр и замереть
@@ -148,8 +148,10 @@ function useStageTimeline(): HeroStage {
       return;
     }
 
-    const timers = HERO_STAGES.slice(1).map((_, step) =>
-      window.setTimeout(() => setIndex(step + 1), HERO_FIGURES_AT[step + 1] ?? 0),
+    // Первый кадр уже стоит в разметке — его срок нулевой, и заводить под
+    // него будильник незачем.
+    const timers = HERO_FIGURE_STEPS.slice(1).map((step) =>
+      window.setTimeout(() => setIndex(step.stage), step.at),
     );
 
     return () => timers.forEach((timer) => window.clearTimeout(timer));
