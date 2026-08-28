@@ -310,7 +310,7 @@ export function YearCalendarEditor({
       {/* Легенда держится на месте вместе с числами: тот же приём, что в
           графике смен, — `sticky` под полосой итога и `self-start`, иначе
           растянутому элементу прилипать некуда. */}
-      <div className="lit xl:max-w-70 xl:w-full xl:sticky xl:top-32 xl:self-start translate-y-1
+      <div className="lit xl:max-w-70 xl:w-full xl:sticky xl:top-[calc(8rem+var(--safe-top))] xl:self-start translate-y-1
                       bg-paper-raised/70 p-4 rounded-xl lg:min-w-92.5">
         <dl className="flex flex-wrap gap-x-6 gap-y-2 text-xs xl:flex-col">
           {DAY_TYPES.map((type) => (

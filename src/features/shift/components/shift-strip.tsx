@@ -396,7 +396,7 @@ export function ShiftLegend({ skeleton }: { skeleton?: boolean }) {
   return (
     <div className="lit space-y-4 border-t border-rule xl:border-none translate-y-1 xl:translate-y-3
                       xl:max-w-70 xl:w-full xl:flex xl:flex-col xl:gap-6 xl:sticky
-                      xl:top-32 xl:self-start bg-paper-raised/70 p-4 rounded-xl lg:min-w-92.5">
+                      xl:top-[calc(8rem+var(--safe-top))] xl:self-start bg-paper-raised/70 p-4 rounded-xl lg:min-w-92.5">
         <LegendGroup title="Смены по графику" skeleton={skeleton}>
           <Legend
             skeleton={skeleton}
