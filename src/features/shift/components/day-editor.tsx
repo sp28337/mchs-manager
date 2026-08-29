@@ -40,7 +40,15 @@ import {
   withShiftAt,
   withShiftTimeAt,
 } from "../model/derive";
-import { ABSENCE_MARK, ABSENCE_TONE, CALLOUT_MARK, CALLOUT_TONE } from "./day-marks";
+import {
+  ABSENCE_MARK,
+  ABSENCE_TONE,
+  CALLOUT_MARK,
+  CALLOUT_TONE,
+  DAY_OFF_MARK,
+  DAY_OFF_TONE,
+  SHIFT_TONE,
+} from "./day-marks";
 import { HoursField } from "./hours-field";
 import { TimeField } from "./time-field";
 import {
@@ -192,7 +200,6 @@ function DayForm({
   onChange: (change: (previous: StoredProfile) => StoredProfile) => void;
   onClose: () => void;
 }) {
-  const choiceId = useId();
   const dayTypeId = useId();
   const hoursId = useId();
   const noteId = useId();
@@ -208,6 +215,15 @@ function DayForm({
   const onCycle = scheduledByPattern(profile, day);
   const scheduled = shiftOn(profile, day);
 
+  // Что уже отмечено на этих сутках. Ищется по профилю, а не по расчёту:
+  // удалять нужно запись целиком, а у расчёта её опознавателя нет.
+  const absence = profile.absences.find(
+    (item) => item.startsOn <= day && day <= item.endsOn,
+  );
+  const callouts = profile.callouts.filter(
+    (item) => item.startsOn <= day && day <= item.endsOn,
+  );
+
   const [dayType, setDayType] = useState<DayType>(effective);
   const [shift, setShift] = useState(scheduled);
   // Начало и продолжительность держатся врозь и строками — тем же, чем их
@@ -218,25 +234,56 @@ function DayForm({
   const [durationHours, setDurationHours] = useState(() =>
     spanHoursText(shiftSpanAt(profile, day)),
   );
-  const [choice, setChoice] = useState<DayChoice>("none");
-  const [endsOn, setEndsOn] = useState<IsoDate | null>(day);
-  const [hours, setHours] = useState(DEFAULT_CALLOUT_HOURS);
+  // Что в этих сутках уже стоит — это и есть начальный выбор.
+  //
+  // Раньше окно открывалось с пустым «ничего не добавлять», и стоявший в
+  // сутках вызов правился одним способом: удалить и внести заново, набрав
+  // и период, и часы. Теперь окно открыто НА нём: переключатель включён,
+  // период и часы показаны его собственные, а «Сохранить» их поправит.
+  //
+  // Правится один, а не все сразу: у окна одна пара полей, и второй вызов
+  // в тех же сутках (так бывает — соревнования и следом резерв) правится
+  // следующим открытием. Оба при этом видны в «Уже отмечено», и выключить
+  // можно любой.
+  const editing = absence ?? callouts[0] ?? null;
+  const [choice, setChoice] = useState<DayChoice>(() =>
+    absence
+      ? `absence:${absence.kind}`
+      : callouts[0]
+        ? `callout:${callouts[0].kind}`
+        : "none",
+  );
+  const [endsOn, setEndsOn] = useState<IsoDate | null>(editing?.endsOn ?? day);
+  const [hours, setHours] = useState(
+    callouts[0] ? formatHoursTrim(callouts[0].hoursPerDay) : DEFAULT_CALLOUT_HOURS,
+  );
   const [note, setNote] = useState(profile.dayNotes[day] ?? "");
   const [error, setError] = useState<string | null>(null);
-
-  // Что уже отмечено на этих сутках. Ищется по профилю, а не по расчёту:
-  // удалять нужно запись целиком, а у расчёта её опознавателя нет.
-  const absence = profile.absences.find(
-    (item) => item.startsOn <= day && day <= item.endsOn,
-  );
-  const callouts = profile.callouts.filter(
-    (item) => item.startsOn <= day && day <= item.endsOn,
-  );
 
   // Сутки, в которые дотянулась чужая смена: своей здесь нет, а часы есть.
   // Спрашивается это по ПРЕДЫДУЩЕМУ дню, потому что смена лежит в двух
   // календарных днях, а принадлежит тем суткам, в которые началась.
   const tailFrom = overnightTailFrom(profile, day);
+
+  /** Запись профиля, стоящая за этим видом суток, — если она есть. */
+  function storedOf(pick: DayChoice) {
+    if (pick.startsWith("absence:")) {
+      return absence && `absence:${absence.kind}` === pick ? absence : null;
+    }
+    if (pick.startsWith("callout:")) {
+      return callouts.find((item) => `callout:${item.kind}` === pick) ?? null;
+    }
+    return null;
+  }
+
+  /** Убрать запись из профиля. Тумблер выключен — значит этого в сутках нет. */
+  function removeStored(stored: { id: string }) {
+    onChange((previous) => ({
+      ...previous,
+      absences: previous.absences.filter((item) => item.id !== stored.id),
+      callouts: previous.callouts.filter((item) => item.id !== stored.id),
+    }));
+  }
 
   const parts = choice === "none" ? null : choice.split(":");
   const isAbsence = parts?.[0] === "absence";
@@ -302,6 +349,30 @@ function DayForm({
 
     if (isAbsence) {
       const absenceKind = (parts?.[1] ?? "annual_leave") as AbsenceKind;
+      // Правка того, что уже стоит: запись остаётся той же — с тем же
+      // опознавателем и той же датой начала, которая может быть и раньше
+      // открытых суток, — а меняется у неё дата окончания. Добавлять
+      // вместо этого вторую запись значило бы удвоить отпуск.
+      const edited = absence?.kind === absenceKind ? absence : null;
+      if (edited) {
+        onChange((previous) =>
+          saveShift(
+          saveDayType(
+          saveNote(
+            {
+              ...previous,
+              absences: previous.absences.map((item) =>
+                item.id === edited.id ? { ...item, endsOn: end } : item,
+              ),
+            },
+            note,
+          ),
+          ),
+          ),
+        );
+        onClose();
+        return;
+      }
       // Пересекающиеся отсутствия запрещены: смена, попавшая и в отпуск,
       // и в больничный, вычлась бы из нормы дважды — 48 часов за одни
       // сутки.
@@ -345,6 +416,30 @@ function DayForm({
         return;
       }
       const calloutKind = (parts?.[1] ?? "competition") as CalloutKind;
+      // Тот же довод, что и у отсутствия: вызов, открытый на правку,
+      // правится, а не заводится вторым такой же.
+      const edited = callouts.find((item) => item.kind === calloutKind) ?? null;
+      if (edited) {
+        onChange((previous) =>
+          saveShift(
+          saveDayType(
+          saveNote(
+            {
+              ...previous,
+              callouts: previous.callouts.map((item) =>
+                item.id === edited.id
+                  ? { ...item, endsOn: end, hoursPerDay: parsed.toString() }
+                  : item,
+              ),
+            },
+            note,
+          ),
+          ),
+          ),
+        );
+        onClose();
+        return;
+      }
       onChange((previous) =>
         saveShift(
         saveDayType(
@@ -465,34 +560,6 @@ function DayForm({
         </Field>
         ) : null}
 
-        {/* Смена или выходной — самый частый вопрос на сетке графика после
-            отпуска: подмены и переносы случаются, и цикл о них не знает.
-
-            Тумблер, а не список: состояние здесь ровно одно и оно двоичное
-            — «смена в этот день» либо есть, либо нет. Список из двух
-            значений заставлял его РАСКРЫВАТЬ, чтобы увидеть второе, и
-            выбирать словом там, где достаточно положения кружка.
-
-            «Выходной» при этом не пропал: он назван подписью под
-            тумблером, потому что это его смысл, а не второе состояние
-            какого-то другого переключателя. */}
-        {kind === "shifts" ? (
-        <Field
-          label=""
-          stack
-          note={
-            <>
-              {shift ? "Часы смены идут в отработанное." : "Выходной: ни часов, ни ночных."}
-              {shift === onCycle
-                ? " Это и есть график по циклу."
-                : ` По циклу здесь ${onCycle ? "смена" : "выходной"} — ваша правка это переопределит.`}
-            </>
-          }
-        >
-          <Switch checked={shift} onChange={setShift} label="Смена в этот день" spread />
-        </Field>
-        ) : null}
-
         {/* Со скольки и до скольки. Спрашивается только там, где часы есть,
             — у смены; на выходном отвечать было бы не о чем. */}
         {kind === "shifts" && shift ? (
@@ -533,26 +600,73 @@ function DayForm({
           </Field>
         ) : null}
 
-        {/* Отпуск, больничный и вызов — про самого человека, и место им на
-            сетке его смен. */}
+        {/* Что в этих сутках стоит — одним списком: смена, выходной,
+            освобождение от работы, работа помимо графика.
+
+            Список один, потому что вопрос один. Прежде он был разорван на
+            тумблер «Смена в этот день» и отдельный список всего
+            остального, и человек, пришедший отметить отгул, отвечал на два
+            вопроса подряд, не понимая, связаны они или нет. Связаны:
+            отгул — это и есть «смены не было».
+
+            Оговорка внизу говорит о ВЫБРАННОМ: что эти сутки делают с
+            расчётом. Пока выбрана смена или выходной — про них и сказано,
+            вместе со сверкой с циклом. */}
         {kind === "shifts" ? (
         <Field
           label="Что в этот день"
           stack
           note={
-            isAbsence
-              ? ABSENCE_EFFECT[(parts?.[1] ?? "annual_leave") as AbsenceKind]
-              : isCallout
-                ? "Часы прибавляются к отработанному, норму не трогают (ч. 1 ст. 54 ФЗ-141, ст. 91 ТК РФ)."
-                : undefined
+            isAbsence ? (
+              ABSENCE_EFFECT[(parts?.[1] ?? "annual_leave") as AbsenceKind]
+            ) : isCallout ? (
+              "Часы прибавляются к отработанному, норму не трогают (ч. 1 ст. 54 ФЗ-141, ст. 91 ТК РФ)."
+            ) : (
+              <>
+                {shift ? "Часы смены идут в отработанное." : "Выходной: ни часов, ни ночных."}
+                {shift === onCycle
+                  ? " Это и есть график по циклу."
+                  : ` По циклу здесь ${onCycle ? "смена" : "выходной"} — ваша правка это переопределит.`}
+              </>
+            )
           }
         >
           <DayChoicePicker
-            name={choiceId}
-            value={choice}
-            onChange={(next) => {
-              setChoice(next);
+            shift={shift}
+            onShift={setShift}
+            choice={choice}
+            absence={absence ?? null}
+            callouts={callouts}
+            onPick={(next, on) => {
               setError(null);
+              if (!on) {
+                // Выключили то, что уже записано в профиле, — значит
+                // убрали. Убирается сразу, как и кнопкой «Удалить» в
+                // «Уже отмечено»: тумблер и есть эта кнопка.
+                const stored = storedOf(next);
+                if (stored) removeStored(stored);
+                if (choice === next) setChoice("none");
+                return;
+              }
+              if (next.startsWith("absence:") && absence && `absence:${absence.kind}` !== next) {
+                setError(
+                  `Эти сутки уже заняты: ${ABSENCE_LABELS[absence.kind]} ` +
+                    `${formatDateRu(absence.startsOn)} — ${formatDateRu(absence.endsOn)}. ` +
+                    `Сначала выключите её, иначе смена вычтется из нормы дважды.`,
+                );
+                return;
+              }
+              // Включили — показываем период и часы, а если это уже
+              // записанное, то его собственные: окно открывается на правку,
+              // а не на добавление второго такого же.
+              const stored = storedOf(next);
+              setChoice(next);
+              setEndsOn(stored?.endsOn ?? day);
+              setHours(
+                stored && "hoursPerDay" in stored
+                  ? formatHoursTrim(stored.hoursPerDay)
+                  : DEFAULT_CALLOUT_HOURS,
+              );
             }}
           />
         </Field>
@@ -567,7 +681,11 @@ function DayForm({
           <DateField
             key={choice}
             label="По дату включительно"
-            defaultValue={day}
+            // Своя дата у того, что уже записано: открыв середину вызова с
+            // 7 по 9, человек обязан увидеть 9, а не открытые сутки. Поле
+            // не управляемое и заводится заново при смене выбора (`key`),
+            // поэтому здесь стоит именно то, с чем оно заводится.
+            defaultValue={endsOn ?? day}
             min={day}
             hint={
               isAbsence
@@ -784,9 +902,9 @@ function Entry({
 }
 
 /**
- * Что в этих сутках — выбор клетками, а не списком.
+ * Что в этих сутках — списком клеток с тумблерами.
  *
- * --- Почему не список ------------------------------------------------------
+ * --- Почему не список выбора -----------------------------------------------
  *
  * Список показывает одно значение, а остальные десять прячет за нажатием.
  * Человек, открывший сутки, чтобы отметить отпуск, не знает, что в том же
@@ -799,46 +917,75 @@ function Entry({
  * календаре. Легенда и правка перестали быть двумя разными словарями —
  * буквы и цвета у них общие (`day-marks.ts`).
  *
- * --- Почему настоящие переключатели, а не кнопки ---------------------------
+ * --- Почему тумблер справа, а не отметка выбранного ------------------------
  *
- * Выбор здесь ровно один из одиннадцати, и это в точности радиокнопка. С
- * ней с клавиатуры работают стрелки, а не одиннадцать нажатий табулятора,
- * и экранный диктор называет и группу, и число вариантов, и выбранный. У
- * ряда кнопок ничего этого нет — только вид.
+ * Отметка отвечает на вопрос «что я сейчас выбрал». Вопрос человека другой:
+ * «что в этих сутках СТОИТ». Тумблер отвечает на него прямо — включён
+ * значит стоит, и неважно, поставлено это сейчас или было записано раньше.
+ * Поэтому включённых бывает и несколько: отпуск и вызов в одни сутки, две
+ * записи разом.
  *
- * Сами кружки убраны с глаз (`sr-only`), а нажатие ловит подпись: у метки
- * это её обычная работа, и площадь нажатия становится во всю плашку.
+ * Он же и убирает: выключенный тумблер у записанного вида — это удаление, и
+ * оно происходит сразу, как и по кнопке «Удалить» в «Уже отмечено».
+ *
+ * --- Почему смена и выходной стоят здесь же --------------------------------
+ *
+ * Потому что это ответ на тот же вопрос. Они шли отдельным тумблером выше
+ * списка, и человек, пришедший отметить отгул, отвечал на два вопроса
+ * подряд, не понимая, связаны ли они. Связаны: отгул — это и есть «смены не
+ * было». Взаимно исключающие друг друга, они и ведут себя так: включение
+ * одного гасит другой.
  */
 function DayChoicePicker({
-  name,
-  value,
-  onChange,
+  shift,
+  onShift,
+  choice,
+  absence,
+  callouts,
+  onPick,
 }: {
-  name: string;
-  value: DayChoice;
-  onChange: (next: DayChoice) => void;
+  shift: boolean;
+  onShift: (next: boolean) => void;
+  /** Что сейчас правится: у этого вида показаны период и часы. */
+  choice: DayChoice;
+  /** Отсутствие, накрывающее эти сутки, — если оно записано. */
+  absence: { kind: AbsenceKind } | null;
+  /** Вызовы в этих сутках — их бывает несколько. */
+  callouts: readonly { kind: CalloutKind }[];
+  onPick: (pick: DayChoice, on: boolean) => void;
 }) {
+  const has = (pick: DayChoice) =>
+    choice === pick ||
+    (absence !== null && `absence:${absence.kind}` === pick) ||
+    callouts.some((item) => `callout:${item.kind}` === pick);
+
   return (
     // Во всю ширину строки: `Field` кладёт ответ в гибкую строку, и без
     // этого плашки сжались бы по самой длинной подписи, оставив полполосы
     // пустой бумаги справа.
     <div className="w-full min-w-0 space-y-3">
-      <DayChoiceOption
-        name={name}
-        value="none"
-        current={value}
-        onChange={onChange}
-        label="Ничего не добавлять"
-      />
+      <DayChoiceGroup title="Смена по графику">
+        <DayChoiceRow
+          on={shift}
+          onToggle={(next) => onShift(next)}
+          label="Смена в этот день"
+          tone={SHIFT_TONE}
+        />
+        <DayChoiceRow
+          on={!shift}
+          onToggle={(next) => onShift(!next)}
+          label="Выходной"
+          mark={DAY_OFF_MARK}
+          tone={DAY_OFF_TONE}
+        />
+      </DayChoiceGroup>
 
       <DayChoiceGroup title="Освобождение от работы">
         {ABSENCE_KINDS.map((kind) => (
-          <DayChoiceOption
+          <DayChoiceRow
             key={kind}
-            name={name}
-            value={`absence:${kind}`}
-            current={value}
-            onChange={onChange}
+            on={has(`absence:${kind}`)}
+            onToggle={(next) => onPick(`absence:${kind}`, next)}
             label={ABSENCE_LABELS[kind]}
             mark={ABSENCE_MARK[kind]}
             tone={ABSENCE_TONE[kind]}
@@ -848,12 +995,10 @@ function DayChoicePicker({
 
       <DayChoiceGroup title="Работа помимо графика">
         {CALLOUT_KINDS.map((kind) => (
-          <DayChoiceOption
+          <DayChoiceRow
             key={kind}
-            name={name}
-            value={`callout:${kind}`}
-            current={value}
-            onChange={onChange}
+            on={has(`callout:${kind}`)}
+            onToggle={(next) => onPick(`callout:${kind}`, next)}
             label={CALLOUT_LABELS[kind]}
             mark={CALLOUT_MARK[kind]}
             tone={CALLOUT_TONE}
@@ -865,11 +1010,11 @@ function DayChoicePicker({
 }
 
 /**
- * Заголовок группы и её клетки — тем же строем, что и легенда: подпись над
+ * Заголовок группы и её строки — тем же строем, что и легенда: подпись над
  * рядом, а не при каждой строке.
  *
  * Группа размечена `role="group"` с подписью: без неё диктор прочитал бы
- * одиннадцать вариантов подряд, не сказав, где кончается освобождение от
+ * двенадцать тумблеров подряд, не сказав, где кончается освобождение от
  * работы и начинается работа помимо графика.
  */
 function DayChoiceGroup({ title, children }: { title: string; children: ReactNode }) {
@@ -882,67 +1027,49 @@ function DayChoiceGroup({ title, children }: { title: string; children: ReactNod
       >
         {title}
       </p>
-      <div className="grid grid-cols-1 min-[26rem]:grid-cols-2 gap-1.5">{children}</div>
+      <div className="grid grid-cols-1 min-[30rem]:grid-cols-2 gap-1.5">{children}</div>
     </div>
   );
 }
 
-function DayChoiceOption({
-  name,
-  value,
-  current,
-  onChange,
+/** Строка списка: клетка вида суток, название и тумблер по правому краю. */
+function DayChoiceRow({
+  on,
+  onToggle,
   label,
   mark,
   tone,
 }: {
-  name: string;
-  value: DayChoice;
-  current: DayChoice;
-  onChange: (next: DayChoice) => void;
+  on: boolean;
+  onToggle: (next: boolean) => void;
   label: string;
   mark?: string;
-  tone?: string;
+  tone: string;
 }) {
-  const chosen = current === value;
   return (
-    <label
+    <Switch
+      spread
+      checked={on}
+      onChange={onToggle}
       className={cn(
-        "flex cursor-pointer items-center gap-2 rounded-sm border px-2 py-1.5 text-xs",
-        "transition-colors duration-150",
-        // Выбранное отмечено рамкой и бумагой поярче, а не цветом: цвет в
-        // этой строке уже занят — им говорит сама клетка, и второй цветной
-        // сигнал рядом с ней читался бы как ещё один вид суток.
-        chosen
-          ? "border-rule-strong bg-paper-raised text-ink"
-          : "border-transparent bg-paper-sunken/60 text-ink-muted hover:bg-paper-raised",
-        // Обводка по фокусу — на плашке, а не на спрятанном кружке: иначе
-        // идущий с клавиатуры не увидел бы, где он находится.
-        "has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2",
-        "has-[:focus-visible]:outline-trace",
+        "rounded-sm border px-2 py-1.5 text-xs transition-colors duration-150",
+        on ? "border-rule-strong bg-paper-raised" : "border-transparent bg-paper-sunken/60",
       )}
-    >
-      <input
-        type="radio"
-        name={name}
-        value={value}
-        checked={chosen}
-        onChange={() => onChange(value)}
-        className="sr-only"
-      />
-      <span
-        aria-hidden
-        className={cn(
-          "inline-flex h-6 min-w-6 shrink-0 items-center justify-center rounded-sm border px-2",
-          "font-mono text-[12px] leading-none",
-          // У «ничего не добавлять» клетки нет и быть не может: пустые
-          // сутки — это отсутствие отметки, а не отметка «пусто».
-          tone ?? "border-dashed border-rule text-ink-faint",
-        )}
-      >
-        {mark ?? "—"}
-      </span>
-      {label}
-    </label>
+      label={
+        <span className="flex min-w-0 items-center gap-2 text-left">
+          <span
+            aria-hidden
+            className={cn(
+              "inline-flex h-6 min-w-6 shrink-0 items-center justify-center rounded-sm border px-2",
+              "font-mono text-[12px] leading-none",
+              tone,
+            )}
+          >
+            {mark}
+          </span>
+          <span className={cn("truncate", on ? "text-ink" : "text-ink-muted")}>{label}</span>
+        </span>
+      }
+    />
   );
 }
