@@ -297,7 +297,7 @@ export default function LandingPage() {
                 // Тот же свет, что у карточек выше и у всего остального
                 // на странице: лампа в комнате одна, и блоков, до которых
                 // она не достаёт, быть не должно.
-                className="lit group rounded-xl bg-paper-raised px-5"
+                className="lit group rounded-xl bg-paper-raised px-5 hover:bg-paper-sunken"
               >
                 <summary className="flex cursor-pointer list-none items-center justify-between gap-6 py-4 text-sm font-medium marker:hidden md:text-md">
                   <span>{item.question}</span>
