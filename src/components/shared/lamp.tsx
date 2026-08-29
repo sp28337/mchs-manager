@@ -462,6 +462,11 @@ export function Lamp() {
         <span className="lamp__tape" />
         <span className="lamp__mount" />
         <span className="lamp__tube" />
+        {/* Патроны по концам: в них трубка и держится. Стоят ПОСЛЕ неё —
+            значит, поверх: концы трубки уходят в патрон, как и в жизни, а
+            светит она тем, что между ними. */}
+        <span className="lamp__cap lamp__cap--left" />
+        <span className="lamp__cap lamp__cap--right" />
         <span className="lamp__glow" />
       </div>
 
