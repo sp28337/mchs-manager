@@ -1,7 +1,9 @@
 "use client";
 
 import { Trash2 } from "lucide-react";
-import { useId, useState } from "react";
+
+import { cn } from "@/lib/utils/cn";
+import { useId, useState, type ReactNode } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -38,6 +40,7 @@ import {
   withShiftAt,
   withShiftTimeAt,
 } from "../model/derive";
+import { ABSENCE_MARK, ABSENCE_TONE, CALLOUT_MARK, CALLOUT_TONE } from "./day-marks";
 import { HoursField } from "./hours-field";
 import { TimeField } from "./time-field";
 import {
@@ -534,7 +537,6 @@ function DayForm({
             сетке его смен. */}
         {kind === "shifts" ? (
         <Field
-          id={choiceId}
           label="Что в этот день"
           stack
           note={
@@ -545,30 +547,14 @@ function DayForm({
                 : undefined
           }
         >
-          <Select
-            id={choiceId}
+          <DayChoicePicker
+            name={choiceId}
             value={choice}
-            onChange={(event) => {
-              setChoice(event.target.value as DayChoice);
+            onChange={(next) => {
+              setChoice(next);
               setError(null);
             }}
-          >
-            <option value="none">— ничего не добавлять —</option>
-            <optgroup label="Освобождение от работы">
-              {ABSENCE_KINDS.map((option) => (
-                <option key={option} value={`absence:${option}`}>
-                  {ABSENCE_LABELS[option]}
-                </option>
-              ))}
-            </optgroup>
-            <optgroup label="Работа помимо графика">
-              {CALLOUT_KINDS.map((option) => (
-                <option key={option} value={`callout:${option}`}>
-                  {CALLOUT_LABELS[option]}
-                </option>
-              ))}
-            </optgroup>
-          </Select>
+          />
         </Field>
         ) : null}
 
@@ -794,5 +780,169 @@ function Entry({
         Удалить
       </Button>
     </li>
+  );
+}
+
+/**
+ * Что в этих сутках — выбор клетками, а не списком.
+ *
+ * --- Почему не список ------------------------------------------------------
+ *
+ * Список показывает одно значение, а остальные десять прячет за нажатием.
+ * Человек, открывший сутки, чтобы отметить отпуск, не знает, что в том же
+ * списке лежит отгул и что отгул считается иначе, — пока не раскроет его и
+ * не прочитает все строки подряд. Раскрытый список на телефоне вдобавок
+ * закрывает собой окно, из которого он вызван.
+ *
+ * Клетки показывают всё сразу и ровно тем же значком, каким этот вид суток
+ * стоит потом на сетке: человек нажимает на «О» в отпуске и видит «О» в
+ * календаре. Легенда и правка перестали быть двумя разными словарями —
+ * буквы и цвета у них общие (`day-marks.ts`).
+ *
+ * --- Почему настоящие переключатели, а не кнопки ---------------------------
+ *
+ * Выбор здесь ровно один из одиннадцати, и это в точности радиокнопка. С
+ * ней с клавиатуры работают стрелки, а не одиннадцать нажатий табулятора,
+ * и экранный диктор называет и группу, и число вариантов, и выбранный. У
+ * ряда кнопок ничего этого нет — только вид.
+ *
+ * Сами кружки убраны с глаз (`sr-only`), а нажатие ловит подпись: у метки
+ * это её обычная работа, и площадь нажатия становится во всю плашку.
+ */
+function DayChoicePicker({
+  name,
+  value,
+  onChange,
+}: {
+  name: string;
+  value: DayChoice;
+  onChange: (next: DayChoice) => void;
+}) {
+  return (
+    // Во всю ширину строки: `Field` кладёт ответ в гибкую строку, и без
+    // этого плашки сжались бы по самой длинной подписи, оставив полполосы
+    // пустой бумаги справа.
+    <div className="w-full min-w-0 space-y-3">
+      <DayChoiceOption
+        name={name}
+        value="none"
+        current={value}
+        onChange={onChange}
+        label="Ничего не добавлять"
+      />
+
+      <DayChoiceGroup title="Освобождение от работы">
+        {ABSENCE_KINDS.map((kind) => (
+          <DayChoiceOption
+            key={kind}
+            name={name}
+            value={`absence:${kind}`}
+            current={value}
+            onChange={onChange}
+            label={ABSENCE_LABELS[kind]}
+            mark={ABSENCE_MARK[kind]}
+            tone={ABSENCE_TONE[kind]}
+          />
+        ))}
+      </DayChoiceGroup>
+
+      <DayChoiceGroup title="Работа помимо графика">
+        {CALLOUT_KINDS.map((kind) => (
+          <DayChoiceOption
+            key={kind}
+            name={name}
+            value={`callout:${kind}`}
+            current={value}
+            onChange={onChange}
+            label={CALLOUT_LABELS[kind]}
+            mark={CALLOUT_MARK[kind]}
+            tone={CALLOUT_TONE}
+          />
+        ))}
+      </DayChoiceGroup>
+    </div>
+  );
+}
+
+/**
+ * Заголовок группы и её клетки — тем же строем, что и легенда: подпись над
+ * рядом, а не при каждой строке.
+ *
+ * Группа размечена `role="group"` с подписью: без неё диктор прочитал бы
+ * одиннадцать вариантов подряд, не сказав, где кончается освобождение от
+ * работы и начинается работа помимо графика.
+ */
+function DayChoiceGroup({ title, children }: { title: string; children: ReactNode }) {
+  const titleId = useId();
+  return (
+    <div role="group" aria-labelledby={titleId} className="space-y-1.5">
+      <p
+        id={titleId}
+        className="font-display text-[11px] font-bold uppercase tracking-wide text-ink-muted"
+      >
+        {title}
+      </p>
+      <div className="grid grid-cols-1 min-[26rem]:grid-cols-2 gap-1.5">{children}</div>
+    </div>
+  );
+}
+
+function DayChoiceOption({
+  name,
+  value,
+  current,
+  onChange,
+  label,
+  mark,
+  tone,
+}: {
+  name: string;
+  value: DayChoice;
+  current: DayChoice;
+  onChange: (next: DayChoice) => void;
+  label: string;
+  mark?: string;
+  tone?: string;
+}) {
+  const chosen = current === value;
+  return (
+    <label
+      className={cn(
+        "flex cursor-pointer items-center gap-2 rounded-sm border px-2 py-1.5 text-xs",
+        "transition-colors duration-150",
+        // Выбранное отмечено рамкой и бумагой поярче, а не цветом: цвет в
+        // этой строке уже занят — им говорит сама клетка, и второй цветной
+        // сигнал рядом с ней читался бы как ещё один вид суток.
+        chosen
+          ? "border-rule-strong bg-paper-raised text-ink"
+          : "border-transparent bg-paper-sunken/60 text-ink-muted hover:bg-paper-raised",
+        // Обводка по фокусу — на плашке, а не на спрятанном кружке: иначе
+        // идущий с клавиатуры не увидел бы, где он находится.
+        "has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2",
+        "has-[:focus-visible]:outline-trace",
+      )}
+    >
+      <input
+        type="radio"
+        name={name}
+        value={value}
+        checked={chosen}
+        onChange={() => onChange(value)}
+        className="sr-only"
+      />
+      <span
+        aria-hidden
+        className={cn(
+          "inline-flex h-6 min-w-6 shrink-0 items-center justify-center rounded-sm border px-2",
+          "font-mono text-[12px] leading-none",
+          // У «ничего не добавлять» клетки нет и быть не может: пустые
+          // сутки — это отсутствие отметки, а не отметка «пусто».
+          tone ?? "border-dashed border-rule text-ink-faint",
+        )}
+      >
+        {mark ?? "—"}
+      </span>
+      {label}
+    </label>
   );
 }

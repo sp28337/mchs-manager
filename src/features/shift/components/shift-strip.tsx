@@ -1,5 +1,6 @@
 "use client";
 
+import { Layers, Type } from "lucide-react";
 import { useCallback, type ReactNode } from "react";
 
 import { BoneText } from "@/components/ui/bone";
@@ -24,64 +25,8 @@ import {
 } from "../domain/plain-date";
 import { formatDayMonthRu } from "../domain/format";
 import { ABSENCE_LABELS, CALLOUT_LABELS } from "../schemas";
+import { ABSENCE_MARK, ABSENCE_TONE, CALLOUT_MARK, CALLOUT_TONE } from "./day-marks";
 import type { AbsenceKind, CalloutKind } from "../domain/value-objects";
-
-/**
- * Короткий код вызова в клетке.
- *
- * Три буквы, а не цвет: видов вызова шесть, и шесть оттенков одного
- * значения человек не различит — а «РЕЗ» и «ВЫБ» прочитает сразу.
- * Полное название стоит в подписи клетки и в легенде.
- */
-const CALLOUT_MARK: Record<CalloutKind, string> = {
-  competition: "СР",
-  training_camp: "СБ",
-  reserve: "РЗ",
-  public_event: "МР",
-  elections: "ВБ",
-};
-
-/**
- * Буква вместо прочерка в клетке пропущенной смены.
- *
- * Раньше все семь видов отсутствия выглядели одинаково: «—» на сигнальном
- * фоне. Но человек, глядя на год, ищет не «отсутствие вообще» — он ищет
- * конкретный случай, из-за которого спорит: где стоял больничный, где
- * отпуск, где отгул. Прочерк на этот вопрос не отвечал, и приходилось
- * наводить курсор на каждую клетку.
- *
- * Обозначения взяты из табеля Т-13, а не выдуманы: их узнает и тот, кто
- * заполняет табель по ту сторону спора.
- */
-const ABSENCE_MARK: Record<AbsenceKind, string> = {
-  annual_leave: "О",
-  // «Д» из того же табеля Т-13: дополнительный отпуск там обозначается
-  // именно так, и двум знакам в клетке место есть — коды вызовов тоже
-  // двухбуквенные.
-  extra_leave: "Д",
-  sick_leave: "Б",
-  time_off_in_lieu: "В",
-  study_leave: "У",
-};
-
-/**
- * Цвет клетки по виду отсутствия.
- *
- * Свой цвет у каждого вида, кроме отпуска: он остаётся сигнальным, каким
- * был. Тона разведены не на глаз — между насыщенными цветами интерфейса
- * не меньше 26° по кругу, значения и расчёт в `globals.css`.
- *
- * Пунктирная рамка общая у всех: она означает «смена по графику была, но
- * не состоялась», и это свойство у семи видов одно на всех. Цвет отвечает
- * на следующий вопрос — почему именно не состоялась.
- */
-const ABSENCE_TONE: Record<AbsenceKind, string> = {
-  annual_leave: "border-dashed border-signal/50 bg-signal-soft text-signal rounded-md",
-  extra_leave: "border-dashed border-trip/50 bg-trip-soft text-trip rounded-md",
-  sick_leave: "border-dashed border-sick/50 bg-sick-soft text-sick rounded-md",
-  time_off_in_lieu: "border-dashed border-rest/50 bg-rest-soft text-rest rounded-md",
-  study_leave: "border-dashed border-study/50 bg-study-soft text-study rounded-md",
-};
 
 /**
  * Тот же вид, но вполголоса: сутки отпуска, свободные по графику.
@@ -438,22 +383,37 @@ export function ShiftLegend({ skeleton }: { skeleton?: boolean }) {
           ))}
         </LegendGroup>
 
+        {/* Пять кодов вызова ушли отсюда в окно дня.
+            ----------------------------------------------------------------
+            Легенда отвечает на вопрос «что значит то, что я вижу в
+            клетке», и на него довольно двух строк: в клетке стоит код, а
+            кодов в одних сутках бывает несколько. КАКОЙ именно код
+            поставить — вопрос не легенды, а правки, и место ему там, где
+            правят: в окне дня, где виды вызова теперь и выбираются.
+
+            Внутри образцов не буквы, а знаки: буква «СР» здесь означала
+            бы «соревнования», то есть один вид из пяти, — а образец
+            говорит обо всех сразу. Знак письма читается как «здесь будет
+            надпись», знак стопки — как «надписей может быть несколько». */}
         <LegendGroup title="Работа помимо графика" skeleton={skeleton}>
-          {(Object.keys(CALLOUT_MARK) as CalloutKind[]).map((kind) => (
-            <Legend
-              key={kind}
-              skeleton={skeleton}
-              className="border-trace bg-trace-soft text-trace"
-              mark={CALLOUT_MARK[kind]}
-              label={CALLOUT_LABELS[kind]}
-            />
-          ))}
           <Legend
             skeleton={skeleton}
-            className="border-2 border-trace bg-trace-soft text-trace"
-            mark="СР РЗ"
+            className={CALLOUT_TONE}
+            icon={<Type aria-hidden className="size-3.5" />}
+            label="Код вызова в клетке"
+          />
+          <Legend
+            skeleton={skeleton}
+            className={cn("border-2", CALLOUT_TONE)}
+            icon={<Layers aria-hidden className="size-3.5" />}
             label="Несколько выходов в сутки"
           />
+          <p className="text-xs text-ink-muted">
+            <BoneText skeleton={skeleton}>
+              Какой именно вызов — соревнования, сбор, резерв, мероприятие,
+              выборы — выбирается в окне дня: нажмите по клетке.
+            </BoneText>
+          </p>
         </LegendGroup>
       </div>
   );
@@ -719,7 +679,24 @@ function LegendGroup({
       <p className="font-display text-[11px] font-bold uppercase tracking-wide text-ink-muted">
         <BoneText skeleton={skeleton}>{title}</BoneText>
       </p>
-      <dl className="flex flex-wrap xl:flex-col gap-x-5 gap-y-1.5 text-xs">{children}</dl>
+      {/* Сеткой, а не переносом строк.
+          --------------------------------------------------------------
+          При переносе каждая строка встаёт по своей ширине: подписи в
+          группе разной длины, и вторые столбцы у соседних строк не
+          совпадают ни в одной. На телефоне и на среднем экране это
+          читалось как рассыпанный текст, а не как список.
+
+          Столбцов два до среднего экрана и три на нём. Один — на самом
+          широком, где легенда стоит колонкой слева: там ширины на два
+          уже нет, да и колонка сама себе столбец.
+
+          `[&>p]:col-span-full` — оговорки вроде «смену можно перенести»:
+          это не образец, а строка текста, и в столбец ей вставать
+          незачем. */}
+      <dl className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-1
+                     gap-x-4 gap-y-1.5 text-xs [&>p]:col-span-full">
+        {children}
+      </dl>
     </div>
   );
 }
@@ -735,11 +712,17 @@ function Legend({
   className,
   label,
   mark,
+  icon,
   skeleton,
 }: {
   className: string;
   label: string;
   mark?: string;
+  /**
+   * Знак вместо буквы — там, где образец говорит не об одном виде суток, а
+   * обо всех сразу: буква в таком образце называла бы один из них.
+   */
+  icon?: ReactNode;
   skeleton?: boolean;
 }) {
   return (
@@ -749,7 +732,11 @@ function Legend({
         className={cn(
           // Ширина по содержимому, а не квадрат: «ДО» и «ОСВ» в
           // шестнадцати пикселях сминаются в кашу.
-          "inline-flex h-6 min-w-6 shrink-0 items-center justify-center rounded-xs border px-2",
+          "inline-flex h-6 min-w-6 shrink-0 items-center justify-center rounded-xs border",
+          // Буквенный код набирается по ширине содержимого — «ДО» и «ОСВ»
+          // в шестнадцати пикселях сминаются в кашу; образец со знаком
+          // остаётся квадратом, потому что знак и нарисован квадратным.
+          icon ? "w-6" : "px-2",
           "font-mono text-[12px] leading-none",
           // В заглушке цвет вида суток заменён общим тоном плашки: он
           // ничего не значит, пока расчёта нет, а размеры образца — те же.
@@ -757,7 +744,7 @@ function Legend({
           "rounded-sm"
         )}
       >
-        {mark}
+        {skeleton ? mark : (icon ?? mark)}
       </dt>
       <dd className="text-ink-muted">
         <BoneText skeleton={skeleton}>{label}</BoneText>
