@@ -290,7 +290,7 @@ function MonthBones({ month }: { month: number }) {
         <div
           className={cn(
             "relative flex aspect-square w-full min-w-0 flex-col",
-            "items-center justify-center leading-tight bg-paper-raised",
+            "items-center justify-center leading-tight bg-paper-raised lit-tile",
             corners,
           )}
         >

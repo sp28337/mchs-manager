@@ -1203,7 +1203,7 @@ function DayChoiceRow({
         onChange={onToggle}
         className={cn(
           "rounded-lg px-2 py-1.5 text-xs transition-colors duration-150",
-          "bg-paper-sunken/60 border border-transparent hover:border-ink-muted",
+          "bg-paper border border-transparent hover:border-ink-muted",
         )}
         label={
           // Место под карандаш держит подпись, а не сам тумблер: отступ на

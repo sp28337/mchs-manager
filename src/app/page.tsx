@@ -258,7 +258,11 @@ export default function LandingPage() {
                   target="_blank"
                   rel="noopener noreferrer"
                   className={cn(
-                    "group relative flex h-full flex-col gap-1.5 rounded-xl bg-paper-raised p-5 pr-12",
+                    // `lit` — карточка ловит свет лампы: блик по кромке,
+                    // обращённой к ней, и мягкая тень. Без него плашка
+                    // лежала на бумаге наклейкой, вырезанной ножницами,
+                    // рядом с блоками, у которых толщина есть.
+                    "lit group relative flex h-full flex-col gap-1.5 rounded-xl bg-paper-raised p-5 pr-12",
                     "transition-colors hover:bg-paper-sunken",
                     "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-trace",
                   )}
@@ -290,7 +294,10 @@ export default function LandingPage() {
             {FAQ.map((item) => (
               <details
                 key={item.question}
-                className="group rounded-xl bg-paper-raised px-5"
+                // Тот же свет, что у карточек выше и у всего остального
+                // на странице: лампа в комнате одна, и блоков, до которых
+                // она не достаёт, быть не должно.
+                className="lit group rounded-xl bg-paper-raised px-5 hover:bg-paper-sunken"
               >
                 <summary className="flex cursor-pointer list-none items-center justify-between gap-6 py-4 text-sm font-medium marker:hidden md:text-md">
                   <span>{item.question}</span>

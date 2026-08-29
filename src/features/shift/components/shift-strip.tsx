@@ -571,6 +571,10 @@ function DayCell({
       className={cn(
         "relative flex aspect-square w-full min-w-0 cursor-pointer flex-col",
         "items-center justify-center leading-tight bg-paper-raised",
+        // Клетка — маленькая панель: блик по кромке, обращённой к лампе, и
+        // мягкая тень вниз. Свет на обёртке, а не на внутреннем квадрате:
+        // у того тенью нарисован красный контур сегодняшних суток.
+        "lit-tile",
         // Выделение текста мышью посреди переноса — первое, что портит
         // жест: курсор тащит смену, а браузер тащит выделение.
         "select-none",
