@@ -382,39 +382,22 @@ export function ShiftLegend({ skeleton }: { skeleton?: boolean }) {
           ))}
         </LegendGroup>
 
-        {/* Пять кодов вызова ушли отсюда в окно дня.
-            ----------------------------------------------------------------
-            Легенда отвечает на вопрос «что значит то, что я вижу в
-            клетке», и на него довольно двух строк: в клетке стоит код, а
-            кодов в одних сутках бывает несколько. КАКОЙ именно код
-            поставить — вопрос не легенды, а правки, и место ему там, где
-            правят: в окне дня, где виды вызова теперь и выбираются.
-
-            Внутри образцов — те же буквы, что и в клетках: «СР» и «СР РЗ».
-            Знаки вместо них были бы честнее по смыслу — образец говорит обо
-            всех пяти видах разом, а буква называет один, — но образец
-            легенды человек ищет глазами по СОВПАДЕНИЮ с тем, что видит в
-            календаре, а совпасть со знаком там нечему. Какие бывают коды,
-            сказано строкой ниже. */}
         <LegendGroup title="Работа помимо графика" skeleton={skeleton}>
-          <Legend
-            skeleton={skeleton}
-            className={CALLOUT_TONE}
-            mark={CALLOUT_MARK.competition}
-            label="Код вызова в клетке"
-          />
+          {(Object.keys(CALLOUT_MARK) as CalloutKind[]).map((kind) => (
+            <Legend
+              key={kind}
+              skeleton={skeleton}
+              className={CALLOUT_TONE}
+              mark={CALLOUT_MARK[kind]}
+              label={CALLOUT_LABELS[kind]}
+            />
+          ))}
           <Legend
             skeleton={skeleton}
             className={cn("border-2", CALLOUT_TONE)}
             mark={`${CALLOUT_MARK.competition} ${CALLOUT_MARK.reserve}`}
             label="Несколько выходов в сутки"
           />
-          <p className="text-xs text-ink-muted">
-            <BoneText skeleton={skeleton}>
-              Какой именно вызов — соревнования, сбор, резерв, мероприятие,
-              выборы — выбирается в окне дня: нажмите по клетке.
-            </BoneText>
-          </p>
         </LegendGroup>
       </div>
   );
