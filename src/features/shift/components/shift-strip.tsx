@@ -24,7 +24,16 @@ import {
 } from "../domain/plain-date";
 import { formatDayMonthRu } from "../domain/format";
 import { ABSENCE_LABELS, CALLOUT_LABELS } from "../schemas";
-import { ABSENCE_MARK, ABSENCE_TONE, CALLOUT_MARK, CALLOUT_TONE } from "./day-marks";
+import {
+  ABSENCE_MARK,
+  ABSENCE_TONE,
+  CALLOUT_MARK,
+  CALLOUT_TONE,
+  DAY_OFF_MARK,
+  DAY_OFF_TONE,
+  SHIFT_TAIL_TONE,
+  SHIFT_TONE,
+} from "./day-marks";
 import type { AbsenceKind, CalloutKind } from "../domain/value-objects";
 
 /**
@@ -344,18 +353,18 @@ export function ShiftLegend({ skeleton }: { skeleton?: boolean }) {
         <LegendGroup title="Смены по графику" skeleton={skeleton}>
           <Legend
             skeleton={skeleton}
-            className="border-verify/25 bg-verify/30 text-verify"
+            className={SHIFT_TONE}
             label="Начало смены"
           />
           <Legend
             skeleton={skeleton}
-            className="border-verify/15 bg-verify/5 text-verify"
+            className={SHIFT_TAIL_TONE}
             label="Продолжение смены"
           />
           <Legend
             skeleton={skeleton}
-            className="border-rule text-ink-faint bg-paper-raised"
-            mark="В"
+            className={DAY_OFF_TONE}
+            mark={DAY_OFF_MARK}
             label="Выходной день"
           />
           {/* Перетаскивание ничем себя не выдаёт: клетка выглядит так же,
