@@ -144,7 +144,7 @@ function Day({
       // наличие `corners`, пусть и пустых.
       className={cn(
         "relative",
-        corners !== undefined && "bg-paper-raised",
+        corners !== undefined && "bg-paper-raised lit-tile",
         corners,
         className,
       )}
