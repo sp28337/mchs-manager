@@ -24,7 +24,13 @@ export function Logo({ className }: { className?: string }) {
       fill="none"
     >
       {/* Дежурные сутки — залитые. Цвет берётся от текста, чтобы знак
-          работал и на светлой теме, и на тёмной, и в один цвет на печати. */}
+          работал и на светлой теме, и на тёмной, и в один цвет на печати.
+
+          Остальные трое — пустые клетки, и цвет у них тот же, что у пустой
+          клетки календаря: приподнятая бумага (`--fps-logo-idle`). Стояла
+          здесь тёплая серая краска с прозрачностью в сорок пять сотых, и на
+          графите она заметно отдавала в желтизну — знак выбивался из
+          нейтральной шкалы, которой набрано всё остальное. */}
       <rect x="1" y="1" width="10" height="10" rx="2" fill="currentColor" />
       <rect
         x="13.75"
@@ -32,9 +38,8 @@ export function Logo({ className }: { className?: string }) {
         width="8.5"
         height="8.5"
         rx="1.75"
-        stroke="#8a8578"
+        stroke="var(--fps-logo-idle)"
         strokeWidth="1.5"
-        opacity="0.45"
       />
       <rect
         x="1.75"
@@ -42,9 +47,8 @@ export function Logo({ className }: { className?: string }) {
         width="8.5"
         height="8.5"
         rx="1.75"
-        stroke="#8a8578"
+        stroke="var(--fps-logo-idle)"
         strokeWidth="1.5"
-        opacity="0.45"
       />
       <rect
         x="13.75"
@@ -52,9 +56,8 @@ export function Logo({ className }: { className?: string }) {
         width="8.5"
         height="8.5"
         rx="1.75"
-        stroke="#8a8578"
+        stroke="var(--fps-logo-idle)"
         strokeWidth="1.5"
-        opacity="0.45"
       />
     </svg>
   );
