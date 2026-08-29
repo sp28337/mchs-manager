@@ -688,7 +688,7 @@ function DayForm({
             placeholder=""
             onChange={(event) => setNote(event.target.value)}
             className="block w-full rounded-lg bg-paper px-3 py-2 text-sm text-ink transition-all
-                       placeholder:text-ink-faint hover:border hover:border-ink-muted duration-200"
+                       placeholder:text-ink-faint border border-transparent hover:border-ink-muted duration-200"
           />
         </Field>
         </Card>
@@ -973,7 +973,7 @@ function DayTimeModal({
       // Узкое и поверх — как вопрос «точно?»: довод там же.
       className="modal-over-modal backdrop:bg-black/60 w-[min(30rem,calc(100vw-2rem))]"
     >
-      <div className="space-y-4">
+      <div className="space-y-4 flex flex-col items-center">
         <Card>
           {detail === "shift" ? (
             <Field label="" stack>
@@ -1005,11 +1005,11 @@ function DayTimeModal({
                 // сутки.
                 defaultValue={time?.endsOn ?? day}
                 min={day}
-                hint={
-                  isAbsence
-                    ? "Как в приказе об отпуске: последний день входит."
-                    : "Однодневный вызов — тот же день."
-                }
+                // hint={
+                //   isAbsence
+                //     ? "Как в приказе об отпуске: последний день входит."
+                //     : "Однодневный вызов — тот же день."
+                // }
                 onChange={(next) => onTime({ ...time!, endsOn: next ?? day })}
               />
             </Field>
@@ -1203,7 +1203,7 @@ function DayChoiceRow({
         onChange={onToggle}
         className={cn(
           "rounded-lg px-2 py-1.5 text-xs transition-colors duration-150",
-          "bg-paper-sunken/60",
+          "bg-paper-sunken/60 border border-transparent hover:border-ink-muted",
         )}
         label={
           // Место под карандаш держит подпись, а не сам тумблер: отступ на
@@ -1236,7 +1236,7 @@ function DayChoiceRow({
           aria-label={`Настроить: ${label}`}
           className="absolute right-11 top-1/2 -translate-y-1/2 inline-flex size-7 items-center
                      justify-center rounded-sm text-ink-faint transition-colors
-                     hover:bg-paper-raised hover:text-ink
+                     hover:text-ink cursor-pointer
                      focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-trace"
         >
           <Pencil aria-hidden className="size-3.5" />
