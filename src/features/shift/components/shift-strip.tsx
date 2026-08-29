@@ -1,6 +1,5 @@
 "use client";
 
-import { Layers, Type } from "lucide-react";
 import { useCallback, type ReactNode } from "react";
 
 import { BoneText } from "@/components/ui/bone";
@@ -391,21 +390,23 @@ export function ShiftLegend({ skeleton }: { skeleton?: boolean }) {
             поставить — вопрос не легенды, а правки, и место ему там, где
             правят: в окне дня, где виды вызова теперь и выбираются.
 
-            Внутри образцов не буквы, а знаки: буква «СР» здесь означала
-            бы «соревнования», то есть один вид из пяти, — а образец
-            говорит обо всех сразу. Знак письма читается как «здесь будет
-            надпись», знак стопки — как «надписей может быть несколько». */}
+            Внутри образцов — те же буквы, что и в клетках: «СР» и «СР РЗ».
+            Знаки вместо них были бы честнее по смыслу — образец говорит обо
+            всех пяти видах разом, а буква называет один, — но образец
+            легенды человек ищет глазами по СОВПАДЕНИЮ с тем, что видит в
+            календаре, а совпасть со знаком там нечему. Какие бывают коды,
+            сказано строкой ниже. */}
         <LegendGroup title="Работа помимо графика" skeleton={skeleton}>
           <Legend
             skeleton={skeleton}
             className={CALLOUT_TONE}
-            icon={<Type aria-hidden className="size-3.5" />}
+            mark={CALLOUT_MARK.competition}
             label="Код вызова в клетке"
           />
           <Legend
             skeleton={skeleton}
             className={cn("border-2", CALLOUT_TONE)}
-            icon={<Layers aria-hidden className="size-3.5" />}
+            mark={`${CALLOUT_MARK.competition} ${CALLOUT_MARK.reserve}`}
             label="Несколько выходов в сутки"
           />
           <p className="text-xs text-ink-muted">
@@ -712,17 +713,11 @@ function Legend({
   className,
   label,
   mark,
-  icon,
   skeleton,
 }: {
   className: string;
   label: string;
   mark?: string;
-  /**
-   * Знак вместо буквы — там, где образец говорит не об одном виде суток, а
-   * обо всех сразу: буква в таком образце называла бы один из них.
-   */
-  icon?: ReactNode;
   skeleton?: boolean;
 }) {
   return (
@@ -732,11 +727,9 @@ function Legend({
         className={cn(
           // Ширина по содержимому, а не квадрат: «ДО» и «ОСВ» в
           // шестнадцати пикселях сминаются в кашу.
-          "inline-flex h-6 min-w-6 shrink-0 items-center justify-center rounded-xs border",
-          // Буквенный код набирается по ширине содержимого — «ДО» и «ОСВ»
-          // в шестнадцати пикселях сминаются в кашу; образец со знаком
-          // остаётся квадратом, потому что знак и нарисован квадратным.
-          icon ? "w-6" : "px-2",
+          // Ширина по содержимому, а не квадрат: «ДО» и «ОСВ» в
+          // шестнадцати пикселях сминаются в кашу.
+          "inline-flex h-6 min-w-6 shrink-0 items-center justify-center rounded-xs border px-2",
           "font-mono text-[12px] leading-none",
           // В заглушке цвет вида суток заменён общим тоном плашки: он
           // ничего не значит, пока расчёта нет, а размеры образца — те же.
@@ -744,7 +737,7 @@ function Legend({
           "rounded-sm"
         )}
       >
-        {skeleton ? mark : (icon ?? mark)}
+        {mark}
       </dt>
       <dd className="text-ink-muted">
         <BoneText skeleton={skeleton}>{label}</BoneText>
