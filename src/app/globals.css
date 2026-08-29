@@ -1619,7 +1619,7 @@
     inset calc(var(--lit-tilt, 0) * 1px) 1px 0 0
       rgb(var(--lamp-rgb) / var(--lamp-sheen)),
     calc(var(--lit-tilt, 0) * 1px) 1px 1px -1px rgb(0 0 0 / var(--lamp-cast)),
-    calc(var(--lit-tilt, 0) * 10px) 16px 26px -14px
+    calc(var(--lit-tilt, 0) * 10px) 16px 26px -18px
       rgb(0 0 0 / calc(var(--lamp-cast) * 1.6));
 }
 
