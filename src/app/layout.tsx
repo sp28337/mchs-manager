@@ -7,6 +7,7 @@ import {
 } from "next/font/google";
 
 import { Lamp } from "@/components/shared/lamp";
+import { VeilAnchor } from "@/components/shared/veil-anchor";
 
 import { Providers } from "./providers";
 import "./globals.css";
@@ -106,6 +107,13 @@ export default function RootLayout({
       suppressHydrationWarning
     >
       <body className="min-h-dvh bg-paper text-ink">
+        {/* Продолжение дымки над кромкой окна — липким слоем, в потоке
+            страницы. Стоит ПЕРВЫМ и только здесь: липкий слой держится за
+            своё место в потоке, и из любого другого места до верха
+            страницы он бы не дотянулся. Зачем он вообще нужен и почему
+            закреплённого слоя для этого мало — в самом компоненте. */}
+        <VeilAnchor />
+
         {/* Обёртка нужна ради полос во всю ширину окна — сейчас это
             первый экран, который шире колонки `main`.
 
