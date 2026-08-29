@@ -952,6 +952,7 @@ function DayTimeModal({
   onTime: (next: DayTime) => void;
 }) {
   const hoursId = useId();
+  const endsId = useId();
   const kindOf = detail && detail !== "shift" ? detail.split(":") : null;
   const isAbsence = kindOf?.[0] === "absence";
   const isCallout = kindOf?.[0] === "callout";
@@ -993,23 +994,22 @@ function DayTimeModal({
             </Field>
           ) : null}
 
-          {/* Подпись у второй даты своя — поле само её рисует вместе с
-              подсказкой, поэтому строка карточки берёт его целиком. */}
+          {/* Подпись рисует строка карточки, а не само поле: тогда вопрос
+              стоит слева, а ответ справа — тем же строем, что и «Часов в
+              сутки» под ним и что все строки в настройках. Своей подписью
+              поле вставало столбиком, и две соседние строки одной карточки
+              читались как из разных мест. На узком экране строка
+              переносится, и поле встаёт под вопросом само. */}
           {isAbsence || isCallout ? (
-            <Field label="" stack>
+            <Field id={endsId} label="По дату включительно">
               <DateField
                 key={detail}
-                label="По дату включительно"
+                id={endsId}
                 // Своя дата у того, что уже записано: открыв середину
                 // вызова с 7 по 9, человек обязан увидеть 9, а не открытые
                 // сутки.
                 defaultValue={time?.endsOn ?? day}
                 min={day}
-                // hint={
-                //   isAbsence
-                //     ? "Как в приказе об отпуске: последний день входит."
-                //     : "Однодневный вызов — тот же день."
-                // }
                 onChange={(next) => onTime({ ...time!, endsOn: next ?? day })}
               />
             </Field>
