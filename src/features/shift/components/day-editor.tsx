@@ -1,6 +1,6 @@
 "use client";
 
-import { Trash2 } from "lucide-react";
+import { Pencil, Trash2 } from "lucide-react";
 
 import { cn } from "@/lib/utils/cn";
 import { useId, useState, type ReactNode } from "react";
@@ -121,8 +121,15 @@ import { DateField } from "./date-field";
  * один и тот же, с какой бы сетки его ни открыли.
  */
 
-/** Что человек выбирает в списке: ничего, отсутствие или вызов. */
-type DayChoice = "none" | `absence:${AbsenceKind}` | `callout:${CalloutKind}`;
+/** Вид суток, который человек включает в списке: отсутствие или вызов. */
+type DayPick = `absence:${AbsenceKind}` | `callout:${CalloutKind}`;
+
+/** Время такого вида: по какое число он длится и сколько часов в сутки. */
+interface DayTime {
+  endsOn: IsoDate;
+  /** Только у вызова: у отсутствия часов нет, поле их не спрашивает. */
+  hours: string;
+}
 
 const ABSENCE_KINDS = Object.keys(ABSENCE_LABELS) as AbsenceKind[];
 const CALLOUT_KINDS = Object.keys(CALLOUT_LABELS) as CalloutKind[];
@@ -201,7 +208,6 @@ function DayForm({
   onClose: () => void;
 }) {
   const dayTypeId = useId();
-  const hoursId = useId();
   const noteId = useId();
 
   // Вид дня по закону — то, с чем сравнивается выбор человека.
@@ -234,29 +240,53 @@ function DayForm({
   const [durationHours, setDurationHours] = useState(() =>
     spanHoursText(shiftSpanAt(profile, day)),
   );
-  // Что в этих сутках уже стоит — это и есть начальный выбор.
-  //
-  // Раньше окно открывалось с пустым «ничего не добавлять», и стоявший в
-  // сутках вызов правился одним способом: удалить и внести заново, набрав
-  // и период, и часы. Теперь окно открыто НА нём: переключатель включён,
-  // период и часы показаны его собственные, а «Сохранить» их поправит.
-  //
-  // Правится один, а не все сразу: у окна одна пара полей, и второй вызов
-  // в тех же сутках (так бывает — соревнования и следом резерв) правится
-  // следующим открытием. Оба при этом видны в «Уже отмечено», и выключить
-  // можно любой.
-  const editing = absence ?? callouts[0] ?? null;
-  const [choice, setChoice] = useState<DayChoice>(() =>
-    absence
-      ? `absence:${absence.kind}`
-      : callouts[0]
-        ? `callout:${callouts[0].kind}`
-        : "none",
-  );
-  const [endsOn, setEndsOn] = useState<IsoDate | null>(editing?.endsOn ?? day);
-  const [hours, setHours] = useState(
-    callouts[0] ? formatHoursTrim(callouts[0].hoursPerDay) : DEFAULT_CALLOUT_HOURS,
-  );
+  /**
+   * Что стоит в этих сутках — по видам суток, вместе с временем каждого.
+   *
+   * Ключ — вид («absence:sick_leave», «callout:reserve»), значение — его
+   * период и часы. Заводится тем, что уже записано в профиле: окно
+   * открывается НА том, что в сутках есть, а не пустым. Раньше стоявший в
+   * сутках вызов правился одним способом — удалить и внести заново, набрав
+   * и срок, и часы.
+   *
+   * Отдельной записью на каждый вид, а не одним выбором на всё окно,
+   * потому что в одних сутках их бывает несколько: после смены
+   * соревнования, а следом резерв, и у каждого свои часы. С одним выбором
+   * включение второго ГАСИЛО первый — на глазах у человека и без всякого
+   * объяснения.
+   */
+  const [draft, setDraft] = useState<Record<string, DayTime>>(() => {
+    const seed: Record<string, DayTime> = {};
+    if (absence) {
+      seed[`absence:${absence.kind}`] = {
+        endsOn: absence.endsOn,
+        hours: DEFAULT_CALLOUT_HOURS,
+      };
+    }
+    for (const callout of callouts) {
+      seed[`callout:${callout.kind}`] = {
+        endsOn: callout.endsOn,
+        hours: formatHoursTrim(callout.hoursPerDay),
+      };
+    }
+    return seed;
+  });
+  /**
+   * Какое окно времени открыто поверх окна дня.
+   *
+   * «shift» — начало смены и её продолжительность; вид суток — период и
+   * часы. `null` — не открыто ничего.
+   */
+  const [detail, setDetail] = useState<DayPick | "shift" | null>(null);
+  /**
+   * О чём говорит оговорка под списком.
+   *
+   * Видов включено бывает несколько, а оговорка одна: что эти сутки делают
+   * с расчётом. Говорит она о последнем тронутом виде — том, из-за
+   * которого человек сюда и смотрит. Пока не тронуто ничего, речь о смене
+   * или выходном.
+   */
+  const [spotlight, setSpotlight] = useState<DayPick | null>(null);
   const [note, setNote] = useState(profile.dayNotes[day] ?? "");
   const [error, setError] = useState<string | null>(null);
 
@@ -266,7 +296,7 @@ function DayForm({
   const tailFrom = overnightTailFrom(profile, day);
 
   /** Запись профиля, стоящая за этим видом суток, — если она есть. */
-  function storedOf(pick: DayChoice) {
+  function storedOf(pick: DayPick) {
     if (pick.startsWith("absence:")) {
       return absence && `absence:${absence.kind}` === pick ? absence : null;
     }
@@ -285,9 +315,8 @@ function DayForm({
     }));
   }
 
-  const parts = choice === "none" ? null : choice.split(":");
-  const isAbsence = parts?.[0] === "absence";
-  const isCallout = parts?.[0] === "callout";
+  const isAbsence = spotlight?.startsWith("absence:") ?? false;
+  const isCallout = spotlight?.startsWith("callout:") ?? false;
 
   /**
    * Вид дня в производственном календаре.
@@ -332,138 +361,119 @@ function DayForm({
     return { ...next, dayNotes };
   }
 
+  /**
+   * Записать всё, что человек включил и поправил, одним движением.
+   *
+   * --- Почему всё разом, а не по одному ---------------------------------------
+   *
+   * Видов в одних сутках бывает несколько, и каждый со своим сроком и
+   * часами. Записывать их по мере включения значило бы, что «Отмена» внизу
+   * отменяет не всё, а только последнее, — а это худший вид неправды в
+   * окне правки. Здесь либо записано всё, либо ничего.
+   *
+   * Убирание при этом идёт сразу, тумблером, и это не противоречие: убрать
+   * — действие законченное и видимое, его результат человек проверяет тут
+   * же, на списке «Уже отмечено».
+   */
   function submit() {
     const target = day;
+    const picks = Object.keys(draft) as DayPick[];
 
-    if (choice === "none") {
-      onChange((previous) => saveShift(saveDayType(saveNote(previous, note))));
-      onClose();
-      return;
-    }
+    // Часы и сроки проверяются ДО первой записи: половина внесённого хуже
+    // невнесённого — человек уйдёт, будучи уверен, что записано всё.
+    const additions: { pick: DayPick; end: IsoDate; hours: string | null }[] = [];
 
-    const end = endsOn ?? target;
-    if (end < target) {
-      setError("Дата окончания раньше выбранного дня.");
-      return;
-    }
-
-    if (isAbsence) {
-      const absenceKind = (parts?.[1] ?? "annual_leave") as AbsenceKind;
-      // Правка того, что уже стоит: запись остаётся той же — с тем же
-      // опознавателем и той же датой начала, которая может быть и раньше
-      // открытых суток, — а меняется у неё дата окончания. Добавлять
-      // вместо этого вторую запись значило бы удвоить отпуск.
-      const edited = absence?.kind === absenceKind ? absence : null;
-      if (edited) {
-        onChange((previous) =>
-          saveShift(
-          saveDayType(
-          saveNote(
-            {
-              ...previous,
-              absences: previous.absences.map((item) =>
-                item.id === edited.id ? { ...item, endsOn: end } : item,
-              ),
-            },
-            note,
-          ),
-          ),
-          ),
+    for (const pick of picks) {
+      const time = draft[pick];
+      if (!time) continue;
+      const end = time.endsOn;
+      if (end < target) {
+        setError("Дата окончания раньше выбранного дня.");
+        return;
+      }
+      if (pick.startsWith("callout:")) {
+        const parsed = parseHours(time.hours);
+        // Больше суток в сутках не бывает, и ноль часов — это не вызов.
+        if (parsed === null || parsed.lessThanOrEqualTo(0) || parsed.greaterThan(24)) {
+          setError("Часы в сутки — число от 0 до 24, например 8 или 4,5.");
+          return;
+        }
+        additions.push({ pick, end, hours: parsed.toString() });
+      } else {
+        // Пересекающиеся отсутствия запрещены: смена, попавшая и в отпуск,
+        // и в больничный, вычлась бы из нормы дважды — 48 часов за одни
+        // сутки. Своя же запись, открытая на правку, не считается.
+        const kind = pick.slice("absence:".length) as AbsenceKind;
+        const own = absence?.kind === kind ? absence : null;
+        const overlap = profile.absences.find(
+          (item) => item.id !== own?.id && item.startsOn <= end && target <= item.endsOn,
         );
-        onClose();
-        return;
+        if (overlap) {
+          setError(
+            `Эти сутки уже заняты: ${ABSENCE_LABELS[overlap.kind]} ` +
+              `${formatDateRu(overlap.startsOn)} — ${formatDateRu(overlap.endsOn)}. ` +
+              `Сначала выключите её, иначе смена вычтется из нормы дважды.`,
+          );
+          return;
+        }
+        additions.push({ pick, end, hours: null });
       }
-      // Пересекающиеся отсутствия запрещены: смена, попавшая и в отпуск,
-      // и в больничный, вычлась бы из нормы дважды — 48 часов за одни
-      // сутки.
-      const overlap = profile.absences.find(
-        (item) => item.startsOn <= end && target <= item.endsOn,
-      );
-      if (overlap) {
-        setError(
-          `Эти сутки уже заняты: ${ABSENCE_LABELS[overlap.kind]} ` +
-            `${formatDateRu(overlap.startsOn)} — ${formatDateRu(overlap.endsOn)}. ` +
-            `Сначала удалите её, иначе смена вычтется из нормы дважды.`,
-        );
-        return;
-      }
-
-      onChange((previous) =>
-        saveShift(
-        saveDayType(
-        saveNote(
-          {
-            ...previous,
-            absences: [
-              ...previous.absences,
-              { id: crypto.randomUUID(), kind: absenceKind, startsOn: target, endsOn: end },
-            ],
-          },
-          note,
-        ),
-        ),
-        ),
-      );
-      onClose();
-      return;
     }
 
-    if (isCallout) {
-      const parsed = parseHours(hours);
-      // Больше суток в сутках не бывает, и ноль часов — это не вызов.
-      if (parsed === null || parsed.lessThanOrEqualTo(0) || parsed.greaterThan(24)) {
-        setError("Часы в сутки — число от 0 до 24, например 8 или 4,5.");
-        return;
+    onChange((previous) => {
+      let next = saveShift(saveDayType(saveNote(previous, note)));
+      for (const { pick, end, hours: parsed } of additions) {
+        if (pick.startsWith("absence:")) {
+          const kind = pick.slice("absence:".length) as AbsenceKind;
+          // Правка того, что уже стоит: запись остаётся той же — с тем же
+          // опознавателем и той же датой начала, которая может быть и
+          // раньше открытых суток, — а меняется у неё дата окончания.
+          // Добавить вместо этого вторую значило бы удвоить отпуск.
+          const edited = next.absences.find((item) => item.id === absence?.id && item.kind === kind);
+          next = edited
+            ? {
+                ...next,
+                absences: next.absences.map((item) =>
+                  item.id === edited.id ? { ...item, endsOn: end } : item,
+                ),
+              }
+            : {
+                ...next,
+                absences: [
+                  ...next.absences,
+                  { id: crypto.randomUUID(), kind, startsOn: target, endsOn: end },
+                ],
+              };
+        } else {
+          const kind = pick.slice("callout:".length) as CalloutKind;
+          const edited = callouts.find((item) => item.kind === kind) ?? null;
+          next = edited
+            ? {
+                ...next,
+                callouts: next.callouts.map((item) =>
+                  item.id === edited.id
+                    ? { ...item, endsOn: end, hoursPerDay: parsed! }
+                    : item,
+                ),
+              }
+            : {
+                ...next,
+                callouts: [
+                  ...next.callouts,
+                  {
+                    id: crypto.randomUUID(),
+                    kind,
+                    startsOn: target,
+                    endsOn: end,
+                    hoursPerDay: parsed!,
+                  },
+                ],
+              };
+        }
       }
-      const calloutKind = (parts?.[1] ?? "competition") as CalloutKind;
-      // Тот же довод, что и у отсутствия: вызов, открытый на правку,
-      // правится, а не заводится вторым такой же.
-      const edited = callouts.find((item) => item.kind === calloutKind) ?? null;
-      if (edited) {
-        onChange((previous) =>
-          saveShift(
-          saveDayType(
-          saveNote(
-            {
-              ...previous,
-              callouts: previous.callouts.map((item) =>
-                item.id === edited.id
-                  ? { ...item, endsOn: end, hoursPerDay: parsed.toString() }
-                  : item,
-              ),
-            },
-            note,
-          ),
-          ),
-          ),
-        );
-        onClose();
-        return;
-      }
-      onChange((previous) =>
-        saveShift(
-        saveDayType(
-        saveNote(
-          {
-            ...previous,
-            callouts: [
-              ...previous.callouts,
-              {
-                id: crypto.randomUUID(),
-                kind: calloutKind,
-                startsOn: target,
-                endsOn: end,
-                hoursPerDay: parsed.toString(),
-              },
-            ],
-          },
-          note,
-        ),
-        ),
-        ),
-      );
-      onClose();
-    }
+      return next;
+    });
+    onClose();
   }
 
   return (
@@ -560,26 +570,6 @@ function DayForm({
         </Field>
         ) : null}
 
-        {/* Со скольки и до скольки. Спрашивается только там, где часы есть,
-            — у смены; на выходном отвечать было бы не о чем. */}
-        {kind === "shifts" && shift ? (
-          <Field label="" stack>
-          <ShiftHoursField
-            day={day}
-            startsAt={startsAt}
-            hours={durationHours}
-            schedule={scheduleSpanAt(profile, day)}
-            onStart={setStartsAt}
-            onHours={setDurationHours}
-            onReset={() => {
-              const schedule = scheduleSpanAt(profile, day);
-              setStartsAt(schedule.startsAt);
-              setDurationHours(spanHoursText(schedule));
-            }}
-          />
-          </Field>
-        ) : null}
-
         {/* Сутки без своей смены, но с чужими часами: сюда дотянулась смена,
             начатая накануне. Часы у неё там же, где она началась, — иначе
             одна смена правилась бы из двух разных дней, и правки эти
@@ -618,7 +608,7 @@ function DayForm({
           stack
           note={
             isAbsence ? (
-              ABSENCE_EFFECT[(parts?.[1] ?? "annual_leave") as AbsenceKind]
+              ABSENCE_EFFECT[spotlight!.slice("absence:".length) as AbsenceKind]
             ) : isCallout ? (
               "Часы прибавляются к отработанному, норму не трогают (ч. 1 ст. 54 ФЗ-141, ст. 91 ТК РФ)."
             ) : (
@@ -633,80 +623,60 @@ function DayForm({
         >
           <DayChoicePicker
             shift={shift}
-            onShift={setShift}
-            choice={choice}
-            absence={absence ?? null}
-            callouts={callouts}
+            onShift={(next) => {
+              setShift(next);
+              // Включили смену — сразу спрашиваем, со скольки она и
+              // сколько длится: это единственные две величины, которые у
+              // неё есть. Выключили (то есть поставили выходной) —
+              // спрашивать нечего.
+              if (next) setDetail("shift");
+            }}
+            onEdit={(next) => {
+              if (next !== "shift") setSpotlight(next);
+              setDetail(next);
+            }}
+            picked={draft}
             onPick={(next, on) => {
               setError(null);
               if (!on) {
-                // Выключили то, что уже записано в профиле, — значит
-                // убрали. Убирается сразу, как и кнопкой «Удалить» в
-                // «Уже отмечено»: тумблер и есть эта кнопка.
+                // Выключили. Записанное в профиле убирается сразу — как и
+                // кнопкой «Удалить» в «Уже отмечено»: тумблер и есть эта
+                // кнопка. Не записанное просто уходит из правок.
                 const stored = storedOf(next);
                 if (stored) removeStored(stored);
-                if (choice === next) setChoice("none");
+                setDraft((previous) => {
+                  const rest = { ...previous };
+                  delete rest[next];
+                  return rest;
+                });
+                if (spotlight === next) setSpotlight(null);
                 return;
               }
-              if (next.startsWith("absence:") && absence && `absence:${absence.kind}` !== next) {
+              // Второе отсутствие в те же сутки запрещено: смена, попавшая
+              // и в отпуск, и в больничный, вычлась бы из нормы дважды.
+              const busy =
+                next.startsWith("absence:") &&
+                (Object.keys(draft) as DayPick[]).find(
+                  (pick) => pick.startsWith("absence:") && pick !== next,
+                );
+              if (busy) {
+                const kind = busy.slice("absence:".length) as AbsenceKind;
                 setError(
-                  `Эти сутки уже заняты: ${ABSENCE_LABELS[absence.kind]} ` +
-                    `${formatDateRu(absence.startsOn)} — ${formatDateRu(absence.endsOn)}. ` +
+                  `Эти сутки уже заняты: ${ABSENCE_LABELS[kind]}. ` +
                     `Сначала выключите её, иначе смена вычтется из нормы дважды.`,
                 );
                 return;
               }
-              // Включили — показываем период и часы, а если это уже
-              // записанное, то его собственные: окно открывается на правку,
-              // а не на добавление второго такого же.
-              const stored = storedOf(next);
-              setChoice(next);
-              setEndsOn(stored?.endsOn ?? day);
-              setHours(
-                stored && "hoursPerDay" in stored
-                  ? formatHoursTrim(stored.hoursPerDay)
-                  : DEFAULT_CALLOUT_HOURS,
-              );
+              // Включили — спрашиваем срок и часы отдельным окном.
+              setDraft((previous) => ({
+                ...previous,
+                [next]: { endsOn: day, hours: DEFAULT_CALLOUT_HOURS },
+              }));
+              setSpotlight(next);
+              setDetail(next);
             }}
           />
         </Field>
-        ) : null}
-
-        {/* Вторая дата и часы появляются только у того, чему они нужны:
-            пустые поля «на всякий случай» человек читает как обязательные. */}
-        {/* Подпись у второй даты своя — поле само её рисует вместе с
-            подсказкой, поэтому строка карточки берёт его целиком. */}
-        {choice !== "none" ? (
-          <Field label="" stack>
-          <DateField
-            key={choice}
-            label="По дату включительно"
-            // Своя дата у того, что уже записано: открыв середину вызова с
-            // 7 по 9, человек обязан увидеть 9, а не открытые сутки. Поле
-            // не управляемое и заводится заново при смене выбора (`key`),
-            // поэтому здесь стоит именно то, с чем оно заводится.
-            defaultValue={endsOn ?? day}
-            min={day}
-            hint={
-              isAbsence
-                ? "Как в приказе об отпуске: последний день входит."
-                : "Однодневный вызов — тот же день."
-            }
-            onChange={setEndsOn}
-          />
-          </Field>
-        ) : null}
-
-        {isCallout ? (
-          <Field id={hoursId} label="Часов в сутки">
-            <Input
-              id={hoursId}
-              inputMode="decimal"
-              value={hours}
-              onChange={(event) => setHours(event.target.value)}
-              className="w-28 font-mono"
-            />
-          </Field>
         ) : null}
 
         <Field id={noteId} label="Заметка" stack>
@@ -722,6 +692,41 @@ function DayForm({
           />
         </Field>
         </Card>
+
+        {/* Время — отдельным окном поверх окна дня.
+            ------------------------------------------------------------------
+            Величин у каждого вида суток две-три, и раньше они появлялись
+            прямо в окне дня, под списком. Список из двенадцати строк уже
+            высотой в экран телефона, и поля вырастали ЗА его нижним краем:
+            человек включал вызов, ничего не происходило на видимой части,
+            и он шёл сохранять, не назвав ни часов, ни срока.
+
+            Окно поверх решает это тем же, чем и вопрос «точно?»: оно
+            встаёт по центру, поверх всего, и не заметить его нельзя.
+
+            Своего «Сохранить» у него нет и быть не должно: величины
+            записываются в то же состояние окна дня, а на бумагу всё
+            ложится одним нажатием внизу. Два «Сохранить» подряд означали
+            бы, что первое что-то уже сохранило, — а это неправда. */}
+        <DayTimeModal
+          detail={detail}
+          onClose={() => setDetail(null)}
+          day={day}
+          profile={profile}
+          startsAt={startsAt}
+          durationHours={durationHours}
+          onStart={setStartsAt}
+          onDuration={setDurationHours}
+          time={detail && detail !== "shift" ? draft[detail] : undefined}
+          onTime={(next) =>
+            setDetail((current) => {
+              if (current && current !== "shift") {
+                setDraft((previous) => ({ ...previous, [current]: next }));
+              }
+              return current;
+            })
+          }
+        />
 
         <div className="flex flex-wrap gap-2 pt-1">
           <Button type="button" onClick={submit}>
@@ -902,6 +907,136 @@ function Entry({
 }
 
 /**
+ * Время выбранного вида суток — окном поверх окна дня.
+ *
+ * --- Почему отдельным окном --------------------------------------------------
+ *
+ * Величин у каждого вида две-три, и появлялись они прямо в окне дня, под
+ * списком из двенадцати строк. Список этот на телефоне уже высотой в экран,
+ * и поля вырастали ЗА его нижним краем: человек включал вызов, на видимой
+ * части не менялось ничего, и он шёл сохранять, не назвав ни часов, ни
+ * срока. Окно поверх не заметить нельзя — тот же довод, что у вопроса
+ * «точно?» (`ui/confirm-dialog.tsx`), и то же устройство: `modal-over-modal`
+ * с родным затемнением, потому что свой слой затемнения до окна, лежащего
+ * выше, не дотягивается.
+ *
+ * --- Почему у него нет своего «Сохранить» ------------------------------------
+ *
+ * Величины записываются в состояние окна дня, а на бумагу всё ложится одним
+ * нажатием «Сохранить» внизу. Второе «Сохранить» означало бы, что первое
+ * что-то уже записало, — а это неправда, и человек, закрывший окно дня
+ * после него, потерял бы всё, будучи уверен в обратном.
+ */
+function DayTimeModal({
+  detail,
+  onClose,
+  day,
+  profile,
+  startsAt,
+  durationHours,
+  onStart,
+  onDuration,
+  time,
+  onTime,
+}: {
+  detail: DayPick | "shift" | null;
+  onClose: () => void;
+  day: IsoDate;
+  profile: StoredProfile;
+  startsAt: string;
+  durationHours: string;
+  onStart: (next: string) => void;
+  onDuration: (next: string) => void;
+  /** Срок и часы того вида, что сейчас правится. */
+  time?: DayTime;
+  onTime: (next: DayTime) => void;
+}) {
+  const hoursId = useId();
+  const kindOf = detail && detail !== "shift" ? detail.split(":") : null;
+  const isAbsence = kindOf?.[0] === "absence";
+  const isCallout = kindOf?.[0] === "callout";
+
+  const title =
+    detail === "shift"
+      ? "Смена в этот день"
+      : isAbsence
+        ? ABSENCE_LABELS[kindOf![1] as AbsenceKind]
+        : isCallout
+          ? CALLOUT_LABELS[kindOf![1] as CalloutKind]
+          : "";
+
+  return (
+    <Modal
+      open={detail !== null}
+      onClose={onClose}
+      title={title}
+      // Узкое и поверх — как вопрос «точно?»: довод там же.
+      className="modal-over-modal backdrop:bg-black/60 w-[min(30rem,calc(100vw-2rem))]"
+    >
+      <div className="space-y-4">
+        <Card>
+          {detail === "shift" ? (
+            <Field label="" stack>
+              <ShiftHoursField
+                day={day}
+                startsAt={startsAt}
+                hours={durationHours}
+                schedule={scheduleSpanAt(profile, day)}
+                onStart={onStart}
+                onHours={onDuration}
+                onReset={() => {
+                  const schedule = scheduleSpanAt(profile, day);
+                  onStart(schedule.startsAt);
+                  onDuration(spanHoursText(schedule));
+                }}
+              />
+            </Field>
+          ) : null}
+
+          {/* Подпись у второй даты своя — поле само её рисует вместе с
+              подсказкой, поэтому строка карточки берёт его целиком. */}
+          {isAbsence || isCallout ? (
+            <Field label="" stack>
+              <DateField
+                key={detail}
+                label="По дату включительно"
+                // Своя дата у того, что уже записано: открыв середину
+                // вызова с 7 по 9, человек обязан увидеть 9, а не открытые
+                // сутки.
+                defaultValue={time?.endsOn ?? day}
+                min={day}
+                hint={
+                  isAbsence
+                    ? "Как в приказе об отпуске: последний день входит."
+                    : "Однодневный вызов — тот же день."
+                }
+                onChange={(next) => onTime({ ...time!, endsOn: next ?? day })}
+              />
+            </Field>
+          ) : null}
+
+          {isCallout ? (
+            <Field id={hoursId} label="Часов в сутки">
+              <Input
+                id={hoursId}
+                inputMode="decimal"
+                value={time?.hours ?? ""}
+                onChange={(event) => onTime({ ...time!, hours: event.target.value })}
+                className="w-28 font-mono"
+              />
+            </Field>
+          ) : null}
+        </Card>
+
+        <Button type="button" onClick={onClose}>
+          Готово
+        </Button>
+      </div>
+    </Modal>
+  );
+}
+
+/**
  * Что в этих сутках — списком клеток с тумблерами.
  *
  * --- Почему не список выбора -----------------------------------------------
@@ -939,25 +1074,19 @@ function Entry({
 function DayChoicePicker({
   shift,
   onShift,
-  choice,
-  absence,
-  callouts,
+  picked,
   onPick,
+  onEdit,
 }: {
   shift: boolean;
   onShift: (next: boolean) => void;
-  /** Что сейчас правится: у этого вида показаны период и часы. */
-  choice: DayChoice;
-  /** Отсутствие, накрывающее эти сутки, — если оно записано. */
-  absence: { kind: AbsenceKind } | null;
-  /** Вызовы в этих сутках — их бывает несколько. */
-  callouts: readonly { kind: CalloutKind }[];
-  onPick: (pick: DayChoice, on: boolean) => void;
+  /** Что в этих сутках стоит: и записанное, и только что включённое. */
+  picked: Record<string, DayTime>;
+  onPick: (pick: DayPick, on: boolean) => void;
+  /** Открыть окно времени у включённой строки. */
+  onEdit: (detail: DayPick | "shift") => void;
 }) {
-  const has = (pick: DayChoice) =>
-    choice === pick ||
-    (absence !== null && `absence:${absence.kind}` === pick) ||
-    callouts.some((item) => `callout:${item.kind}` === pick);
+  const has = (pick: DayPick) => pick in picked;
 
   return (
     // Во всю ширину строки: `Field` кладёт ответ в гибкую строку, и без
@@ -968,9 +1097,12 @@ function DayChoicePicker({
         <DayChoiceRow
           on={shift}
           onToggle={(next) => onShift(next)}
+          onEdit={() => onEdit("shift")}
           label="Смена в этот день"
           tone={SHIFT_TONE}
         />
+        {/* У выходного времени нет — ни начала, ни продолжительности, — и
+            карандаша у него поэтому тоже нет: открывать было бы нечего. */}
         <DayChoiceRow
           on={!shift}
           onToggle={(next) => onShift(!next)}
@@ -986,6 +1118,7 @@ function DayChoicePicker({
             key={kind}
             on={has(`absence:${kind}`)}
             onToggle={(next) => onPick(`absence:${kind}`, next)}
+            onEdit={() => onEdit(`absence:${kind}`)}
             label={ABSENCE_LABELS[kind]}
             mark={ABSENCE_MARK[kind]}
             tone={ABSENCE_TONE[kind]}
@@ -999,6 +1132,7 @@ function DayChoicePicker({
             key={kind}
             on={has(`callout:${kind}`)}
             onToggle={(next) => onPick(`callout:${kind}`, next)}
+            onEdit={() => onEdit(`callout:${kind}`)}
             label={CALLOUT_LABELS[kind]}
             mark={CALLOUT_MARK[kind]}
             tone={CALLOUT_TONE}
@@ -1032,44 +1166,82 @@ function DayChoiceGroup({ title, children }: { title: string; children: ReactNod
   );
 }
 
-/** Строка списка: клетка вида суток, название и тумблер по правому краю. */
+/**
+ * Строка списка: клетка вида суток, название, карандаш и тумблер.
+ *
+ * --- Почему карандаш стоит РЯДОМ с тумблером, а не внутри строки ------------
+ *
+ * Тумблер — это кнопка во всю строку, и вложить в неё вторую кнопку нельзя:
+ * такая разметка недопустима, и нажатие досталось бы то одной, то другой.
+ * Поэтому карандаш лежит НАД строкой отдельной кнопкой, слева от дорожки, и
+ * перехватывает свои нажатия сам. Место под него держит отступ справа у
+ * подписи — иначе длинное название уезжало бы под него.
+ *
+ * Показан он только у включённого вида: у выключенного правит нечего.
+ */
 function DayChoiceRow({
   on,
   onToggle,
+  onEdit,
   label,
   mark,
   tone,
 }: {
   on: boolean;
   onToggle: (next: boolean) => void;
+  /** Чем правится время этого вида суток. Без него карандаша нет. */
+  onEdit?: () => void;
   label: string;
   mark?: string;
   tone: string;
 }) {
   return (
-    <Switch
-      settings
-      checked={on}
-      onChange={onToggle}
-      className={cn(
-        "rounded-lg px-2 py-1.5 text-xs transition-colors duration-150",
-        on ? "bg-paper-sunken/60" : "bg-paper-sunken/60",
-      )}
-      label={
-        <span className="flex min-w-0 items-center gap-2 text-left">
+    <div className="relative">
+      <Switch
+        settings
+        checked={on}
+        onChange={onToggle}
+        className={cn(
+          "rounded-lg px-2 py-1.5 text-xs transition-colors duration-150",
+          "bg-paper-sunken/60",
+        )}
+        label={
+          // Место под карандаш держит подпись, а не сам тумблер: отступ на
+          // тумблере сдвинул бы ВНУТРЬ его дорожку, и карандаш лёг бы прямо
+          // на неё — поймано снимком.
           <span
-            aria-hidden
             className={cn(
-              "inline-flex h-6 min-w-6 shrink-0 items-center justify-center rounded-sm border px-2",
-              "font-mono text-[12px] leading-none",
-              tone,
+              "flex min-w-0 items-center gap-2 text-left",
+              on && onEdit ? "pr-8" : "",
             )}
           >
-            {mark}
+            <span
+              aria-hidden
+              className={cn(
+                "inline-flex h-6 min-w-6 shrink-0 items-center justify-center rounded-sm border px-2",
+                "font-mono text-[12px] leading-none",
+                tone,
+              )}
+            >
+              {mark}
+            </span>
+            <span className={cn("truncate", on ? "text-ink" : "text-ink-muted")}>{label}</span>
           </span>
-          <span className={cn("truncate", on ? "text-ink" : "text-ink-muted")}>{label}</span>
-        </span>
-      }
-    />
+        }
+      />
+      {on && onEdit ? (
+        <button
+          type="button"
+          onClick={onEdit}
+          aria-label={`Настроить: ${label}`}
+          className="absolute right-11 top-1/2 -translate-y-1/2 inline-flex size-7 items-center
+                     justify-center rounded-sm text-ink-faint transition-colors
+                     hover:bg-paper-raised hover:text-ink
+                     focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-trace"
+        >
+          <Pencil aria-hidden className="size-3.5" />
+        </button>
+      ) : null}
+    </div>
   );
 }
