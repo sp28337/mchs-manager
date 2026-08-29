@@ -352,7 +352,7 @@ export function DemoSchedule() {
             внутри, давала три вложенных контура на одну строку: настройки
             выглядели чертежом, а не настройками. Заливки хватает: карточка
             на тон выше страницы, значение на тон ниже карточки. */}
-        <div className="relative space-y-3 rounded-xl bg-paper-raised p-4">
+        <div className="lit relative space-y-3 rounded-xl bg-paper-raised p-4">
           <Field label="График">
             {/* Значение перегорает — тем же приёмом, что цифры в названии
                 сайта при смене графика: старое истлевает и его сносит,
