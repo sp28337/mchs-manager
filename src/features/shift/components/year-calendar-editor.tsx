@@ -432,7 +432,11 @@ function DayButton({
       aria-current={today ? "date" : undefined}
       onClick={onPick}
       className={cn(
-        "relative flex aspect-square w-full min-w-0 cursor-pointer flex-col bg-paper-raised",
+        "relative flex aspect-square w-full min-w-0 cursor-pointer flex-col",
+        "bg-paper-raised",
+        // Клетка — маленькая панель, как и в графике смен: тот же свет на
+        // обёртке, потому что внутри тенью нарисован контур «сегодня».
+        "lit-tile",
         corners,
       )}
     >

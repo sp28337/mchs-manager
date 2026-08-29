@@ -62,6 +62,10 @@ export function HeroFigures({
     <dl
       className={cn(
         "flex h-14 items-center justify-around gap-x-3 rounded-xl bg-paper-raised px-4 py-2",
+        // Свет лампы — тот же, что у плашки в расчёте: блик по кромке,
+        // обращённой к ней, и тень вниз. Разметка эту плашку повторяет,
+        // значит и освещена она обязана быть так же.
+        "lit",
         className,
       )}
       style={style}

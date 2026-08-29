@@ -327,7 +327,11 @@ function useLitTilt(ready: boolean): void {
           window.innerWidth * LAMP_VW,
         ) / 2;
 
-      for (const block of document.querySelectorAll<HTMLElement>(".lit")) {
+      // `.lit` — блок, который сам ловит свет; `.lit-aim` — тот, кто
+      // только ЗАДАЁТ наклон своим детям: так помечен месяц, чьи клетки
+      // светятся каждая, а мерить их все по отдельности значило бы делать
+      // четыреста замеров с перерасчётом раскладки между ними.
+      for (const block of document.querySelectorAll<HTMLElement>(".lit, .lit-aim")) {
         const box = block.getBoundingClientRect();
         // Скрытые блоки (окно ещё закрыто) мерить нечего: нулевая ширина
         // дала бы им наклон по левому краю экрана.

@@ -144,7 +144,7 @@ function Day({
       // наличие `corners`, пусть и пустых.
       className={cn(
         "relative",
-        corners !== undefined && "bg-paper-raised",
+        corners !== undefined && "bg-paper-raised lit-tile",
         corners,
         className,
       )}
@@ -352,7 +352,7 @@ export function DemoSchedule() {
             внутри, давала три вложенных контура на одну строку: настройки
             выглядели чертежом, а не настройками. Заливки хватает: карточка
             на тон выше страницы, значение на тон ниже карточки. */}
-        <div className="relative space-y-3 rounded-xl bg-paper-raised p-4">
+        <div className="lit relative space-y-3 rounded-xl bg-paper-raised p-4">
           <Field label="График">
             {/* Значение перегорает — тем же приёмом, что цифры в названии
                 сайта при смене графика: старое истлевает и его сносит,
@@ -628,23 +628,38 @@ export function DemoStorage() {
   return (
     <Panel>
       <div className="w-full max-w-104">
-        {/* Шапка приложения: те же две кнопки, что стоят там на самом деле. */}
-        <div className="relative flex items-center justify-end gap-2 rounded-t-xl border border-rule bg-paper-raised px-3 py-2.5">
+        {/* Шапка приложения: те же две кнопки, что стоят там на самом деле.
+
+            Серой рамки у неё больше нет — вместо неё свет: блок ловит блик
+            лампы по кромке и кладёт тень, как все прочие блоки страницы.
+            Рамка на этом фоне читалась чертежом среди предметов. */}
+        <div className="lit relative flex items-center justify-end gap-2 rounded-t-xl bg-paper-raised px-3 py-2.5">
           <HeaderButton icon={Settings2} label="Настройки" />
           <HeaderButton icon={Save} label="Сохранить" className="demo-save-button" />
           <Pointer className="demo-tap-save right-8 top-7" />
         </div>
 
-        {/* Окно выгрузки — оно и открывается по этой кнопке. */}
-        <div className="demo-dialog relative rounded-b-xl border border-x-rule border-b-rule bg-paper p-4 shadow-lg">
+        {/* Окно выгрузки — оно и открывается по этой кнопке. Тоже светом, а
+            не рамкой: настоящее окно в приложении стоит на бумаге и
+            освещено так же. */}
+        <div className="demo-dialog lit relative rounded-b-xl bg-paper p-4">
           <p className="font-display text-[0.95em] font-bold">Сохранить профиль в файл</p>
 
-          <div className="mt-3 space-y-1.5">
+          {/* Строка вопроса стоит на карточке, а поле на ней — той же
+              лесенкой тонов, что и в настоящем окне выгрузки: окно на
+              бумаге, карточка на тон выше, поле на тон ниже карточки.
+              Раньше вопрос и поле лежали прямо на окне, и поле держалось
+              серым контуром — единственным на всей странице. */}
+          <div className="lit mt-3 space-y-1.5 rounded-xl bg-paper-raised p-3">
             <span className="block text-[0.8em] font-medium text-ink-muted">Имя файла</span>
             {/* Имя набирается: полоса ширины раскрывает знак за знаком, а
                 каретка стоит у её края. Ступенями по числу знаков — иначе
                 буквы выезжали бы наполовину. */}
-            <span className="flex h-9 w-full items-center rounded-lg border border-rule-strong bg-paper px-3">
+            {/* Поле — такое же, как в приложении: заливка и невидимая рамка,
+                которая проявляется только под курсором. Обведённое серым,
+                оно было единственным местом на странице, где поле держится
+                контуром. */}
+            <span className="flex h-9 w-full items-center rounded-lg border border-paper bg-paper px-3">
               <span className="demo-typed font-mono text-[0.85em]">Мой график</span>
               <span className="demo-caret ml-px h-[1.1em] w-px bg-ink" />
             </span>
