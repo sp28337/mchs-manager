@@ -30,6 +30,7 @@ export function Switch({
   onChange,
   label,
   spread,
+  settings,
   className,
 }: {
   checked: boolean;
@@ -51,6 +52,7 @@ export function Switch({
    * в строке легенды или рядом с кнопкой тумблер читается слева направо.
    */
   spread?: boolean;
+  settings?: boolean;
   className?: string;
 }) {
   /* Дорожка и кружок. Размеры кратны четырём точкам, чтобы кружок стоял
@@ -75,6 +77,25 @@ export function Switch({
     </span>
   );
 
+  const trackV2 = (
+    <span
+      aria-hidden
+      className={cn(
+        "relative inline-flex h-6 w-9 shrink-0 items-center rounded-full",
+        "transition-colors",
+        checked ? "bg-verify/25" : "bg-paper-raised group-hover:border-ink-muted",
+      )}
+    >
+      <span
+        className={cn(
+          "absolute size-4 rounded-full transition-transform duration-200",
+          "left-1",
+          checked ? "translate-x-3 bg-verify" : "translate-x-0 bg-ink-faint",
+        )}
+      />
+    </span>
+  );
+
   return (
     <button
       type="button"
@@ -85,7 +106,7 @@ export function Switch({
         "group inline-flex cursor-pointer items-center gap-2 rounded-xl",
         "text-sm text-ink transition-colors",
         "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-trace",
-        spread ? "w-full justify-between" : "shrink-0",
+        (spread || settings) ? "w-full justify-between" : "shrink-0",
         className,
       )}
     >
@@ -93,6 +114,11 @@ export function Switch({
         <>
           {label}
           {track}
+        </>
+      ) : settings ? (
+        <>
+          {label}
+          {trackV2}
         </>
       ) : (
         <>

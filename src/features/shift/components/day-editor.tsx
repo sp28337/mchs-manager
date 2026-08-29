@@ -1048,12 +1048,12 @@ function DayChoiceRow({
 }) {
   return (
     <Switch
-      spread
+      settings
       checked={on}
       onChange={onToggle}
       className={cn(
-        "rounded-sm border px-2 py-1.5 text-xs transition-colors duration-150",
-        on ? "border-rule-strong bg-paper-raised" : "border-transparent bg-paper-sunken/60",
+        "rounded-lg px-2 py-1.5 text-xs transition-colors duration-150",
+        on ? "bg-paper-sunken/60" : "bg-paper-sunken/60",
       )}
       label={
         <span className="flex min-w-0 items-center gap-2 text-left">
