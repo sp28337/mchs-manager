@@ -7,7 +7,7 @@ import {
 } from "next/font/google";
 
 import { Lamp } from "@/components/shared/lamp";
-import { ThemeColour } from "@/components/shared/theme-colour";
+import { PAPER, ThemeColour } from "@/components/shared/theme-colour";
 import { VeilAnchor } from "@/components/shared/veil-anchor";
 
 import { Providers } from "./providers";
@@ -143,24 +143,28 @@ export default function RootLayout({
 
         {/* Цвет верхней полосы браузера — ДО первой отрисовки.
             -----------------------------------------------------------------
-            Зачем метка вообще нужна и почему её нельзя объявить разметкой —
-            в самом компоненте `ThemeColour`; он же и поддерживает её при
-            переключении темы. Но первый раз поставить её обязан не он: React
-            добирается до страницы уже после первой отрисовки, и человек со
-            светлой темой успел бы увидеть тёмную полосу над белым листом.
+            Зачем метка вообще нужна, почему её нельзя объявить разметкой и
+            почему цвет не берётся из стилей — всё в `ThemeColour`; он же и
+            поддерживает её при переключении темы. Но первый раз поставить
+            её обязан не он: React добирается до страницы уже после первой
+            отрисовки, и человек со светлой темой успел бы увидеть тёмную
+            полосу над белым листом.
 
-            Строка стоит ПОСЛЕ поставщика тем — и только поэтому обходится
+            Строка стоит ПОСЛЕ поставщика тем, и только поэтому обходится
             без собственного разбора настройки: `next-themes` к этому моменту
-            уже положил тему классом на корень, стили её уже применили, и
-            `--fps-paper` содержит цвет ТЕКУЩЕЙ бумаги. Повтори здесь разбор
+            уже положил тему классом на корень. Повтори здесь разбор
             хранилища — и он немедленно разошёлся бы с тем, что делает
-            поставщик. */}
+            поставщик.
+
+            Цвета подставлены из того же места, откуда их берёт компонент:
+            разметка окна собирается на сервере, и двум спискам цветов
+            взяться неоткуда. */}
         <script
           dangerouslySetInnerHTML={{
             __html:
               'document.head.appendChild(Object.assign(document.createElement("meta"),' +
-              '{name:"theme-color",content:getComputedStyle(document.documentElement)' +
-              '.getPropertyValue("--fps-paper").trim()}));',
+              '{name:"theme-color",content:document.documentElement.classList' +
+              `.contains("dark")?"${PAPER.dark}":"${PAPER.light}"}));`,
           }}
         />
 
