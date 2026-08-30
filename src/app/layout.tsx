@@ -8,7 +8,7 @@ import {
 
 import { Lamp } from "@/components/shared/lamp";
 import { VeilAnchor } from "@/components/shared/veil-anchor";
-import { PAPER, WindowTop } from "@/components/shared/window-top";
+import { WindowTop } from "@/components/shared/window-top";
 
 import { Providers } from "./providers";
 import "./globals.css";
@@ -78,7 +78,14 @@ export const metadata: Metadata = {
   // Подпись под ярлыком на домашнем экране айфона. Без неё туда идёт
   // `title`, а он длиной в строку поиска: под иконкой от него остаётся
   // «График 1 3 — норма и…».
-  appleWebApp: { title: "График 1 3" },
+  //
+  // Метка выписана вручную, а не через `appleWebApp`: тот вместе с
+  // подписью объявляет и вид системной полосы под часами
+  // (`apple-mobile-web-app-status-bar-style`), а всё, что заявляет цвета
+  // верха, из этого приложения сейчас выведено — именно такое заявление и
+  // сломало смену темы на айфоне (`shared/window-top.tsx`). Подпись к
+  // цвету отношения не имеет и остаётся.
+  other: { "apple-mobile-web-app-title": "График 1 3" },
   // Ссылки в разметке страниц относительные; без базы Open Graph получил
   // бы неполный адрес и не открылся бы при пересылке.
   metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000"),
@@ -140,33 +147,6 @@ export default function RootLayout({
         <div className="overflow-x-clip">
           <Providers>{children}</Providers>
         </div>
-
-        {/* Цвет верхней полосы браузера — ДО первой отрисовки.
-            -----------------------------------------------------------------
-            Зачем метка вообще нужна, почему её нельзя объявить разметкой и
-            почему цвет не берётся из стилей — всё в `WindowTop`; он же
-            поддерживает её при переключении темы и перекрашивает слои над
-            кромкой окна. Но первый раз поставить её обязан не он: React
-            добирается до страницы уже после первой отрисовки, и человек со
-            светлой темой успел бы увидеть тёмную полосу над белым листом.
-
-            Строка стоит ПОСЛЕ поставщика тем, и только поэтому обходится
-            без собственного разбора настройки: `next-themes` к этому моменту
-            уже положил тему классом на корень. Повтори здесь разбор
-            хранилища — и он немедленно разошёлся бы с тем, что делает
-            поставщик.
-
-            Цвета подставлены из того же места, откуда их берёт компонент:
-            разметка окна собирается на сервере, и двум спискам цветов
-            взяться неоткуда. */}
-        <script
-          dangerouslySetInnerHTML={{
-            __html:
-              'document.head.appendChild(Object.assign(document.createElement("meta"),' +
-              '{name:"theme-color",content:document.documentElement.classList' +
-              `.contains("dark")?"${PAPER.dark}":"${PAPER.light}"}));`,
-          }}
-        />
 
         <WindowTop />
 
