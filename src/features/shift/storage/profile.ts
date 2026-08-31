@@ -559,3 +559,48 @@ export function shiftOverridesOf(profile: StoredProfile): Map<IsoDate, ShiftOver
 export function shiftTimesOf(profile: StoredProfile): Map<IsoDate, ShiftSpan> {
   return new Map(Object.entries(profile.shiftTimes) as [IsoDate, ShiftSpan][]);
 }
+
+/**
+ * Когда профиль в последний раз сохраняли В ФАЙЛ.
+ * ---------------------------------------------------------------------------
+ * Не то же самое, что `savedAt`: тот отмечает запись в браузер и обновляется
+ * при каждой правке. Здесь — момент, когда человек унёс копию с устройства.
+ *
+ * Нужно ровно в одном месте и ровно для одного вопроса: перед тем как
+ * открыть ЧУЖОЙ файл поверх нынешнего профиля, надо знать, не пропадёт ли
+ * при этом год работы. Браузеры чистят хранилище сами, копии на сервере
+ * нет, и «Открыть другой профиль» — единственное действие в приложении,
+ * которое стирает данные молча.
+ *
+ * Лежит отдельным ключом, а не полем профиля, намеренно: попади он в
+ * профиль — попал бы и в файл, и открытый на другом устройстве профиль
+ * рассказывал бы про сохранение, которого на этом устройстве не было.
+ */
+const EXPORTED_KEY = "shift-schedule.profile.exported-at";
+
+/** Отметить, что состояние с этой меткой времени ушло в файл. */
+export function markProfileExported(savedAt: string): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(EXPORTED_KEY, savedAt);
+  } catch {
+    // Не запомнить отметку — не повод не отдать файл. Худшее следствие:
+    // приложение лишний раз предупредит о несохранённом.
+  }
+}
+
+/**
+ * Есть ли у нынешнего состояния копия в файле.
+ *
+ * Сравниваются метки времени записи, а не содержимое: любая правка меняет
+ * `savedAt`, и этого достаточно. Ошибаться эта проверка может только в
+ * безопасную сторону — предупредить там, где копия на самом деле есть.
+ */
+export function profileNeedsExport(profile: StoredProfile): boolean {
+  if (typeof window === "undefined") return true;
+  try {
+    return window.localStorage.getItem(EXPORTED_KEY) !== profile.savedAt;
+  } catch {
+    return true;
+  }
+}

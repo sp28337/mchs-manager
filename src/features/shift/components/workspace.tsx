@@ -184,7 +184,19 @@ export function Workspace({ profile, onChange, onForget }: WorkspaceProps) {
           поднять туда и выбор периода, то есть половину этого экрана. */}
       <SiteHeader
         tools={
-          <HeaderTools profile={profile} onChange={onChange} onForget={onForget} />
+          <HeaderTools
+            profile={profile}
+            onChange={onChange}
+            onForget={onForget}
+            // Перечень изменений в настройках ведёт в сутки, а сутки
+            // открывает тот же самый выбор, что и нажатие по клетке.
+            // Сетку он тоже называет: правка вида дня живёт на
+            // производственном календаре, остальное — на графике.
+            onOpenDay={(day, grid) => {
+              setYearView(grid === "calendar" ? "calendar" : "shifts");
+              setPickedDay(day);
+            }}
+          />
         }
       />
 

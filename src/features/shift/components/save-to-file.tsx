@@ -7,7 +7,11 @@ import { Input } from "@/components/ui/input";
 import { Modal } from "@/components/ui/modal";
 import { Card, Field } from "@/components/ui/panel";
 
-import { exportProfile, type StoredProfile } from "../storage/profile";
+import {
+  exportProfile,
+  markProfileExported,
+  type StoredProfile,
+} from "../storage/profile";
 
 /**
  * Выгрузка профиля в файл.
@@ -136,6 +140,9 @@ function SaveDialog({
  * пришёл сохранять, а не спорить о названии.
  */
 export function downloadProfile(profile: StoredProfile, name: string): void {
+  // Отметка о выгрузке ставится здесь, а не в диалоге: файл отдан человеку
+  // именно тут, и любой другой способ его получить прошёл бы мимо отметки.
+  markProfileExported(profile.savedAt);
   // Расширение снимается, если человек его набрал: иначе получилось бы
   // «график.json.json».
   const typed = name.replace(/\.json$/i, "").trim();

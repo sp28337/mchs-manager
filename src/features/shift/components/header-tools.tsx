@@ -8,7 +8,8 @@ import { cn } from "@/lib/utils/cn";
 
 import type { StoredProfile } from "../storage/profile";
 import { useSaveToFile } from "./save-to-file";
-import { SettingsPanel } from "./settings-panel";
+import type { IsoDate } from "../domain/plain-date";
+import { SettingsTabs } from "./settings-tabs";
 
 /**
  * Настройки и выгрузка — из шапки.
@@ -89,12 +90,22 @@ export function HeaderTools({
   profile,
   onChange,
   onForget,
+  onOpenDay,
   className,
 }: {
   profile: StoredProfile;
   onChange: (change: (previous: StoredProfile) => StoredProfile) => void;
   /** Удалить профиль с устройства — из настроек, рядом со сбросом. */
   onForget?: () => void;
+  /**
+   * Открыть сутки на сетке.
+   *
+   * Нужно перечню внесённых изменений: строка перечня ведёт в те самые
+   * сутки, а открывает их рабочий экран — там же, где и всё остальное.
+   * Заводить второе окно дня внутри настроек значило бы повторить его
+   * целиком и разойтись с ним при первой же правке.
+   */
+  onOpenDay: (day: IsoDate, grid: "shifts" | "calendar") => void;
   className?: string;
 }) {
   const [open, setOpen] = useState(false);
@@ -227,7 +238,22 @@ export function HeaderTools({
           </span>
         }
       >
-        <SettingsPanel profile={profile} onChange={onChange} onForget={onForget} />
+        <SettingsTabs
+          profile={profile}
+          onChange={onChange}
+          onForget={onForget}
+          onReplace={(next) => {
+            onChange(() => next);
+            setOpen(false);
+          }}
+          // Открыть сутки — значит закрыть настройки: окно дня встаёт
+          // поверх, и оставить под ним второе окно значило бы вернуть
+          // человека в настройки, как только он закончит с днём.
+          onOpenDay={(day, grid) => {
+            setOpen(false);
+            onOpenDay(day, grid);
+          }}
+        />
       </Modal>
 
       {save.dialog}
