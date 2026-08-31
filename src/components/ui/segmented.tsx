@@ -68,8 +68,17 @@ export function SegmentedItem({
         "whitespace-nowrap rounded-lg px-3 text-xs font-medium transition-colors",
         "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-trace",
         "[&_svg]:size-4 [&_svg]:shrink-0",
+        // Занятая ячейка ловит свет лампы кромкой и роняет тень, как все
+        // поднятые поверхности приложения (`lit` в `globals.css`). Пустые
+        // не ловят ничего и не должны: они не подняты, они утоплены
+        // вместе с подложкой, а блик на утопленном — это свет без
+        // предмета.
+        //
+        // Своя тень (`shadow-sm`) при этом убрана: `lit` ставит и блик, и
+        // тень одним объявлением, и вторая тень рядом с ней читалась бы
+        // как вторая же поверхность.
         active
-          ? "bg-paper-raised text-ink shadow-sm"
+          ? "lit bg-paper-raised text-ink"
           : "text-ink-muted hover:text-ink",
         className,
       )}

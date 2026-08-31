@@ -1,14 +1,16 @@
 "use client";
 
-import { ListChecks, SlidersHorizontal } from "lucide-react";
-import { useState } from "react";
+import { Download, ListChecks, SlidersHorizontal } from "lucide-react";
+import { useRef, useState } from "react";
 
+import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Card, Field } from "@/components/ui/panel";
 import { Segmented, SegmentedItem } from "@/components/ui/segmented";
 
 import type { IsoDate } from "../domain/plain-date";
 import { profileNeedsExport, type StoredProfile } from "../storage/profile";
+import { downloadProfile, fileNameOf } from "./save-to-file";
 import { ChangesList } from "./changes-list";
 import { ImportProfileBlock } from "./import-profile";
 import { SettingsPanel } from "./settings-panel";
@@ -62,6 +64,27 @@ export function SettingsTabs({
   const [warning, setWarning] = useState(false);
   const [allowed, setAllowed] = useState(false);
 
+  /**
+   * Окно не схлопывается при переходе на другую закладку.
+   *
+   * Закладки разной высоты, и без этого окно на глазах у человека
+   * съёживалось под перечень из трёх строк — то есть прыгало ровно в тот
+   * момент, когда он ждал не прыжка, а другого содержимого. Хуже того,
+   * прыгала и точка, в которую он только что попал пальцем.
+   *
+   * Поэтому запоминается высота уже показанного и ставится нижней
+   * границей. Расти окну это не мешает: граница НИЖНЯЯ, и закладка выше
+   * прежней растянет его как обычно.
+   */
+  const pane = useRef<HTMLDivElement>(null);
+  const [floor, setFloor] = useState(0);
+
+  function show(next: Tab) {
+    if (next === tab) return;
+    setFloor(pane.current?.offsetHeight ?? 0);
+    setTab(next);
+  }
+
   return (
     <div className="space-y-4">
       {/* Во всю ширину, а не по содержимому: в окне переключатель стоит
@@ -72,7 +95,7 @@ export function SettingsTabs({
           <SegmentedItem
             key={id}
             active={tab === id}
-            onClick={() => setTab(id)}
+            onClick={() => show(id)}
             className="grow"
           >
             <Icon aria-hidden />
@@ -81,9 +104,10 @@ export function SettingsTabs({
         ))}
       </Segmented>
 
+      <div ref={pane} style={floor ? { minHeight: floor } : undefined}>
       {tab === "profile" ? (
         <div className="space-y-4">
-          <SettingsPanel profile={profile} onChange={onChange} onForget={onForget} />
+          <SettingsPanel profile={profile} onChange={onChange} />
 
           <Card>
             <Field label="" stack>
@@ -107,18 +131,37 @@ export function SettingsTabs({
           </Card>
         </div>
       ) : (
-        <ChangesList profile={profile} onChange={onChange} onOpenDay={onOpenDay} />
+        <ChangesList
+          profile={profile}
+          onChange={onChange}
+          onForget={onForget}
+          onOpenDay={onOpenDay}
+        />
       )}
+      </div>
 
-      {/* Предупреждение, а не запрет: человек вправе заменить профиль,
-          не сохраняя, — но не вправе сделать это, не зная. */}
+      {/* Окно не просто предупреждает, а ПРЕДЛАГАЕТ выход.
+          -------------------------------------------------------------
+          Сперва оно говорило «сохранить можно кнопкой в шапке» — то есть
+          отправляло человека искать по экрану кнопку, о которой само же и
+          вспомнило. Теперь сохранение стоит прямо здесь и стоит главным
+          действием: файл уходит в загрузки под обычным именем профиля, и
+          дальше выбор файла открывается сам.
+
+          Открыть без сохранения тоже можно — это предупреждение, а не
+          запрет: человек вправе заменить профиль, не сохраняя, но не
+          вправе сделать это, не зная. Поэтому такая кнопка есть, но она
+          вторая и без нажима. */}
       <ConfirmDialog
         open={warning}
         onClose={() => setWarning(false)}
-        onConfirm={() => setAllowed(true)}
-        title="Нынешний профиль не сохранён"
-        confirm="Всё равно открыть"
-        destructive
+        onConfirm={() => {
+          downloadProfile(profile, fileNameOf(profile.displayName));
+          setAllowed(true);
+        }}
+        title="Сначала сохранить нынешний?"
+        confirm="Сохранить в файл"
+        icon={<Download aria-hidden />}
       >
         <p>
           С последней правки график не сохранялся в файл. Открыв другой
@@ -127,9 +170,18 @@ export function SettingsTabs({
         </p>
         <p className="text-ink-muted">
           Отменить будет нельзя: данные лежат только на этом устройстве, копии
-          на сервере нет. Сохранить нынешний график можно кнопкой в шапке — она
-          рядом с настройками.
+          на сервере нет.
         </p>
+        <Button
+          type="button"
+          variant="ghost"
+          onClick={() => {
+            setAllowed(true);
+            setWarning(false);
+          }}
+        >
+          Открыть без сохранения
+        </Button>
       </ConfirmDialog>
     </div>
   );

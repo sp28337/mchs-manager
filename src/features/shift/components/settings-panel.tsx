@@ -83,23 +83,10 @@ export type SettingsPanelPurpose = "settings" | "create";
 export function SettingsPanel({
   profile,
   onChange,
-  onForget,
   purpose = "settings",
 }: {
   profile: StoredProfile;
   onChange: (change: (previous: StoredProfile) => StoredProfile) => void;
-  /**
-   * Удалить профиль с устройства.
-   *
-   * Стояло в подвале рабочего экрана, рядом с рассказом о том, где лежат
-   * данные. Место было выбрано по смыслу текста, а не по тому, куда пойдёт
-   * человек: тот, кто решил завести график заново, идёт в настройки — там
-   * же, где сброс календаря, — а не листает страницу до конца.
-   *
-   * В окне «Создать профиль» довода нет и быть не может: удалять там
-   * нечего.
-   */
-  onForget?: () => void;
   purpose?: SettingsPanelPurpose;
 }) {
   const nameId = useId();
@@ -440,9 +427,15 @@ export function SettingsPanel({
           окно выбора периода, к отрезкам и месяцам, и меняется там же,
           где на него смотрят. */}
 
-      {purpose === "settings" ? (
-        <DangerActions onChange={onChange} onForget={onForget} />
-      ) : null}
+      {/* «Сбросить календарь» и «Удалить профиль» стоят не здесь.
+          -------------------------------------------------------------
+          Оба стирают ВНЕСЁННОЕ, а не отвечают на вопросы анкеты, и место
+          им там, где внесённое видно: в закладке изменений, под самим
+          перечнем. Человек, решивший убрать всё разом, смотрит перед этим
+          на список — а не на поле с именем профиля.
+
+          Сама деталь вынесена наружу (`DangerActions`), чтобы закладка
+          изменений могла поставить её у себя внизу. */}
     </div>
   );
 }
@@ -520,27 +513,32 @@ function CycleDays({
  * надпись, и заодно отличает одно от другого с одного взгляда: стрелка
  * назад — вернуть как было, урна — стереть.
  */
-function DangerActions({
+export function DangerActions({
   onChange,
   onForget,
+  showReset = true,
 }: {
   onChange: (change: (previous: StoredProfile) => StoredProfile) => void;
   onForget?: () => void;
+  /** Сброс не показывается там, где сбрасывать нечего. */
+  showReset?: boolean;
 }) {
   const [asking, setAsking] = useState<"reset" | "forget" | null>(null);
 
   return (
     <div className="pt-4">
       <div className="flex flex-wrap items-center justify-evenly gap-2">
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          onClick={() => setAsking("reset")}
-        >
-          <RotateCcw aria-hidden />
-          Сбросить календарь
-        </Button>
+        {showReset ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() => setAsking("reset")}
+          >
+            <RotateCcw aria-hidden />
+            Сбросить календарь
+          </Button>
+        ) : null}
 
         {onForget ? (
           <Button
