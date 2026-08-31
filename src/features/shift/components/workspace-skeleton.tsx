@@ -2,6 +2,7 @@ import {
   CalendarCog,
   CalendarDays,
   CalendarRange,
+  FolderOpen,
   Save,
   Settings2,
   ZoomIn,
@@ -12,7 +13,8 @@ import { Bone, BoneText } from "@/components/ui/bone";
 import { cn } from "@/lib/utils/cn";
 
 import { datesOfMonth, dayOfMonth } from "../domain/plain-date";
-import { MonthGrid } from "./month-grid";
+import { LABELS_FROM } from "./header-tools";
+import { MonthGrid, YEAR_BOX, YEAR_GRID } from "./month-grid";
 import { MONTH_NAMES } from "./month-names";
 import { ShiftLegend } from "./shift-strip";
 
@@ -123,7 +125,9 @@ export function WorkspaceSkeleton() {
               полоса сдвинула бы всё под собой на строку. */}
           <h2 className="flex items-center gap-2 text-xl sr-only">Календарь</h2>
 
-          <div className="space-y-4">
+          {/* `year-room` — та же метка, что на корне `YearView`: из неё
+              берётся число месяцев в ряду на каждой ширине. */}
+          <div className="year-room space-y-4">
             {/* Панель управления сеткой: что показывать, за какой период,
                 живым временем или целиком, и каким размером. */}
             <div className="space-y-3">
@@ -141,7 +145,7 @@ export function WorkspaceSkeleton() {
 
                 <span
                   className={cn(
-                    "inline-flex h-9 shrink-0 items-center gap-2 rounded-xl",
+                    "lit inline-flex h-9 shrink-0 items-center gap-2 rounded-xl",
                     "skeleton-bone bg-paper-raised px-3 text-sm font-medium text-transparent",
                   )}
                 >
@@ -175,17 +179,22 @@ export function WorkspaceSkeleton() {
                 1280 точек легенда стоит колонкой слева на экране, ниже —
                 полосой над сеткой. */}
             <div className="space-y-6 xl:flex xl:flex-row-reverse xl:gap-4">
+              {/* Раскладка года — теми же двумя классами, что у расчёта.
+                  Ни числа месяцев в ряду, ни кегля здесь больше не
+                  назначается: и то и другое приходит из `globals.css`, а
+                  кегль вдобавок считается по ЗАМЕРУ мерной коробки —
+                  запросом к ней, а не скриптом, которого у заглушки нет.
+
+                  Раньше ступени были переписаны сюда руками
+                  (`lg:grid-cols-4`, `text-xs`), и переписаны неточно: 12
+                  точек против 11,28 у расчёта. От этой разницы разъезжалось
+                  всё — буквы недели, клетка, шапка месяца, — и к декабрю
+                  набегало девять точек, которые страница отыгрывала рывком
+                  в момент подстановки. */}
+              <div className={YEAR_BOX}>
               <div
                 className={cn(
-                  "grid gap-x-6 gap-y-5 flex-1",
-                  // Ступень масштаба взята из `YearView` целиком, вместе с
-                  // кеглем: до 1024 точек расчёт открывается самой мелкой
-                  // (`text-[11px]`), выше — на ступень крупнее (`text-xs`)
-                  // и по четыре месяца в ряду. Кегль здесь не украшение: от
-                  // него зависит высота строки в шапке месяца и в буквах
-                  // недели, а значит и высота всей сетки.
-                  "grid-cols-1 sm:grid-cols-2 lg:grid-cols-4",
-                  "text-[11px] lg:text-xs",
+                  YEAR_GRID,
                   // Названия месяцев и итоги под ними — кости. Обводка
                   // назначается отсюда, а не оборачивает текст в `span`:
                   // лишняя строчная коробка меняет округление ширины на
@@ -198,6 +207,7 @@ export function WorkspaceSkeleton() {
                 {MONTHS.map((month) => (
                   <MonthBones key={month} month={month} />
                 ))}
+              </div>
               </div>
 
               <ShiftLegend skeleton />
@@ -212,34 +222,36 @@ export function WorkspaceSkeleton() {
 }
 
 /**
- * Кнопки шапки: настройки и выгрузка.
+ * Кнопки шапки: настройки, открытие и выгрузка.
  *
  * Живут они в рабочем экране, а тот появляется только с профилем, — и
  * пока профиль читается, шапка стояла пустой, а потом в ней разом
- * возникали две кнопки. Заглушка обещает КАЖДУЮ кнопку расчёта, и эти две
- * не исключение: они на виду с первого кадра.
+ * возникали кнопки. Заглушка обещает КАЖДУЮ кнопку расчёта: они на виду с
+ * первого кадра.
  *
- * Разметка повторяет `HeaderTools` целиком, вместе с порогом подписей
- * (`xs`): без него на телефоне кость была бы шире кнопки, которая её
- * сменит.
+ * Разметка повторяет `HeaderTools` целиком, вместе с порогом подписей —
+ * и порог берётся оттуда же переменной, а не переписывается сюда: без
+ * него на телефоне кость была бы шире кнопки, которая её сменит, а с
+ * переписанным он рано или поздно разошёлся бы с настоящим.
  */
 export function HeaderToolsBones() {
   return (
     <div className="flex items-center gap-2">
       {[
         { label: "Настройки", Icon: Settings2 },
+        { label: "Открыть", Icon: FolderOpen },
         { label: "Сохранить", Icon: Save },
       ].map(({ label, Icon }) => (
         <span
           key={label}
           className={cn(
-            "inline-flex h-9 shrink-0 items-center gap-2 rounded-xl",
+            "lit inline-flex h-9 shrink-0 items-center gap-2 rounded-xl",
             "px-3 text-sm font-medium",
             "skeleton-bone bg-paper-raised text-transparent",
           )}
         >
           <Icon aria-hidden className="size-4.5 shrink-0 opacity-0" />
-          <span className="hidden xs:inline">{label}</span>
+          <span className={LABELS_FROM}>{label}</span>
         </span>
       ))}
     </div>
@@ -342,7 +354,11 @@ function MainPlateBone() {
   return (
     <dl
       className={cn(
-        "flex h-14 items-center justify-around rounded-xl bg-paper-raised px-4 py-2",
+        // `lit` — тот же свет, что у настоящей плашки: блик по верхней
+        // кромке и тень вниз. Без него заглушка была плоской, а на её
+        // место вставала поднятая — и в этот миг по всей полосе итога
+        // разом зажигался свет.
+        "lit flex h-14 items-center justify-around rounded-xl bg-paper-raised px-4 py-2",
         "min-w-0 flex-1 gap-x-3",
         "lg:min-w-92.5 lg:flex-none lg:shrink-0 lg:gap-x-6",
       )}
@@ -397,7 +413,7 @@ function MinorPlateBone({
   caption: string;
 }) {
   return (
-    <div className="flex min-w-0 flex-1 flex-col items-center justify-end rounded-xl bg-paper-raised px-3 pb-2">
+    <div className="lit flex min-w-0 flex-1 flex-col items-center justify-end rounded-xl bg-paper-raised px-3 pb-2">
       <dd className="whitespace-nowrap font-mono text-base leading-none">
         <BoneText skeleton>
           {value}
@@ -426,7 +442,10 @@ function SegmentBone({
         "whitespace-nowrap rounded-lg px-3 text-xs font-medium",
         "[&_svg]:size-4 [&_svg]:shrink-0 [&_svg]:opacity-0",
         "skeleton-bone text-transparent",
-        active ? "bg-paper-raised shadow-sm" : undefined,
+        // Светится ЗАНЯТАЯ, и только она: пустая утоплена вместе с
+        // подложкой, а блик на утопленном — свет без предмета. То же
+        // правило, что в самом переключателе (`ui/segmented.tsx`).
+        active ? "lit bg-paper-raised" : undefined,
       )}
     >
       {children}
@@ -434,38 +453,20 @@ function SegmentBone({
   );
 }
 
-/** Подвал профиля: те же абзацы, кнопка и переключатель темы. */
+/**
+ * Подвал профиля: переключатель темы, ссылки и время последней правки.
+ *
+ * Ровно то, что стоит в `ProfileFooter`, и ничего сверх того. Здесь долго
+ * лежал прежний подвал — рассказ «Где лежат ваши данные» на три абзаца,
+ * кнопка выгрузки и удаление профиля, — уже после того, как всё это оттуда
+ * ушло: выгрузка в шапку, удаление в настройки, рассказ на посадочную.
+ * Заглушка обещала блок, которого через мгновение не оказывалось, и
+ * страница на двести тридцать точек короче — то есть врала ровно о том, ради
+ * чего она существует.
+ */
 function ProfileFooterBones() {
   return (
     <footer className="space-y-4 border-t border-rule py-6 text-sm">
-      <div className="max-w-prose space-y-2">
-        <h2 className="font-display text-xl font-bold uppercase tracking-wide text-ink-muted">
-          <BoneText skeleton>Где лежат ваши данные</BoneText>
-        </h2>
-        <p>
-          <BoneText skeleton>
-            <strong>Только в этом браузере.</strong> Сервера у приложения нет:
-            график, отпуска, больничные и правки календаря никуда не
-            отправляются. Расчёт считается непосредственно на вашем устройстве.
-            Страница работает без интернета.
-          </BoneText>
-        </p>
-        <p className="text-ink-muted">
-          <BoneText skeleton>
-            Обратная сторона: если вы очистите данные браузера, профиль
-            исчезнет, и на другом устройстве его не будет. Сохраните файл — из
-            него всё восстанавливается.
-          </BoneText>
-        </p>
-      </div>
-
-      <div className="flex flex-wrap items-center gap-3">
-        <Bone className="h-9 w-56 rounded-xl" />
-        <span className="text-xs">
-          <BoneText skeleton>Удалить профиль с этого устройства</BoneText>
-        </span>
-      </div>
-
       <div className="flex flex-col items-center justify-between md:flex-row-reverse">
         <div className="flex justify-center pt-8 pb-12 md:ml-auto md:pb-8 ">
           {/* Переключатель темы: рамка, поле в полточки и три кнопки по
@@ -478,8 +479,14 @@ function ProfileFooterBones() {
           </span>
         </div>
 
-        <p className="max-w-prose text-center text-xs text-ink-muted">
-          <BoneText skeleton>Последнее изменение: 20 августа 2026 г., 19:04.</BoneText>
+        {/* Строка ссылок и времени — теми же словами и тем же кеглем, что в
+            подвале расчёта: её высота и переносы получаются сами. */}
+        <p className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-xs text-ink-muted">
+          <BoneText skeleton>Условия использования</BoneText>
+          <BoneText skeleton>Данные и приватность</BoneText>
+          <BoneText skeleton>
+            Последнее изменение: 20 августа 2026 г., 19:04.
+          </BoneText>
         </p>
       </div>
     </footer>

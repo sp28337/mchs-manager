@@ -29,7 +29,13 @@ import {
   type DayType,
 } from "../schemas";
 import { MONTH_NAMES } from "./month-names";
-import { MonthGrid, TODAY_MARK, WEEKDAY_LABELS } from "./month-grid";
+import {
+  MonthGrid,
+  TODAY_MARK,
+  WEEKDAY_LABELS,
+  YEAR_BOX,
+  YEAR_GRID,
+} from "./month-grid";
 
 /**
  * Календарь учётного года: какие дни нерабочие.
@@ -268,12 +274,10 @@ export function YearCalendarEditor({
           человек, смотревший на мартовскую клетку, после переключения
           искал бы её заново. Пояснение ушло под знак вопроса у заголовка,
           инструменты правки — под сетку. */}
-      <div
-        className={
-          gridClassName ??
-          "grid grid-cols-1 gap-x-6 gap-y-5 sm:grid-cols-2 lg:grid-cols-3"
-        }
-      >
+      {/* Мерная коробка вокруг сетки — та же, что у графика смен: из её
+          ширины таблица стилей считает ширину месяца и кегль в клетке. */}
+      <div className={YEAR_BOX}>
+      <div className={gridClassName ?? YEAR_GRID}>
         {groups.map((group) => {
           const edited = group.days.filter((item) => item.source === "override").length;
           const facts = monthFacts(group.days);
@@ -303,6 +307,7 @@ export function YearCalendarEditor({
             />
           );
         })}
+      </div>
       </div>
 
       {pending.length > 0 ? <PendingNotice pending={pending} /> : null}
