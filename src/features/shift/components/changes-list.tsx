@@ -235,13 +235,10 @@ export function changesOf(profile: StoredProfile): Change[] {
 export function ChangesList({
   profile,
   onChange,
-  onForget,
   onOpenDay,
 }: {
   profile: StoredProfile;
   onChange: (change: (previous: StoredProfile) => StoredProfile) => void;
-  /** Удалить профиль с устройства — внизу, под перечнем. */
-  onForget?: () => void;
   /**
    * Открыть сутки на сетке.
    *
@@ -258,19 +255,14 @@ export function ChangesList({
 }) {
   const rows = changesOf(profile);
 
+  // Пустой перечень — и сбрасывать нечего: кнопка сброса не показывается
+  // вовсе, чтобы не предлагать убрать то, чего нет.
   if (rows.length === 0) {
     return (
-      <div className="space-y-2">
-        <p className="rounded-xl bg-paper-sunken px-4 py-6 text-center text-sm text-ink-muted">
-          В графике пока ничего не отмечено. Отпуска, больничные, вызовы и
-          переносы смен появятся здесь, как только вы их внесёте.
-        </p>
-        {/* Удалить профиль можно и с пустым перечнем: человек, решивший
-            начать заново, приходит сюда как раз тогда, когда стирать
-            уже нечего. Сброс календаря при этом не показывается —
-            сбрасывать нечего. */}
-        <DangerActions onChange={onChange} onForget={onForget} showReset={false} />
-      </div>
+      <p className="rounded-xl bg-paper-sunken px-4 py-6 text-center text-sm text-ink-muted">
+        В графике пока ничего не отмечено. Отпуска, больничные, вызовы и
+        переносы смен появятся здесь, как только вы их внесёте.
+      </p>
     );
   }
 
@@ -329,11 +321,14 @@ export function ChangesList({
         ))}
       </ul>
 
-      {/* Оба действия стирают внесённое разом, и место им под перечнем —
-          там, где видно, что именно будет стёрто. Раньше они стояли в
+      {/* Сброс стирает ровно то, что перечислено выше, и место ему под
+          перечнем — там, где видно, что именно исчезнет. Раньше он стоял в
           анкете, среди вопросов о человеке, то есть там, где стирать
-          нечего. */}
-      <DangerActions onChange={onChange} onForget={onForget} />
+          нечего.
+
+          Удаления профиля здесь нет: оно стирает не отметки, а саму
+          анкету, и живёт в закладке настроек — рядом с тем, что стирает. */}
+      <DangerActions onChange={onChange} />
     </div>
   );
 }

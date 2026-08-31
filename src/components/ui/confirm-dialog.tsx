@@ -48,6 +48,7 @@ export function ConfirmDialog({
   confirm,
   icon,
   destructive,
+  decline,
   children,
 }: {
   open: boolean;
@@ -66,6 +67,21 @@ export function ConfirmDialog({
    * профиля — само по себе вмешательство.
    */
   destructive?: boolean;
+  /**
+   * Вторая кнопка, если «Отмена» — не то слово.
+   *
+   * Обычно окно спрашивает «делать?», и отказ значит «не делать»: закрыть
+   * и остаться где был. Но бывает вопрос другого рода — «сначала
+   * сохранить?», — и отказ от него означает не бездействие, а ВТОРОЙ путь:
+   * продолжить, не сохраняя. Назвать этот путь «Отменой» значило бы
+   * соврать: человек нажал бы её, чтобы не делать ничего, а сделал бы
+   * ровно то, чего боялся.
+   *
+   * Поэтому второй кнопке можно дать своё имя и своё действие. Место и вид
+   * у неё те же — она по-прежнему вторая и без нажима, — и Esc с крестиком
+   * её не запускают: те по-прежнему значат «закрыть и ничего не делать».
+   */
+  decline?: { label: string; onClick: () => void };
   children: ReactNode;
 }) {
   return (
@@ -112,8 +128,16 @@ export function ConfirmDialog({
             {icon}
             {confirm}
           </Button>
-          <Button type="button" variant="ghost" size="sm" onClick={onClose}>
-            Отмена
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              decline?.onClick();
+              onClose();
+            }}
+          >
+            {decline?.label ?? "Отмена"}
           </Button>
         </div>
       </div>

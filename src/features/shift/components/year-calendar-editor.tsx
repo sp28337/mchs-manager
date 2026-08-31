@@ -286,7 +286,7 @@ export function YearCalendarEditor({
               }
               days={group.days.map((item) => item.day)}
               joined
-              assemble
+              appear
               renderDay={(day, corners) => {
                 const item = byDay.get(day);
                 return item ? (

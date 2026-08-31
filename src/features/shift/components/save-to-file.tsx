@@ -44,8 +44,28 @@ import {
  * сказано словами, — и выглядят они по-разному. Общим у них должно быть
  * не оформление, а само действие вместе с окном: разойдись они, и файл из
  * шапки однажды поедет с другим именем, чем из подвала.
+ *
+ * Третье место — предупреждение «сначала сохранить нынешний?» в настройках.
+ * Оно обязано вести себя ТОЧНО так же, как кнопка в шапке: то же окно, то
+ * же имя файла по умолчанию, тот же знак на кнопке. Своя, укороченная
+ * выгрузка там уже была — она уносила файл в загрузки молча, не спросив
+ * имени, — и это была вторая выгрузка с другим поведением, ровно то, ради
+ * чего этот крючок и заведён.
  */
-export function useSaveToFile(profile: StoredProfile): {
+export function useSaveToFile(
+  profile: StoredProfile,
+  options?: {
+    /**
+     * Окно откроется ПОВЕРХ другого окна.
+     *
+     * Нужно настройкам: выгрузка вызывается изнутри них. Затемнение у
+     * такого окна своё, родное, — общий слой лежит в разметке и до окна,
+     * стоящего выше в верхнем слое браузера, не дотягивается. Подробности
+     * — в `ui/confirm-dialog.tsx`, там же первое такое окно.
+     */
+    over?: boolean;
+  },
+): {
   /** Открыть окно с именем файла. */
   ask: () => void;
   /** Само окно. Ставится в конце разметки вызывающего. */
@@ -69,6 +89,7 @@ export function useSaveToFile(profile: StoredProfile): {
         name={name}
         onName={setName}
         onClose={() => setOpen(false)}
+        over={options?.over}
       />
     ),
   };
@@ -80,12 +101,14 @@ function SaveDialog({
   name,
   onName,
   onClose,
+  over,
 }: {
   profile: StoredProfile;
   open: boolean;
   name: string;
   onName: (name: string) => void;
   onClose: () => void;
+  over?: boolean;
 }) {
   const nameId = useId();
   const suggested = fileNameOf(profile.displayName);
@@ -96,7 +119,12 @@ function SaveDialog({
   }
 
   return (
-    <Modal open={open} onClose={onClose} title="Сохранить профиль в файл">
+    <Modal
+      open={open}
+      onClose={onClose}
+      title="Сохранить профиль в файл"
+      className={over ? "modal-over-modal backdrop:bg-black/60" : undefined}
+    >
       <div className="space-y-4">
         <Card>
           <Field
