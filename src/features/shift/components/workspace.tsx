@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 
 import { Hint } from "@/components/ui/hint";
 import { SiteHeader } from "@/components/shared/site-header";
+import { cn } from "@/lib/utils/cn";
 import { todayIso, type IsoDate } from "../domain/plain-date";
 import {
   accountingPeriodsOf,
@@ -16,6 +17,7 @@ import {
 } from "../model/derive";
 import type { StoredProfile } from "../storage/profile";
 import { DayEditor } from "./day-editor";
+import { GridDeck, WORKSPACE_PAD } from "./grid-deck";
 import { HeaderTools } from "./header-tools";
 import { PeriodSummary } from "./period-summary";
 import { ProfileFooter } from "./profile-footer";
@@ -200,7 +202,11 @@ export function Workspace({ profile, onChange, onForget }: WorkspaceProps) {
         }
       />
 
-      <main className="mx-auto w-full px-6 pt-26 2xl:max-w-[2000px]">
+      {/* Поле снизу — под нижнюю панель телефона (`grid-deck.tsx`). Она
+          закреплена у кромки окна и места в потоке не занимает, поэтому
+          подвал уезжал бы под неё, и последняя строка страницы была бы
+          нечитаемой. С `md` панели нет, и поля тоже. */}
+      <main className={cn("mx-auto w-full px-6 pt-26 2xl:max-w-[2000px]", WORKSPACE_PAD)}>
       {/* Поле под именем — не про воздух: полоса с числами закрывает над
           собой двенадцать точек бумаги (щиток в `PeriodSummary`, он гасит
           просвет под шапкой), и без этого зазора щиток лёг бы прямо на
@@ -269,6 +275,32 @@ export function Workspace({ profile, onChange, onForget }: WorkspaceProps) {
         profile={profile}
         onChange={onChange}
         onClose={() => setPickedDay(null)}
+      />
+
+      {/* Нижняя панель телефона — здесь, а не внутри `YearView`, где
+          стоят те же органы управления строкой над сеткой.
+          -----------------------------------------------------------------
+          Причина не в порядке разметки, а в том, как работает закрепление.
+          Элемент `position: fixed` считает своё место от окна ТОЛЬКО пока
+          над ним нет предка со сдвигом: любой `transform` заводит новую
+          систему отсчёта, и закреплённый потомок начинает ездить вместе со
+          страницей. Раздел с сеткой поднят на восемь точек
+          (`-translate-y-2`) — и панель, стоявшая внутри него, оказывалась
+          не у нижней кромки экрана, а в трёх с половиной тысячах точек от
+          верха страницы, то есть за краем.
+
+          Здесь, в самом низу разметки, панель ещё и встречается последней —
+          и обходу клавишей, и чтению вслух. Управление, названное до
+          двенадцати сеток, человек с клавиатурой встречал бы дважды. */}
+      <GridDeck
+        profile={profile}
+        onChange={onChange}
+        view={yearView}
+        onViewChange={setYearView}
+        statutory={statutory}
+        onStatutory={setStatutory}
+        month={month}
+        onMonth={setMonth}
       />
       </main>
     </>

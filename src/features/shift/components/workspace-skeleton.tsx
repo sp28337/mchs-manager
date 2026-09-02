@@ -9,11 +9,23 @@ import {
   ZoomOut,
 } from "lucide-react";
 
+import type { ReactNode } from "react";
+
 import { Bone, BoneText } from "@/components/ui/bone";
 import { cn } from "@/lib/utils/cn";
 
 import { datesOfMonth, dayOfMonth } from "../domain/plain-date";
+import {
+  DECK_CAPTION,
+  DECK_CELL,
+  DECK_PAIR,
+  DECK_RAISED,
+  DECK_SHELL,
+  DECK_TROUGH,
+  WORKSPACE_PAD,
+} from "./grid-deck";
 import { LABELS_FROM } from "./header-tools";
+import { LiveSignal } from "./live-mode";
 import { MetaSep, MonthGrid, YEAR_BOX, YEAR_GRID } from "./month-grid";
 import { MONTH_NAMES } from "./month-names";
 import { ShiftLegend } from "./shift-strip";
@@ -82,7 +94,10 @@ const MINOR_FIGURES = [
 
 export function WorkspaceSkeleton() {
   return (
-    <main aria-hidden className="mx-auto w-full px-6 pt-26 2xl:max-w-[2000px]">
+    <main
+      aria-hidden
+      className={cn("mx-auto w-full px-6 pt-26 2xl:max-w-[2000px]", WORKSPACE_PAD)}
+    >
       {/* Имя человека — водяным знаком: по центру и почти прозрачное.
           Кость под ним такая же бледная, иначе плотный прямоугольник
           обещал бы блок, которого через мгновение почти не видно. Поле
@@ -131,7 +146,9 @@ export function WorkspaceSkeleton() {
             {/* Панель управления сеткой: что показывать, за какой период,
                 живым временем или целиком, и каким размером. */}
             <div className="space-y-3">
-              <div className="flex flex-wrap items-center gap-2">
+              {/* До `md` строки нет — как и в расчёте: там же, где у него,
+                  органы управления уезжают в нижнюю панель. */}
+              <div className="hidden flex-wrap items-center gap-2 md:flex">
                 <div className="flex-wrap flex lg:min-w-92.5 gap-2 justify-between">
                   <div className="inline-flex h-9 items-center gap-0.5 rounded-xl lg:flex-1 lg:justify-between bg-paper-sunken">
                     <SegmentBone active>
@@ -227,7 +244,57 @@ export function WorkspaceSkeleton() {
 
         <ProfileFooterBones />
       </div>
+
+      {/* Нижняя панель телефона — костями, но той же меры: корыто, четыре
+          ячейки, поднятые ровно те же (`grid-deck.tsx`). Оставь её пустой —
+          и в миг подстановки у нижней кромки экрана из ничего появилась бы
+          панель, то есть ровно тот рывок, ради которого заглушка и
+          существует. */}
+      <div className={DECK_SHELL}>
+        <div className={DECK_TROUGH}>
+          {/* Пара сеток обёрнута так же, как в расчёте: обёртка забирает
+              две доли места и держит просвет между ячейками, а без неё
+              корыто делилось бы на четыре равные части. */}
+          <div className={DECK_PAIR}>
+            <DeckCellBone raised caption="График" icon={<CalendarDays aria-hidden />} />
+            <DeckCellBone caption="Календарь" icon={<CalendarCog aria-hidden />} />
+          </div>
+          <DeckCellBone
+            raised
+            caption={`${SAMPLE_YEAR} год`}
+            icon={<CalendarRange aria-hidden />}
+          />
+          <DeckCellBone caption="Онлайн" icon={<LiveSignal on={false} />} />
+        </div>
+      </div>
     </main>
+  );
+}
+
+/**
+ * Ячейка нижней панели костью: знак виден, подпись — плашка.
+ *
+ * Знак оставлен настоящим, а не спрятан: он не меняется от того, прочитан
+ * профиль или нет, и заменять его серым прямоугольником значило бы прятать
+ * то, что уже известно. Меняется только подпись — год у периода зависит от
+ * профиля, — и под неё стоит кость.
+ */
+function DeckCellBone({
+  raised,
+  icon,
+  caption,
+}: {
+  raised?: boolean;
+  icon: ReactNode;
+  caption: string;
+}) {
+  return (
+    <span className={cn(DECK_CELL, raised && DECK_RAISED, "text-ink-muted")}>
+      {icon}
+      <span className={DECK_CAPTION}>
+        <BoneText skeleton>{caption}</BoneText>
+      </span>
+    </span>
   );
 }
 

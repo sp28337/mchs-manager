@@ -285,7 +285,11 @@ export function YearView({
           два блока, спорящих за передний план. Управление держится
           линейками, а не фоном. */}
       <div className="space-y-3">
-        <div className="flex flex-wrap items-center gap-2">
+        {/* До `md` этой строки нет: те же органы управления стоят внизу
+            экрана, всегда под большим пальцем (`grid-deck.tsx`). Скрыто
+            правилом, а не замером ширины: замер означал бы, что до его
+            выполнения не показано ни то ни другое. */}
+        <div className="hidden flex-wrap items-center gap-2 md:flex">
           <div className="flex-wrap flex lg:min-w-92.5 gap-2 justify-between">
             <Segmented label="Что показывать на сетке">
               <SegmentedItem
