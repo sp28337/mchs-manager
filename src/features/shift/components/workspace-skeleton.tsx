@@ -1,13 +1,4 @@
-import {
-  CalendarCog,
-  CalendarDays,
-  CalendarRange,
-  FolderOpen,
-  Save,
-  Settings2,
-  ZoomIn,
-  ZoomOut,
-} from "lucide-react";
+import { FolderOpen, Save, Settings2, ZoomIn, ZoomOut } from "lucide-react";
 
 import type { ReactNode } from "react";
 
@@ -16,14 +7,18 @@ import { cn } from "@/lib/utils/cn";
 
 import { datesOfMonth, dayOfMonth } from "../domain/plain-date";
 import {
+  CALENDAR_SHORT,
+  CAPTION_NARROW,
+  CAPTION_WIDE,
   DECK_CAPTION,
   DECK_CELL,
   DECK_PAIR,
   DECK_RAISED,
   DECK_SHELL,
-  DECK_TROUGH,
+  DECK_ROW,
   WORKSPACE_PAD,
 } from "./grid-deck";
+import { CalendarIcon, PeriodIcon, ShiftsIcon } from "./grid-icons";
 import { LABELS_FROM } from "./header-tools";
 import { LiveSignal } from "./live-mode";
 import { MetaSep, MonthGrid, YEAR_BOX, YEAR_GRID } from "./month-grid";
@@ -152,11 +147,11 @@ export function WorkspaceSkeleton() {
                 <div className="flex-wrap flex lg:min-w-92.5 gap-2 justify-between">
                   <div className="inline-flex h-9 items-center gap-0.5 rounded-xl lg:flex-1 lg:justify-between bg-paper-sunken">
                     <SegmentBone active>
-                      <CalendarDays aria-hidden />
+                      <ShiftsIcon />
                       График
                     </SegmentBone>
                     <SegmentBone>
-                      <CalendarCog aria-hidden />
+                      <CalendarIcon />
                       Календарь
                     </SegmentBone>
                   </div>
@@ -167,7 +162,7 @@ export function WorkspaceSkeleton() {
                       "skeleton-bone bg-paper-raised px-3 text-sm font-medium text-transparent",
                     )}
                   >
-                    <CalendarRange aria-hidden className="size-4.5 shrink-0 opacity-0" />
+                    <PeriodIcon className="opacity-0" />
                     {SAMPLE_YEAR} год
                   </span>
                 </div>
@@ -251,18 +246,18 @@ export function WorkspaceSkeleton() {
           панель, то есть ровно тот рывок, ради которого заглушка и
           существует. */}
       <div className={DECK_SHELL}>
-        <div className={DECK_TROUGH}>
+        <div className={DECK_ROW}>
           {/* Пара сеток обёрнута так же, как в расчёте: обёртка забирает
               две доли места и держит просвет между ячейками, а без неё
-              корыто делилось бы на четыре равные части. */}
+              строка делилась бы на четыре равные части. */}
           <div className={DECK_PAIR}>
-            <DeckCellBone raised caption="График" icon={<CalendarDays aria-hidden />} />
-            <DeckCellBone caption="Календарь" icon={<CalendarCog aria-hidden />} />
+            <DeckCellBone raised caption="График" icon={<ShiftsIcon />} />
+            <DeckCellBone caption="Календарь" short={CALENDAR_SHORT} icon={<CalendarIcon />} />
           </div>
           <DeckCellBone
             raised
             caption={`${SAMPLE_YEAR} год`}
-            icon={<CalendarRange aria-hidden />}
+            icon={<PeriodIcon />}
           />
           <DeckCellBone caption="Онлайн" icon={<LiveSignal on={false} />} />
         </div>
@@ -283,16 +278,30 @@ function DeckCellBone({
   raised,
   icon,
   caption,
+  short,
 }: {
   raised?: boolean;
   icon: ReactNode;
   caption: string;
+  /** Укороченная подпись на узком экране — как и в панели. */
+  short?: string;
 }) {
   return (
     <span className={cn(DECK_CELL, raised && DECK_RAISED, "text-ink-muted")}>
       {icon}
       <span className={DECK_CAPTION}>
-        <BoneText skeleton>{caption}</BoneText>
+        {short === undefined ? (
+          <BoneText skeleton>{caption}</BoneText>
+        ) : (
+          <>
+            <span className={CAPTION_WIDE}>
+              <BoneText skeleton>{caption}</BoneText>
+            </span>
+            <span className={CAPTION_NARROW}>
+              <BoneText skeleton>{short}</BoneText>
+            </span>
+          </>
+        )}
       </span>
     </span>
   );

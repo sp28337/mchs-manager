@@ -1,6 +1,5 @@
 "use client";
 
-import { CalendarRange } from "lucide-react";
 import { useId, useState } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -12,6 +11,7 @@ import { cn } from "@/lib/utils/cn";
 import { todayIso, year as yearOf } from "../domain/plain-date";
 import type { AccountingPeriodKind } from "../domain/value-objects";
 import { ACCOUNTING_PERIODS } from "../domain/value-objects";
+import { PeriodIcon } from "./grid-icons";
 import { MONTH_NAMES } from "./month-names";
 
 /**
@@ -192,7 +192,7 @@ export function PeriodPicker({
           aria-label={`Период: ${current}. Выбрать другой`}
           className={cn(cellClassName, "text-ink")}
         >
-          <CalendarRange aria-hidden className="text-ink-muted" />
+          <PeriodIcon className="text-ink-muted" />
           <span className={captionClassName}>{current}</span>
         </button>
       ) : (
@@ -211,7 +211,7 @@ export function PeriodPicker({
             "focus-visible:outline-trace",
           )}
         >
-          <CalendarRange aria-hidden className="size-4.5 shrink-0 text-ink-muted" />
+          <PeriodIcon className="text-ink-muted" />
           {current}
         </button>
       )}

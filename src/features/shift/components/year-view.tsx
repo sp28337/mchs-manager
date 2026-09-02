@@ -1,7 +1,8 @@
 "use client";
 
-import { CalendarCog, CalendarDays, ZoomIn, ZoomOut } from "lucide-react";
+import { ZoomIn, ZoomOut } from "lucide-react";
 import {
+  useEffect,
   useLayoutEffect,
   useRef,
   useState,
@@ -15,8 +16,9 @@ import { cn } from "@/lib/utils/cn";
 
 import type { PeriodCalculation } from "../domain/calculation";
 import { formatDateRu } from "../domain/format";
-import type { IsoDate } from "../domain/plain-date";
+import { todayIso, type IsoDate } from "../domain/plain-date";
 import type { StoredProfile } from "../storage/profile";
+import { CalendarIcon, ShiftsIcon } from "./grid-icons";
 import { LiveModeSwitch } from "./live-mode";
 import { PeriodPicker, type StatutoryChoice } from "./period-picker";
 import { ShiftStrip } from "./shift-strip";
@@ -257,6 +259,56 @@ export function YearView({
     return () => watcher.disconnect();
   }, []);
 
+  /**
+   * Телефон открывается на нынешнем месяце, а не на январе.
+   *
+   * --- Зачем ----------------------------------------------------------------
+   *
+   * На широком экране год виден почти весь: четыре месяца в ряду, три ряда.
+   * На телефоне месяц занимает экран целиком, и год — это двенадцать
+   * экранов подряд. Человек, открывший расчёт в сентябре, начинал с января
+   * и листал восемь экранов до того места, ради которого пришёл. Каждый раз.
+   *
+   * --- Почему в середину, а не к верхней кромке -----------------------------
+   *
+   * Наверху стоит закреплённая полоса с числами, и месяц, поставленный
+   * ровно под верхний край окна, наполовину уходил бы под неё. Середина
+   * вдобавок показывает соседние месяцы краями — видно, что год
+   * продолжается в обе стороны, а не начинается здесь.
+   *
+   * --- Почему один раз и только на телефоне ---------------------------------
+   *
+   * Один раз — потому что это ответ на ОТКРЫТИЕ страницы. Переключил
+   * человек сетку или период, будучи в октябре, — он остаётся там же, где
+   * смотрел; прокрутка под ним в этот момент означала бы, что приложение
+   * отняло у него место, которое он выбрал сам.
+   *
+   * Только на телефоне — потому что там прокрутка и есть цена вопроса. На
+   * широком экране сентябрь и так виден, и прыжок страницы при открытии
+   * читался бы как сбой.
+   *
+   * Порог тот же, что у нижней панели (`grid-deck.tsx`): ниже `md` экран
+   * считается телефонным во всём приложении.
+   *
+   * Кадр ожидания обязателен: сетка в это мгновение только что встала на
+   * место заглушки, и до перерисовки её месяцы стоят не там, где встанут.
+   */
+  const centred = useRef(false);
+  useEffect(() => {
+    if (centred.current) return;
+    centred.current = true;
+    if (!window.matchMedia("(max-width: 767px)").matches) return;
+    const key = todayIso().slice(0, 7);
+    const frame = requestAnimationFrame(() => {
+      // Нынешнего месяца в показанном отрезке может не быть вовсе —
+      // человек смотрит позапрошлый год. Тогда не двигаемся никуда.
+      document
+        .querySelector(`[data-month="${key}"]`)
+        ?.scrollIntoView({ block: "center" });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, []);
+
   const fits = roomWidth === 0 ? MONTHS_CAP : monthsThatFit(roomWidth);
   // Мельчить дальше некуда: предел — это столько месяцев, сколько влезает
   // в эту колонку, и на нём кнопка гаснет.
@@ -296,7 +348,7 @@ export function YearView({
                 active={view === "shifts"}
                 onClick={() => onViewChange("shifts")}
               >
-                <CalendarDays aria-hidden />
+                <ShiftsIcon />
                 {/* «График смен» на телефоне съедает всю строку, а рядом
                     стоит «Календарь» — второго графика тут нет, и слово
                     «смен» ничего не различает. */}
@@ -306,7 +358,7 @@ export function YearView({
                 active={view === "calendar"}
                 onClick={() => onViewChange("calendar")}
               >
-                <CalendarCog aria-hidden />
+                <CalendarIcon />
                 <span className="inline">Календарь</span>
               </SegmentedItem>
             </Segmented>

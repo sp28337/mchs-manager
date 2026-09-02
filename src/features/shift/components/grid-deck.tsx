@@ -1,11 +1,11 @@
 "use client";
 
-import { CalendarCog, CalendarDays } from "lucide-react";
 import type { ReactNode } from "react";
 
 import { cn } from "@/lib/utils/cn";
 
 import type { StoredProfile } from "../storage/profile";
+import { CalendarIcon, ShiftsIcon } from "./grid-icons";
 import { LiveModeCell } from "./live-mode";
 import { PeriodPicker, type StatutoryChoice } from "./period-picker";
 import type { YearViewKind } from "./year-view";
@@ -57,7 +57,15 @@ import type { YearViewKind } from "./year-view";
  * что человек сейчас видит.
  */
 
-/** Ячейка: знак, под ним подпись. Одна мера на панель и на её заглушку. */
+/**
+ * Ячейка — та же кнопка, что в шапке: поднятая плашка цвета бумаги,
+ * скруглённая так же, ловящая тот же свет лампы (`header-tools.tsx`).
+ * Отличие одно: знак стоит НАД подписью, а не перед ней. Четыре подписи
+ * в строку не встают уже на самом узком телефоне, а знак без подписи —
+ * загадка, которую человек разгадывает нажатием.
+ *
+ * Одна мера на панель и на её заглушку.
+ */
 export const DECK_CELL = cn(
   "inline-flex h-12 min-w-0 flex-1 cursor-pointer select-none flex-col",
   "items-center justify-center gap-1 rounded-xl px-1 transition-colors",
@@ -76,7 +84,41 @@ export const DECK_CELL = cn(
 export const DECK_CAPTION =
   "max-w-full truncate font-display text-[11px] font-bold uppercase leading-none tracking-wide";
 
-/** Занятая ячейка поднята и ловит свет, пустая — нет. Как у `Segmented`. */
+/**
+ * «Календарь» на самом узком телефоне.
+ *
+ * Слово это вдвое длиннее соседних, и на 320-330 точках ячейка под него
+ * подходит вплотную: подпись упирается в края, а просвет между кнопками
+ * съедается до нитки. Сокращение с дефисом — общепринятый способ
+ * («кол-во», «пр-во»): человек достраивает слово, не задумываясь, а буквы
+ * по краям остаются на месте.
+ *
+ * Порог — 330 точек. Выше него слово помещается целиком, и сокращать его
+ * незачем: обрубок читается хуже слова всегда, когда для слова есть место.
+ *
+ * Обе подписи лежат в разметке, показана одна — правилом, а не замером:
+ * замер означал бы, что до выполнения скрипта не показана ни одна, а
+ * заглушка рабочего экрана, где скрипта нет вовсе, разошлась бы с
+ * расчётом по ширине ячейки.
+ */
+export const CALENDAR_SHORT = "Кал-рь";
+export const CAPTION_WIDE = "max-[330px]:hidden";
+export const CAPTION_NARROW = "min-[331px]:hidden";
+
+/**
+ * Поднятая ячейка: плашка цвета бумаги со светом лампы по кромке.
+ *
+ * Подложки под панелью нет вовсе — ни заливки, ни рамки. Плашка бумаги под
+ * плашками бумаги читалась вторым слоем: на экране и без того полно
+ * поверхностей, и панель, обведённая ещё одной, выглядела коробкой,
+ * положенной поверх страницы. Теперь на её месте только растворение
+ * (`globals.css`, `.deck`), а кнопки стоят прямо на бумаге — те же самые,
+ * что в шапке.
+ *
+ * Что выбрано, говорит подъём: поднятая ячейка — занятая, плоская — нет.
+ * Тот же довод, что у `Segmented`, только без корыта: свет и тень
+ * отличают их и на голой бумаге.
+ */
 export const DECK_RAISED = "lit bg-paper-raised";
 
 /**
@@ -91,13 +133,15 @@ export const DECK_RAISED = "lit bg-paper-raised";
  * заглушка без этой обёртки делила корыто на четыре равные части — в миг
  * подстановки ячейки разъезжались на девять точек вбок.
  */
-export const DECK_PAIR = "flex min-w-0 flex-2 items-stretch gap-0.5";
+export const DECK_PAIR = "flex min-w-0 flex-2 items-stretch gap-2";
 
-/** Корыто: подложка панели с полем в четыре точки вокруг ячеек. */
-export const DECK_TROUGH = cn(
-  "relative mx-auto flex max-w-lg items-stretch gap-0.5 rounded-2xl",
-  "border border-rule bg-paper-sunken p-1",
-);
+/**
+ * Строка ячеек. Без заливки и рамки — довод у `DECK_RAISED`.
+ *
+ * `relative` обязателен: растворение над панелью нарисовано абсолютным
+ * `::before` у оболочки, и без своего слоя строка оказалась бы под ним.
+ */
+export const DECK_ROW = "relative mx-auto flex max-w-lg items-stretch gap-2";
 
 /**
  * Место панели на экране. Закрепление у нижней кромки, отступ под системную
@@ -105,14 +149,14 @@ export const DECK_TROUGH = cn(
  * правило `.deck`: всё это считается от безопасной зоны, а её знает только
  * таблица стилей.
  */
-export const DECK_SHELL = "deck px-3 md:hidden";
+export const DECK_SHELL = "deck px-4 md:hidden";
 
 /**
  * Поле под панель в самом низу страницы.
  *
  * Панель закреплена у кромки окна и в потоке места не занимает — подвал без
  * этого поля уезжал бы под неё. Считается оно от той же безопасной зоны:
- * корыто (48 + 8 точек), отступ панели (12) и воздух под подвалом.
+ * ячейка (48 точек), отступ панели (12) и воздух под подвалом.
  *
  * Одно на рабочий экран и на его заглушку: разойдись они — и страница
  * дёрнулась бы в момент подстановки ровно на разницу.
@@ -140,7 +184,7 @@ export function GridDeck({
 }) {
   return (
     <div className={DECK_SHELL}>
-      <div className={DECK_TROUGH}>
+      <div className={DECK_ROW}>
         {/* Две сетки — взаимоисключающий выбор, и группа названа вслух:
             без имени это просто две кнопки подряд. */}
         <div
@@ -153,14 +197,15 @@ export function GridDeck({
             onClick={() => onViewChange("shifts")}
             caption="График"
           >
-            <CalendarDays aria-hidden />
+            <ShiftsIcon />
           </DeckTab>
           <DeckTab
             active={view === "calendar"}
             onClick={() => onViewChange("calendar")}
             caption="Календарь"
+            short={CALENDAR_SHORT}
           >
-            <CalendarCog aria-hidden />
+            <CalendarIcon />
           </DeckTab>
         </div>
 
@@ -192,22 +237,37 @@ function DeckTab({
   active,
   onClick,
   caption,
+  short,
   children,
 }: {
   active: boolean;
   onClick: () => void;
   caption: string;
+  /** Укороченная подпись для самых узких экранов — см. `CALENDAR_SHORT`. */
+  short?: string;
   children: ReactNode;
 }) {
   return (
     <button
       type="button"
       aria-pressed={active}
+      // Имя кнопки — полное слово всегда, даже когда на экране сокращение.
+      aria-label={caption}
       onClick={onClick}
       className={cn(DECK_CELL, active ? cn(DECK_RAISED, "text-ink") : "text-ink-muted")}
     >
       {children}
-      <span className={DECK_CAPTION}>{caption}</span>
+      {short === undefined ? (
+        <span className={DECK_CAPTION}>{caption}</span>
+      ) : (
+        // Обе подписи лежат в разметке, а показана одна: программе чтения
+        // при этом достаётся полное слово из `aria-label` кнопки — сокращение
+        // «КАЛ-РЬ» она прочитала бы вслух по буквам.
+        <span className={DECK_CAPTION} aria-hidden>
+          <span className={CAPTION_WIDE}>{caption}</span>
+          <span className={CAPTION_NARROW}>{short}</span>
+        </span>
+      )}
     </button>
   );
 }
