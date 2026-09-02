@@ -5,6 +5,7 @@ import { useMemo } from "react";
 import { CountedNumber } from "@/components/ui/counted-number";
 import { cn } from "@/lib/utils/cn";
 
+import { numberWord } from "../domain/decimal";
 import { formatDateRu } from "../domain/format";
 import {
   datesInRange,
@@ -30,6 +31,7 @@ import {
 } from "../schemas";
 import { MONTH_NAMES } from "./month-names";
 import {
+  MetaSep,
   MonthGrid,
   TODAY_MARK,
   WEEKDAY_LABELS,
@@ -97,8 +99,8 @@ import {
  *
  * --- Зачем он здесь --------------------------------------------------------
  *
- * У месяца в графике смен такая подпись есть с самого начала — «8 см /
- * 192,0 ч / ноч. 64,0», — и она отвечает на вопрос «что у меня вышло за
+ * У месяца в графике смен такая подпись есть с самого начала — «8 см |
+ * 192 ч | ноч. 64», — и она отвечает на вопрос «что у меня вышло за
  * этот месяц», не заставляя считать клетки глазами. У производственного
  * календаря того же вопроса не было вовсе: человек видел раскрашенную
  * сетку и пересчитывал рабочие дни пальцем — при том, что именно из них
@@ -162,24 +164,39 @@ function monthFacts(days: readonly CalendarDay[]): MonthFacts {
 function MonthMeta({ facts, edited }: { facts: MonthFacts; edited: number }) {
   return (
     <>
-      <CountedNumber value={String(facts.working)} /> рабочих
+      {/* Слово согласовано с числом. Форма зависит не от последней цифры, а
+          от последних двух: «21 рабочий», но «11 рабочих» — и подпись,
+          написанная одной формой на все случаи, каждый январь показывала
+          «1 праздничных». Правило одно на всё приложение
+          (`numberWord`). */}
+      <CountedNumber value={String(facts.working)} />{" "}
+      {numberWord(facts.working, "рабочий", "рабочих", "рабочих")}
       {facts.holidays > 0 ? (
-        <span className="text-signal">
-          {" / "}
-          <CountedNumber value={String(facts.holidays)} /> праздничных
-        </span>
+        <>
+          <MetaSep />
+          <span className="text-signal">
+            <CountedNumber value={String(facts.holidays)} />{" "}
+            {numberWord(facts.holidays, "праздничный", "праздничных", "праздничных")}
+          </span>
+        </>
       ) : null}
       {facts.preHolidayHours > 0 ? (
-        <span className="text-ink-faint">
-          {" / −"}
-          <CountedNumber value={String(facts.preHolidayHours)} /> ч
-        </span>
+        <>
+          <MetaSep />
+          <span className="text-ink-faint">
+            {"−"}
+            <CountedNumber value={String(facts.preHolidayHours)} /> ч
+          </span>
+        </>
       ) : null}
       {edited > 0 ? (
-        <span className="text-trace">
-          {" / правок "}
-          <CountedNumber value={String(edited)} />
-        </span>
+        <>
+          <MetaSep />
+          <span className="text-trace">
+            <CountedNumber value={String(edited)} />{" "}
+            {numberWord(edited, "правка", "правки", "правок")}
+          </span>
+        </>
       ) : null}
     </>
   );
@@ -290,7 +307,6 @@ export function YearCalendarEditor({
               }
               days={group.days.map((item) => item.day)}
               joined
-              appear
               renderDay={(day, corners) => {
                 const item = byDay.get(day);
                 return item ? (

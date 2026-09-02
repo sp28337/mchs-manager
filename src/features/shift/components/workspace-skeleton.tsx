@@ -1,20 +1,27 @@
-import {
-  CalendarCog,
-  CalendarDays,
-  CalendarRange,
-  FolderOpen,
-  Save,
-  Settings2,
-  ZoomIn,
-  ZoomOut,
-} from "lucide-react";
+import { FolderOpen, Save, Settings2, ZoomIn, ZoomOut } from "lucide-react";
+
+import type { ReactNode } from "react";
 
 import { Bone, BoneText } from "@/components/ui/bone";
 import { cn } from "@/lib/utils/cn";
 
 import { datesOfMonth, dayOfMonth } from "../domain/plain-date";
+import {
+  CALENDAR_SHORT,
+  CAPTION_NARROW,
+  CAPTION_WIDE,
+  DECK_CAPTION,
+  DECK_CELL,
+  DECK_PAIR,
+  DECK_RAISED,
+  DECK_SHELL,
+  DECK_ROW,
+  WORKSPACE_PAD,
+} from "./grid-deck";
+import { CalendarIcon, PeriodIcon, ShiftsIcon } from "./grid-icons";
 import { LABELS_FROM } from "./header-tools";
-import { MonthGrid, YEAR_BOX, YEAR_GRID } from "./month-grid";
+import { LiveSignal, LIVE_ROW_CAPTION, LIVE_ROW_CELL } from "./live-mode";
+import { MetaSep, MonthGrid, YEAR_BOX, YEAR_GRID } from "./month-grid";
 import { MONTH_NAMES } from "./month-names";
 import { ShiftLegend } from "./shift-strip";
 
@@ -82,7 +89,10 @@ const MINOR_FIGURES = [
 
 export function WorkspaceSkeleton() {
   return (
-    <main aria-hidden className="mx-auto w-full px-6 pt-26 2xl:max-w-[2000px]">
+    <main
+      aria-hidden
+      className={cn("mx-auto w-full px-6 pt-26 2xl:max-w-[2000px]", WORKSPACE_PAD)}
+    >
       {/* Имя человека — водяным знаком: по центру и почти прозрачное.
           Кость под ним такая же бледная, иначе плотный прямоугольник
           обещал бы блок, которого через мгновение почти не видно. Поле
@@ -131,15 +141,17 @@ export function WorkspaceSkeleton() {
             {/* Панель управления сеткой: что показывать, за какой период,
                 живым временем или целиком, и каким размером. */}
             <div className="space-y-3">
-              <div className="flex flex-wrap items-center gap-2">
+              {/* До `md` строки нет — как и в расчёте: там же, где у него,
+                  органы управления уезжают в нижнюю панель. */}
+              <div className="hidden flex-wrap items-center gap-2 md:flex">
                 <div className="flex-wrap flex lg:min-w-92.5 gap-2 justify-between">
                   <div className="inline-flex h-9 items-center gap-0.5 rounded-xl lg:flex-1 lg:justify-between bg-paper-sunken">
-                    <SegmentBone active>
-                      <CalendarDays aria-hidden />
+                    <SegmentBone active wide>
+                      <ShiftsIcon />
                       График
                     </SegmentBone>
-                    <SegmentBone>
-                      <CalendarCog aria-hidden />
+                    <SegmentBone wide>
+                      <CalendarIcon />
                       Календарь
                     </SegmentBone>
                   </div>
@@ -150,15 +162,20 @@ export function WorkspaceSkeleton() {
                       "skeleton-bone bg-paper-raised px-3 text-sm font-medium text-transparent",
                     )}
                   >
-                    <CalendarRange aria-hidden className="size-4.5 shrink-0 opacity-0" />
+                    <PeriodIcon className="opacity-0" />
                     {SAMPLE_YEAR} год
                   </span>
                 </div>
 
-                {/* Тумблер «Онлайн»: дорожка и подпись рядом. */}
-                <span className="inline-flex items-center gap-1.5">
-                  <span className="inline-flex items-center gap-2 text-sm">
-                    <Bone className="h-6 w-9 rounded-full" />
+                {/* Кнопка «Онлайн»: знак и подпись рядом, в той же мере,
+                    что у настоящей (`live-mode.tsx`). Знак настоящий —
+                    выключенный: он не зависит от профиля, и серый
+                    прямоугольник на его месте прятал бы то, что уже
+                    известно. Подпись — кость той же гарнитуры и кегля,
+                    иначе строка перестроится в момент подстановки. */}
+                <span className={cn(LIVE_ROW_CELL, "text-ink-muted")}>
+                  <LiveSignal on={false} />
+                  <span className={LIVE_ROW_CAPTION}>
                     <BoneText skeleton>Онлайн</BoneText>
                   </span>
                 </span>
@@ -222,7 +239,71 @@ export function WorkspaceSkeleton() {
 
         <ProfileFooterBones />
       </div>
+
+      {/* Нижняя панель телефона — костями, но той же меры: корыто, четыре
+          ячейки, поднятые ровно те же (`grid-deck.tsx`). Оставь её пустой —
+          и в миг подстановки у нижней кромки экрана из ничего появилась бы
+          панель, то есть ровно тот рывок, ради которого заглушка и
+          существует. */}
+      <div className={DECK_SHELL}>
+        <div className={DECK_ROW}>
+          {/* Пара сеток обёрнута так же, как в расчёте: обёртка забирает
+              две доли места и держит просвет между ячейками, а без неё
+              строка делилась бы на четыре равные части. */}
+          <div className={DECK_PAIR}>
+            <DeckCellBone raised caption="График" icon={<ShiftsIcon />} />
+            <DeckCellBone caption="Календарь" short={CALENDAR_SHORT} icon={<CalendarIcon />} />
+          </div>
+          <DeckCellBone
+            raised
+            caption={`${SAMPLE_YEAR} год`}
+            icon={<PeriodIcon />}
+          />
+          <DeckCellBone caption="Онлайн" icon={<LiveSignal on={false} />} />
+        </div>
+      </div>
     </main>
+  );
+}
+
+/**
+ * Ячейка нижней панели костью: знак виден, подпись — плашка.
+ *
+ * Знак оставлен настоящим, а не спрятан: он не меняется от того, прочитан
+ * профиль или нет, и заменять его серым прямоугольником значило бы прятать
+ * то, что уже известно. Меняется только подпись — год у периода зависит от
+ * профиля, — и под неё стоит кость.
+ */
+function DeckCellBone({
+  raised,
+  icon,
+  caption,
+  short,
+}: {
+  raised?: boolean;
+  icon: ReactNode;
+  caption: string;
+  /** Укороченная подпись на узком экране — как и в панели. */
+  short?: string;
+}) {
+  return (
+    <span className={cn(DECK_CELL, raised && DECK_RAISED, "text-ink-muted")}>
+      {icon}
+      <span className={DECK_CAPTION}>
+        {short === undefined ? (
+          <BoneText skeleton>{caption}</BoneText>
+        ) : (
+          <>
+            <span className={CAPTION_WIDE}>
+              <BoneText skeleton>{caption}</BoneText>
+            </span>
+            <span className={CAPTION_NARROW}>
+              <BoneText skeleton>{short}</BoneText>
+            </span>
+          </>
+        )}
+      </span>
+    </span>
   );
 }
 
@@ -293,7 +374,11 @@ function MonthBones({ month }: { month: number }) {
       // точек по высоте.
       meta={
         <>
-          {"8"} см / {"192,0"} ч<span> / ноч. {"64,0"}</span>
+          {"8"} см
+          <MetaSep />
+          {"192"} ч
+          <MetaSep />
+          <span>ноч. {"64"}</span>
         </>
       }
       days={datesOfMonth(SAMPLE_YEAR, month)}
@@ -435,9 +520,12 @@ function MinorPlateBone({
 /** Ячейка переключателя вида сетки: те же размеры, что у настоящей. */
 function SegmentBone({
   active,
+  wide,
   children,
 }: {
   active?: boolean;
+  /** Знак в девять десятых рема — как в самой строке (`year-view.tsx`). */
+  wide?: boolean;
   children: React.ReactNode;
 }) {
   return (
@@ -445,7 +533,8 @@ function SegmentBone({
       className={cn(
         "inline-flex h-9 shrink-0 items-center justify-center gap-1.5",
         "whitespace-nowrap rounded-lg px-3 text-xs font-medium",
-        "[&_svg]:size-4 [&_svg]:shrink-0 [&_svg]:opacity-0",
+        wide ? "[&_svg]:size-4.5" : "[&_svg]:size-4",
+        "[&_svg]:shrink-0 [&_svg]:opacity-0",
         "skeleton-bone text-transparent lg:flex-1/2",
         // Светится ЗАНЯТАЯ, и только она: пустая утоплена вместе с
         // подложкой, а блик на утопленном — свет без предмета. То же

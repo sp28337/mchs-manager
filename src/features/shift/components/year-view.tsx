@@ -1,7 +1,8 @@
 "use client";
 
-import { CalendarCog, CalendarDays, ZoomIn, ZoomOut } from "lucide-react";
+import { ZoomIn, ZoomOut } from "lucide-react";
 import {
+  useEffect,
   useLayoutEffect,
   useRef,
   useState,
@@ -15,9 +16,15 @@ import { cn } from "@/lib/utils/cn";
 
 import type { PeriodCalculation } from "../domain/calculation";
 import { formatDateRu } from "../domain/format";
-import type { IsoDate } from "../domain/plain-date";
+import { todayIso, type IsoDate } from "../domain/plain-date";
 import type { StoredProfile } from "../storage/profile";
-import { LiveModeSwitch } from "./live-mode";
+import { CalendarIcon, ShiftsIcon } from "./grid-icons";
+import {
+  LiveModeCell,
+  LIVE_ON,
+  LIVE_ROW_CAPTION,
+  LIVE_ROW_CELL,
+} from "./live-mode";
 import { PeriodPicker, type StatutoryChoice } from "./period-picker";
 import { ShiftStrip } from "./shift-strip";
 import { YearCalendarEditor } from "./year-calendar-editor";
@@ -145,6 +152,13 @@ const GAP_REM = 1.5;
 /** Уже этого месяц не читается: клетка выходит в два десятка точек. */
 const MONTH_FLOOR_REM = 9;
 
+/**
+ * Просвет между полосой с числами и месяцем, поставленным под неё при
+ * открытии телефона. Ровно столько, чтобы название месяца не касалось
+ * кромки полосы, — это не отступ раскладки, а зазор одной прокрутки.
+ */
+const MONTH_GAP = 8;
+
 function rootFontSize(): number {
   return Number.parseFloat(getComputedStyle(document.documentElement).fontSize);
 }
@@ -257,6 +271,78 @@ export function YearView({
     return () => watcher.disconnect();
   }, []);
 
+  /**
+   * Телефон открывается на нынешнем месяце, а не на январе.
+   *
+   * --- Зачем ----------------------------------------------------------------
+   *
+   * На широком экране год виден почти весь: четыре месяца в ряду, три ряда.
+   * На телефоне месяц занимает экран целиком, и год — это двенадцать
+   * экранов подряд. Человек, открывший расчёт в сентябре, начинал с января
+   * и листал восемь экранов до того места, ради которого пришёл. Каждый раз.
+   *
+   * --- Куда именно ставится месяц -------------------------------------------
+   *
+   * Верхним краем ВПЛОТНУЮ ПОД полосу с числами — ту самую, что закреплена
+   * наверху и показывает норму, отработанное и переработку. Тогда весь
+   * экран ниже неё занят одним месяцем целиком, от первого числа до
+   * последнего, и человек видит разом и итог, и сетку, из которой тот
+   * получился.
+   *
+   * Ставился он в середину экрана — и это было хуже двумя способами сразу:
+   * верхние недели уезжали под полосу, а нижние доходили только до
+   * половины месяца.
+   *
+   * Полосу нельзя посчитать заранее: она закреплена на расстоянии от
+   * безопасной зоны, а высота у неё своя. Поэтому шаг делается в два
+   * приёма — сперва месяц ставится верхним краем к кромке окна, потом
+   * замеряется, где кончилась полоса, и страница доводится ровно на эту
+   * разницу.
+   *
+   * --- Почему один раз и только на телефоне ---------------------------------
+   *
+   * Один раз — потому что это ответ на ОТКРЫТИЕ страницы. Переключил
+   * человек сетку или период, будучи в октябре, — он остаётся там же, где
+   * смотрел; прокрутка под ним в этот момент означала бы, что приложение
+   * отняло у него место, которое он выбрал сам.
+   *
+   * Только на телефоне — потому что там прокрутка и есть цена вопроса. На
+   * широком экране сентябрь и так виден, и прыжок страницы при открытии
+   * читался бы как сбой.
+   *
+   * Порог тот же, что у нижней панели (`grid-deck.tsx`): ниже `md` экран
+   * считается телефонным во всём приложении.
+   *
+   * Кадр ожидания обязателен: сетка в это мгновение только что встала на
+   * место заглушки, и до перерисовки её месяцы стоят не там, где встанут.
+   */
+  const centred = useRef(false);
+  useEffect(() => {
+    if (centred.current) return;
+    centred.current = true;
+    if (!window.matchMedia("(max-width: 767px)").matches) return;
+    const key = todayIso().slice(0, 7);
+    let second = 0;
+    const frame = requestAnimationFrame(() => {
+      // Нынешнего месяца в показанном отрезке может не быть вовсе —
+      // человек смотрит позапрошлый год. Тогда не двигаемся никуда.
+      const month = document.querySelector(`[data-month="${key}"]`);
+      if (month === null) return;
+      month.scrollIntoView({ block: "start" });
+      // Второй приём: полоса с числами закреплена, и её нижняя кромка
+      // становится известна только после первой прокрутки.
+      second = requestAnimationFrame(() => {
+        const bar = document.querySelector("[data-summary]");
+        const under = bar === null ? 0 : bar.getBoundingClientRect().bottom;
+        window.scrollBy(0, month.getBoundingClientRect().top - under - MONTH_GAP);
+      });
+    });
+    return () => {
+      cancelAnimationFrame(frame);
+      cancelAnimationFrame(second);
+    };
+  }, []);
+
   const fits = roomWidth === 0 ? MONTHS_CAP : monthsThatFit(roomWidth);
   // Мельчить дальше некуда: предел — это столько месяцев, сколько влезает
   // в эту колонку, и на нём кнопка гаснет.
@@ -285,14 +371,24 @@ export function YearView({
           два блока, спорящих за передний план. Управление держится
           линейками, а не фоном. */}
       <div className="space-y-3">
-        <div className="flex flex-wrap items-center gap-2">
+        {/* До `md` этой строки нет: те же органы управления стоят внизу
+            экрана, всегда под большим пальцем (`grid-deck.tsx`). Скрыто
+            правилом, а не замером ширины: замер означал бы, что до его
+            выполнения не показано ни то ни другое. */}
+        <div className="hidden flex-wrap items-center gap-2 md:flex">
           <div className="flex-wrap flex lg:min-w-92.5 gap-2 justify-between">
             <Segmented label="Что показывать на сетке">
+              {/* Знаки здесь той же меры, что у кнопки периода рядом и у
+                  кнопок шапки: девять десятых рема. Своя мера
+                  переключателя (четыре пятых) оставляла бы в одной строке
+                  значки двух размеров — замер краски давал 13,3 точки
+                  против 15 у часов. */}
               <SegmentedItem
                 active={view === "shifts"}
                 onClick={() => onViewChange("shifts")}
+                className="[&_svg]:size-4.5"
               >
-                <CalendarDays aria-hidden />
+                <ShiftsIcon />
                 {/* «График смен» на телефоне съедает всю строку, а рядом
                     стоит «Календарь» — второго графика тут нет, и слово
                     «смен» ничего не различает. */}
@@ -301,8 +397,9 @@ export function YearView({
               <SegmentedItem
                 active={view === "calendar"}
                 onClick={() => onViewChange("calendar")}
+                className="[&_svg]:size-4.5"
               >
-                <CalendarCog aria-hidden />
+                <CalendarIcon />
                 <span className="inline">Календарь</span>
               </SegmentedItem>
             </Segmented>
@@ -326,9 +423,17 @@ export function YearView({
             />
           </div>
 
-          {/* Тумблер здесь, а не только в настройках: он меняет то, что
-              нарисовано в сетке, — значит, стоит там, где на это смотрят. */}
-          <LiveModeSwitch profile={profile} onChange={onChange} />
+          {/* Режим здесь, а не только в настройках: он меняет то, что
+              нарисовано в сетке, — значит, стоит там, где на это смотрят.
+              Кнопка та же, что в нижней панели телефона, и знак тот же:
+              человек, повернувший телефон, находит на этом месте не другую
+              деталь, а ту же самую в другой форме. */}
+          <LiveModeCell
+            profile={profile}
+            onChange={onChange}
+            className={cn(LIVE_ROW_CELL, profile.liveMode && LIVE_ON)}
+            captionClassName={LIVE_ROW_CAPTION}
+          />
 
           {/* Масштаб — двумя кнопками.
               -------------------------------------------------------------

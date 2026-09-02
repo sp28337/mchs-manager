@@ -1,6 +1,14 @@
 import { describe, expect, it } from "vitest";
 
-import { Dec, formatDaysAndHours, parseHours, splitIntoDays, toDecimal } from "./decimal";
+import {
+  Dec,
+  formatDaysAndHours,
+  numberWord,
+  parseHours,
+  shiftsWord,
+  splitIntoDays,
+  toDecimal,
+} from "./decimal";
 
 /**
  * Разбор пользовательского ввода не имеет права бросать исключение.
@@ -75,5 +83,39 @@ describe("часы в сутках дежурства", () => {
     expect(formatDaysAndHours(new Dec(24 * 2))).toBe("2 суток");
     expect(formatDaysAndHours(new Dec(24 * 11))).toBe("11 суток");
     expect(formatDaysAndHours(new Dec(24 * 21))).toBe("21 сутки");
+  });
+});
+
+/**
+ * Подписи месяца в календаре ставят слово рядом с числом: «21 рабочий»,
+ * «1 праздничный», «11 рабочих». Форма зависит не от последней цифры, а от
+ * последних двух — и подпись, написанная без этого правила, каждый январь
+ * показывала «1 праздничных».
+ */
+describe("форма слова при числе", () => {
+  const рабочий = (n: number) => `${n} ${numberWord(n, "рабочий", "рабочих", "рабочих")}`;
+
+  it("одно, два-четыре и остальные — три разные формы", () => {
+    expect(numberWord(1, "правка", "правки", "правок")).toBe("правка");
+    expect(numberWord(2, "правка", "правки", "правок")).toBe("правки");
+    expect(numberWord(4, "правка", "правки", "правок")).toBe("правки");
+    expect(numberWord(5, "правка", "правки", "правок")).toBe("правок");
+    expect(numberWord(0, "правка", "правки", "правок")).toBe("правок");
+  });
+
+  it("вторая десятка обманывает последней цифрой", () => {
+    expect(рабочий(11)).toBe("11 рабочих");
+    expect(рабочий(12)).toBe("12 рабочих");
+    expect(рабочий(14)).toBe("14 рабочих");
+    expect(рабочий(21)).toBe("21 рабочий");
+    expect(рабочий(101)).toBe("101 рабочий");
+    expect(рабочий(111)).toBe("111 рабочих");
+  });
+
+  it("«смена» считается тем же правилом", () => {
+    expect(shiftsWord(1)).toBe("смена");
+    expect(shiftsWord(3)).toBe("смены");
+    expect(shiftsWord(11)).toBe("смен");
+    expect(shiftsWord(21)).toBe("смена");
   });
 });

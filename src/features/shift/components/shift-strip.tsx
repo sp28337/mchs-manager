@@ -9,7 +9,6 @@ import { cn } from "@/lib/utils/cn";
 import type { DayRecord, PeriodCalculation } from "../domain/calculation";
 import {
   ZERO,
-  formatHours as hours,
   formatHoursTrim as hoursTrim,
   type Decimal,
 } from "../domain/decimal";
@@ -67,6 +66,7 @@ const ABSENCE_TONE_QUIET: Record<AbsenceKind, string> = {
 };
 import { MONTH_NAMES } from "./month-names";
 import {
+  MetaSep,
   MonthGrid,
   TODAY_MARK,
   WEEKDAY_LABELS,
@@ -268,8 +268,14 @@ export function ShiftStrip({
                 {/* Числа месяца доходят до нового значения, как и числа
                     полосы итога: человек отмечает отпуск в апреле и видит
                     движение там, где апрель, — а не только наверху. */}
-                <CountedNumber value={String(group.starts)} /> см /{" "}
-                <CountedNumber value={hours(group.workedHours)} /> ч
+                <CountedNumber value={String(group.starts)} /> см
+                <MetaSep />
+                {/* Без нулевого хвоста: «192 ч», а не «192,0 ч». Десятая
+                    доля показывается тогда, когда она есть, — на целых
+                    часах ноль после запятой не уточняет ничего, зато
+                    удлиняет подпись на треть в строке, где место считано
+                    (`formatHoursTrim`). */}
+                <CountedNumber value={hoursTrim(group.workedHours)} /> ч
                 {/* Раньше здесь стояло «· −8», и человек справедливо
                     прочитал это как «минус 8 часов». Число пропущенных
                     смен обязано быть подписано словом: приложение
@@ -277,29 +283,37 @@ export function ShiftStrip({
                     молча, и двусмысленность в его собственном итоге —
                     последнее, что тут допустимо. */}
                 {group.absentStarts > 0 ? (
-                  <span className="text-signal">
-                    {" / пропущено "}
-                    <CountedNumber value={String(group.absentStarts)} />
-                  </span>
+                  <>
+                    <MetaSep />
+                    <span className="text-signal">
+                      {"пропущено "}
+                      <CountedNumber value={String(group.absentStarts)} />
+                    </span>
+                  </>
                 ) : null}
                 {group.calloutHours.greaterThan(0) ? (
-                  <span className="text-trace">
-                    {" / вызовы "}
-                    <CountedNumber value={hours(group.calloutHours)} />
-                  </span>
+                  <>
+                    <MetaSep />
+                    <span className="text-trace">
+                      {"вызовы "}
+                      <CountedNumber value={hoursTrim(group.calloutHours)} />
+                    </span>
+                  </>
                 ) : null}
                 {group.nightHours.greaterThan(0) ? (
-                  <span className="text-ink-faint">
-                    {" / ноч. "}
-                    <CountedNumber value={hours(group.nightHours)} />
-                  </span>
+                  <>
+                    <MetaSep />
+                    <span className="text-ink-faint">
+                      {"ноч. "}
+                      <CountedNumber value={hoursTrim(group.nightHours)} />
+                    </span>
+                  </>
                 ) : null}
               </>
               )
             }
             days={group.days}
             joined
-            appear
             renderDay={(day, corners) => (
               <DayCell
                 day={day}
@@ -373,16 +387,6 @@ export function ShiftLegend({ skeleton }: { skeleton?: boolean }) {
             mark={DAY_OFF_MARK}
             label="Выходной день"
           />
-          {/* Перетаскивание ничем себя не выдаёт: клетка выглядит так же,
-              как и любая другая. Сказать об этом словом — единственный
-              способ, а место у слова одно — там, где объяснено остальное
-              в этой сетке. */}
-          <p className="text-xs text-ink-muted">
-            <BoneText skeleton={skeleton}>
-              Смену можно перенести: потяните её мышью или задержите палец и
-              ведите. Или нажмите по дню и выберите «Выходной».
-            </BoneText>
-          </p>
         </LegendGroup>
 
         <LegendGroup title="Отсутствие по уважительной причине" skeleton={skeleton}>
@@ -407,12 +411,12 @@ export function ShiftLegend({ skeleton }: { skeleton?: boolean }) {
               label={CALLOUT_LABELS[kind]}
             />
           ))}
-          <Legend
-            skeleton={skeleton}
-            className={cn("border-2", CALLOUT_TONE)}
-            mark={`${CALLOUT_MARK.competition} ${CALLOUT_MARK.reserve}`}
-            label="Несколько выходов в сутки"
-          />
+          {/* Строки «Несколько выходов в сутки» здесь больше нет. Она
+              объясняла не вид клетки, а её крайний случай: два кода рядом
+              вместо одного. Случай этот виден и без объяснения — коды в
+              клетке те же самые и стоят под теми же подписями выше, — а в
+              списке видов она занимала место наравне с ними, и человек
+              искал среди них шестой вид работы, которого нет. */}
         </LegendGroup>
       </div>
   );
