@@ -1,6 +1,5 @@
 "use client";
 
-import { CalendarRange } from "lucide-react";
 import { useId, useState } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -12,6 +11,7 @@ import { cn } from "@/lib/utils/cn";
 import { todayIso, year as yearOf } from "../domain/plain-date";
 import type { AccountingPeriodKind } from "../domain/value-objects";
 import { ACCOUNTING_PERIODS } from "../domain/value-objects";
+import { PeriodIcon } from "./grid-icons";
 import { MONTH_NAMES } from "./month-names";
 
 /**
@@ -136,6 +136,8 @@ export function PeriodPicker({
   onStatutory,
   month,
   onMonth,
+  cellClassName,
+  captionClassName,
 }: {
   accountingYear: number;
   /** Учётный год — такой же ответ на «что смотрим», как отрезок и месяц. */
@@ -145,6 +147,20 @@ export function PeriodPicker({
   /** Месяц года или `null` — выбран учётный отрезок. */
   month: number | null;
   onMonth: (month: number | null) => void;
+  /**
+   * Кнопка ячейкой нижней панели телефона: знак, под ним отрезок.
+   *
+   * Меняется только КНОПКА — окно за ней то же самое. Оно и есть весь
+   * выбор периода, и заводить ему двойника ради другой формы кнопки
+   * значило бы однажды получить два разных списка отрезков.
+   *
+   * Мера ячейки приходит СНАРУЖИ, из самой панели (`grid-deck.tsx`), а не
+   * берётся оттуда ссылкой: панель уже зависит от этого файла — ей нужна и
+   * кнопка, и тип выбранного отрезка, — и встречная ссылка замкнула бы их
+   * друг на друга.
+   */
+  cellClassName?: string;
+  captionClassName?: string;
 }) {
   const [open, setOpen] = useState(false);
   const partId = useId();
@@ -166,24 +182,39 @@ export function PeriodPicker({
 
   return (
     <>
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        aria-label={`Период: ${current}. Выбрать другой`}
-        className={cn(
-          // `lit` — та же поднятая поверхность, что и занятая ячейка
-          // переключателя рядом: кнопка периода стоит с ними в одной
-          // строке и обязана ловить свет так же, иначе из строки выпадает.
-          "lit inline-flex h-9 shrink-0 cursor-pointer items-center gap-2 rounded-xl",
-          "bg-paper-raised px-3 text-sm font-medium",
-          "text-ink transition-colors hover:bg-paper-sunken",
-          "focus-visible:outline-2 focus-visible:outline-offset-2",
-          "focus-visible:outline-trace",
-        )}
-      >
-        <CalendarRange aria-hidden className="size-4.5 shrink-0 text-ink-muted" />
-        {current}
-      </button>
+      {cellClassName ? (
+        // Ячейка панели: та же мера и та же подпись, что у соседей
+        // (`grid-deck.tsx`). Поднята всегда — период не выбор из двух
+        // положений, а название того, что человек сейчас видит.
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          aria-label={`Период: ${current}. Выбрать другой`}
+          className={cn(cellClassName, "text-ink")}
+        >
+          <PeriodIcon className="text-ink-muted" />
+          <span className={captionClassName}>{current}</span>
+        </button>
+      ) : (
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          aria-label={`Период: ${current}. Выбрать другой`}
+          className={cn(
+            // `lit` — та же поднятая поверхность, что и занятая ячейка
+            // переключателя рядом: кнопка периода стоит с ними в одной
+            // строке и обязана ловить свет так же, иначе из строки выпадает.
+            "lit inline-flex h-9 shrink-0 cursor-pointer items-center gap-2 rounded-xl",
+            "bg-paper-raised px-3 text-sm font-medium",
+            "text-ink transition-colors hover:bg-paper-sunken",
+            "focus-visible:outline-2 focus-visible:outline-offset-2",
+            "focus-visible:outline-trace",
+          )}
+        >
+          <PeriodIcon className="text-ink-muted" />
+          {current}
+        </button>
+      )}
 
       <Modal open={open} onClose={() => setOpen(false)} title="За какой период">
         <div className="space-y-4">

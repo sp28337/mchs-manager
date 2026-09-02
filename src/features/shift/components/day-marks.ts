@@ -17,6 +17,10 @@ import type { AbsenceKind, CalloutKind } from "../domain/value-objects";
  * Полное название стоит в подписи клетки и в легенде.
  */
 export const CALLOUT_MARK: Record<CalloutKind, string> = {
+  // «ВЗ», а не «В»: одна буква «В» занята выходным (`DAY_OFF_MARK`), и две
+  // разные вещи под одним знаком на одной сетке — худшее, что можно сделать
+  // с разметкой, которую человек читает бегло.
+  callout: "ВЗ",
   competition: "СР",
   training_camp: "СБ",
   reserve: "РЗ",

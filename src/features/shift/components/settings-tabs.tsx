@@ -71,7 +71,23 @@ export function SettingsTabs({
 
   function show(next: Tab) {
     if (next === tab) return;
-    setFloor(pane.current?.offsetHeight ?? 0);
+    const box = pane.current;
+    // Запоминается высота ПОКАЗАННОГО, а не содержимого.
+    //
+    // Разница появляется, когда закладка не помещается в окно целиком:
+    // анкета профиля высотой в полторы тысячи точек уходит за нижний край,
+    // и её `offsetHeight` — это высота всего свитка, а не того, что видно.
+    // Поставленная границей перечню правок, она обещала окну полторы
+    // тысячи точек, и человек, переключившийся на перечень из трёх строк,
+    // прокручивал под ними экран пустоты.
+    //
+    // Вычитается ровно то, что сейчас за краем: если тело окна не
+    // прокручивается вовсе, вычитать нечего и граница остаётся прежней —
+    // тот самый случай, ради которого она и заведена.
+    const body = box?.closest("[data-modal-body]");
+    const over =
+      body instanceof HTMLElement ? Math.max(0, body.scrollHeight - body.clientHeight) : 0;
+    setFloor(Math.max(0, (box?.offsetHeight ?? 0) - over));
     setTab(next);
   }
 
