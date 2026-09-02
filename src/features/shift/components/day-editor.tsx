@@ -119,6 +119,30 @@ import { DateField } from "./date-field";
  * Заметка спрашивается на обеих сетках — в отличие от двух вопросов выше,
  * она не про календарь и не про работу, а про память, и день для неё
  * один и тот же, с какой бы сетки его ни открыли.
+ *
+ * --- Почему нет «Сохранить» и «Отмены» ------------------------------------
+ *
+ * Их было две внизу, и обе обещали не то. «Сохранить» обещало, что до
+ * нажатия ничего не записано, — а это была уже неправда: выключенный
+ * тумблер убирал запись из профиля сразу, не дожидаясь никакой кнопки.
+ * «Отмена» обещала вернуть как было — и не возвращала того, что уже
+ * убрано. Человек, закрывший окно крестиком или клавишей Esc, при этом
+ * терял всё названное молча: две кнопки внизу окна во весь экран телефона
+ * лежат ниже последнего поля, и до них ещё нужно долистать.
+ *
+ * Теперь правка ложится в профиль сразу, по мере того как её вносят, — как
+ * и везде в этом приложении: в настройках, в имени профиля, в выборе
+ * периода. Запись идёт в браузер, а не по сети, и отдельный шаг сохранения
+ * давал только возможность потерять сделанное.
+ *
+ * Ценой одного: отменить внесённое кнопкой нельзя. Взамен видно, что
+ * именно внесено, — на той же сетке, под окном, и в перечне изменений в
+ * настройках, откуда любую правку можно убрать одним нажатием.
+ *
+ * Не пишется в профиль только негодное: пустое поле вместо часов, ноль
+ * часов, дата окончания раньше открытых суток. Такое остаётся на экране
+ * таким, каким его набрали, и рядом стоит жалоба — но записью не
+ * становится. Подробности у `complaint`.
  */
 
 /** Вид суток, который человек включает в списке: отсутствие или вызов. */
@@ -187,7 +211,6 @@ export function DayEditor({ day, kind, profile, onChange, onClose }: DayEditorPr
           kind={kind}
           profile={profile}
           onChange={onChange}
-          onClose={onClose}
         />
       ) : null}
     </Modal>
@@ -199,13 +222,11 @@ function DayForm({
   kind,
   profile,
   onChange,
-  onClose,
 }: {
   day: IsoDate;
   kind: DayEditorKind;
   profile: StoredProfile;
   onChange: (change: (previous: StoredProfile) => StoredProfile) => void;
-  onClose: () => void;
 }) {
   const dayTypeId = useId();
   const noteId = useId();
@@ -329,11 +350,11 @@ function DayForm({
    * «правка» сводилась бы к перезаписи дня самим собой. Поэтому вне
    * календаря профиль возвращается неизменным.
    */
-  function saveDayType(next: StoredProfile): StoredProfile {
+  function withDayType(next: StoredProfile, type: DayType): StoredProfile {
     if (kind !== "calendar") return next;
     const calendarOverrides = { ...next.calendarOverrides };
-    if (dayType === lawful) delete calendarOverrides[day];
-    else calendarOverrides[day] = dayType;
+    if (type === lawful) delete calendarOverrides[day];
+    else calendarOverrides[day] = type;
     return { ...next, calendarOverrides };
   }
 
@@ -343,16 +364,24 @@ function DayForm({
    * Только на сетке графика: на производственном календаре о сменах не
    * спрашивают, и записывать там нечего.
    */
-  function saveShift(next: StoredProfile): StoredProfile {
+  function withShift(
+    next: StoredProfile,
+    on: boolean,
+    from: string,
+    hours: string,
+  ): StoredProfile {
     if (kind !== "shifts") return next;
-    const moved = shift === scheduled ? next : withShiftAt(next, day, shift);
+    // `withShiftAt` сам решает, нужна ли правка: совпало с циклом — правка
+    // снимается, разошлось — записывается. Спрашивать об этом здесь второй
+    // раз значило бы завести второе мнение о том же.
+    const moved = withShiftAt(next, day, on);
     // Часы записываются ПОСЛЕ смены и только к ней: у выходного часов нет,
     // и оставшаяся от прежней смены запись однажды приписала бы чужой
     // распорядок той смене, которая встанет сюда потом.
-    return withShiftTimeAt(moved, day, shift ? spanFrom(startsAt, shiftMinutes(durationHours)) : null);
+    return withShiftTimeAt(moved, day, on ? spanFrom(from, shiftMinutes(hours)) : null);
   }
 
-  function saveNote(next: StoredProfile, text: string): StoredProfile {
+  function withNote(next: StoredProfile, text: string): StoredProfile {
     const dayNotes = { ...next.dayNotes };
     // Пустая заметка не хранится: иначе профиль обрастал бы пустыми
     // строками на каждом дне, который человек когда-либо открывал.
@@ -362,118 +391,111 @@ function DayForm({
   }
 
   /**
-   * Записать всё, что человек включил и поправил, одним движением.
+   * Записать вид суток: добавить новый или поправить уже стоящий.
    *
-   * --- Почему всё разом, а не по одному ---------------------------------------
-   *
-   * Видов в одних сутках бывает несколько, и каждый со своим сроком и
-   * часами. Записывать их по мере включения значило бы, что «Отмена» внизу
-   * отменяет не всё, а только последнее, — а это худший вид неправды в
-   * окне правки. Здесь либо записано всё, либо ничего.
-   *
-   * Убирание при этом идёт сразу, тумблером, и это не противоречие: убрать
-   * — действие законченное и видимое, его результат человек проверяет тут
-   * же, на списке «Уже отмечено».
+   * Правка, а не вторая запись, — потому что запись у вида одна на весь его
+   * срок. Открыв середину отпуска с 1 по 14 и продлив его до 20, человек
+   * меняет ту же самую запись: у неё остаются и опознаватель, и дата
+   * начала, которая может быть раньше открытых суток. Добавить рядом
+   * вторую значило бы удвоить отпуск.
    */
-  function submit() {
-    const target = day;
-    const picks = Object.keys(draft) as DayPick[];
-
-    // Часы и сроки проверяются ДО первой записи: половина внесённого хуже
-    // невнесённого — человек уйдёт, будучи уверен, что записано всё.
-    const additions: { pick: DayPick; end: IsoDate; hours: string | null }[] = [];
-
-    for (const pick of picks) {
-      const time = draft[pick];
-      if (!time) continue;
-      const end = time.endsOn;
-      if (end < target) {
-        setError("Дата окончания раньше выбранного дня.");
-        return;
-      }
-      if (pick.startsWith("callout:")) {
-        const parsed = parseHours(time.hours);
-        // Больше суток в сутках не бывает, и ноль часов — это не вызов.
-        if (parsed === null || parsed.lessThanOrEqualTo(0) || parsed.greaterThan(24)) {
-          setError("Часы в сутки — число от 0 до 24, например 8 или 4,5.");
-          return;
-        }
-        additions.push({ pick, end, hours: parsed.toString() });
-      } else {
-        // Пересекающиеся отсутствия запрещены: смена, попавшая и в отпуск,
-        // и в больничный, вычлась бы из нормы дважды — 48 часов за одни
-        // сутки. Своя же запись, открытая на правку, не считается.
-        const kind = pick.slice("absence:".length) as AbsenceKind;
-        const own = absence?.kind === kind ? absence : null;
-        const overlap = profile.absences.find(
-          (item) => item.id !== own?.id && item.startsOn <= end && target <= item.endsOn,
-        );
-        if (overlap) {
-          setError(
-            `Эти сутки уже заняты: ${ABSENCE_LABELS[overlap.kind]} ` +
-              `${formatDateRu(overlap.startsOn)} — ${formatDateRu(overlap.endsOn)}. ` +
-              `Сначала выключите её, иначе смена вычтется из нормы дважды.`,
-          );
-          return;
-        }
-        additions.push({ pick, end, hours: null });
-      }
+  function withPick(next: StoredProfile, pick: DayPick, time: DayTime): StoredProfile {
+    const end = time.endsOn;
+    if (pick.startsWith("absence:")) {
+      const kind = pick.slice("absence:".length) as AbsenceKind;
+      const edited = next.absences.find(
+        (item) => item.kind === kind && item.startsOn <= day && day <= item.endsOn,
+      );
+      return edited
+        ? {
+            ...next,
+            absences: next.absences.map((item) =>
+              item.id === edited.id ? { ...item, endsOn: end } : item,
+            ),
+          }
+        : {
+            ...next,
+            absences: [
+              ...next.absences,
+              { id: crypto.randomUUID(), kind, startsOn: day, endsOn: end },
+            ],
+          };
     }
 
-    onChange((previous) => {
-      let next = saveShift(saveDayType(saveNote(previous, note)));
-      for (const { pick, end, hours: parsed } of additions) {
-        if (pick.startsWith("absence:")) {
-          const kind = pick.slice("absence:".length) as AbsenceKind;
-          // Правка того, что уже стоит: запись остаётся той же — с тем же
-          // опознавателем и той же датой начала, которая может быть и
-          // раньше открытых суток, — а меняется у неё дата окончания.
-          // Добавить вместо этого вторую значило бы удвоить отпуск.
-          const edited = next.absences.find((item) => item.id === absence?.id && item.kind === kind);
-          next = edited
-            ? {
-                ...next,
-                absences: next.absences.map((item) =>
-                  item.id === edited.id ? { ...item, endsOn: end } : item,
-                ),
-              }
-            : {
-                ...next,
-                absences: [
-                  ...next.absences,
-                  { id: crypto.randomUUID(), kind, startsOn: target, endsOn: end },
-                ],
-              };
-        } else {
-          const kind = pick.slice("callout:".length) as CalloutKind;
-          const edited = callouts.find((item) => item.kind === kind) ?? null;
-          next = edited
-            ? {
-                ...next,
-                callouts: next.callouts.map((item) =>
-                  item.id === edited.id
-                    ? { ...item, endsOn: end, hoursPerDay: parsed! }
-                    : item,
-                ),
-              }
-            : {
-                ...next,
-                callouts: [
-                  ...next.callouts,
-                  {
-                    id: crypto.randomUUID(),
-                    kind,
-                    startsOn: target,
-                    endsOn: end,
-                    hoursPerDay: parsed!,
-                  },
-                ],
-              };
+    const kind = pick.slice("callout:".length) as CalloutKind;
+    const parsed = parseHours(time.hours);
+    if (parsed === null) return next;
+    const edited = next.callouts.find(
+      (item) => item.kind === kind && item.startsOn <= day && day <= item.endsOn,
+    );
+    return edited
+      ? {
+          ...next,
+          callouts: next.callouts.map((item) =>
+            item.id === edited.id
+              ? { ...item, endsOn: end, hoursPerDay: parsed.toString() }
+              : item,
+          ),
         }
+      : {
+          ...next,
+          callouts: [
+            ...next.callouts,
+            {
+              id: crypto.randomUUID(),
+              kind,
+              startsOn: day,
+              endsOn: end,
+              hoursPerDay: parsed.toString(),
+            },
+          ],
+        };
+  }
+
+  /**
+   * Годится ли названное время для записи.
+   *
+   * Возвращает жалобу или `null`, если всё в порядке. Проверка живёт
+   * отдельно от записи, потому что зовут её ДО неё: непринятое значение не
+   * пишется вовсе, а человек читает, что именно не так.
+   */
+  function complaint(pick: DayPick, time: DayTime): string | null {
+    if (time.endsOn < day) return "Дата окончания раньше выбранного дня.";
+    if (pick.startsWith("callout:")) {
+      const parsed = parseHours(time.hours);
+      // Больше суток в сутках не бывает, и ноль часов — это не вызов.
+      if (parsed === null || parsed.lessThanOrEqualTo(0) || parsed.greaterThan(24)) {
+        return "Часы в сутки — число от 0 до 24, например 8 или 4,5.";
       }
-      return next;
-    });
-    onClose();
+      return null;
+    }
+    // Пересекающиеся отсутствия запрещены: смена, попавшая и в отпуск, и в
+    // больничный, вычлась бы из нормы дважды — 48 часов за одни сутки.
+    // Своё же, открытое на правку, не считается.
+    const kind = pick.slice("absence:".length) as AbsenceKind;
+    const own = absence?.kind === kind ? absence : null;
+    const overlap = profile.absences.find(
+      (item) => item.id !== own?.id && item.startsOn <= time.endsOn && day <= item.endsOn,
+    );
+    return overlap
+      ? `Эти сутки уже заняты: ${ABSENCE_LABELS[overlap.kind]} ` +
+          `${formatDateRu(overlap.startsOn)} — ${formatDateRu(overlap.endsOn)}. ` +
+          `Сначала выключите её, иначе смена вычтется из нормы дважды.`
+      : null;
+  }
+
+  /** Поправить время вида суток: и в окне, и в профиле. */
+  function pickTime(pick: DayPick, time: DayTime) {
+    // В окне — всегда: человек набирает по знаку, и набранное обязано
+    // остаться на экране таким, каким он его набрал, даже если это ещё не
+    // число.
+    setDraft((previous) => ({ ...previous, [pick]: time }));
+    const why = complaint(pick, time);
+    setError(why);
+    // В профиль — только годное, и на каждом знаке. Записывать негодное
+    // нельзя (ноль часов — это не вызов), а годное ждать незачем: запись
+    // идёт в браузер, и следующий знак её просто поправит.
+    if (why === null) onChange((previous) => withPick(previous, pick, time));
   }
 
   return (
@@ -558,7 +580,11 @@ function DayForm({
           <Select
             id={dayTypeId}
             value={dayType}
-            onChange={(event) => setDayType(event.target.value as DayType)}
+            onChange={(event) => {
+              const next = event.target.value as DayType;
+              setDayType(next);
+              onChange((previous) => withDayType(previous, next));
+            }}
           >
             {DAY_TYPES.map((type) => (
               <option key={type} value={type}>
@@ -610,7 +636,7 @@ function DayForm({
             isAbsence ? (
               ABSENCE_EFFECT[spotlight!.slice("absence:".length) as AbsenceKind]
             ) : isCallout ? (
-              "Часы прибавляются к отработанному, норму не трогают (ч. 1 ст. 54 ФЗ-141, ст. 91 ТК РФ)."
+              "Часы прибавляются к отработанному, норму не трогают (ст. 91 ТК РФ)."
             ) : (
               <>
                 {shift ? "Часы смены идут в отработанное." : "Выходной: ни часов, ни ночных."}
@@ -625,6 +651,7 @@ function DayForm({
             shift={shift}
             onShift={(next) => {
               setShift(next);
+              onChange((previous) => withShift(previous, next, startsAt, durationHours));
               // Включили смену — сразу спрашиваем, со скольки она и
               // сколько длится: это единственные две величины, которые у
               // неё есть. Выключили (то есть поставили выходной) —
@@ -667,11 +694,11 @@ function DayForm({
                 );
                 return;
               }
-              // Включили — спрашиваем срок и часы отдельным окном.
-              setDraft((previous) => ({
-                ...previous,
-                [next]: { endsOn: day, hours: DEFAULT_CALLOUT_HOURS },
-              }));
+              // Включили — записываем сразу, одними сутками и с обычными
+              // часами, а срок спрашиваем следом отдельным окном. Тумблер
+              // включён — значит в сутках это уже стоит; ждать от человека
+              // ещё одного нажатия, чтобы слово стало делом, незачем.
+              pickTime(next, { endsOn: day, hours: DEFAULT_CALLOUT_HOURS });
               setSpotlight(next);
               setDetail(next);
             }}
@@ -686,7 +713,11 @@ function DayForm({
             maxLength={500}
             rows={3}
             placeholder=""
-            onChange={(event) => setNote(event.target.value)}
+            onChange={(event) => {
+              const text = event.target.value;
+              setNote(text);
+              onChange((previous) => withNote(previous, text));
+            }}
             className="block w-full rounded-lg bg-paper px-3 py-2 text-sm text-ink transition-all
                        placeholder:text-ink-faint border border-transparent hover:border-ink-muted duration-200"
           />
@@ -704,10 +735,10 @@ function DayForm({
             Окно поверх решает это тем же, чем и вопрос «точно?»: оно
             встаёт по центру, поверх всего, и не заметить его нельзя.
 
-            Своего «Сохранить» у него нет и быть не должно: величины
-            записываются в то же состояние окна дня, а на бумагу всё
-            ложится одним нажатием внизу. Два «Сохранить» подряд означали
-            бы, что первое что-то уже сохранило, — а это неправда. */}
+            Своего «Сохранить» у него нет, как нет его и у окна дня:
+            названное записывается сразу. «Готово» внизу только закрывает
+            окно времени — и названо так, а не «Сохранить», именно потому,
+            что сохранять к этому моменту уже нечего. */}
         <DayTimeModal
           detail={detail}
           onClose={() => setDetail(null)}
@@ -715,27 +746,28 @@ function DayForm({
           profile={profile}
           startsAt={startsAt}
           durationHours={durationHours}
-          onStart={setStartsAt}
-          onDuration={setDurationHours}
+          onStart={(next) => {
+            setStartsAt(next);
+            if (shift) onChange((previous) => withShift(previous, true, next, durationHours));
+          }}
+          onDuration={(next) => {
+            setDurationHours(next);
+            const parsed = parseHours(next);
+            // Записывается только то, что вообще является продолжительностью
+            // смены: пустое поле, «полторы буквы» и ноль часов профилю не
+            // нужны, а больше суток смена не бывает. Всё остальное идёт в
+            // профиль на каждом знаке — следующий знак просто поправит
+            // записанное.
+            if (!shift || parsed === null || parsed.lessThanOrEqualTo(0) || parsed.greaterThan(24)) {
+              return;
+            }
+            onChange((previous) => withShift(previous, true, startsAt, next));
+          }}
           time={detail && detail !== "shift" ? draft[detail] : undefined}
-          onTime={(next) =>
-            setDetail((current) => {
-              if (current && current !== "shift") {
-                setDraft((previous) => ({ ...previous, [current]: next }));
-              }
-              return current;
-            })
-          }
+          onTime={(next) => {
+            if (detail && detail !== "shift") pickTime(detail, next);
+          }}
         />
-
-        <div className="flex flex-wrap gap-2 pt-1 xs:flex-nowrap">
-          <Button type="button" onClick={submit}>
-            Сохранить
-          </Button>
-        <Button type="button" variant="outline" onClick={onClose}>
-          Отмена
-        </Button>
-      </div>
     </div>
   );
 }
@@ -914,18 +946,15 @@ function Entry({
  * Величин у каждого вида две-три, и появлялись они прямо в окне дня, под
  * списком из двенадцати строк. Список этот на телефоне уже высотой в экран,
  * и поля вырастали ЗА его нижним краем: человек включал вызов, на видимой
- * части не менялось ничего, и он шёл сохранять, не назвав ни часов, ни
- * срока. Окно поверх не заметить нельзя — тот же довод, что у вопроса
- * «точно?» (`ui/confirm-dialog.tsx`), и то же устройство: `modal-over-modal`
- * с родным затемнением, потому что свой слой затемнения до окна, лежащего
- * выше, не дотягивается.
+ * части не менялось ничего, и он уходил, не назвав ни часов, ни срока.
+ * Окно поверх не заметить нельзя — тот же довод, что у вопроса «точно?»
+ * (`ui/confirm-dialog.tsx`), и та же метка `modal-over-modal`.
  *
- * --- Почему у него нет своего «Сохранить» ------------------------------------
+ * --- Почему у него нет «Сохранить» -------------------------------------------
  *
- * Величины записываются в состояние окна дня, а на бумагу всё ложится одним
- * нажатием «Сохранить» внизу. Второе «Сохранить» означало бы, что первое
- * что-то уже записало, — а это неправда, и человек, закрывший окно дня
- * после него, потерял бы всё, будучи уверен в обратном.
+ * Потому что его нет и у окна дня: названное записывается в профиль сразу,
+ * по мере правки. Кнопка внизу называется «Готово» и только закрывает это
+ * окно — сохранять к этому моменту уже нечего.
  */
 function DayTimeModal({
   detail,
@@ -972,7 +1001,7 @@ function DayTimeModal({
       onClose={onClose}
       title={title}
       // Узкое и поверх — как вопрос «точно?»: довод там же.
-      className="modal-over-modal backdrop:bg-black/60 w-[min(30rem,calc(100vw-2rem))]"
+      className="modal-over-modal w-[min(30rem,calc(100vw-2rem))]"
     >
       <div className="space-y-4 flex flex-col items-center">
         <Card>
