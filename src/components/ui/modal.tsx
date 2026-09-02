@@ -401,8 +401,10 @@ export function Modal({
         // Высота поднята с 85 до 92 сотых экрана: полоса остаётся (все
         // настройки в высоту экрана телефона не поместятся никак), но
         // прокручивать приходится меньше.
-        "m-auto w-[min(44rem,calc(100vw-2rem))] max-h-[min(92dvh,52rem)] overflow-hidden",
-        "rounded-xl bg-paper p-0 text-ink",
+        "m-auto w-[min(44rem,calc(100vw-2rem))] overflow-auto",
+        "rounded-xl bg-transparent p-0 text-ink",
+        // "backdrop:bg-black/20 backdrop:backdrop-blur-xs",
+        
         // Цвета у родного затемнения нет: оно рисуется в верхнем слое
         // браузера, выше любого `z-index`, и утянуло бы за собой лампу.
         // Гасит страницу отдельный слой (`.scrim` в `globals.css`), а
@@ -435,7 +437,7 @@ export function Modal({
     >
       <header
         className={cn(
-          "flex shrink-0 items-start gap-4 border-b border-rule px-5 py-4",
+          "flex shrink-0 items-start gap-4 px-5 py-4",
           // Шапка листа встаёт ровно на место шапки страницы: та же высота
           // содержимого (`4rem` — она же `BAR_HEIGHT` в `sheet-origin.ts`),
           // те же поля (`px-6`), та же вертикальная середина.
@@ -462,12 +464,12 @@ export function Modal({
             // вместе с заголовком, а не стоит готовым над ещё видимой
             // страницей.
             "modal-close",
-            "-mr-1 -mt-1 shrink-0 cursor-pointer rounded-sm p-1.5 text-ink-muted",
+            "-mr-1 -mt-1 shrink-0 cursor-pointer rounded-lg p-1.5 text-ink-muted",
             // В обычном окне шапка выровнена по верху, и крестик поднят к
             // первой строке заголовка. У листа шапка выровнена по середине,
             // и подъём увёл бы крестик выше неё.
             sheet && "max-sm:mt-0",
-            "transition-colors hover:bg-paper-sunken hover:text-ink",
+            "transition-colors border border-transparent hover:border-ink-muted hover:text-ink",
             "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-trace",
           )}
         >
@@ -481,7 +483,7 @@ export function Modal({
           телефоне утаскивал за собой страницу под окном. */}
       <div
         className={cn(
-          "min-h-0 flex-auto overflow-y-auto overscroll-contain px-4 py-4 bg-paper",
+          "min-h-0 flex-auto px-4 py-4",
           sheet && "sheet__body max-sm:px-4",
           bodyClassName,
         )}

@@ -30,8 +30,8 @@ const buttonVariants = cva(
       variant: {
         default: "bg-ink text-paper hover:bg-ink/85",
         outline:
-          "border border-rule-strong bg-transparent text-ink hover:bg-paper-sunken",
-        ghost: "text-ink-muted hover:bg-paper-sunken hover:text-ink",
+          "border border-rule-strong bg-transparent border border-transparent hover:border-ink-muted",
+        ghost: "text-ink-muted border border-transparent hover:border-ink-muted",
         signal: "bg-signal text-white hover:bg-signal/85",
         link: "text-trace underline-offset-4 hover:underline",
       },

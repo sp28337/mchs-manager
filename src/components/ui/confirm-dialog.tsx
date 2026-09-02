@@ -105,13 +105,13 @@ export function ConfirmDialog({
       // окно, выше всего остального. Ценой того, что вместе со страницей
       // гаснет и лампа, — и это честно: вопрос «стереть год отметок?»
       // гасит комнату целиком, включая свет.
-      className="modal-over-modal backdrop:bg-black/60 w-[min(26rem,calc(100vw-2rem))]"
+      className="modal-over-modal backdrop:bg-black/50 backdrop:backdrop-blur-xs w-[min(26rem,calc(100vw-2rem))]"
     >
       <div className="space-y-4">
         {/* Тот же вид, что у карточки настроек: вопрос стоит на поднятой
             бумаге, кнопки — на самой странице окна. Строк «вопрос — ответ»
             здесь нет, поэтому и карточка взята без них — одной заливкой. */}
-        <div className="space-y-2 rounded-xl bg-paper-raised px-4 py-3 text-sm">
+        <div className="space-y-2 rounded-xl bg-paper-raised px-4 py-3 text-sm lit">
           {children}
         </div>
 

@@ -289,44 +289,46 @@ export function YearView({
           два блока, спорящих за передний план. Управление держится
           линейками, а не фоном. */}
       <div className="space-y-3">
-        <div className="flex flex-wrap items-center gap-3">
-          <Segmented label="Что показывать на сетке">
-            <SegmentedItem
-              active={view === "shifts"}
-              onClick={() => onViewChange("shifts")}
-            >
-              <CalendarDays aria-hidden />
-              {/* «График смен» на телефоне съедает всю строку, а рядом
-                  стоит «Календарь» — второго графика тут нет, и слово
-                  «смен» ничего не различает. */}
-              <span className="inline">График</span>
-            </SegmentedItem>
-            <SegmentedItem
-              active={view === "calendar"}
-              onClick={() => onViewChange("calendar")}
-            >
-              <CalendarCog aria-hidden />
-              <span className="inline">Календарь</span>
-            </SegmentedItem>
-          </Segmented>
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex-wrap flex lg:min-w-92.5 gap-2 justify-between">
+            <Segmented label="Что показывать на сетке">
+              <SegmentedItem
+                active={view === "shifts"}
+                onClick={() => onViewChange("shifts")}
+              >
+                <CalendarDays aria-hidden />
+                {/* «График смен» на телефоне съедает всю строку, а рядом
+                    стоит «Календарь» — второго графика тут нет, и слово
+                    «смен» ничего не различает. */}
+                <span className="inline">График</span>
+              </SegmentedItem>
+              <SegmentedItem
+                active={view === "calendar"}
+                onClick={() => onViewChange("calendar")}
+              >
+                <CalendarCog aria-hidden />
+                <span className="inline">Календарь</span>
+              </SegmentedItem>
+            </Segmented>
 
-          {/* Период стоит в одной строке с видом сетки: и то и другое
-              отвечает на вопрос «что я сейчас вижу». */}
-          {/* Учётный год записывается прямо в профиль, а не хранится
-              состоянием экрана: человек, вернувшийся к прошлогоднему
-              расчёту через день, должен найти его там же, где оставил.
-              Отдельного свойства у `YearView` для этого не нужно —
-              обновление профиля здесь уже есть. */}
-          <PeriodPicker
-            accountingYear={profile.accountingYear}
-            onAccountingYear={(accountingYear) =>
-              onChange((previous) => ({ ...previous, accountingYear }))
-            }
-            statutory={statutory}
-            onStatutory={onStatutory}
-            month={month}
-            onMonth={onMonth}
-          />
+            {/* Период стоит в одной строке с видом сетки: и то и другое
+                отвечает на вопрос «что я сейчас вижу». */}
+            {/* Учётный год записывается прямо в профиль, а не хранится
+                состоянием экрана: человек, вернувшийся к прошлогоднему
+                расчёту через день, должен найти его там же, где оставил.
+                Отдельного свойства у `YearView` для этого не нужно —
+                обновление профиля здесь уже есть. */}
+            <PeriodPicker
+              accountingYear={profile.accountingYear}
+              onAccountingYear={(accountingYear) =>
+                onChange((previous) => ({ ...previous, accountingYear }))
+              }
+              statutory={statutory}
+              onStatutory={onStatutory}
+              month={month}
+              onMonth={onMonth}
+            />
+          </div>
 
           {/* Тумблер здесь, а не только в настройках: он меняет то, что
               нарисовано в сетке, — значит, стоит там, где на это смотрят. */}

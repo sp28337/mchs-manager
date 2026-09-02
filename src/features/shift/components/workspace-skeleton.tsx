@@ -131,27 +131,29 @@ export function WorkspaceSkeleton() {
             {/* Панель управления сеткой: что показывать, за какой период,
                 живым временем или целиком, и каким размером. */}
             <div className="space-y-3">
-              <div className="flex flex-wrap items-center gap-3">
-                <div className="inline-flex h-9 items-center gap-0.5 rounded-xl bg-paper-sunken">
-                  <SegmentBone active>
-                    <CalendarDays aria-hidden />
-                    График
-                  </SegmentBone>
-                  <SegmentBone>
-                    <CalendarCog aria-hidden />
-                    Календарь
-                  </SegmentBone>
-                </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="flex-wrap flex lg:min-w-92.5 gap-2 justify-between">
+                  <div className="inline-flex h-9 items-center gap-0.5 rounded-xl lg:flex-1 lg:justify-between bg-paper-sunken">
+                    <SegmentBone active>
+                      <CalendarDays aria-hidden />
+                      График
+                    </SegmentBone>
+                    <SegmentBone>
+                      <CalendarCog aria-hidden />
+                      Календарь
+                    </SegmentBone>
+                  </div>
 
-                <span
-                  className={cn(
-                    "lit inline-flex h-9 shrink-0 items-center gap-2 rounded-xl",
-                    "skeleton-bone bg-paper-raised px-3 text-sm font-medium text-transparent",
-                  )}
-                >
-                  <CalendarRange aria-hidden className="size-4.5 shrink-0 opacity-0" />
-                  {SAMPLE_YEAR} год
-                </span>
+                  <span
+                    className={cn(
+                      "lit inline-flex h-9 shrink-0 items-center gap-2 rounded-xl",
+                      "skeleton-bone bg-paper-raised px-3 text-sm font-medium text-transparent",
+                    )}
+                  >
+                    <CalendarRange aria-hidden className="size-4.5 shrink-0 opacity-0" />
+                    {SAMPLE_YEAR} год
+                  </span>
+                </div>
 
                 {/* Тумблер «Онлайн»: дорожка и подпись рядом. */}
                 <span className="inline-flex items-center gap-1.5">
@@ -441,7 +443,7 @@ function SegmentBone({
         "inline-flex h-9 shrink-0 items-center justify-center gap-1.5",
         "whitespace-nowrap rounded-lg px-3 text-xs font-medium",
         "[&_svg]:size-4 [&_svg]:shrink-0 [&_svg]:opacity-0",
-        "skeleton-bone text-transparent",
+        "skeleton-bone text-transparent lg:flex-1/2",
         // Светится ЗАНЯТАЯ, и только она: пустая утоплена вместе с
         // подложкой, а блик на утопленном — свет без предмета. То же
         // правило, что в самом переключателе (`ui/segmented.tsx`).

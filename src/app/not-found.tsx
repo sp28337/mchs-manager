@@ -68,7 +68,7 @@ export default function NotFound() {
             href="/calculator"
             className="font-semibold inline-flex gap-2 h-9 items-center rounded-xl bg-ink px-4 text-sm text-paper hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-trace no-underline"
           >
-            <span className="hidden xxs:block">Калькулятор</span>
+            <span className="hidden xxs:block">График</span>
             <span className="xxs:hidden xs:block">
               <Calculator className="size-5" />
             </span>
@@ -91,7 +91,7 @@ export default function NotFound() {
           <p className="text-sm">
             <strong>Расчёт не потерян.</strong> Профиль, отпуска и всё
             внесённое хранятся в вашем браузере, а не на этой странице.
-            Откройте калькулятор — данные будут на месте.
+            Откройте график — данные будут на месте.
           </p>
         </div>
 
@@ -113,7 +113,7 @@ export default function NotFound() {
             href="/calculator"
             className="inline-flex h-11 items-center rounded-xl bg-ink px-6 text-base font-bold text-paper no-underline hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-trace"
           >
-            Открыть калькулятор
+            Открыть график
           </Link>
           <Link href="/" className="text-sm text-ink-muted">
             Вернуться на главную

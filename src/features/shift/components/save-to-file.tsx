@@ -165,7 +165,7 @@ function SaveDialog({
           </Field>
         </Card>
 
-        <div className="flex flex-wrap gap-2 pt-1">
+        <div className="flex flex-wrap gap-2 pt-1 md:flex">
           <Button type="button" onClick={submit}>
             Сохранить
           </Button>

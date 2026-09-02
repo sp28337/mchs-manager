@@ -270,10 +270,10 @@ export function ChangesList({
     <div className="space-y-2">
       {/* Число в заголовке — не украшение: оно отвечает на вопрос «много ли
           я наотмечал» раньше, чем человек начнёт считать строки. */}
-      <p className="text-sm text-ink-muted">
+      {/* <p className="text-sm text-ink-muted">
         Внесено {rows.length} {plural(rows.length, "правка", "правки", "правок")}.
         Нажмите на строку, чтобы открыть эти сутки и поправить.
-      </p>
+      </p> */}
 
       <ul className="space-y-1.5">
         {rows.map((row) => (
@@ -297,7 +297,7 @@ export function ChangesList({
                   <span className="block truncate text-sm font-medium">{row.what}</span>
                   <span className="block truncate text-xs text-ink-muted">{row.when}</span>
                 </span>
-                <Pencil aria-hidden className="size-4 shrink-0 text-ink-faint" />
+                <Pencil aria-hidden className="size-4 shrink-0 text-ink-faint hover:text-ink-muted" />
               </button>
 
               {/* Своя кнопка, а не общая `Button`: та растянута во всю
@@ -310,7 +310,7 @@ export function ChangesList({
                 onClick={() => onChange(row.remove)}
                 className={cn(
                   "grid size-8 shrink-0 cursor-pointer place-items-center rounded-lg text-ink-faint",
-                  "hover:bg-paper-sunken hover:text-signal",
+                  "hover:text-ink-muted",
                   "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-trace",
                 )}
               >

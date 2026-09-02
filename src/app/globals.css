@@ -3370,6 +3370,7 @@
   z-index: 110;
   pointer-events: none;
   background: rgb(0 0 0 / 0.6);
+  backdrop-filter: blur(4px);
   opacity: 0;
   transition: opacity 130ms ease-in;
 }

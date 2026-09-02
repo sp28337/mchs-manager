@@ -491,7 +491,7 @@ function DayForm({
             Только на сетке смен, там же, где это и вносят: кнопка
             «Удалить» без стоящего рядом способа добавить — половина
             механики, оставленная в чужом окне. */}
-        {kind === "shifts" && (absence || callouts.length > 0) ? (
+        {/* {kind === "shifts" && (absence || callouts.length > 0) ? (
           <section className="space-y-2">
             <h3 className="font-display text-xs font-bold uppercase tracking-wide text-ink-muted">
               Уже отмечено
@@ -529,7 +529,7 @@ function DayForm({
               ))}
             </ul>
           </section>
-        ) : null}
+        ) : null} */}
 
         {/* Вопросы — одной карточкой, тем же строем, что и настройки:
             строки под общей рамкой, ответ у каждой на своём месте. Прежде
@@ -728,7 +728,7 @@ function DayForm({
           }
         />
 
-        <div className="flex flex-wrap gap-2 pt-1">
+        <div className="flex flex-wrap gap-2 pt-1 xs:flex-nowrap">
           <Button type="button" onClick={submit}>
             Сохранить
           </Button>
