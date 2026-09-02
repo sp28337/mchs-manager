@@ -58,8 +58,8 @@ export function useSaveToFile(
     /**
      * Окно откроется ПОВЕРХ другого окна.
      *
-     * Затемнение у такого окна своё, родное, — общий слой лежит в разметке
-     * и до окна, стоящего выше в верхнем слое браузера, не дотягивается.
+     * От этого зависит одно: страница под ним гасится плотнее. Родного
+     * затемнения у таких окон нет — оно утащило бы в темноту лампу.
      * Подробности — в `ui/confirm-dialog.tsx`, там же первое такое окно.
      */
     over?: boolean;
@@ -142,7 +142,7 @@ function SaveDialog({
       open={open}
       onClose={onClose}
       title="Сохранить профиль в файл"
-      className={over ? "modal-over-modal backdrop:bg-black/60" : undefined}
+      className={over ? "modal-over-modal" : undefined}
     >
       <div className="space-y-4">
         <Card>

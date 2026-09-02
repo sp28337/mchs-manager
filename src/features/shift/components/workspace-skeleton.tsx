@@ -167,8 +167,11 @@ export function WorkspaceSkeleton() {
                   <span className="mr-1 font-display text-[11px] font-bold uppercase tracking-wide text-ink-muted">
                     <BoneText skeleton>Масштаб</BoneText>
                   </span>
-                  <Bone className="size-9 rounded-xl" />
-                  <Bone className="size-9 rounded-xl" />
+                  {/* Кнопки масштаба подняты и ловят свет, как и всё в этой
+                      строке: те же девять десятых рема, то же скругление,
+                      тот же `lit`, что у настоящих (`year-view.tsx`). */}
+                  <Bone className="lit size-9 rounded-xl" />
+                  <Bone className="lit size-9 rounded-xl" />
                   <span className="sr-only">
                     <ZoomIn aria-hidden />
                     <ZoomOut aria-hidden />
