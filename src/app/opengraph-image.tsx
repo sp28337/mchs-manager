@@ -16,7 +16,7 @@ import { ImageResponse } from "next/og";
 export const dynamic = "force-static";
 
 export const alt =
-  "График 1 3 — норма и переработка при графике сутки через трое";
+  "График 1 3 — норма и переработка при сменном графике";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
@@ -52,11 +52,11 @@ export default function OpengraphImage() {
 
         <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
           <div style={{ fontSize: 62, lineHeight: 1.12, maxWidth: 1000 }}>
-            Переработка при графике сутки через трое
+            Норма и переработка при сменном графике
           </div>
           <div style={{ fontSize: 28, color: "#a3a9b0", maxWidth: 900 }}>
-            Норма по производственному календарю. Отпуск уменьшает норму, а не
-            отработанные часы.
+            Сутки через трое, два через два, 5|2 или свой цикл. Норма по
+            производственному календарю.
           </div>
         </div>
 
