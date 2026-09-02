@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, type ReactNode } from "react";
+import { useCallback, useState, type ReactNode } from "react";
 
 import { BoneText } from "@/components/ui/bone";
 import { CountedNumber } from "@/components/ui/counted-number";
@@ -104,6 +104,24 @@ import { useShiftDrag, type ShiftDrag } from "./use-shift-drag";
  * несколько экранов, где соседние месяцы невозможно сравнить глазом.
  */
 
+/**
+ * Выбор конца события прямо на сетке.
+ *
+ * Приходит снаружи, из рабочего экрана: там состояние, там же и запись в
+ * профиль (`workspace.tsx`). Сетка своего ничего не помнит, кроме суток под
+ * мышью, — а те никому, кроме неё, не нужны.
+ */
+export interface RangePick {
+  /** Первые сутки события: они уже записаны, двигается только правый край. */
+  from: IsoDate;
+  /** Название события — для полосы над сеткой и для подписи клеток. */
+  label: string;
+  /** Цвет события: тот самый, каким оно встанет в клетках. */
+  tone: string;
+  onCommit: (to: IsoDate) => void;
+  onCancel: () => void;
+}
+
 interface MonthGroup {
   year: number;
   month: number;
@@ -128,6 +146,7 @@ export function ShiftStrip({
   dayNotes,
   onPickDay,
   onMoveShift,
+  range,
 }: {
   calculation: PeriodCalculation;
   /**
@@ -151,6 +170,8 @@ export function ShiftStrip({
    * и стоит в заглушке экрана, где переносить нечего.
    */
   onMoveShift?: (from: IsoDate, to: IsoDate) => void;
+  /** Идёт выбор конца события: клетки ждут нажатия, а не открытия суток. */
+  range?: RangePick | null;
 }) {
   // На одни сутки может прийтись и смена, и вызов: человека вызвали на
   // соревнования в свой выходной или сняли со смены на выборы. Карта
@@ -218,14 +239,35 @@ export function ShiftStrip({
   // довод, по которому так поступает и режим «Онлайн».
   const today = todayIso();
 
+  /**
+   * Сутки под мышью, пока идёт выбор конца события.
+   *
+   * Живут ЗДЕСЬ, а не снаружи вместе с остальным выбором: от них зависит
+   * только показ, и рассказывать о каждом движении мыши рабочему экрану
+   * значило бы пересчитывать год на каждый пиксель.
+   */
+  const [hover, setHover] = useState<IsoDate | null>(null);
+  const anchor = range?.from ?? null;
+  // Сменилось начало события — показ сбрасывается: тем самым приёмом,
+  // которым React велит подгонять состояние под изменившийся довод, а не
+  // эффектом. Эффект дал бы лишнюю отрисовку года ровно там, где её видно.
+  const [anchorWas, setAnchorWas] = useState(anchor);
+  if (anchor !== anchorWas) {
+    setAnchorWas(anchor);
+    setHover(null);
+  }
+
+  // Пока выбирают конец, смены не таскаются: тот же указатель, тот же
+  // жест, и два смысла на одном движении не разведёшь.
   const drag = useShiftDrag({
     // Класть смену можно в любые ПОКАЗАННЫЕ сутки без смены. Ограничение
     // показанным — не придирка: сутки за краем сетки человек не видит, и
     // «перенёс неизвестно куда» хуже, чем «не перенёс».
     canDrop: useCallback(
-      (day: IsoDate) => onMoveShift !== undefined && shown.has(day) && !starts.has(day),
+      (day: IsoDate) =>
+        onMoveShift !== undefined && anchor === null && shown.has(day) && !starts.has(day),
       // eslint-disable-next-line react-hooks/exhaustive-deps
-      [onMoveShift, calculation],
+      [onMoveShift, calculation, anchor],
     ),
     onMove: useCallback(
       (from: IsoDate, to: IsoDate) => onMoveShift?.(from, to),
@@ -300,20 +342,43 @@ export function ShiftStrip({
             days={group.days}
             joined
             appear
-            renderDay={(day, corners) => (
-              <DayCell
-                day={day}
-                records={byDay.get(day) ?? []}
-                covered={calculation.absentDays.get(day) ?? null}
-                note={dayNotes[day]}
-                corners={corners}
-                upcoming={upcoming != null && day >= upcoming}
-                today={day === today}
-                drag={drag}
-                draggable={onMoveShift !== undefined && starts.has(day)}
-                onPick={() => onPickDay(day)}
-              />
-            )}
+            renderDay={(day, corners) => {
+              // Показ будущего события: от первых суток до тех, что под
+              // мышью. Пока мышь не тронулась, показаны одни первые — то
+              // есть ровно то, что уже записано.
+              const preview =
+                range !== null &&
+                range !== undefined &&
+                day >= range.from &&
+                day <= (hover ?? range.from);
+              // Сутки раньше первых нажатия не принимают: событие
+              // выбирается ВПЕРЁД, а его начало — это тот день, с которого
+              // человек его и завёл.
+              const reachable = range == null || day >= range.from;
+              return (
+                <DayCell
+                  day={day}
+                  records={byDay.get(day) ?? []}
+                  covered={calculation.absentDays.get(day) ?? null}
+                  note={dayNotes[day]}
+                  corners={corners}
+                  upcoming={upcoming != null && day >= upcoming}
+                  today={day === today}
+                  drag={drag}
+                  draggable={onMoveShift !== undefined && starts.has(day)}
+                  onPick={() => {
+                    if (range == null) onPickDay(day);
+                    else if (reachable) range.onCommit(day);
+                  }}
+                  picking={
+                    range == null
+                      ? null
+                      : { label: range.label, tone: range.tone, preview, reachable }
+                  }
+                  onHover={range == null ? undefined : () => setHover(day)}
+                />
+              );
+            }}
           />
         ))}
       </div>
@@ -443,6 +508,8 @@ function DayCell({
   drag,
   draggable,
   onPick,
+  picking,
+  onHover,
 }: {
   day: IsoDate;
   records: readonly DayRecord[];
@@ -464,6 +531,21 @@ function DayCell({
   /** Есть ли в этих сутках смена, которую можно унести. */
   draggable: boolean;
   onPick: () => void;
+  /**
+   * Идёт выбор конца события, и вот что это значит для этой клетки.
+   *
+   * `preview` — эти сутки войдут в событие, если нажать сейчас: клетка
+   * красится в его цвет, то есть показывает не «сюда попадёт», а прямо тот
+   * вид, который здесь встанет. `reachable` — нажатие вообще принимается.
+   */
+  picking?: {
+    label: string;
+    tone: string;
+    preview: boolean;
+    reachable: boolean;
+  } | null;
+  /** Мышь или клавиатура пришли в эту клетку — пока идёт выбор. */
+  onHover?: () => void;
 }) {
   const date = dayOfMonth(day);
   const weekdayName = WEEKDAY_LABELS[weekday(day)] ?? "";
@@ -559,7 +641,15 @@ function DayCell({
     label +
     (today ? ". Сегодня" : "") +
     (note ? `. Заметка: ${note}` : "") +
-    (upcoming ? ". Ещё не наступило, в расчёт не входит" : "");
+    (upcoming ? ". Ещё не наступило, в расчёт не входит" : "") +
+    // Пока идёт выбор, у клетки другое назначение, и подпись обязана
+    // называть именно его: диктор прочитает «нажмите, чтобы закончить
+    // отпуск здесь», а не «свободные сутки».
+    (picking
+      ? picking.reachable
+        ? `. Нажмите, чтобы закончить здесь: ${picking.label}`
+        : `. Раньше начала события: ${picking.label}`
+      : "");
 
   const carried = drag.from === day;
   const target = drag.over === day;
@@ -573,6 +663,10 @@ function DayCell({
       // объявляет её сама, независимо от того, как день выглядит.
       aria-current={today ? "date" : undefined}
       onClick={onPick}
+      // Наведение слушается и клавиатурой: по сетке ходят и стрелками, и
+      // показ будущего события нужен там ровно так же.
+      onMouseEnter={onHover}
+      onFocus={onHover}
       {...drag.cellProps(day, draggable)}
       className={cn(
         "relative flex aspect-square w-full min-w-0 cursor-pointer flex-col",
@@ -584,6 +678,9 @@ function DayCell({
         // Выделение текста мышью посреди переноса — первое, что портит
         // жест: курсор тащит смену, а браузер тащит выделение.
         "select-none",
+        // Сутки раньше начала события нажатия не принимают, и указатель
+        // говорит об этом раньше, чем человек нажмёт.
+        picking && !picking.reachable && "cursor-not-allowed",
         corners,
       )}
     >
@@ -606,6 +703,11 @@ function DayCell({
           // тот ни был. Сами цвета остаются, чтобы будущую смену было
           // видно сменой, а не пустой клеткой.
           upcoming && "cell-upcoming",
+          // Показ будущего события — ПОВЕРХ вида суток и до гашения:
+          // человек должен увидеть, каким день станет, а не каким он был.
+          // Цвет тот самый, каким событие встанет в клетках, — иначе это
+          // был бы показ чего-то другого.
+          picking?.preview && cn("border", picking.tone),
           // Отметка сегодняшних суток — после гашения и после всех видов
           // дня: она ничего не заменяет, а лежит поверх. Что бы в клетке
           // ни стояло, найти в году себя человек должен всегда.

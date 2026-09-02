@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { Hint } from "@/components/ui/hint";
 import { SiteHeader } from "@/components/shared/site-header";
@@ -14,7 +14,15 @@ import {
   statutoryBounds,
   withShiftMoved,
 } from "../model/derive";
+import {
+  pickKind,
+  pickLabel,
+  pickSort,
+  withPickEnd,
+  type DayPick,
+} from "../model/day-picks";
 import type { StoredProfile } from "../storage/profile";
+import { ABSENCE_TONE, CALLOUT_TONE } from "./day-marks";
 import { DayEditor } from "./day-editor";
 import { HeaderTools } from "./header-tools";
 import { PeriodSummary } from "./period-summary";
@@ -176,6 +184,44 @@ export function Workspace({ profile, onChange, onForget }: WorkspaceProps) {
   // в котором и ошибаются.
   const [pickedDay, setPickedDay] = useState<IsoDate | null>(null);
 
+  /**
+   * Выбор конца события — прямо на сетке.
+   *
+   * --- Почему не полем с датой -----------------------------------------------
+   *
+   * У отпуска и вызова есть срок, и спрашивался он полем «по дату
+   * включительно» с всплывающим календариком. Человек при этом смотрел в
+   * календарь — тот самый, что под окном, — и набирал во втором календаре
+   * дату, которую видел в первом.
+   *
+   * Теперь окно уходит, а сетка ждёт нажатия и показывает будущее событие
+   * под мышью: наведя на 20 июля, человек видит все сутки с 6-го по 20-е
+   * покрашенными в цвет отпуска, и нажатие их закрепляет.
+   *
+   * --- Почему состояние живёт ЗДЕСЬ -------------------------------------------
+   *
+   * Затевает выбор окно дня, ведёт его сетка, а записывает профиль — и
+   * общий у всех троих только этот экран. Держать состояние в окне нельзя:
+   * окно к этому моменту закрыто.
+   *
+   * Запись при этом уже есть — её завёл тумблер, одними сутками, — и
+   * нажатие только двигает её правый край. Поэтому отмена ничего не рушит:
+   * событие просто остаётся однодневным, каким и было записано.
+   */
+  const [ranging, setRanging] = useState<{ from: IsoDate; pick: DayPick } | null>(null);
+
+  // Esc отменяет выбор. Слушатель живёт здесь, а не в сетке: здесь и
+  // состояние, а в сетке довод пересоздаётся на каждой отрисовке, и
+  // подписка снималась бы вместе с ним по десять раз в секунду.
+  useEffect(() => {
+    if (ranging === null) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setRanging(null);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [ranging]);
+
   return (
     <>
       {/* Шапка рисуется отсюда, а не с экрана вокруг: в ней стоят
@@ -241,13 +287,44 @@ export function Workspace({ profile, onChange, onForget }: WorkspaceProps) {
           calculation={shown ?? calculation}
           upcoming={upcoming}
           view={yearView}
-          onViewChange={setYearView}
+          // Переключение сетки отменяет выбор конца события: выбирают его
+          // по графику смен, а на производственном календаре ни отпусков,
+          // ни вызовов нет — полоса над ним обещала бы то, чего там не
+          // сделать.
+          onViewChange={(next) => {
+            setRanging(null);
+            setYearView(next);
+          }}
           onChange={onChange}
           statutory={statutory}
           onStatutory={setStatutory}
           month={month}
           onMonth={setMonth}
           onPickDay={setPickedDay}
+          // Выбор конца события: сетка показывает будущее событие под
+          // мышью и закрепляет его нажатием.
+          range={
+            ranging === null
+              ? null
+              : {
+                  from: ranging.from,
+                  label: pickLabel(ranging.pick),
+                  // Цвет будущего события — тот самый, каким оно встанет в
+                  // клетках. Показ в чужом цвете был бы не показом, а
+                  // обещанием чего-то другого.
+                  tone:
+                    pickSort(ranging.pick) === "absence"
+                      ? ABSENCE_TONE[pickKind(ranging.pick) as keyof typeof ABSENCE_TONE]
+                      : CALLOUT_TONE,
+                  onCommit: (to) => {
+                    onChange((previous) =>
+                      withPickEnd(previous, ranging.from, ranging.pick, to),
+                    );
+                    setRanging(null);
+                  },
+                  onCancel: () => setRanging(null),
+                }
+          }
           // Перенос смены — одно событие, и в профиль он попадает одной
           // правкой: снять здесь, назначить там (`withShiftMoved`).
           onMoveShift={(from, to) =>
@@ -269,6 +346,12 @@ export function Workspace({ profile, onChange, onForget }: WorkspaceProps) {
         profile={profile}
         onChange={onChange}
         onClose={() => setPickedDay(null)}
+        // Окно закрывается, чтобы не закрывать собой сетку: выбирать
+        // человек будет по ней.
+        onRange={(from, pick) => {
+          setPickedDay(null);
+          setRanging({ from, pick });
+        }}
       />
       </main>
     </>
