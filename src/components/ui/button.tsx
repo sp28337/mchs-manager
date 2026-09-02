@@ -29,9 +29,16 @@ const buttonVariants = cva(
     variants: {
       variant: {
         default: "bg-ink text-paper hover:bg-ink/85",
-        outline:
-          "border border-rule-strong bg-transparent text-ink hover:bg-paper-sunken",
-        ghost: "text-ink-muted hover:bg-paper-sunken hover:text-ink",
+        // Рамка у обоих проступает под указателем, а не стоит всегда: в
+        // окне таких кнопок две-три подряд, и три постоянные рамки читались
+        // бы как таблица. Место под рамку держится с самого начала
+        // (`border-transparent`) — иначе кнопка на наведении подрастала бы
+        // на две точки и толкала соседнюю.
+        //
+        // Разница между ними одна и она в голосе: `outline` говорит
+        // чернилами, `ghost` — вполголоса.
+        outline: "border border-transparent bg-transparent text-ink hover:border-ink-muted",
+        ghost: "border border-transparent text-ink-muted hover:border-ink-muted",
         signal: "bg-signal text-white hover:bg-signal/85",
         link: "text-trace underline-offset-4 hover:underline",
       },

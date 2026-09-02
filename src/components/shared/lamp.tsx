@@ -2,6 +2,13 @@
 
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 
+import {
+  defaultLampColour,
+  LAMP_COLOURS,
+  LAMP_STORAGE_KEY,
+  type LampColourId,
+} from "./lamp-colour";
+
 /**
  * Лампа над страницей.
  *
@@ -50,43 +57,11 @@ import { useEffect, useRef, useState, useSyncExternalStore } from "react";
  * Значения бледные намеренно. Свет — не краска: насыщенный оранжевый дал
  * бы на бумаге пятно, а бледно-янтарный — тёплый оттенок самой бумаги.
  *
- * Сами тройки живут в `globals.css`, при остальных цветах приложения; тут
- * только порядок перебора и названия, которые произносит программа чтения.
+ * Сами тройки живут в `globals.css`, при остальных цветах приложения; сам
+ * список, память о выборе и умолчание по теме — в `lamp-colour.ts`: их
+ * читает не только лампа, но и разметка страницы, а она собирается на
+ * сервере и до этого файла дотянуться не может.
  */
-export const LAMP_COLOURS = [
-  { id: "warm", label: "тёплый" },
-  { id: "neutral", label: "нейтральный" },
-  { id: "cool", label: "холодный" },
-  { id: "green", label: "зелёный" },
-  { id: "blue", label: "синий" },
-  { id: "pink", label: "розовый" },
-] as const;
-
-export type LampColourId = (typeof LAMP_COLOURS)[number]["id"];
-
-/**
- * Каким светит лампа, пока цвет не выбран, — по теме.
- *
- * На графите зеленоватый: тёмная тема этого приложения зелёная по всему —
- * ею отмечена отработанная смена, ею набран заголовок первого экрана, — и
- * лампа над такой комнатой светит её же тоном.
- *
- * На белой бумаге, наоборот, нейтральный. Цветной свет на белом — это уже
- * не свет, а КРАСКА: бумага становится зелёной или розовой, и лист, на
- * котором человек считает часы, перестаёт быть листом. Умолчание обязано
- * быть тем, чего никто не заметит; за цветом человек приходит сам,
- * нажатием.
- *
- * Умолчание СЛЕДИТ за темой: переключил человек тему — сменился и свет,
- * пока он не выбрал цвет сам. После выбора тема на лампу не влияет: свой
- * ответ старше любого умолчания.
- */
-function defaultColour(dark: boolean): LampColourId {
-  return dark ? "green" : "neutral";
-}
-
-/** Ключ в браузере — тем же именем, что и остальные настройки окна. */
-const STORAGE_KEY = "grafik13.lamp";
 
 /**
  * Имя события «цвет лампы сменился в ЭТОЙ вкладке».
@@ -119,7 +94,7 @@ function subscribe(onChange: () => void): () => void {
  */
 function readColour(): LampColourId | null {
   try {
-    const saved = window.localStorage.getItem(STORAGE_KEY);
+    const saved = window.localStorage.getItem(LAMP_STORAGE_KEY);
     return LAMP_COLOURS.some((colour) => colour.id === saved)
       ? (saved as LampColourId)
       : null;
@@ -373,7 +348,7 @@ export function Lamp() {
   // монтирования — он же и признак готовности: в серверной разметке лампы
   // нет вовсе.
   const dark = useSyncExternalStore(subscribeTheme, readDark, noTheme);
-  const colour = dark === null ? null : (chosen ?? defaultColour(dark));
+  const colour = dark === null ? null : (chosen ?? defaultLampColour(dark));
 
   // Объявлять смену цвета нужно только тому, кто её вызвал. Живая область,
   // заполненная сразу, произносила бы «зелёный» при каждом открытии
@@ -423,7 +398,7 @@ export function Lamp() {
     const next = LAMP_COLOURS[(index + 1) % LAMP_COLOURS.length]!.id;
 
     try {
-      window.localStorage.setItem(STORAGE_KEY, next);
+      window.localStorage.setItem(LAMP_STORAGE_KEY, next);
     } catch {
       // Не запомнить выбор — не повод его не применить.
     }
