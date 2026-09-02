@@ -7,7 +7,11 @@ import { Input } from "@/components/ui/input";
 import { Modal } from "@/components/ui/modal";
 import { Card, Field } from "@/components/ui/panel";
 
-import { exportProfile, type StoredProfile } from "../storage/profile";
+import {
+  exportProfile,
+  markProfileExported,
+  type StoredProfile,
+} from "../storage/profile";
 
 /**
  * Выгрузка профиля в файл.
@@ -40,8 +44,40 @@ import { exportProfile, type StoredProfile } from "../storage/profile";
  * сказано словами, — и выглядят они по-разному. Общим у них должно быть
  * не оформление, а само действие вместе с окном: разойдись они, и файл из
  * шапки однажды поедет с другим именем, чем из подвала.
+ *
+ * Третье место — предупреждение «сначала сохранить нынешний?» в настройках.
+ * Оно обязано вести себя ТОЧНО так же, как кнопка в шапке: то же окно, то
+ * же имя файла по умолчанию, тот же знак на кнопке. Своя, укороченная
+ * выгрузка там уже была — она уносила файл в загрузки молча, не спросив
+ * имени, — и это была вторая выгрузка с другим поведением, ровно то, ради
+ * чего этот крючок и заведён.
  */
-export function useSaveToFile(profile: StoredProfile): {
+export function useSaveToFile(
+  profile: StoredProfile,
+  options?: {
+    /**
+     * Окно откроется ПОВЕРХ другого окна.
+     *
+     * От этого зависит одно: страница под ним гасится плотнее. Родного
+     * затемнения у таких окон нет — оно утащило бы в темноту лампу.
+     * Подробности — в `ui/confirm-dialog.tsx`, там же первое такое окно.
+     */
+    over?: boolean;
+    /**
+     * Файл ушёл человеку.
+     *
+     * Нужно кнопке «Открыть»: она спрашивает «сначала сохранить нынешний?»,
+     * и на «да» обязана довести дело до конца — сохранить И открыть выбор
+     * файла. Без этого человек, ответивший «сначала сохранить», получал бы
+     * сохранение и тишину, а нажимать «Открыть» ему пришлось бы второй раз.
+     *
+     * Зовётся ВНУТРИ нажатия на «Сохранить», а не из эффекта: за выбором
+     * файла браузер пускает только по живому действию человека, и
+     * отложенный вызов он бы отклонил.
+     */
+    onSaved?: () => void;
+  },
+): {
   /** Открыть окно с именем файла. */
   ask: () => void;
   /** Само окно. Ставится в конце разметки вызывающего. */
@@ -65,6 +101,8 @@ export function useSaveToFile(profile: StoredProfile): {
         name={name}
         onName={setName}
         onClose={() => setOpen(false)}
+        over={options?.over}
+        onSaved={options?.onSaved}
       />
     ),
   };
@@ -76,12 +114,16 @@ function SaveDialog({
   name,
   onName,
   onClose,
+  over,
+  onSaved,
 }: {
   profile: StoredProfile;
   open: boolean;
   name: string;
   onName: (name: string) => void;
   onClose: () => void;
+  over?: boolean;
+  onSaved?: () => void;
 }) {
   const nameId = useId();
   const suggested = fileNameOf(profile.displayName);
@@ -89,10 +131,19 @@ function SaveDialog({
   function submit() {
     downloadProfile(profile, name);
     onClose();
+    // Продолжение — здесь же, в нажатии: тому, кто позвал выгрузку ради
+    // следующего шага, этот шаг нужно сделать, пока действие человека ещё
+    // «живое». Подробности у самого довода.
+    onSaved?.();
   }
 
   return (
-    <Modal open={open} onClose={onClose} title="Сохранить профиль в файл">
+    <Modal
+      open={open}
+      onClose={onClose}
+      title="Сохранить профиль в файл"
+      className={over ? "modal-over-modal" : undefined}
+    >
       <div className="space-y-4">
         <Card>
           <Field
@@ -114,7 +165,7 @@ function SaveDialog({
           </Field>
         </Card>
 
-        <div className="flex flex-wrap gap-2 pt-1">
+        <div className="flex flex-wrap gap-2 pt-1 md:flex">
           <Button type="button" onClick={submit}>
             Сохранить
           </Button>
@@ -136,6 +187,9 @@ function SaveDialog({
  * пришёл сохранять, а не спорить о названии.
  */
 export function downloadProfile(profile: StoredProfile, name: string): void {
+  // Отметка о выгрузке ставится здесь, а не в диалоге: файл отдан человеку
+  // именно тут, и любой другой способ его получить прошёл бы мимо отметки.
+  markProfileExported(profile.savedAt);
   // Расширение снимается, если человек его набрал: иначе получилось бы
   // «график.json.json».
   const typed = name.replace(/\.json$/i, "").trim();

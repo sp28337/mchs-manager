@@ -134,7 +134,13 @@ function Digits({
       <span className={digit} style={{ "--mark-i": 0 } as React.CSSProperties}>
         {first}
       </span>
-      <span className="font-extralight opacity-0 transition-opacity duration-200 group-hover:opacity-100">
+      {/* Разделитель обычно проступает под указателем, а ниже 360 точек
+          стоит всегда: там от названия остаются одни цифры, и «1 3» без
+          черты между ними читается как два числа, а не как график. */}
+      <span
+        className="font-extralight opacity-0 transition-opacity duration-200
+                   group-hover:opacity-100 max-[359px]:opacity-100"
+      >
         |
       </span>
       <span className={digit} style={{ "--mark-i": 1 } as React.CSSProperties}>

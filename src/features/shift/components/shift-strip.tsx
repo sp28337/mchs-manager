@@ -66,7 +66,13 @@ const ABSENCE_TONE_QUIET: Record<AbsenceKind, string> = {
   study_leave: "border-dashed border-study/20 bg-study-soft/40 text-study/70 rounded-md",
 };
 import { MONTH_NAMES } from "./month-names";
-import { MonthGrid, TODAY_MARK, WEEKDAY_LABELS } from "./month-grid";
+import {
+  MonthGrid,
+  TODAY_MARK,
+  WEEKDAY_LABELS,
+  YEAR_BOX,
+  YEAR_GRID,
+} from "./month-grid";
 import { useShiftDrag, type ShiftDrag } from "./use-shift-drag";
 
 /**
@@ -74,7 +80,7 @@ import { useShiftDrag, type ShiftDrag } from "./use-shift-drag";
  *
  * --- Почему счёт идёт по СУТКАМ, а не по сменам --------------------------
  *
- * Смена длится сутки с развода, поэтому лежит в двух календарных днях. При
+ * Смена длится сутки с заступления, поэтому лежит в двух календарных днях. При
  * начале в 08:30 смена, начавшаяся 31 марта, отдаёт марту 15,5 часа, а
  * 8,5 — апрелю, и ночных в марте у неё два часа, а не шесть.
  *
@@ -240,12 +246,11 @@ export function ShiftStrip({
 
   return (
     <div className="space-y-6 xl:flex xl:gap-4 xl:flex-row-reverse">
-      <div
-        className={
-          gridClassName ??
-          "grid grid-cols-1 gap-x-6 gap-y-5 sm:grid-cols-2 lg:grid-cols-3"
-        }
-      >
+      {/* Мерная коробка вокруг сетки: из её ширины таблица стилей считает
+          ширину месяца, а из той — кегль в клетке. Подробности у самих
+          классов (`month-grid.tsx`) и правил (`globals.css`). */}
+      <div className={YEAR_BOX}>
+      <div className={gridClassName ?? YEAR_GRID}>
         {groups.map((group) => (
           <MonthGrid
             key={`${group.year}-${group.month}`}
@@ -294,7 +299,7 @@ export function ShiftStrip({
             }
             days={group.days}
             joined
-            assemble
+            appear
             renderDay={(day, corners) => (
               <DayCell
                 day={day}
@@ -311,6 +316,7 @@ export function ShiftStrip({
             )}
           />
         ))}
+      </div>
       </div>
       <ShiftLegend />
       {drag.ghost}

@@ -1,14 +1,16 @@
 "use client";
 
-import { Save, Settings2, type LucideIcon } from "lucide-react";
+import { FolderOpen, Save, Settings2, type LucideIcon } from "lucide-react";
 import { useRef, useState, type CSSProperties } from "react";
 
 import { Modal } from "@/components/ui/modal";
 import { cn } from "@/lib/utils/cn";
 
 import type { StoredProfile } from "../storage/profile";
+import { useOpenProfile } from "./open-profile";
 import { useSaveToFile } from "./save-to-file";
-import { SettingsPanel } from "./settings-panel";
+import type { IsoDate } from "../domain/plain-date";
+import { SettingsTabs } from "./settings-tabs";
 
 /**
  * Настройки и выгрузка — из шапки.
@@ -22,8 +24,20 @@ import { SettingsPanel } from "./settings-panel";
  * Из того, что в ней стояло, почти всё нашло себе место ближе к делу:
  * период переехал в панель над сеткой, которой он и управляет, отпуска и
  * выходы помимо графика вносятся нажатием по самому дню, а ответы анкеты
- * — дата смены, норма, время её начала — ушли в настройки. В шапке осталось два действия:
- * открыть настройки и выгрузить профиль в файл.
+ * — дата смены, норма, время её начала — ушли в настройки.
+ *
+ * --- Почему в шапке три кнопки, а не две ---------------------------------
+ *
+ * Действий у профиля ровно три, и они одного рода: настроить нынешний,
+ * открыть другой, сохранить нынешний. Два стояли здесь, третье — выбор
+ * файла — лежало на дне настроек, четырьмя строками с пояснением, безо
+ * всякой причины, кроме той, что когда-то оно завелось в окне создания
+ * профиля и осталось жить рядом.
+ *
+ * Теперь они в ряд и в том порядке, в каком читается история профиля:
+ * настроить, открыть, сохранить. Открыть стоит посередине намеренно —
+ * это единственное действие, уносящее нынешний профиль, и соседство с
+ * «Сохранить» справа тут кстати.
  *
  * --- Почему в окне, а не выпадающим списком ------------------------------
  *
@@ -60,7 +74,7 @@ import { SettingsPanel } from "./settings-panel";
  * Замер делается в момент нажатия и уезжает в CSS переменной.
  */
 
-type ToolId = "settings" | "save";
+type ToolId = "settings" | "open" | "save";
 
 /**
  * Подпись на кнопке и имя для программы чтения — разные строки.
@@ -71,37 +85,60 @@ type ToolId = "settings" | "save";
  */
 const TOOL_META: Record<ToolId, { label: string; title: string; Icon: LucideIcon }> = {
   settings: { label: "Настройки", title: "Настройки", Icon: Settings2 },
+  open: { label: "Открыть", title: "Открыть профиль из файла", Icon: FolderOpen },
   save: { label: "Сохранить", title: "Сохранить в файл", Icon: Save },
 };
 
-const TOOL_ORDER: readonly ToolId[] = ["settings", "save"];
+export const TOOL_ORDER: readonly ToolId[] = ["settings", "open", "save"];
 
 /**
  * С какой ширины у кнопок появляются подписи.
  *
- * Замером: знак, две плашки с подписями и поля страницы занимают около
- * четырёхсот двадцати точек. Порог `xs` (448) даёт запас и не ломает
- * шапку на двух строках ни на одном телефоне.
+ * Замером: знак сайта занимает 170 точек, три плашки с подписями — 372,
+ * поля страницы и просветы между ними — ещё 64. Итого 606, и порог `sm`
+ * (640) даёт запас в три десятка точек.
+ *
+ * Порог был `xs` (448), пока кнопок было две. С третьей на этой ширине
+ * шапка перестала помещаться в строку — а переносить её нельзя, строка
+ * одна: см. `site-header.tsx`. Поэтому подписи теперь уходят раньше, зато
+ * значки остаются все три и на самом узком телефоне.
+ *
+ * Вынесен наружу: ту же лестницу повторяют кости заглушки
+ * (`workspace-skeleton.tsx`), и разойтись им нельзя — иначе на 500 точках
+ * кость окажется вдвое шире кнопки, которая её сменит.
  */
-const LABELS_FROM = "hidden xs:inline";
+export const LABELS_FROM = "hidden sm:inline";
 
 export function HeaderTools({
   profile,
   onChange,
   onForget,
+  onOpenDay,
   className,
 }: {
   profile: StoredProfile;
   onChange: (change: (previous: StoredProfile) => StoredProfile) => void;
   /** Удалить профиль с устройства — из настроек, рядом со сбросом. */
   onForget?: () => void;
+  /**
+   * Открыть сутки на сетке.
+   *
+   * Нужно перечню внесённых изменений: строка перечня ведёт в те самые
+   * сутки, а открывает их рабочий экран — там же, где и всё остальное.
+   * Заводить второе окно дня внутри настроек значило бы повторить его
+   * целиком и разойтись с ним при первой же правке.
+   */
+  onOpenDay: (day: IsoDate, grid: "shifts" | "calendar") => void;
   className?: string;
 }) {
   const [open, setOpen] = useState(false);
   const save = useSaveToFile(profile);
+  // Открытый файл ЗАМЕЩАЕТ профиль целиком, а не правит его по полю:
+  // прежнего в нём не остаётся ничего.
+  const file = useOpenProfile(profile, (next) => onChange(() => next));
 
   // Путь значка: замеряется в момент нажатия, потому что до нажатия он
-  // неизвестен — подписи на кнопках появляются с 448 точек и сдвигают
+  // неизвестен — подписи на кнопках появляются с 640 точек и сдвигают
   // значок вправо на всю ширину слова. Остальную мерку (откуда растёт
   // заливка шапки) снимает сам лист по кнопке.
   const icon = useRef<SVGSVGElement>(null);
@@ -130,7 +167,7 @@ export function HeaderTools({
     <>
       <div
         role="group"
-        aria-label="Настройки и выгрузка"
+        aria-label="Профиль: настройки, открыть, сохранить"
         className={cn("flex items-center gap-2", className)}
       >
         {TOOL_ORDER.map((id) => {
@@ -139,9 +176,11 @@ export function HeaderTools({
             <button
               key={id}
               type="button"
-              onClick={(event) =>
-                id === "save" ? save.ask() : openSettings(event.currentTarget)
-              }
+              onClick={(event) => {
+                if (id === "save") save.ask();
+                else if (id === "open") file.ask();
+                else openSettings(event.currentTarget);
+              }}
               // Имя кнопки не зависит от того, видна подпись или нет:
               // на узком экране от кнопки остаётся значок, и без имени она
               // стала бы для программы чтения безымянной.
@@ -227,10 +266,22 @@ export function HeaderTools({
           </span>
         }
       >
-        <SettingsPanel profile={profile} onChange={onChange} onForget={onForget} />
+        <SettingsTabs
+          profile={profile}
+          onChange={onChange}
+          onForget={onForget}
+          // Открыть сутки — значит закрыть настройки: окно дня встаёт
+          // поверх, и оставить под ним второе окно значило бы вернуть
+          // человека в настройки, как только он закончит с днём.
+          onOpenDay={(day, grid) => {
+            setOpen(false);
+            onOpenDay(day, grid);
+          }}
+        />
       </Modal>
 
       {save.dialog}
+      {file.dialogs}
     </>
   );
 }

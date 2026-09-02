@@ -10,7 +10,7 @@ import {
   subscribeToStoredProfile,
 } from "@/features/shift/storage/profile";
 
-import { ctaClass, CtaIcon, ToCalculator } from "./to-calculator";
+import { ctaClass, CtaIcon, CtaLabel, ToCalculator } from "./to-calculator";
 
 /**
  * Кнопка первого экрана: «Построить график» или «Открыть график».
@@ -54,13 +54,21 @@ export function HeroCta() {
   const router = useRouter();
   const [open, setOpen] = useState(false);
 
-  if (built) return <ToCalculator>Открыть график</ToCalculator>;
+  // Обе надписи — через `CtaLabel`: он держит ширину по самой длинной из
+  // них, и подмена одной на другую ничего не двигает. Зачем это нужно —
+  // в самом `CtaLabel`.
+  if (built)
+    return (
+      <ToCalculator>
+        <CtaLabel>Открыть график</CtaLabel>
+      </ToCalculator>
+    );
 
   return (
     <>
       <button type="button" className={ctaClass()} onClick={() => setOpen(true)}>
         <CtaIcon />
-        Построить график
+        <CtaLabel>Построить график</CtaLabel>
       </button>
 
       <CreateProfileModal
