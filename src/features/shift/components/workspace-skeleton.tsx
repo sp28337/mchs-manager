@@ -14,7 +14,7 @@ import { cn } from "@/lib/utils/cn";
 
 import { datesOfMonth, dayOfMonth } from "../domain/plain-date";
 import { LABELS_FROM } from "./header-tools";
-import { MonthGrid, YEAR_BOX, YEAR_GRID } from "./month-grid";
+import { MetaSep, MonthGrid, YEAR_BOX, YEAR_GRID } from "./month-grid";
 import { MONTH_NAMES } from "./month-names";
 import { ShiftLegend } from "./shift-strip";
 
@@ -155,11 +155,16 @@ export function WorkspaceSkeleton() {
                   </span>
                 </div>
 
-                {/* Тумблер «Онлайн»: дорожка и подпись рядом. */}
+                {/* Тумблер «Онлайн»: дорожка и подпись рядом. Подпись той
+                    же гарнитурой и тем же кеглем, что у настоящей
+                    (`live-mode.tsx`), — иначе кость окажется другой ширины
+                    и строка перестроится в момент подстановки. */}
                 <span className="inline-flex items-center gap-1.5">
                   <span className="inline-flex items-center gap-2 text-sm">
                     <Bone className="h-6 w-9 rounded-full" />
-                    <BoneText skeleton>Онлайн</BoneText>
+                    <span className="font-display text-[11px] font-bold uppercase tracking-wide text-ink-muted">
+                      <BoneText skeleton>Онлайн</BoneText>
+                    </span>
                   </span>
                 </span>
 
@@ -293,7 +298,11 @@ function MonthBones({ month }: { month: number }) {
       // точек по высоте.
       meta={
         <>
-          {"8"} см / {"192,0"} ч<span> / ноч. {"64,0"}</span>
+          {"8"} см
+          <MetaSep />
+          {"192"} ч
+          <MetaSep />
+          <span>ноч. {"64"}</span>
         </>
       }
       days={datesOfMonth(SAMPLE_YEAR, month)}

@@ -150,3 +150,78 @@ describe("профиль, записанный до смены знака в г�
     expect(importProfile(legacy("1|3")).countFrom).toBeNull();
   });
 });
+
+/**
+ * Названия видов отсутствий и вызовов правились: «Дополнительный отпуск»
+ * стал «Доп. отпуском», «Праздничное мероприятие» — «Праздником», а к
+ * вызовам добавился общий «Вызов».
+ *
+ * Правились только НАЗВАНИЯ. В файле профиля лежат ключи, и они не
+ * тронуты — иначе профиль, записанный вчера, сегодня не открылся бы вовсе:
+ * неизвестный ключ проверку не проходит, и человек вместо своего года
+ * отпусков увидел бы отказ. Проверяется здесь именно это: старый файл
+ * читается целиком, вместе с видами, чьи подписи поменялись.
+ */
+describe("профиль, записанный до переименования видов", () => {
+  function stored(kinds: { absence: string; callout: string }): string {
+    return JSON.stringify({
+      schemaVersion: 1,
+      displayName: "Смена А",
+      workingConditions: "normal",
+      disabilityGroupIorII: false,
+      firstShiftDate: "2025-01-02",
+      accountingYear: 2025,
+      schedulePattern: "1|3",
+      absences: [
+        {
+          id: "a1",
+          kind: kinds.absence,
+          startsOn: "2025-06-01",
+          endsOn: "2025-06-14",
+        },
+      ],
+      callouts: [
+        {
+          id: "c1",
+          kind: kinds.callout,
+          startsOn: "2025-05-05",
+          endsOn: "2025-05-06",
+          hoursPerDay: "7.5",
+        },
+      ],
+      calendarOverrides: {},
+      savedAt: "2025-01-02T00:00:00.000Z",
+    });
+  }
+
+  it("виды с прежними подписями читаются по-прежнему", () => {
+    const profile = importProfile(
+      stored({ absence: "extra_leave", callout: "public_event" }),
+    );
+
+    expect(profile.absences[0]?.kind).toBe("extra_leave");
+    expect(profile.callouts[0]?.kind).toBe("public_event");
+  });
+
+  it("отгул и остальные виды тоже на месте", () => {
+    const profile = importProfile(
+      stored({ absence: "time_off_in_lieu", callout: "elections" }),
+    );
+
+    expect(profile.absences[0]?.kind).toBe("time_off_in_lieu");
+    expect(profile.callouts[0]?.kind).toBe("elections");
+  });
+
+  /**
+   * Обратное направление: файл с добавленным видом открывается тоже. Иначе
+   * человек, отметивший вызов, не смог бы отдать свой профиль тому, кто
+   * ещё не обновил страницу.
+   */
+  it("добавленный «Вызов» читается наравне с прежними", () => {
+    const profile = importProfile(
+      stored({ absence: "annual_leave", callout: "callout" }),
+    );
+
+    expect(profile.callouts[0]?.kind).toBe("callout");
+  });
+});
