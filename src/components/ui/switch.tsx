@@ -30,7 +30,6 @@ export function Switch({
   onChange,
   label,
   spread,
-  settings,
   className,
 }: {
   checked: boolean;
@@ -52,12 +51,17 @@ export function Switch({
    * в строке легенды или рядом с кнопкой тумблер читается слева направо.
    */
   spread?: boolean;
-  settings?: boolean;
   className?: string;
 }) {
   /* Дорожка и кружок. Размеры кратны четырём точкам, чтобы кружок стоял
      ровно посередине в обоих положениях: 36 − 2×2 − 20 = 12 — столько он и
-     проезжает. */
+     проезжает.
+
+     Выключенная дорожка — УТОПЛЕННАЯ бумага, и это единственный верный
+     цвет для неё: тумблеры стоят и на странице, и на поднятой карточке, а
+     дорожка цвета поднятой бумаги на такой карточке пропадала вовсе —
+     оставался один кружок без места, по которому он ездит. Утопленная
+     темнее любой из двух поверхностей, на которых тумблер бывает. */
   const track = (
     <span
       aria-hidden
@@ -65,25 +69,6 @@ export function Switch({
         "relative inline-flex h-6 w-9 shrink-0 items-center rounded-full",
         "transition-colors",
         checked ? "bg-verify/25" : "bg-paper-sunken group-hover:border-ink-muted",
-      )}
-    >
-      <span
-        className={cn(
-          "absolute size-4 rounded-full transition-transform duration-200",
-          "left-1",
-          checked ? "translate-x-3 bg-verify" : "translate-x-0 bg-ink-faint",
-        )}
-      />
-    </span>
-  );
-
-  const trackV2 = (
-    <span
-      aria-hidden
-      className={cn(
-        "relative inline-flex h-6 w-9 shrink-0 items-center rounded-full",
-        "transition-colors",
-        checked ? "bg-verify/25" : "bg-paper-raised group-hover:border-ink-muted",
       )}
     >
       <span
@@ -106,7 +91,7 @@ export function Switch({
         "group inline-flex cursor-pointer items-center gap-2 rounded-xl",
         "text-sm text-ink transition-colors",
         "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-trace",
-        (spread || settings) ? "w-full justify-between" : "shrink-0",
+        spread ? "w-full justify-between" : "shrink-0",
         className,
       )}
     >
@@ -114,11 +99,6 @@ export function Switch({
         <>
           {label}
           {track}
-        </>
-      ) : settings ? (
-        <>
-          {label}
-          {trackV2}
         </>
       ) : (
         <>

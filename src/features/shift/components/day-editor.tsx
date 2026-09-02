@@ -34,7 +34,6 @@ import {
 } from "../domain/value-objects";
 import {
   scheduleSpanAt,
-  scheduledByPattern,
   shiftOn,
   shiftSpanAt,
   withShiftAt,
@@ -52,7 +51,6 @@ import {
 import { HoursField } from "./hours-field";
 import { TimeField } from "./time-field";
 import {
-  ABSENCE_EFFECT,
   ABSENCE_LABELS,
   CALLOUT_LABELS,
   DAY_TYPES,
@@ -239,7 +237,6 @@ function DayForm({
   // «по графику» означает «рабочий день по производственному календарю», и
   // ответ на это даёт один общий помощник — иначе окно дня и расчёт могли
   // бы разойтись.
-  const onCycle = scheduledByPattern(profile, day);
   const scheduled = shiftOn(profile, day);
 
   // Что уже отмечено на этих сутках. Ищется по профилю, а не по расчёту:
@@ -335,9 +332,6 @@ function DayForm({
       callouts: previous.callouts.filter((item) => item.id !== stored.id),
     }));
   }
-
-  const isAbsence = spotlight?.startsWith("absence:") ?? false;
-  const isCallout = spotlight?.startsWith("callout:") ?? false;
 
   /**
    * Вид дня в производственном календаре.
@@ -625,28 +619,22 @@ function DayForm({
             вопроса подряд, не понимая, связаны они или нет. Связаны:
             отгул — это и есть «смены не было».
 
-            Оговорка внизу говорит о ВЫБРАННОМ: что эти сутки делают с
-            расчётом. Пока выбрана смена или выходной — про них и сказано,
-            вместе со сверкой с циклом. */}
+            Оговорки под списком нет.
+            -----------------------------------------------------------------
+            Была: строка о том, что выбранное делает с расчётом, — «часы
+            смены идут в отработанное», «норму не трогают, ст. 91 ТК РФ».
+            Она меняется на каждое нажатие, а стоит под двенадцатью
+            строками, то есть на телефоне за нижним краем: человек нажимал
+            и не видел ничего. Список при этом читался как список с
+            примечанием, а не как легенда, которой он и является — клетка,
+            слово, и больше ничего.
+
+            Само правило от этого не потерялось: цвет и буква клетки те же,
+            что на сетке, а что вид суток делает с нормой, сказано там, где
+            это и разбирают, — в перечне внесённых правок и в пояснении к
+            расчёту. */}
         {kind === "shifts" ? (
-        <Field
-          label="Что в этот день"
-          stack
-          note={
-            isAbsence ? (
-              ABSENCE_EFFECT[spotlight!.slice("absence:".length) as AbsenceKind]
-            ) : isCallout ? (
-              "Часы прибавляются к отработанному, норму не трогают (ст. 91 ТК РФ)."
-            ) : (
-              <>
-                {shift ? "Часы смены идут в отработанное." : "Выходной: ни часов, ни ночных."}
-                {shift === onCycle
-                  ? " Это и есть график по циклу."
-                  : ` По циклу здесь ${onCycle ? "смена" : "выходной"} — ваша правка это переопределит.`}
-              </>
-            )
-          }
-        >
+        <Field label="Что в этот день" stack>
           <DayChoicePicker
             shift={shift}
             onShift={(next) => {
@@ -1123,11 +1111,16 @@ function DayChoicePicker({
     // пустой бумаги справа.
     <div className="w-full min-w-0 space-y-3">
       <DayChoiceGroup title="Смена по графику">
+        {/* «Смена», а не «Смена в этот день»: заголовок группы уже сказал
+            «смена по графику», а рядом стоит «Выходной» — двух слов хватает,
+            чтобы их различить. Длинная подпись при этом стоила строке
+            сорока точек и была единственной, из-за которой список не
+            вставал в две колонки на телефоне. */}
         <DayChoiceRow
           on={shift}
           onToggle={(next) => onShift(next)}
           onEdit={() => onEdit("shift")}
-          label="Смена в этот день"
+          label="Смена"
           tone={SHIFT_TONE}
         />
         {/* У выходного времени нет — ни начала, ни продолжительности, — и
@@ -1190,7 +1183,19 @@ function DayChoiceGroup({ title, children }: { title: string; children: ReactNod
       >
         {title}
       </p>
-      <div className="grid grid-cols-1 min-[30rem]:grid-cols-2 gap-1.5">{children}</div>
+      {/* Две колонки — с 424 точек, и число это не выбрано, а замерено.
+          ------------------------------------------------------------------
+          Порог ставит самая длинная подпись списка: «Учебный отпуск» просит
+          90 точек, и при двух колонках столько остаётся ровно с 424 —
+          проверено по шагам (416: 86, 420: 88, 424: 90). Стояло 480, и на
+          телефоне список из двенадцати видов шёл одной колонкой во весь
+          экран: чтобы дойти от «Смены» до «Выборов», приходилось
+          прокручивать окно целиком.
+
+          Пятьдесят шесть точек порога отыграны там, где они были лишними:
+          поле строки, просвет между клеткой и словом, поле самой клетки, и
+          «Смена в этот день», ставшая «Сменой». */}
+      <div className="grid grid-cols-1 min-[26.5rem]:grid-cols-2 gap-1.5">{children}</div>
     </div>
   );
 }
@@ -1227,12 +1232,17 @@ function DayChoiceRow({
   return (
     <div className="relative">
       <Switch
-        settings
+        spread
         checked={on}
         onChange={onToggle}
+        // Заливки у строки нет — тем же строем, что легенда: там вид суток
+        // называют клетка и слово, а плашки под ними нет. Двенадцать плашек
+        // на карточке читались как двенадцать отдельных блоков, и список
+        // видов выглядел длиннее самого себя. Рамка остаётся, но только под
+        // указателем: она отвечает на вопрос «куда я сейчас нажму».
         className={cn(
-          "rounded-lg px-2 py-1.5 text-xs transition-colors duration-150",
-          "bg-paper border border-transparent hover:border-ink-muted",
+          "rounded-lg px-1 py-1.5 text-xs gap-1.5 transition-colors duration-150",
+          "border border-transparent hover:border-ink-muted",
         )}
         label={
           // Место под карандаш держит подпись, а не сам тумблер: отступ на
@@ -1240,14 +1250,14 @@ function DayChoiceRow({
           // на неё — поймано снимком.
           <span
             className={cn(
-              "flex min-w-0 items-center gap-2 text-left",
+              "flex min-w-0 items-center gap-1.5 text-left",
               on && onEdit ? "pr-8" : "",
             )}
           >
             <span
               aria-hidden
               className={cn(
-                "inline-flex h-6 min-w-6 shrink-0 items-center justify-center rounded-sm border px-2",
+                "inline-flex h-6 min-w-6 shrink-0 items-center justify-center rounded-sm border px-1.5",
                 "font-mono text-[12px] leading-none",
                 tone,
               )}
