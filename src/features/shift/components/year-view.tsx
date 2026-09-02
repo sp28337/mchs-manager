@@ -14,12 +14,12 @@ import { useMediaQuery } from "@/lib/hooks/use-media-query";
 import { cn } from "@/lib/utils/cn";
 
 import type { PeriodCalculation } from "../domain/calculation";
-import { formatDateRu, formatDayMonthRu } from "../domain/format";
+import { formatDateRu } from "../domain/format";
 import type { IsoDate } from "../domain/plain-date";
 import type { StoredProfile } from "../storage/profile";
 import { LiveModeSwitch } from "./live-mode";
 import { PeriodPicker, type StatutoryChoice } from "./period-picker";
-import { ShiftStrip, type RangePick } from "./shift-strip";
+import { ShiftStrip } from "./shift-strip";
 import { YearCalendarEditor } from "./year-calendar-editor";
 
 export type { StatutoryChoice };
@@ -192,7 +192,6 @@ export function YearView({
   onMonth,
   onPickDay,
   onMoveShift,
-  range,
 }: {
   profile: StoredProfile;
   /**
@@ -216,13 +215,6 @@ export function YearView({
   onPickDay: (day: IsoDate) => void;
   /** Перенос смены перетаскиванием по сетке графика. */
   onMoveShift: (from: IsoDate, to: IsoDate) => void;
-  /**
-   * Идёт выбор конца события на сетке.
-   *
-   * Затевает его окно дня, ведёт сетка, а состояние живёт в рабочем экране
-   * — там же, где и профиль, в который всё это ляжет (`workspace.tsx`).
-   */
-  range?: RangePick | null;
 }) {
   // Кнопки масштаба появляются с `lg`: на телефоне месяц и так шире
   // экрана и занимает его целиком, растить его некуда, а мельчить —
@@ -383,39 +375,6 @@ export function YearView({
 
       </div>
 
-      {/* Полоса выбора конца события.
-          -------------------------------------------------------------
-          Пока идёт выбор, окна дня нет: оно закрыло бы собой сетку, по
-          которой человек и водит мышью. Значит, о том, ЧТО он сейчас
-          выбирает, сказать больше некому — отсюда полоса.
-
-          Закреплена под полосой итога: выбор идёт по всему году, и, уехав
-          в декабрь, человек не должен терять из виду ни названия события,
-          ни выхода из этого состояния. */}
-      {range ? (
-        <div
-          className="lit sticky top-[calc(9.5rem+var(--safe-top))] z-30 flex flex-wrap items-center
-                     gap-x-3 gap-y-1 rounded-xl bg-paper-raised px-4 py-2 text-sm"
-        >
-          <span>
-            <b className="font-medium">{range.label}</b>
-            {` с ${formatDayMonthRu(range.from)} — по какое число?`}
-          </span>
-          <span className="text-ink-muted">
-            Наведите на день и нажмите. Esc — оставить одни сутки.
-          </span>
-          <button
-            type="button"
-            onClick={range.onCancel}
-            className="ml-auto cursor-pointer rounded-lg border border-transparent px-2 py-1
-                       text-ink-muted transition-colors hover:border-ink-muted hover:text-ink
-                       focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-trace"
-          >
-            Отмена
-          </button>
-        </div>
-      ) : null}
-
       {/* Сетка стоит здесь, и над ней — только панель управления,
           одинаковая у обоих видов. Поэтому при переключении клетка
           остаётся ровно на своём месте: проверено замером, положение
@@ -430,7 +389,6 @@ export function YearView({
           dayNotes={profile.dayNotes}
           onPickDay={onPickDay}
           onMoveShift={onMoveShift}
-          range={range}
         />
       ) : (
         <YearCalendarEditor

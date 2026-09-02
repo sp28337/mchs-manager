@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarRange, Pencil, Trash2 } from "lucide-react";
+import { Pencil, Trash2 } from "lucide-react";
 
 import { cn } from "@/lib/utils/cn";
 import { useId, useState, type ReactNode } from "react";
@@ -63,12 +63,7 @@ import {
   type DayType,
 } from "../schemas";
 import type { StoredProfile } from "../storage/profile";
-import {
-  pickSort,
-  withDayPick,
-  type DayPick,
-  type DayTime,
-} from "../model/day-picks";
+import { DateField } from "./date-field";
 
 /**
  * Что стоит в этих сутках — окно правки одного дня.
@@ -150,6 +145,15 @@ import {
  * становится. Подробности у `complaint`.
  */
 
+/** Вид суток, который человек включает в списке: отсутствие или вызов. */
+type DayPick = `absence:${AbsenceKind}` | `callout:${CalloutKind}`;
+
+/** Время такого вида: по какое число он длится и сколько часов в сутки. */
+interface DayTime {
+  endsOn: IsoDate;
+  /** Только у вызова: у отсутствия часов нет, поле их не спрашивает. */
+  hours: string;
+}
 
 const ABSENCE_KINDS = Object.keys(ABSENCE_LABELS) as AbsenceKind[];
 const CALLOUT_KINDS = Object.keys(CALLOUT_LABELS) as CalloutKind[];
@@ -173,17 +177,9 @@ export interface DayEditorProps {
   profile: StoredProfile;
   onChange: (change: (previous: StoredProfile) => StoredProfile) => void;
   onClose: () => void;
-  /**
-   * Выбрать конец события на самой сетке.
-   *
-   * Окно при этом закрывается — его закрывает вызывающий: сетку оно
-   * закрывает собой, а выбирать человек будет по ней. Подробности — там же,
-   * где и сам выбор (`workspace.tsx`).
-   */
-  onRange?: (day: IsoDate, pick: DayPick) => void;
 }
 
-export function DayEditor({ day, kind, profile, onChange, onClose, onRange }: DayEditorProps) {
+export function DayEditor({ day, kind, profile, onChange, onClose }: DayEditorProps) {
   // Последние показанные сутки — чтобы окно уходило не пустым.
   //
   // Закрывается окно не мгновенно: оно гаснет за 130 миллисекунд, и всё
@@ -215,7 +211,6 @@ export function DayEditor({ day, kind, profile, onChange, onClose, onRange }: Da
           kind={kind}
           profile={profile}
           onChange={onChange}
-          onRange={onRange}
         />
       ) : null}
     </Modal>
@@ -227,13 +222,11 @@ function DayForm({
   kind,
   profile,
   onChange,
-  onRange,
 }: {
   day: IsoDate;
   kind: DayEditorKind;
   profile: StoredProfile;
   onChange: (change: (previous: StoredProfile) => StoredProfile) => void;
-  onRange?: (day: IsoDate, pick: DayPick) => void;
 }) {
   const dayTypeId = useId();
   const noteId = useId();
@@ -398,6 +391,68 @@ function DayForm({
   }
 
   /**
+   * Записать вид суток: добавить новый или поправить уже стоящий.
+   *
+   * Правка, а не вторая запись, — потому что запись у вида одна на весь его
+   * срок. Открыв середину отпуска с 1 по 14 и продлив его до 20, человек
+   * меняет ту же самую запись: у неё остаются и опознаватель, и дата
+   * начала, которая может быть раньше открытых суток. Добавить рядом
+   * вторую значило бы удвоить отпуск.
+   */
+  function withPick(next: StoredProfile, pick: DayPick, time: DayTime): StoredProfile {
+    const end = time.endsOn;
+    if (pick.startsWith("absence:")) {
+      const kind = pick.slice("absence:".length) as AbsenceKind;
+      const edited = next.absences.find(
+        (item) => item.kind === kind && item.startsOn <= day && day <= item.endsOn,
+      );
+      return edited
+        ? {
+            ...next,
+            absences: next.absences.map((item) =>
+              item.id === edited.id ? { ...item, endsOn: end } : item,
+            ),
+          }
+        : {
+            ...next,
+            absences: [
+              ...next.absences,
+              { id: crypto.randomUUID(), kind, startsOn: day, endsOn: end },
+            ],
+          };
+    }
+
+    const kind = pick.slice("callout:".length) as CalloutKind;
+    const parsed = parseHours(time.hours);
+    if (parsed === null) return next;
+    const edited = next.callouts.find(
+      (item) => item.kind === kind && item.startsOn <= day && day <= item.endsOn,
+    );
+    return edited
+      ? {
+          ...next,
+          callouts: next.callouts.map((item) =>
+            item.id === edited.id
+              ? { ...item, endsOn: end, hoursPerDay: parsed.toString() }
+              : item,
+          ),
+        }
+      : {
+          ...next,
+          callouts: [
+            ...next.callouts,
+            {
+              id: crypto.randomUUID(),
+              kind,
+              startsOn: day,
+              endsOn: end,
+              hoursPerDay: parsed.toString(),
+            },
+          ],
+        };
+  }
+
+  /**
    * Годится ли названное время для записи.
    *
    * Возвращает жалобу или `null`, если всё в порядке. Проверка живёт
@@ -440,7 +495,7 @@ function DayForm({
     // В профиль — только годное, и на каждом знаке. Записывать негодное
     // нельзя (ноль часов — это не вызов), а годное ждать незачем: запись
     // идёт в браузер, и следующий знак её просто поправит.
-    if (why === null) onChange((previous) => withDayPick(previous, day, pick, time));
+    if (why === null) onChange((previous) => withPick(previous, pick, time));
   }
 
   return (
@@ -605,13 +660,6 @@ function DayForm({
             }}
             onEdit={(next) => {
               if (next !== "shift") setSpotlight(next);
-              // У отсутствия величина одна — по какое число, — и выбирается
-              // она на сетке. Открывать окно ради одной кнопки «выбрать на
-              // календаре» значило бы поставить дверь перед дверью.
-              if (next !== "shift" && pickSort(next) === "absence" && onRange) {
-                onRange(day, next);
-                return;
-              }
               setDetail(next);
             }}
             picked={draft}
@@ -631,29 +679,28 @@ function DayForm({
                 if (spotlight === next) setSpotlight(null);
                 return;
               }
-              // Включили — записываем сразу, одними сутками и с обычными
-              // часами. Тумблер включён — значит в сутках это уже стоит;
-              // ждать от человека ещё одного нажатия, чтобы слово стало
-              // делом, незачем.
-              //
-              // Негодное не записывается и тумблер не включает: второе
-              // отсутствие в те же сутки вычлось бы из нормы дважды, и
-              // человек должен узнать об этом здесь, а не потом на числах.
-              const time = { endsOn: day, hours: DEFAULT_CALLOUT_HOURS };
-              const why = complaint(next, time);
-              if (why !== null) {
-                setError(why);
+              // Второе отсутствие в те же сутки запрещено: смена, попавшая
+              // и в отпуск, и в больничный, вычлась бы из нормы дважды.
+              const busy =
+                next.startsWith("absence:") &&
+                (Object.keys(draft) as DayPick[]).find(
+                  (pick) => pick.startsWith("absence:") && pick !== next,
+                );
+              if (busy) {
+                const kind = busy.slice("absence:".length) as AbsenceKind;
+                setError(
+                  `Эти сутки уже заняты: ${ABSENCE_LABELS[kind]}. ` +
+                    `Сначала выключите её, иначе смена вычтется из нормы дважды.`,
+                );
                 return;
               }
-              pickTime(next, time);
+              // Включили — записываем сразу, одними сутками и с обычными
+              // часами, а срок спрашиваем следом отдельным окном. Тумблер
+              // включён — значит в сутках это уже стоит; ждать от человека
+              // ещё одного нажатия, чтобы слово стало делом, незачем.
+              pickTime(next, { endsOn: day, hours: DEFAULT_CALLOUT_HOURS });
               setSpotlight(next);
-              // Дальше — сколько дней это длится. У отсутствия других
-              // величин нет, и спрашивать его нечем, кроме календаря: окно
-              // закрывается, и человек ведёт мышью по сетке. У вызова
-              // сперва часы — их на сетке не выберешь, — а календарь
-              // открывается кнопкой из того же окна.
-              if (pickSort(next) === "absence" && onRange) onRange(day, next);
-              else setDetail(next);
+              setDetail(next);
             }}
           />
         </Field>
@@ -695,10 +742,6 @@ function DayForm({
         <DayTimeModal
           detail={detail}
           onClose={() => setDetail(null)}
-          onPickRange={(pick) => {
-            setDetail(null);
-            onRange?.(day, pick);
-          }}
           day={day}
           profile={profile}
           startsAt={startsAt}
@@ -916,7 +959,6 @@ function Entry({
 function DayTimeModal({
   detail,
   onClose,
-  onPickRange,
   day,
   profile,
   startsAt,
@@ -928,8 +970,6 @@ function DayTimeModal({
 }: {
   detail: DayPick | "shift" | null;
   onClose: () => void;
-  /** Уйти выбирать конец события на сетку — вместе с закрытием окон. */
-  onPickRange: (pick: DayPick) => void;
   day: IsoDate;
   profile: StoredProfile;
   startsAt: string;
@@ -983,32 +1023,24 @@ function DayTimeModal({
             </Field>
           ) : null}
 
-          {/* Конец события выбирается НА СЕТКЕ, а не полем с датой.
-              -------------------------------------------------------------
-              Здесь стояло поле «По дату включительно» с всплывающим
-              календариком. Человек, отмечающий отпуск, и так смотрит в
-              календарь — тот, что под окном, — и набирал во втором
-              календаре дату, которую видел в первом.
-
-              Теперь окно уходит, а сетка начинает показывать будущий отпуск
-              под мышью: наведя на 20 июля, человек видит все сутки с 6 по
-              20 отмеченными, и нажатие их закрепляет. Строка здесь остаётся
-              затем, чтобы назвать нынешний срок и дать к нему дорогу. */}
+          {/* Подпись рисует строка карточки, а не само поле: тогда вопрос
+              стоит слева, а ответ справа — тем же строем, что и «Часов в
+              сутки» под ним и что все строки в настройках. Своей подписью
+              поле вставало столбиком, и две соседние строки одной карточки
+              читались как из разных мест. На узком экране строка
+              переносится, и поле встаёт под вопросом само. */}
           {isAbsence || isCallout ? (
             <Field id={endsId} label="По дату включительно">
-              <Button
+              <DateField
+                key={detail}
                 id={endsId}
-                type="button"
-                variant="outline"
-                size="sm"
-                className="w-auto font-mono"
-                onClick={() => {
-                  if (detail && detail !== "shift") onPickRange(detail);
-                }}
-              >
-                <CalendarRange aria-hidden />
-                {formatDateRu(time?.endsOn ?? day)}
-              </Button>
+                // Своя дата у того, что уже записано: открыв середину
+                // вызова с 7 по 9, человек обязан увидеть 9, а не открытые
+                // сутки.
+                defaultValue={time?.endsOn ?? day}
+                min={day}
+                onChange={(next) => onTime({ ...time!, endsOn: next ?? day })}
+              />
             </Field>
           ) : null}
 
