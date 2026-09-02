@@ -19,7 +19,12 @@ import { formatDateRu } from "../domain/format";
 import { todayIso, type IsoDate } from "../domain/plain-date";
 import type { StoredProfile } from "../storage/profile";
 import { CalendarIcon, ShiftsIcon } from "./grid-icons";
-import { LiveModeSwitch } from "./live-mode";
+import {
+  LiveModeCell,
+  LIVE_ON,
+  LIVE_ROW_CAPTION,
+  LIVE_ROW_CELL,
+} from "./live-mode";
 import { PeriodPicker, type StatutoryChoice } from "./period-picker";
 import { ShiftStrip } from "./shift-strip";
 import { YearCalendarEditor } from "./year-calendar-editor";
@@ -344,9 +349,15 @@ export function YearView({
         <div className="hidden flex-wrap items-center gap-2 md:flex">
           <div className="flex-wrap flex lg:min-w-92.5 gap-2 justify-between">
             <Segmented label="Что показывать на сетке">
+              {/* Знаки здесь той же меры, что у кнопки периода рядом и у
+                  кнопок шапки: девять десятых рема. Своя мера
+                  переключателя (четыре пятых) оставляла бы в одной строке
+                  значки двух размеров — замер краски давал 13,3 точки
+                  против 15 у часов. */}
               <SegmentedItem
                 active={view === "shifts"}
                 onClick={() => onViewChange("shifts")}
+                className="[&_svg]:size-4.5"
               >
                 <ShiftsIcon />
                 {/* «График смен» на телефоне съедает всю строку, а рядом
@@ -357,6 +368,7 @@ export function YearView({
               <SegmentedItem
                 active={view === "calendar"}
                 onClick={() => onViewChange("calendar")}
+                className="[&_svg]:size-4.5"
               >
                 <CalendarIcon />
                 <span className="inline">Календарь</span>
@@ -382,9 +394,17 @@ export function YearView({
             />
           </div>
 
-          {/* Тумблер здесь, а не только в настройках: он меняет то, что
-              нарисовано в сетке, — значит, стоит там, где на это смотрят. */}
-          <LiveModeSwitch profile={profile} onChange={onChange} />
+          {/* Режим здесь, а не только в настройках: он меняет то, что
+              нарисовано в сетке, — значит, стоит там, где на это смотрят.
+              Кнопка та же, что в нижней панели телефона, и знак тот же:
+              человек, повернувший телефон, находит на этом месте не другую
+              деталь, а ту же самую в другой форме. */}
+          <LiveModeCell
+            profile={profile}
+            onChange={onChange}
+            className={cn(LIVE_ROW_CELL, profile.liveMode && LIVE_ON)}
+            captionClassName={LIVE_ROW_CAPTION}
+          />
 
           {/* Масштаб — двумя кнопками.
               -------------------------------------------------------------

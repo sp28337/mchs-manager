@@ -31,17 +31,45 @@ import { cn } from "@/lib/utils/cn";
  * * период — часы с тающим следом: отрезок времени, а не день. Единственный
  *   из трёх, у кого нет ни клеток, ни листка, — потому и не путается с
  *   ними.
+ *
+ * --- Почему у двух из трёх стоит поправка размера --------------------------
+ *
+ * Рисунки пришли из разных мест и занимают в своей клетке разную долю.
+ * Замер краски (`getBBox`) при одной и той же клетке в 22 точки: часы —
+ * 18,3 точки, календарь — 17,4, знак сайта — 19,5. Разница в точку с
+ * лишним на глаз заметна: в ряду они стояли ступенькой.
+ *
+ * Поправка приводит два других к часам — они здесь мера, потому что круг
+ * задаёт размер всего однозначнее прочих. Доли посчитаны из замера:
+ * 18,3 / 17,4 для календаря и 18,3 / 19,5 для знака. Масштаб, а не другая
+ * клетка: вместе с рисунком тянется и толщина линии, а разошлись бы они —
+ * значки стали бы разного веса при одном размере.
  */
+
+/**
+ * Часы — мера ряда. Поправки нет: остальные приводятся к ним.
+ */
+const PERIOD_FIT = "";
+
+/** Знак сайта крупнее часов на двадцатую долю. */
+const SHIFTS_FIT = "scale-[0.94]";
+
+/** Календарь мельче часов на двадцатую долю. */
+const CALENDAR_FIT = "scale-[1.05]";
 
 export function ShiftsIcon({ className }: { className?: string }) {
   // `aria-hidden` знак ставит себе сам: он всегда стоит при подписи.
-  return <Logo mono className={cn("size-4.5 shrink-0", className)} />;
+  return <Logo mono className={cn("size-4.5 shrink-0", SHIFTS_FIT, className)} />;
 }
 
 export function CalendarIcon({ className }: { className?: string }) {
-  return <CalendarDays aria-hidden className={cn("size-4.5 shrink-0", className)} />;
+  return (
+    <CalendarDays aria-hidden className={cn("size-4.5 shrink-0", CALENDAR_FIT, className)} />
+  );
 }
 
 export function PeriodIcon({ className }: { className?: string }) {
-  return <ClockFading aria-hidden className={cn("size-4.5 shrink-0", className)} />;
+  return (
+    <ClockFading aria-hidden className={cn("size-4.5 shrink-0", PERIOD_FIT, className)} />
+  );
 }
