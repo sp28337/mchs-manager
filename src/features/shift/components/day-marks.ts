@@ -91,5 +91,5 @@ export const CALLOUT_TONE = "border-trace bg-trace-soft text-trace";
  */
 export const SHIFT_TONE = "border-verify/25 bg-verify/30 text-verify";
 export const SHIFT_TAIL_TONE = "border-verify/15 bg-verify/5 text-verify";
-export const DAY_OFF_TONE = "border-rule text-ink-faint bg-paper-raised";
+export const DAY_OFF_TONE = "border-ink-faint/40 text-ink-faint bg-paper-raised";
 export const DAY_OFF_MARK = "В";

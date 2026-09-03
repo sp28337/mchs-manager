@@ -83,7 +83,7 @@ export function Checkbox({
           // читалась дырой, а не местом, куда нажимают.
           checked
             ? "border-verify bg-verify text-paper"
-            : "border-ink-faint/70 bg-paper-sunken text-transparent group-hover:border-ink-muted",
+            : "border-ink-faint/70 bg-paper text-transparent group-hover:border-ink-muted",
         )}
       >
         {/* Галочка стоит всегда, но у пустого флажка она цвета пустоты:

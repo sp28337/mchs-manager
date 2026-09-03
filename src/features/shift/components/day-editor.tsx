@@ -1195,7 +1195,7 @@ function DayChoiceGroup({ title, children }: { title: string; children: ReactNod
           Пятьдесят шесть точек порога отыграны там, где они были лишними:
           поле строки, просвет между клеткой и словом, поле самой клетки, и
           «Смена в этот день», ставшая «Сменой». */}
-      <div className="grid grid-cols-1 min-[26.5rem]:grid-cols-2 gap-1.5">{children}</div>
+      <div className="grid grid-cols-1 min-[24rem]:grid-cols-2 gap-1.5">{children}</div>
     </div>
   );
 }
@@ -1250,7 +1250,6 @@ function DayChoiceRow({
         // указателем: она отвечает на вопрос «куда я сейчас нажму».
         className={cn(
           "rounded-lg px-1 py-1.5 text-xs gap-1.5 transition-colors duration-150",
-          "border border-transparent hover:border-ink-muted",
         )}
         label={
           // Место под карандаш держит подпись, а не сама строка: отступ на
