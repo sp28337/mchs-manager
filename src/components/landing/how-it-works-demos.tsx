@@ -1,5 +1,5 @@
 import type { CSSProperties, ReactNode } from "react";
-import { Save, Settings2 } from "lucide-react";
+import { Save, Settings } from "lucide-react";
 
 import { MonthGrid } from "@/features/shift/components/month-grid";
 import {
@@ -634,7 +634,7 @@ export function DemoStorage() {
             лампы по кромке и кладёт тень, как все прочие блоки страницы.
             Рамка на этом фоне читалась чертежом среди предметов. */}
         <div className="lit relative flex items-center justify-end gap-2 rounded-t-xl bg-paper-raised px-3 py-2.5">
-          <HeaderButton icon={Settings2} label="Настройки" />
+          <HeaderButton icon={Settings} label="Настройки" />
           <HeaderButton icon={Save} label="Сохранить" className="demo-save-button" />
           <Pointer className="demo-tap-save right-8 top-7" />
         </div>

@@ -1,4 +1,4 @@
-import { FolderOpen, Save, Settings2, ZoomIn, ZoomOut } from "lucide-react";
+import { FolderOpen, Save, Settings, ZoomIn, ZoomOut } from "lucide-react";
 
 import type { ReactNode } from "react";
 
@@ -20,6 +20,7 @@ import {
 } from "./grid-deck";
 import { CalendarIcon, PeriodIcon, ShiftsIcon } from "./grid-icons";
 import { LABELS_FROM } from "./header-tools";
+import { MONTH_ANCHOR_SCRIPT } from "./month-anchor";
 import { LiveSignal, LIVE_ROW_CAPTION, LIVE_ROW_CELL } from "./live-mode";
 import { MetaSep, MonthGrid, YEAR_BOX, YEAR_GRID } from "./month-grid";
 import { MONTH_NAMES } from "./month-names";
@@ -262,6 +263,21 @@ export function WorkspaceSkeleton() {
           <DeckCellBone caption="Онлайн" icon={<LiveSignal on={false} />} />
         </div>
       </div>
+
+      {/* Нынешний месяц — под полосу с числами, ещё до первой отрисовки.
+          -------------------------------------------------------------------
+          Заглушка отдаётся статикой, и браузер рисует её задолго до того,
+          как выполнится хоть строчка сценариев страницы. Расчёт, встающий
+          на её место, ставит нынешний месяц под полосу с числами
+          (`year-view.tsx`) — а заглушка до этого стояла январём, и человек
+          видел рывок ровно в тот миг, ради которого заглушка и заведена.
+
+          Сценарий делает ту же прокрутку той же функцией (`month-anchor.ts`)
+          и стоит В КОНЦЕ заглушки: к этому месту разобраны и полоса с
+          числами, и все двенадцать сеток, то есть и высота страницы, и
+          положение месяца уже настоящие. Поставь его выше — прокрутка
+          упёрлась бы в ещё не разобранный низ страницы. */}
+      <script dangerouslySetInnerHTML={{ __html: MONTH_ANCHOR_SCRIPT }} />
     </main>
   );
 }
@@ -324,7 +340,7 @@ export function HeaderToolsBones() {
   return (
     <div className="flex items-center gap-2">
       {[
-        { label: "Настройки", Icon: Settings2 },
+        { label: "Настройки", Icon: Settings },
         { label: "Открыть", Icon: FolderOpen },
         { label: "Сохранить", Icon: Save },
       ].map(({ label, Icon }) => (

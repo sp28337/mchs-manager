@@ -11,7 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Modal } from "@/components/ui/modal";
 import { Card, Field } from "@/components/ui/panel";
 import { Select } from "@/components/ui/select";
-import { Switch } from "@/components/ui/switch";
+import { Checkbox } from "@/components/ui/checkbox";
 
 import { formatHoursTrim, parseHours } from "../domain/decimal";
 import { formatDateRu, formatDayMonthRu } from "../domain/format";
@@ -1201,15 +1201,24 @@ function DayChoiceGroup({ title, children }: { title: string; children: ReactNod
 }
 
 /**
- * Строка списка: клетка вида суток, название, карандаш и тумблер.
+ * Строка списка: клетка вида суток, название, карандаш и флажок.
  *
- * --- Почему карандаш стоит РЯДОМ с тумблером, а не внутри строки ------------
+ * --- Почему флажок, а не тумблер --------------------------------------------
  *
- * Тумблер — это кнопка во всю строку, и вложить в неё вторую кнопку нельзя:
- * такая разметка недопустима, и нажатие досталось бы то одной, то другой.
- * Поэтому карандаш лежит НАД строкой отдельной кнопкой, слева от дорожки, и
- * перехватывает свои нажатия сам. Место под него держит отступ справа у
- * подписи — иначе длинное название уезжало бы под него.
+ * Тумблер отвечает на вопрос «включить ли режим», флажок — «отметить ли», и
+ * здесь вопрос именно второй: перед человеком список из двенадцати видов, и
+ * он отмечает те, что были в этих сутках. Двенадцать тумблеров в столбец
+ * читались как двенадцать независимых механизмов — а это один список с
+ * отметками. Довод целиком — у самого флажка (`ui/checkbox.tsx`).
+ *
+ * --- Почему карандаш стоит РЯДОМ с флажком, а не внутри строки --------------
+ *
+ * Строка целиком — это кнопка (попасть пальцем в квадратик в четыре
+ * миллиметра нельзя), и вложить в неё вторую кнопку нельзя: такая разметка
+ * недопустима, и нажатие досталось бы то одной, то другой. Поэтому карандаш
+ * лежит НАД строкой отдельной кнопкой, слева от флажка, и перехватывает свои
+ * нажатия сам. Место под него держит отступ справа у подписи — иначе длинное
+ * название уезжало бы под него.
  *
  * Показан он только у включённого вида: у выключенного правит нечего.
  */
@@ -1231,8 +1240,7 @@ function DayChoiceRow({
 }) {
   return (
     <div className="relative">
-      <Switch
-        spread
+      <Checkbox
         checked={on}
         onChange={onToggle}
         // Заливки у строки нет — тем же строем, что легенда: там вид суток
@@ -1245,9 +1253,9 @@ function DayChoiceRow({
           "border border-transparent hover:border-ink-muted",
         )}
         label={
-          // Место под карандаш держит подпись, а не сам тумблер: отступ на
-          // тумблере сдвинул бы ВНУТРЬ его дорожку, и карандаш лёг бы прямо
-          // на неё — поймано снимком.
+          // Место под карандаш держит подпись, а не сама строка: отступ на
+          // строке сдвинул бы ВНУТРЬ её флажок, и карандаш лёг бы прямо на
+          // него — поймано снимком ещё во времена тумблера.
           <span
             className={cn(
               "flex min-w-0 items-center gap-1.5 text-left",
@@ -1273,7 +1281,7 @@ function DayChoiceRow({
           type="button"
           onClick={onEdit}
           aria-label={`Настроить: ${label}`}
-          className="absolute right-11 top-1/2 -translate-y-1/2 inline-flex size-7 items-center
+          className="absolute right-8 top-1/2 -translate-y-1/2 inline-flex size-7 items-center
                      justify-center rounded-sm text-ink-faint transition-colors
                      hover:text-ink cursor-pointer
                      focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-trace"
