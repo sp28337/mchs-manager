@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  ChartColumn,
   FolderOpen,
   FolderPlus,
   Plus,
@@ -10,14 +11,16 @@ import {
   X,
   type LucideIcon,
 } from "lucide-react";
-import { type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 
 import { Materialize } from "@/components/ui/materialize";
+import { Modal } from "@/components/ui/modal";
 import { cn } from "@/lib/utils/cn";
 
 import type { StoredProfile } from "../storage/profile";
 import type { ExplorerTools } from "./profile-explorer";
 import { useSaveToFile } from "./save-to-file";
+import { Statistics } from "./statistics";
 
 /**
  * Настройки и выгрузка — из шапки.
@@ -87,7 +90,7 @@ import { useSaveToFile } from "./save-to-file";
  * прежнего окна, тут нет и не может быть — самого листа больше нет.
  */
 
-type ToolId = "settings" | "open" | "save";
+type ToolId = "settings" | "stats" | "open" | "save";
 
 /**
  * Подпись на кнопке и имя для программы чтения — разные строки.
@@ -98,11 +101,12 @@ type ToolId = "settings" | "open" | "save";
  */
 const TOOL_META: Record<ToolId, { label: string; title: string; Icon: LucideIcon }> = {
   settings: { label: "Настройки", title: "Настройки", Icon: Settings },
+  stats: { label: "Статистика", title: "Статистика за год", Icon: ChartColumn },
   open: { label: "Открыть", title: "Открыть профиль", Icon: FolderOpen },
   save: { label: "Сохранить", title: "Сохранить в файл", Icon: Save },
 };
 
-export const TOOL_ORDER: readonly ToolId[] = ["settings", "open", "save"];
+export const TOOL_ORDER: readonly ToolId[] = ["settings", "stats", "open", "save"];
 
 /** Чем кнопка настроек называет себя, пока настройки открыты. */
 const CLOSE_LABEL = "Закрыть";
@@ -110,20 +114,26 @@ const CLOSE_LABEL = "Закрыть";
 /**
  * С какой ширины у кнопок появляются подписи.
  *
- * Замером: знак сайта занимает 170 точек, три плашки с подписями — 372,
- * поля страницы и просветы между ними — ещё 64. Итого 606, и порог `sm`
- * (640) даёт запас в три десятка точек.
+ * Замером: четыре плашки с подписями занимают 477 точек и ещё 24 на
+ * просветы между ними, знак сайта — 170, поля страницы — 48. Итого 719, и
+ * порог `md` (768) даёт запас в полсотни точек.
  *
- * Порог был `xs` (448), пока кнопок было две. С третьей на этой ширине
- * шапка перестала помещаться в строку — а переносить её нельзя, строка
- * одна: см. `site-header.tsx`. Поэтому подписи теперь уходят раньше, зато
- * значки остаются все три и на самом узком телефоне.
+ * Лестница у порога своя история. При двух кнопках он стоял на `xs` (448),
+ * при трёх переехал на `sm` (640), при четвёртой — сюда. Каждый раз по
+ * одному и тому же поводу: строка в шапке ОДНА и переноситься не может
+ * (см. `site-header.tsx`), а знак сайта ужимается (`min-w-0`) и потому не
+ * упирается в кнопки, а молча уезжает под них — обрезанное «ГРАФИ» вместо
+ * названия. Проверять порог надо именно этим: не переполнением строки, а
+ * тем, помещается ли в знак его собственный текст.
+ *
+ * Значки при этом остаются все четыре и на самом узком телефоне: 4 × 42 и
+ * три просвета — это 192 точки, и на 320 от знака до них остаётся 16.
  *
  * Вынесен наружу: ту же лестницу повторяют кости заглушки
- * (`workspace-skeleton.tsx`), и разойтись им нельзя — иначе на 500 точках
+ * (`workspace-skeleton.tsx`), и разойтись им нельзя — иначе на 700 точках
  * кость окажется вдвое шире кнопки, которая её сменит.
  */
-export const LABELS_FROM = "hidden sm:inline";
+export const LABELS_FROM = "hidden md:inline";
 
 /**
  * Общий вид кнопки шапки.
@@ -206,6 +216,8 @@ export function HeaderTools({
   /** Действия проводника: пока он открыт, они стоят на месте обычных трёх. */
   explorerTools: ExplorerTools;
 }) {
+  /** Открыто ли окно статистики за год. */
+  const [stats, setStats] = useState(false);
   const save = useSaveToFile(profile);
 
   // Пока открыт проводник, страница занята другим — и кнопки у неё другие:
@@ -272,6 +284,7 @@ export function HeaderTools({
               onClick={() => {
                 if (id === "save") save.ask();
                 else if (id === "open") onToggleExplorer();
+                else if (id === "stats") setStats(true);
                 else onToggleSettings();
               }}
               // Имя кнопки не зависит от того, видна подпись или нет:
@@ -333,6 +346,28 @@ export function HeaderTools({
           );
         })}
       </div>
+
+      {/* Статистика — обычным окном, а не листом.
+          -----------------------------------------------------------------
+          Лист заведён для настроек, и заведён ради перехода: значок уезжает
+          на место знака сайта, и человек видит, ЧТО открылось из чего.
+          Второй лист с тем же переходом сказал бы «открылись настройки» —
+          а открылось другое.
+
+          Широкое (`64rem`) и во всю высоту, какую даёт окно: внутри
+          двенадцать столбцов на трёх рисунках и таблица в семь колонок.
+          Узкое окно ужало бы столбцы до нечитаемых полосок ровно там, где
+          в них весь смысл. На телефоне ширина всё равно упирается в экран,
+          и рисунки ужимаются вместе с ним — они заданы долями, а не
+          точками. */}
+      <Modal
+        open={stats}
+        onClose={() => setStats(false)}
+        title={`Статистика · ${profile.accountingYear}`}
+        className="w-[min(64rem,calc(100vw-2rem))]"
+      >
+        <Statistics profile={profile} />
+      </Modal>
 
       {save.dialog}
     </>
