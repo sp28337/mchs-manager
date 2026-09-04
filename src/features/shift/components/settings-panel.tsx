@@ -1,11 +1,12 @@
 "use client";
 
-import { RotateCcw, Trash2 } from "lucide-react";
+import { Pencil, RotateCcw, Trash2 } from "lucide-react";
 import { useId, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Input } from "@/components/ui/input";
+import { Modal } from "@/components/ui/modal";
 import { Card, Field } from "@/components/ui/panel";
 import { Select } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
@@ -95,9 +96,7 @@ export function SettingsPanel({
   const countId = useId();
   const startId = useId();
   const patternId = useId();
-  const customId = useId();
   const durationId = useId();
-  const normHoursId = useId();
 
   /**
    * Что ВЫБРАНО в списке нормы — не то же самое, что действует в расчёте.
@@ -118,6 +117,23 @@ export function SettingsPanel({
     profile.weeklyNormHours === null ? weeklyNormGroundOfProfile(profile) : "custom";
   const pattern = patternOfProfile(profile);
   const custom = profile.schedulePattern === CUSTOM_PATTERN_ID;
+
+  /**
+   * Что настраивают окном поверх настроек — цикл графика или норму.
+   *
+   * Прежде числа для того и другого появлялись НОВОЙ СТРОКОЙ под списком,
+   * из которого их вызвали. Строка эта — не ответ на вопрос анкеты, а
+   * продолжение предыдущего ответа, и в ряду одинаковых строк её так не
+   * прочитать: человек выбирал «Настроить» и оставался с тем же списком
+   * настроек, только на строку длиннее. На телефоне новая строка вдобавок
+   * появлялась ЗА нижним краем видимого — тот же случай, что был у видов
+   * суток в окне дня.
+   *
+   * Окно поверх не заметить нельзя: оно закрывает собой всё остальное и
+   * спрашивает ровно то, чего не хватает. Довод и метка `modal-over-modal`
+   * те же, что у окна времени в сутках и у вопроса «точно?».
+   */
+  const [tune, setTune] = useState<TuneKind | null>(null);
 
   return (
     <div className="space-y-4">
@@ -223,6 +239,9 @@ export function SettingsPanel({
           value={pattern.id}
           onChange={(event) => {
             const id = event.target.value as StoredProfile["schedulePattern"];
+            // «Настроить» — это не ответ, а обещание его дать: числа цикла
+            // спрашиваются окном поверх настроек, сразу же.
+            if (id === CUSTOM_PATTERN_ID) setTune("pattern");
             onChange((previous) => ({
               ...previous,
               schedulePattern: id,
@@ -250,61 +269,34 @@ export function SettingsPanel({
           ))}
           {/* Заготовки — быстрый ответ на частый случай, а не перечень
               допустимого: 3|1, 2|1, 4|4 на вахте в него не влезут никогда.
-              Поэтому последним пунктом стоит свой цикл. */}
-          <option value={CUSTOM_PATTERN_ID}>Настроить</option>
-        </Select>
-      </Field>
+              Поэтому последним пунктом стоит свой цикл.
 
-      {custom ? (
-        <Field
-          id={customId}
-          label="Цикл"
-          hint={
-            <p>
-              Сколько суток подряд работать и сколько отдыхать. Цикл
-              повторяется от названной даты смены в обе стороны.
-            </p>
-          }
-          // note={`Цикл в ${pattern.cycleDays} ${
-          //   pattern.cycleDays % 10 === 1 && pattern.cycleDays % 100 !== 11
-          //     ? "сутки"
-          //     : "суток"
-          // }.`}
-        >
-          <div className="flex flex-wrap items-center gap-2">
-            <CycleDays
-              id={customId}
-              label="Рабочих суток"
-              value={profile.customWorkDays}
-              onChange={(customWorkDays) =>
-                onChange((previous) => ({ ...previous, customWorkDays }))
-              }
-            />
-            <span aria-hidden className="text-ink-faint">
-              /
-            </span>
-            <CycleDays
-              label="Выходных суток"
-              value={profile.customRestDays}
-              onChange={(customRestDays) =>
-                onChange((previous) => ({ ...previous, customRestDays }))
-              }
-            />
-          </div>
-        </Field>
-      ) : null}
+              Настроенный цикл называет себя сам — «3|1», а не «Настроить».
+              Пункт списка обязан отвечать на вопрос строки: какой у
+              человека график. Слово «Настроить» отвечает на него только
+              пока цикла нет. */}
+          <option value={CUSTOM_PATTERN_ID}>
+            {custom ? pattern.label : "Настроить"}
+          </option>
+        </Select>
+        {custom ? (
+          <TuneButton label="График" onClick={() => setTune("pattern")} />
+        ) : null}
+      </Field>
 
       <Field id={normId} label="Норма в неделю">
         <Select
           id={normId}
           value={ground}
           onChange={(event) => {
-            // Выбрав «Свою», человек получает поле, уже заполненное той
-            // нормой, что действует сейчас: её и правят. Пустое поле
+            const next = event.target.value as WeeklyNormGround;
+            if (next === "custom") setTune("norm");
+            // Выбрав «Настроить», человек получает поле, уже заполненное
+            // той нормой, что действует сейчас: её и правят. Пустое поле
             // значило бы «своей нормы нет», и выбор откатился бы обратно
             // в тот же миг.
             const facts = weeklyNormGroundFacts(
-              event.target.value as WeeklyNormGround,
+              next,
               hoursTrim(weeklyNormOf(profile).hours),
             );
             onChange((previous) => ({ ...previous, ...facts }));
@@ -312,40 +304,18 @@ export function SettingsPanel({
         >
           {WEEKLY_NORM_GROUNDS.map((option) => (
             <option key={option} value={option}>
-              {WEEKLY_NORM_GROUND_LABELS[option]}
+              {/* Своё число называет себя так же, как заготовки: «30 ч».
+                  Довод тот же, что у графика. */}
+              {option === "custom" && profile.weeklyNormHours !== null
+                ? `${profile.weeklyNormHours} ч`
+                : WEEKLY_NORM_GROUND_LABELS[option]}
             </option>
           ))}
         </Select>
+        {ground === "custom" ? (
+          <TuneButton label="Норма в неделю" onClick={() => setTune("norm")} />
+        ) : null}
       </Field>
-
-      {/* Своя норма — числом, и только когда её выбрали.
-          -------------------------------------------------------------
-          Оснований сокращённой недели больше трёх: её ставят коллективным
-          договором, отраслевым соглашением, приказом по части, и бывает
-          она какой угодно — 39 часов, 30, 24 у несовершеннолетних. Список
-          из трёх пунктов такого человека отправлял выбирать «примерно
-          похожее», то есть считать по чужой норме.
-
-          Поле стоит ПОД списком, а не вместо него: список отвечает на
-          вопрос «почему столько», и у трёх самых частых случаев ответ уже
-          есть — со статьёй. Своя норма — выход для остальных, и она
-          требует от человека знать своё основание самому. */}
-      {ground === "custom" ? (
-        <Field
-          id={normHoursId}
-          label="Часов в неделю"
-          // note="Столько, сколько назначено приказом, трудовым или коллективным договором. Ссылаться при споре придётся на них: статьи для этого случая приложение назвать не может."
-        >
-          <HoursField
-            id={normHoursId}
-            value={profile.weeklyNormHours ?? ""}
-            check={weeklyHoursFieldError}
-            onChange={(weeklyNormHours) =>
-              onChange((previous) => ({ ...previous, weeklyNormHours }))
-            }
-          />
-        </Field>
-      ) : null}
 
       {/* Любая смена, а не первая в году: цикл одинаков в обе стороны,
           поэтому одна известная дата задаёт весь график — хоть
@@ -481,7 +451,161 @@ export function SettingsPanel({
           Сама деталь вынесена наружу (`DangerActions`), чтобы обе закладки
           ставили её у себя внизу. Здесь её нет ещё и потому, что эта же
           панель служит окну «Создать профиль»: удалять там нечего. */}
+
+      <TuneModal
+        kind={tune}
+        profile={profile}
+        onChange={onChange}
+        onClose={() => setTune(null)}
+      />
     </div>
+  );
+}
+
+/** Что настраивается окном поверх настроек. */
+type TuneKind = "pattern" | "norm";
+
+/**
+ * Карандаш у списка: открыть окно и поправить настроенное.
+ *
+ * Нужен потому, что список из этого положения второй раз не выйдет:
+ * выбранный пункт при повторном выборе события не даёт, и окно, открытое
+ * один раз выбором «Настроить», больше не открылось бы никак. Карандаш —
+ * тот же знак и то же слово в имени, что у правки часов смены в окне суток
+ * (`day-editor.tsx`): одно действие приложения выглядит одинаково везде.
+ */
+function TuneButton({ label, onClick }: { label: string; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={`Настроить: ${label}`}
+      className="inline-flex size-7 shrink-0 cursor-pointer items-center justify-center
+                 rounded-sm text-ink-faint transition-colors hover:text-ink
+                 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-trace"
+    >
+      <Pencil aria-hidden className="size-3.5" />
+    </button>
+  );
+}
+
+/**
+ * Свой цикл и своя норма — окном поверх настроек.
+ *
+ * --- Почему окном, а не строкой ниже --------------------------------------
+ *
+ * Числа эти появлялись новой строкой под тем списком, из которого их
+ * вызвали, и строка эта не была ответом на вопрос анкеты: она продолжала
+ * предыдущий ответ. В ряду одинаковых строк такое не читается — человек
+ * выбирал «Настроить» и оставался с тем же списком, только на строку
+ * длиннее, а на телефоне новая строка вырастала за нижним краем видимого.
+ * Тот же случай был у видов суток в окне дня, и решён он там же и так же
+ * (`DayTimeModal`).
+ *
+ * --- Почему одно окно на оба случая ---------------------------------------
+ *
+ * Вопрос у них один: «назовите своё вместо готового». Разное — только
+ * содержимое карточки, и разводить ради него два окна значило бы завести
+ * два места, где чинить одно и то же поведение.
+ *
+ * --- Почему у него нет «Сохранить» ----------------------------------------
+ *
+ * По той же причине, что и во всём приложении: названное записывается в
+ * профиль сразу, по мере правки. Кнопка внизу называется «Готово» и только
+ * закрывает окно.
+ *
+ * Закрывает при этом ТОЛЬКО его: в окне времени «Готово» уносило с собой и
+ * окно суток, потому что там человек пришёл отметить событие и на этом
+ * закончил. Здесь он посреди анкеты, и унести её значило бы выгнать его из
+ * настроек за то, что он поправил одно поле.
+ */
+function TuneModal({
+  kind,
+  profile,
+  onChange,
+  onClose,
+}: {
+  kind: TuneKind | null;
+  profile: StoredProfile;
+  onChange: (change: (previous: StoredProfile) => StoredProfile) => void;
+  onClose: () => void;
+}) {
+  const cycleId = useId();
+  const hoursId = useId();
+
+  return (
+    <Modal
+      open={kind !== null}
+      onClose={onClose}
+      title={kind === "norm" ? "Норма в неделю" : "График"}
+      // Узкое и поверх — как окно времени в сутках: довод там же.
+      className="modal-over-modal w-[min(26rem,calc(100vw-2rem))]"
+    >
+      <div className="flex flex-col items-center space-y-4">
+        <Card>
+          {kind === "pattern" ? (
+            <Field
+              id={cycleId}
+              label="Цикл"
+              hint={
+                <p>
+                  Сколько суток подряд работать и сколько отдыхать. Цикл
+                  повторяется от названной даты смены в обе стороны.
+                </p>
+              }
+            >
+              <div className="flex flex-wrap items-center gap-2">
+                <CycleDays
+                  id={cycleId}
+                  label="Рабочих суток"
+                  value={profile.customWorkDays}
+                  onChange={(customWorkDays) =>
+                    onChange((previous) => ({ ...previous, customWorkDays }))
+                  }
+                />
+                <span aria-hidden className="text-ink-faint">
+                  |
+                </span>
+                <CycleDays
+                  label="Выходных суток"
+                  value={profile.customRestDays}
+                  onChange={(customRestDays) =>
+                    onChange((previous) => ({ ...previous, customRestDays }))
+                  }
+                />
+              </div>
+            </Field>
+          ) : null}
+
+          {kind === "norm" ? (
+            <Field
+              id={hoursId}
+              label="Часов в неделю"
+              hint={
+                <p>
+                  Столько, сколько назначено приказом, трудовым или
+                  коллективным договором. Больше сорока рабочая неделя быть
+                  не может.
+                </p>
+              }
+            >
+              <HoursField
+                id={hoursId}
+                value={profile.weeklyNormHours ?? ""}
+                check={weeklyHoursFieldError}
+                onChange={(weeklyNormHours) =>
+                  onChange((previous) => ({ ...previous, weeklyNormHours }))
+                }
+              />
+            </Field>
+          ) : null}
+        </Card>
+
+        <Button type="button" onClick={onClose}>
+          Готово
+        </Button>
+      </div>
+    </Modal>
   );
 }
 
