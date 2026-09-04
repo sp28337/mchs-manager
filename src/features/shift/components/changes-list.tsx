@@ -381,13 +381,3 @@ export function ChangesList({
     </div>
   );
 }
-
-/** Русское число при существительном: одна правка, две правки, пять правок. */
-function plural(n: number, one: string, few: string, many: string): string {
-  const tens = n % 100;
-  if (tens >= 11 && tens <= 14) return many;
-  const ones = n % 10;
-  if (ones === 1) return one;
-  if (ones >= 2 && ones <= 4) return few;
-  return many;
-}

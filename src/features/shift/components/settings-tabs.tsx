@@ -4,6 +4,7 @@ import { ListChecks, SlidersHorizontal } from "lucide-react";
 import { useRef, useState } from "react";
 
 import { Segmented, SegmentedItem } from "@/components/ui/segmented";
+import { cn } from "@/lib/utils/cn";
 
 import type { IsoDate } from "../domain/plain-date";
 import type { StoredProfile } from "../storage/profile";
@@ -93,6 +94,26 @@ export function SettingsTabs({
 
   return (
     <div className="space-y-4">
+      {/* Закладки держатся у верхней кромки окна.
+          -----------------------------------------------------------------
+          Прокручивается тело окна, а закладки уезжали вместе с анкетой:
+          дойдя до конца настроек, человек оказывался в списке полей без
+          единого указания, в каком он разделе и как перейти в другой, —
+          и возвращался наверх прокруткой ради одного нажатия.
+
+          Поля отрицательные и заливка своя: липкая полоса обязана
+          закрывать проезжающее под ней целиком, а поля у тела окна свои
+          (`px-5`, на телефоне `px-4`), и полоса без выноса оставляла бы по
+          краям два просвета, в которых видно уезжающий текст.
+
+          Слой невелик (`z-10`): выше него — затемнение окна поверх окна и
+          лампа, и спорить с ними полосе не за что. */}
+      <div
+        className={cn(
+          "sticky top-0 z-10 -mx-5 bg-paper px-5 pt-2 pb-3",
+          "max-sm:-mx-4 max-sm:px-4",
+        )}
+      >
       {/* Во всю ширину, а не по содержимому: в окне переключатель стоит
           один, и растянутый на строку он читается как оглавление, а
           прижатый влево — как ещё одна кнопка среди настроек. */}
@@ -118,6 +139,7 @@ export function SettingsTabs({
           </SegmentedItem>
         ))}
       </Segmented>
+      </div>
 
       <div ref={pane} style={floor ? { minHeight: floor } : undefined}>
       {tab === "profile" ? (

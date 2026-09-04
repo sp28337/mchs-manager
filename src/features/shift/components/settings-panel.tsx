@@ -26,13 +26,14 @@ import {
   patternOfProfile,
   weeklyNormGroundFacts,
   weeklyNormGroundOfProfile,
+  weeklyNormOf,
 } from "../model/derive";
 import { resetCalendar, type StoredProfile } from "../storage/profile";
 import { DateField } from "./date-field";
 import { formatDateRu } from "../domain/format";
 import { formatHoursTrim as hoursTrim } from "../domain/decimal";
 import { shiftMinutes } from "../domain/shift-hours";
-import { HoursField } from "./hours-field";
+import { HoursField, weeklyHoursFieldError } from "./hours-field";
 import { LiveModeSwitch } from "./live-mode";
 import { TimeField } from "./time-field";
 
@@ -97,8 +98,25 @@ export function SettingsPanel({
   const patternId = useId();
   const customId = useId();
   const durationId = useId();
+  const normHoursId = useId();
 
-  const ground = weeklyNormGroundOfProfile(profile);
+  /**
+   * Что ВЫБРАНО в списке нормы — не то же самое, что действует в расчёте.
+   *
+   * Пока человек набирает своё число, оно бывает невозможным: пустым,
+   * «3о», сорока восемью часами. Расчёт в такие мгновения берёт норму из
+   * закона — поле объясняет, а не стережёт, тот же уговор, что у
+   * продолжительности смены. Но ВЫБОР при этом остаётся выбором: спроси
+   * список у расчёта — и на первом же неверном знаке «Своя» сменилась бы
+   * на «40 ч», поле исчезло бы вместе с набранным, и допечатать стало бы
+   * некуда.
+   *
+   * Поэтому выбор читается по наличию своего числа, а не по его
+   * годности: есть строка — выбрана «Своя», нет строки — основание из
+   * закона.
+   */
+  const ground: WeeklyNormGround =
+    profile.weeklyNormHours === null ? weeklyNormGroundOfProfile(profile) : "custom";
   const pattern = patternOfProfile(profile);
   const custom = profile.schedulePattern === CUSTOM_PATTERN_ID;
 
@@ -272,8 +290,13 @@ export function SettingsPanel({
           id={normId}
           value={ground}
           onChange={(event) => {
+            // Выбрав «Свою», человек получает поле, уже заполненное той
+            // нормой, что действует сейчас: её и правят. Пустое поле
+            // значило бы «своей нормы нет», и выбор откатился бы обратно
+            // в тот же миг.
             const facts = weeklyNormGroundFacts(
               event.target.value as WeeklyNormGround,
+              hoursTrim(weeklyNormOf(profile).hours),
             );
             onChange((previous) => ({ ...previous, ...facts }));
           }}
@@ -285,6 +308,35 @@ export function SettingsPanel({
           ))}
         </Select>
       </Field>
+
+      {/* Своя норма — числом, и только когда её выбрали.
+          -------------------------------------------------------------
+          Оснований сокращённой недели больше трёх: её ставят коллективным
+          договором, отраслевым соглашением, приказом по части, и бывает
+          она какой угодно — 39 часов, 30, 24 у несовершеннолетних. Список
+          из трёх пунктов такого человека отправлял выбирать «примерно
+          похожее», то есть считать по чужой норме.
+
+          Поле стоит ПОД списком, а не вместо него: список отвечает на
+          вопрос «почему столько», и у трёх самых частых случаев ответ уже
+          есть — со статьёй. Своя норма — выход для остальных, и она
+          требует от человека знать своё основание самому. */}
+      {ground === "custom" ? (
+        <Field
+          id={normHoursId}
+          label="Часов в неделю"
+          note="Столько, сколько назначено приказом, трудовым или коллективным договором. Ссылаться при споре придётся на них: статьи для этого случая приложение назвать не может."
+        >
+          <HoursField
+            id={normHoursId}
+            value={profile.weeklyNormHours ?? ""}
+            check={weeklyHoursFieldError}
+            onChange={(weeklyNormHours) =>
+              onChange((previous) => ({ ...previous, weeklyNormHours }))
+            }
+          />
+        </Field>
+      ) : null}
 
       {/* Любая смена, а не первая в году: цикл одинаков в обе стороны,
           поэтому одна известная дата задаёт весь график — хоть

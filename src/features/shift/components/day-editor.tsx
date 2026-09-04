@@ -1,6 +1,6 @@
 "use client";
 
-import { Pencil, Trash2 } from "lucide-react";
+import { Pencil } from "lucide-react";
 
 import { cn } from "@/lib/utils/cn";
 import { useId, useState, type ReactNode } from "react";
@@ -28,10 +28,6 @@ import {
   spanMinutes,
   type ShiftSpan,
 } from "../domain/shift-hours";
-import {
-  ABSENCE_KIND_BASIS,
-  CALLOUT_KIND_BASIS,
-} from "../domain/value-objects";
 import {
   scheduleSpanAt,
   shiftOn,
@@ -915,38 +911,6 @@ function ShiftHoursField({
         </Button>
       )}
     </div>
-  );
-}
-
-function Entry({
-  title,
-  detail,
-  basis,
-  onRemove,
-}: {
-  title: string;
-  detail: string;
-  basis: string;
-  onRemove: () => void;
-}) {
-  return (
-    <li className="flex items-start justify-between gap-3 py-2">
-      <div className="min-w-0 space-y-0.5">
-        <p className="text-sm font-medium">{title}</p>
-        <p className="font-mono text-xs">{detail}</p>
-        <p className="text-xs text-ink-muted">{basis}</p>
-      </div>
-      <Button
-        type="button"
-        variant="ghost"
-        size="sm"
-        onClick={onRemove}
-        aria-label={`Удалить: ${title}`}
-      >
-        <Trash2 aria-hidden />
-        Удалить
-      </Button>
-    </li>
   );
 }
 

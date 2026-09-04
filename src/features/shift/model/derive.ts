@@ -7,7 +7,7 @@
  * порядок вывода нормы.
  */
 
-import { Dec } from "../domain/decimal";
+import { Dec, parseHours } from "../domain/decimal";
 import {
   calculatePeriod,
   SCAN_LEAD_DAYS,
@@ -57,6 +57,10 @@ export function weeklyNormInputOf(profile: StoredProfile): WeeklyNormInput {
   return {
     conditions: profile.workingConditions,
     disabilityGroupIorII: profile.disabilityGroupIorII,
+    // Строка из профиля разбирается ЗДЕСЬ, на границе с доменом: домен
+    // считает числами и о том, что часы где-то лежат строкой, знать не
+    // должен. Мусор и пустое дают `null` — то есть «своей нормы нет».
+    customHours: profile.weeklyNormHours === null ? null : parseHours(profile.weeklyNormHours),
   };
 }
 
@@ -78,11 +82,27 @@ export function weeklyNormOf(profile: StoredProfile): WeeklyNorm {
  */
 export function weeklyNormGroundFacts(
   ground: WeeklyNormGround,
-): Pick<StoredProfile, "workingConditions" | "disabilityGroupIorII"> {
+  /**
+   * Чем заполнить своё поле, когда выбрана «Своя».
+   *
+   * Пустым его оставлять нельзя: пустое значит «своей нормы нет», и выбор
+   * тут же откатился бы к сорока часам — человек нажал бы «Своя» и увидел
+   * прежнее. Поэтому поле открывается с той нормой, что действует сейчас:
+   * её и правят.
+   */
+  hours = "",
+): Pick<
+  StoredProfile,
+  "workingConditions" | "disabilityGroupIorII" | "weeklyNormHours"
+> {
   const facts = weeklyNormGroundToFacts(ground);
   return {
     workingConditions: facts.conditions,
     disabilityGroupIorII: facts.disabilityGroupIorII,
+    // Выбрано основание из закона — своя норма снимается: иначе она
+    // продолжала бы перебивать выбранное, и список показывал бы одно, а
+    // расчёт считал другое.
+    weeklyNormHours: ground === "custom" ? hours : null,
   };
 }
 
