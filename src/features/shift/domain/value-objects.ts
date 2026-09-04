@@ -296,7 +296,7 @@ export const WEEKLY_NORM_GROUNDS: readonly WeeklyNormGround[] = [
   "base",
   "harmful",
   "disability",
-  // Своя — последней: это выход для тех, чьего основания в списке нет, а
+  // Настроить — последней: это выход для тех, чьего основания в списке нет, а
   // не первое, что стоит примерить.
   "custom",
 ];
@@ -305,7 +305,7 @@ export const WEEKLY_NORM_GROUND_LABELS: Record<WeeklyNormGround, string> = {
   base: "40 ч",
   harmful: "36 ч",
   disability: "35 ч",
-  custom: "Своя",
+  custom: "Настроить",
 };
 
 /** Признаки, которые задаёт выбранное основание. */
