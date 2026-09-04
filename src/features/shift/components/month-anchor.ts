@@ -53,8 +53,12 @@ export function anchorCurrentMonth(): void {
     // вызовов и правок календаря — разбирать их здесь незачем, нужно одно
     // число. Не нашлось — считаем, что год нынешний: у только что
     // созданного профиля так и есть.
+    // Профиля нет вовсе — двигать нечего: расчёта не будет, экран уводит
+    // человека на главную. Прокрученная перед этим страница успела бы
+    // мигнуть серединой года.
     const stored = localStorage.getItem("shift-schedule.profile");
-    const found = stored === null ? null : /"accountingYear"\s*:\s*(\d{4})/.exec(stored);
+    if (stored === null) return;
+    const found = /"accountingYear"\s*:\s*(\d{4})/.exec(stored);
     if (found !== null && Number(found[1]) !== year) return;
 
     const key = `${year}-${String(now.getMonth() + 1).padStart(2, "0")}`;

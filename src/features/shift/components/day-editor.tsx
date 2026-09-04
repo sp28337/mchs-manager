@@ -209,6 +209,7 @@ export function DayEditor({ day, kind, profile, onChange, onClose }: DayEditorPr
           kind={kind}
           profile={profile}
           onChange={onChange}
+          onClose={onClose}
         />
       ) : null}
     </Modal>
@@ -220,11 +221,20 @@ function DayForm({
   kind,
   profile,
   onChange,
+  onClose,
 }: {
   day: IsoDate;
   kind: DayEditorKind;
   profile: StoredProfile;
   onChange: (change: (previous: StoredProfile) => StoredProfile) => void;
+  /**
+   * Закрыть окно суток целиком.
+   *
+   * Нужно ровно одному месту — кнопке «Готово» в окне времени: назвав срок
+   * или часы, человек закончил, и оставлять ему второе окно на закрытие
+   * незачем.
+   */
+  onClose: () => void;
 }) {
   const dayTypeId = useId();
   const noteId = useId();
@@ -730,6 +740,20 @@ function DayForm({
         <DayTimeModal
           detail={detail}
           onClose={() => setDetail(null)}
+          // «Готово» закрывает ОБА окна, а крестик и Esc — только верхнее.
+          //
+          // Порядок такой: человек отметил отпуск, окно времени открылось
+          // само и спросило, по какое число; он ответил и нажал «Готово».
+          // Дальше в окне дня ему делать нечего — оно и так всё записало по
+          // ходу правки, — а закрывать его вторым нажатием приходилось
+          // вручную, и на телефоне это два прицельных попадания подряд.
+          //
+          // Крестик и Esc — жест «назад», и вести они должны туда, откуда
+          // пришли: обратно в сутки, где можно отметить что-то ещё.
+          onDone={() => {
+            setDetail(null);
+            onClose();
+          }}
           day={day}
           profile={profile}
           startsAt={startsAt}
@@ -947,6 +971,7 @@ function Entry({
 function DayTimeModal({
   detail,
   onClose,
+  onDone,
   day,
   profile,
   startsAt,
@@ -957,7 +982,10 @@ function DayTimeModal({
   onTime,
 }: {
   detail: DayPick | "shift" | null;
+  /** Закрыть это окно и вернуться в сутки: крестик, Esc, нажатие мимо. */
   onClose: () => void;
+  /** Названное записано, спрашивать больше нечего: закрыть и это окно, и сутки. */
+  onDone: () => void;
   day: IsoDate;
   profile: StoredProfile;
   startsAt: string;
@@ -1045,7 +1073,7 @@ function DayTimeModal({
           ) : null}
         </Card>
 
-        <Button type="button" onClick={onClose}>
+        <Button type="button" onClick={onDone}>
           Готово
         </Button>
       </div>

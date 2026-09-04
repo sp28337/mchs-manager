@@ -323,10 +323,16 @@ export function YearView({
   const centred = useRef(false);
   useEffect(() => {
     if (centred.current) return;
-    centred.current = true;
     if (!window.matchMedia("(max-width: 767px)").matches) return;
     const key = todayIso().slice(0, 7);
     const frame = requestAnimationFrame(() => {
+      // Отметка ставится здесь, а не при заводе кадра: в строгом режиме
+      // React монтирует дерево дважды, и первый заход отменяется своей же
+      // уборкой. Стой отметка выше — второй заход счёл бы дело сделанным, и
+      // на переходе с главной страница осталась бы на январе. Поймано на
+      // сервере разработки: прокрутка 0 при живой сетке из двенадцати
+      // месяцев.
+      centred.current = true;
       if (document.querySelector(`[data-month="${key}"]`) === null) {
         // Месяца нет — снимаем догадку заглушки: она прокрутила страницу к
         // месту, которого в расчёте не оказалось.
