@@ -49,12 +49,14 @@ export function LiveModeSwitch({
   className?: string;
 }) {
   return (
-    <span className={cn("inline-flex w-full items-center gap-1.5", className)}>
+    <span className={cn("inline-flex items-center gap-1.5", className)}>
       <Switch
         checked={profile.liveMode}
         onChange={(liveMode) => onChange((previous) => ({ ...previous, liveMode }))}
-        label="Онлайн"
-        spread
+        // Видимую подпись даёт строка настроек — там же, где знак вопроса
+        // с пояснением. Тумблеру она всё равно нужна: без неё программа
+        // чтения произнесёт одно состояние, не назвав, чего оно касается.
+        label={<span className="sr-only">Онлайн</span>}
       />
     </span>
   );
