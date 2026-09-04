@@ -102,10 +102,19 @@ export function SettingsTabs({
             key={id}
             active={tab === id}
             onClick={() => show(id)}
-            className="grow"
+            // Ячейка ужимается и подпись обрезается многоточием.
+            // -------------------------------------------------------------
+            // Ячейки переключателя по умолчанию не жмутся вовсе
+            // (`shrink-0`), и на 320 точках пара «Настройки профиля» и
+            // «Внесённые изменения» просила 341 точку при 278 доступных:
+            // окно настроек начинало ездить вбок на 47 точек. Обрезанная
+            // подпись здесь честнее горизонтальной прокрутки — вторая
+            // ячейка и так подписана значком, а какая из двух открыта,
+            // видно по подъёму.
+            className="min-w-0 shrink grow"
           >
             <Icon aria-hidden />
-            {label}
+            <span className="truncate">{label}</span>
           </SegmentedItem>
         ))}
       </Segmented>
@@ -131,7 +140,13 @@ export function SettingsTabs({
           <DangerActions onForget={onForget} onChange={onChange} showReset={false} />
         </div>
       ) : (
-        <ChangesList profile={profile} onChange={onChange} onOpenDay={onOpenDay} />
+        <ChangesList
+          profile={profile}
+          onChange={onChange}
+          onOpenDay={onOpenDay}
+          // Начало отсчёта правится в анкете, и строка перечня ведёт туда.
+          onOpenProfile={() => show("profile")}
+        />
       )}
       </div>
 
