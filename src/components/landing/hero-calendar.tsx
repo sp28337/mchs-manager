@@ -373,9 +373,23 @@ function Cell({
         // слой по ходу анимации значило бы завести состояние там, где
         // хватает порядка.
         absence ? "z-1000" : "z-999",
+        // Блик лампы на клетке под отметкой гаснет.
+        //
+        // Он рисуется накладкой поверх содержимого клетки (`lit-tile` в
+        // `globals.css`), то есть лежит и поверх отметки, а отметка
+        // появляется с подскоком и на середине хода крупнее клетки —
+        // и замкнутый светлый контур оказывается ВНУТРИ красного, будто
+        // под ним лежит ещё одна клетка и лампа светит на неё.
+        //
+        // Гасить его классом, а не тем же `hero-cal__under`: рамка гаснет
+        // у ВИДА СМЕНЫ внутри клетки, а блик принадлежит самой клетке —
+        // это разные коробки.
+        absence && "hero-cal__unlit",
         corners,
       )}
-      style={vars(index)}
+      // Срок отметки живёт на клетке, а внутренние слои берут его по
+      // наследству: разъехаться трём срокам нельзя, а одному — нечем.
+      style={vars(absence ? { ...index, "--at": ABSENCE_AT[absence] } : index)}
     >
       <div
         className={cn(
@@ -394,7 +408,6 @@ function Cell({
           // переменной.
           absence && "hero-cal__under",
         )}
-        style={absence ? vars({ "--at": ABSENCE_AT[absence] }) : undefined}
       >
         <span className="font-mono text-[1em]">{children}</span>
         {/* Вторая строка есть у каждой клетки: часы смены или «В». Без
@@ -410,7 +423,6 @@ function Cell({
             "rounded-md border leading-tight",
             ABSENCE_TONE[absence],
           )}
-          style={vars({ "--at": ABSENCE_AT[absence] })}
         >
           <span className="font-mono text-[1em]">{children}</span>
           <span className="font-mono text-[0.7em]">{ABSENCE_MARK[absence]}</span>
