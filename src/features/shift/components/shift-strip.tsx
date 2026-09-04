@@ -530,25 +530,48 @@ function DayCell({
   if (parts.length > 1 && workedHours.greaterThan(0)) {
     parts.push(`всего за сутки ${hoursTrim(workedHours)} ч`);
   }
-  // Вполголоса помечаются только те сутки, у которых своей записи нет.
-  // Смена — хоть отработанная, хоть пропущенная, — и вызов говорят о
-  // сутках больше, чем протяжённость отпуска, и место в клетке отдаётся
-  // им. Отработанный хвост смены, зашедший в первый день отпуска, так и
-  // остаётся отработанным: часы за него посчитаны.
-  const quiet = records.length === 0 ? covered : null;
-
-  const label =
-    `${where} — ` +
-    (parts.length > 0
-      ? parts.join("; ")
-      : quiet
-        ? `${ABSENCE_LABELS[quiet].toLowerCase()}, выходной по графику`
-        : "свободные сутки");
-
   const worked = shift !== undefined && shift.absenceKind === null;
   const calloutKinds = callouts.flatMap((record) =>
     record.calloutKind ? [record.calloutKind] : [],
   );
+
+  /**
+   * Отпуск, накрывающий эти сутки, — вполголоса.
+   *
+   * Своей записи у таких суток нет: есть свободные сутки внутри отпуска и
+   * есть ХВОСТ вчерашней смены, зашедший в первый день отпуска. И то и
+   * другое отпуск накрывает целиком, и показать это обязан.
+   *
+   * Хвост раньше отменял отметку. Человек отмечал отпуск с 11-го, смена
+   * начиналась 10-го и кончалась в 8 утра 11-го — и клетка 11-го не
+   * менялась НИКАК: ни цветом, ни буквой. При этом норма падала на восемь
+   * часов, а переработка на столько же росла — то есть расчёт отпуск
+   * видел, а сетка о нём молчала, и человек читал это как «не сработало».
+   *
+   * Часы хвоста при этом остаются в клетке числом (ниже): они отработаны и
+   * посчитаны. Отпуск говорит цветом и рамкой, часы — числом; спорить им
+   * не о чем, это разные каналы.
+   *
+   * Свою запись суток отпуск не заменяет: заступление на смену, вызов и
+   * пропущенная смена говорят о сутках больше, чем протяжённость отпуска,
+   * и место в клетке отдаётся им.
+   */
+  const tailOnly =
+    shift !== undefined && !shift.isShiftStart && shift.absenceKind === null;
+  const quiet =
+    (records.length === 0 || (tailOnly && calloutKinds.length === 0)) ? covered : null;
+
+  const label =
+    `${where} — ` +
+    (parts.length > 0
+      ? // Отпуск дописывается к своим записям, а не заменяет их: на хвосте
+        // смены, зашедшем в отпуск, верно и то и другое, и незрячий
+        // читатель должен услышать обе половины — как зрячий видит и часы,
+        // и цвет.
+        parts.join("; ") + (quiet ? `; ${ABSENCE_LABELS[quiet].toLowerCase()}` : "")
+      : quiet
+        ? `${ABSENCE_LABELS[quiet].toLowerCase()}, выходной по графику`
+        : "свободные сутки");
 
   // Заметка названа в подписи, а не только помечена углом: угла незрячий
   // читатель не увидит, а знать о записи ему нужно так же.
@@ -600,9 +623,13 @@ function DayCell({
           "focus-visible:outline-2 focus-visible:-outline-offset-2",
           "focus-visible:outline-trace",
           records.length === 0 && !quiet && "bg-paper-raised text-ink-faint rounded-md",
-          quiet && cn("border", ABSENCE_TONE_QUIET[quiet]),
           worked && shift.isShiftStart && "bg-verify/30 text-verify rounded-md border border-verify/25",
           worked && !shift.isShiftStart && "bg-verify/5 text-verify rounded-md border border-verify/15",
+          // Отпуск вполголоса — ПОСЛЕ отработанного, и порядок тут решает
+          // всё: у хвоста, зашедшего в отпуск, обе строки правдивы, и
+          // побеждать должна та, которую человек только что внёс. Стояла
+          // она выше — и отметка отпуска не меняла в клетке ничего.
+          quiet && cn("border", ABSENCE_TONE_QUIET[quiet]),
           shift?.absenceKind && cn("border", ABSENCE_TONE[shift.absenceKind]),
           calloutKinds.length > 0 && "border border-trace bg-trace-soft text-trace",
           calloutKinds.length > 1 && "border-2 rounded-xl",
@@ -649,15 +676,29 @@ function DayCell({
             calloutKinds.length > 1 ? "text-[0.67em] tracking-tighter" : "text-[0.75em]",
           )}
         >
+          {/* Порядок здесь и есть правило, что показывать в клетке.
+              ------------------------------------------------------------
+              Своя запись суток идёт раньше накрывшего их отпуска: буква
+              пропущенной смены остаётся буквой и тогда, когда в тех же
+              сутках отработан хвост вчерашней (законный случай при графике
+              «два через два»).
+
+              А вот часы стоят раньше буквы НАКРЫВШЕГО отпуска: у хвоста,
+              зашедшего в первый день отпуска, они отработаны и посчитаны,
+              и подменить их буквой значило бы стереть с сетки восемь
+              часов, которые в итоге есть. Отпуск на таких сутках говорит
+              цветом и рамкой — канал у него свой. */}
           {calloutKinds.length > 0
             ? calloutMarks(calloutKinds)
-            : quiet
-              ? ABSENCE_MARK[quiet]
-              : records.length === 0
-                ? "В"
-                : shift?.absenceKind
-                  ? ABSENCE_MARK[shift.absenceKind]
-                  : hoursTrim(workedHours)}
+            : shift?.absenceKind
+              ? ABSENCE_MARK[shift.absenceKind]
+              : workedHours.greaterThan(0)
+                ? hoursTrim(workedHours)
+                : quiet
+                  ? ABSENCE_MARK[quiet]
+                  : records.length === 0
+                    ? "В"
+                    : hoursTrim(workedHours)}
         </span>
       </div>
     </button>

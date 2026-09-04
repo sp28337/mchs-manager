@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils/cn";
 
 import { parseHours } from "../domain/decimal";
+import { MAX_WEEKLY_HOURS } from "../domain/value-objects";
 
 /**
  * Часы дробным числом — с проверкой на месте.
@@ -42,19 +43,46 @@ export function hoursFieldError(value: string): string | null {
   return null;
 }
 
+/**
+ * Та же проверка, но для НЕДЕЛЬНОЙ нормы.
+ *
+ * Пределы у неё свои: больше сорока часов рабочая неделя быть не может
+ * (ч. 2 ст. 91 ТК РФ), а своя норма затем и заведена, чтобы назвать
+ * СОКРАЩЁННУЮ неделю, которой нет в списке оснований. Сообщения тоже
+ * свои: «смена не может быть длиннее суток» человеку, вводящему норму,
+ * ничего не объясняет.
+ */
+export function weeklyHoursFieldError(value: string): string | null {
+  const parsed = parseHours(value);
+  if (parsed === null) return "Часы — число, например 36 или 39,5.";
+  if (parsed.lessThanOrEqualTo(0)) return "Неделя длится больше нуля часов.";
+  if (parsed.greaterThan(MAX_WEEKLY_HOURS.toNumber())) {
+    return "Больше 40 часов рабочая неделя быть не может (ч. 2 ст. 91 ТК РФ).";
+  }
+  return null;
+}
+
 export function HoursField({
   value,
   onChange,
   id,
   className,
+  check = hoursFieldError,
 }: {
   value: string;
   onChange: (value: string) => void;
   id?: string;
   className?: string;
+  /**
+   * Чем проверять набранное. По умолчанию — часами смены: их поле и
+   * появилось первым. Недельной норме нужны другие пределы и другие
+   * слова (`weeklyHoursFieldError`), а всё остальное у полей общее — от
+   * разметки до `aria-invalid`, — и второй копии они не стоят.
+   */
+  check?: (value: string) => string | null;
 }) {
   const errorId = useId();
-  const error = hoursFieldError(value);
+  const error = check(value);
 
   return (
     <div className={cn("space-y-1.5", className)}>

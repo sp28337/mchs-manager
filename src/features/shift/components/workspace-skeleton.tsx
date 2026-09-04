@@ -1,4 +1,4 @@
-import { FolderOpen, Save, Settings2, ZoomIn, ZoomOut } from "lucide-react";
+import { FolderOpen, Save, Settings, ZoomIn, ZoomOut } from "lucide-react";
 
 import type { ReactNode } from "react";
 
@@ -262,6 +262,7 @@ export function WorkspaceSkeleton() {
           <DeckCellBone caption="Онлайн" icon={<LiveSignal on={false} />} />
         </div>
       </div>
+
     </main>
   );
 }
@@ -324,7 +325,7 @@ export function HeaderToolsBones() {
   return (
     <div className="flex items-center gap-2">
       {[
-        { label: "Настройки", Icon: Settings2 },
+        { label: "Настройки", Icon: Settings },
         { label: "Открыть", Icon: FolderOpen },
         { label: "Сохранить", Icon: Save },
       ].map(({ label, Icon }) => (

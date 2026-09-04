@@ -1,6 +1,6 @@
 "use client";
 
-import { FolderOpen, Save, Settings2, type LucideIcon } from "lucide-react";
+import { FolderOpen, Save, Settings, type LucideIcon } from "lucide-react";
 import { useRef, useState, type CSSProperties } from "react";
 
 import { Modal } from "@/components/ui/modal";
@@ -84,7 +84,7 @@ type ToolId = "settings" | "open" | "save";
  * целиком — «Сохранить в файл» вместо «Сохранить».
  */
 const TOOL_META: Record<ToolId, { label: string; title: string; Icon: LucideIcon }> = {
-  settings: { label: "Настройки", title: "Настройки", Icon: Settings2 },
+  settings: { label: "Настройки", title: "Настройки", Icon: Settings },
   open: { label: "Открыть", title: "Открыть профиль из файла", Icon: FolderOpen },
   save: { label: "Сохранить", title: "Сохранить в файл", Icon: Save },
 };
@@ -255,7 +255,7 @@ export function HeaderTools({
               labelled && "sheet__mark",
             )}
           >
-            <Settings2
+            <Settings
               aria-hidden
               className={cn(
                 "size-5 shrink-0 text-ink-muted",

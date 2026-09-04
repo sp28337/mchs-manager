@@ -158,6 +158,38 @@ export interface WeeklyNorm {
 export interface WeeklyNormInput {
   conditions: WorkingConditions;
   disabilityGroupIorII?: boolean;
+  /**
+   * Своя норма — столько часов в неделю, сколько человек назвал сам.
+   *
+   * Перебивает любое основание из закона, и это не своеволие: сокращённая
+   * неделя бывает не только по спецоценке и инвалидности. Её ставят
+   * коллективным договором, отраслевым соглашением, приказом по части — и
+   * бывает она какой угодно: 39 часов, 30, 24 у несовершеннолетних
+   * (ст. 92 ТК РФ). Перечислить все основания списком нельзя, а человек с
+   * приказом на руках свою норму знает точно.
+   *
+   * Пустое или бессмысленное значение поле не ломает: тогда действует
+   * основание из закона, как будто своей нормы и не назвали.
+   */
+  customHours?: Decimal | null;
+}
+
+/**
+ * Больше сорока часов рабочая неделя быть не может (ч. 2 ст. 91 ТК РФ) — и
+ * своя норма это правило не отменяет: она затем и заведена, чтобы назвать
+ * СОКРАЩЁННУЮ неделю, которой нет в списке оснований.
+ */
+export const MAX_WEEKLY_HOURS = FULL_WEEKLY_HOURS;
+
+/** Годится ли названное число в недельную норму. */
+export function isWeeklyNormHours(hours: Decimal | null | undefined): hours is Decimal {
+  return (
+    hours !== null &&
+    hours !== undefined &&
+    hours.isFinite() &&
+    hours.greaterThan(0) &&
+    hours.lessThanOrEqualTo(MAX_WEEKLY_HOURS)
+  );
 }
 
 /**
@@ -190,7 +222,20 @@ export interface WeeklyNormInput {
 export function deriveWeeklyNorm({
   conditions,
   disabilityGroupIorII = false,
+  customHours = null,
 }: WeeklyNormInput): WeeklyNorm {
+  // Своя норма стоит первой: назвав её, человек ответил на вопрос прямо, и
+  // выводить за него что-то другое означало бы спорить с приказом, который
+  // у него на руках.
+  if (isWeeklyNormHours(customHours)) {
+    return {
+      hours: customHours,
+      basis:
+        "Ваша величина: столько назначено приказом, трудовым или " +
+        "коллективным договором",
+    };
+  }
+
   if (disabilityGroupIorII) {
     return {
       hours: DISABILITY_WEEKLY_HOURS,
@@ -238,7 +283,7 @@ export function deriveWeeklyNorm({
  * они разойдутся, человек увидит в настройках «36 часов», а в расчёте
  * получит 40. Оба живут в одном файле и покрыты общим тестом.
  */
-export type WeeklyNormGround = "base" | "harmful" | "disability";
+export type WeeklyNormGround = "base" | "harmful" | "disability" | "custom";
 
 /**
  * Все основания списком, в порядке от общего к самому редкому.
@@ -251,12 +296,16 @@ export const WEEKLY_NORM_GROUNDS: readonly WeeklyNormGround[] = [
   "base",
   "harmful",
   "disability",
+  // Настроить — последней: это выход для тех, чьего основания в списке нет, а
+  // не первое, что стоит примерить.
+  "custom",
 ];
 
 export const WEEKLY_NORM_GROUND_LABELS: Record<WeeklyNormGround, string> = {
   base: "40 ч",
   harmful: "36 ч",
   disability: "35 ч",
+  custom: "Настроить",
 };
 
 /** Признаки, которые задаёт выбранное основание. */
@@ -264,6 +313,8 @@ export function weeklyNormGroundToFacts(ground: WeeklyNormGround): {
   conditions: WorkingConditions;
   disabilityGroupIorII: boolean;
 } {
+  // У своей нормы признаков нет вовсе: её несёт само число, и условия
+  // труда с инвалидностью при ней ни на что не влияют.
   return {
     conditions: ground === "harmful" ? "harmful_or_dangerous" : "normal",
     disabilityGroupIorII: ground === "disability",
@@ -278,6 +329,7 @@ export function weeklyNormGroundToFacts(ground: WeeklyNormGround): {
  * настройки показали бы «36», а расчёт взял бы 35.
  */
 export function weeklyNormGroundOf(input: WeeklyNormInput): WeeklyNormGround {
+  if (isWeeklyNormHours(input.customHours)) return "custom";
   if (input.disabilityGroupIorII) return "disability";
   if (input.conditions === "harmful_or_dangerous") return "harmful";
   return "base";
