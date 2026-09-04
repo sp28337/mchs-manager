@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarCog, Clock, Pencil, StickyNote, X } from "lucide-react";
+import { CalendarCog, Clock, Flag, Pencil, StickyNote, X } from "lucide-react";
 import type { ReactNode } from "react";
 
 import { cn } from "@/lib/utils/cn";
@@ -63,8 +63,15 @@ type Change = {
   mark: ReactNode;
   what: string;
   when: string;
-  /** Какой сеткой открывать сутки: правки календаря живут на своей. */
-  grid: "shifts" | "calendar";
+  /**
+   * Куда ведёт нажатие по строке.
+   *
+   * Сетка — для того, что человек отмечал НА СУТКАХ: там же это и правится.
+   * `profile` — для начала отсчёта: оно живёт не в сутках, а в анкете, и
+   * отправлять человека в клетку 16 марта значило бы открыть ему окно, где
+   * про начало отсчёта не сказано ни слова.
+   */
+  grid: "shifts" | "calendar" | "profile";
   remove: (previous: StoredProfile) => StoredProfile;
 };
 
@@ -210,6 +217,37 @@ export function changesOf(profile: StoredProfile): Change[] {
     });
   }
 
+  /**
+   * Начало отсчёта — такая же внесённая правка, как остальные.
+   *
+   * Оно обрезает период слева: до этой даты график не человека, и норма за
+   * те дни тоже не его. Стояло оно только полем в анкете, и человек,
+   * увидевший, что январь и февраль пропали с сетки, шёл искать причину по
+   * всем настройкам — при том, что перечень внесённого заведён ровно для
+   * ответа на вопрос «что я наотмечал».
+   *
+   * Пустое значение сюда не попадает: «с начала периода» — это не правка, а
+   * умолчание, и строки в перечне у него быть не должно.
+   */
+  if (profile.countFrom !== null) {
+    const from = profile.countFrom as IsoDate;
+    rows.push({
+      id: "count-from",
+      day: from,
+      mark: (
+        <ToolMark>
+          <Flag aria-hidden />
+        </ToolMark>
+      ),
+      what: "Начало отсчёта",
+      // «С такого-то», а не голая дата: остальные строки называют сутки или
+      // отрезок, а это — граница, от которой идёт счёт.
+      when: `с ${formatDateRu(from)}`,
+      grid: "profile",
+      remove: (previous) => ({ ...previous, countFrom: null }),
+    });
+  }
+
   for (const [day, note] of Object.entries(profile.dayNotes)) {
     rows.push({
       id: `note:${day}`,
@@ -236,6 +274,7 @@ export function ChangesList({
   profile,
   onChange,
   onOpenDay,
+  onOpenProfile,
 }: {
   profile: StoredProfile;
   onChange: (change: (previous: StoredProfile) => StoredProfile) => void;
@@ -252,6 +291,12 @@ export function ChangesList({
    * «поменять» отдаёт туда, где это уже умеют, — в те самые сутки.
    */
   onOpenDay: (day: IsoDate, grid: "shifts" | "calendar") => void;
+  /**
+   * Открыть закладку анкеты.
+   *
+   * Нужно одной строке — началу отсчёта: оно задаётся там, а не в сутках.
+   */
+  onOpenProfile: () => void;
 }) {
   const rows = changesOf(profile);
 
@@ -287,7 +332,11 @@ export function ChangesList({
                   нажатию, а не вторая кнопка. */}
               <button
                 type="button"
-                onClick={() => onOpenDay(row.day, row.grid)}
+                onClick={() =>
+                  row.grid === "profile"
+                    ? onOpenProfile()
+                    : onOpenDay(row.day, row.grid)
+                }
                 className={cn(
                   "flex min-w-0 grow cursor-pointer items-center gap-2 rounded-lg py-1 text-left",
                   "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-trace",
@@ -331,14 +380,4 @@ export function ChangesList({
       <DangerActions onChange={onChange} />
     </div>
   );
-}
-
-/** Русское число при существительном: одна правка, две правки, пять правок. */
-function plural(n: number, one: string, few: string, many: string): string {
-  const tens = n % 100;
-  if (tens >= 11 && tens <= 14) return many;
-  const ones = n % 10;
-  if (ones === 1) return one;
-  if (ones >= 2 && ones <= 4) return few;
-  return many;
 }

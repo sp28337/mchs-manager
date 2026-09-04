@@ -1,5 +1,5 @@
 import type { CSSProperties, ReactNode } from "react";
-import { Save, Settings2 } from "lucide-react";
+import { Save, Settings } from "lucide-react";
 
 import { MonthGrid } from "@/features/shift/components/month-grid";
 import {
@@ -145,6 +145,14 @@ function Day({
       className={cn(
         "relative",
         corners !== undefined && "bg-paper-raised lit-tile",
+        // Блик лампы гаснет на время, пока сутки показаны другими.
+        //
+        // Он лежит накладкой поверх содержимого клетки (`lit-tile` в
+        // `globals.css`), новый вид полупрозрачен и на подскоке крупнее
+        // клетки — и светлый контур блика оказывается ВНУТРИ него, будто
+        // под новым видом лежат ещё одни сутки. Ровно то же, что на
+        // первом экране, и лечится тем же.
+        becomes && "demo-unlit",
         corners,
         className,
       )}
@@ -634,7 +642,7 @@ export function DemoStorage() {
             лампы по кромке и кладёт тень, как все прочие блоки страницы.
             Рамка на этом фоне читалась чертежом среди предметов. */}
         <div className="lit relative flex items-center justify-end gap-2 rounded-t-xl bg-paper-raised px-3 py-2.5">
-          <HeaderButton icon={Settings2} label="Настройки" />
+          <HeaderButton icon={Settings} label="Настройки" />
           <HeaderButton icon={Save} label="Сохранить" className="demo-save-button" />
           <Pointer className="demo-tap-save right-8 top-7" />
         </div>

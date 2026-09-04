@@ -19,6 +19,7 @@ import { formatDateRu } from "../domain/format";
 import { todayIso, type IsoDate } from "../domain/plain-date";
 import type { StoredProfile } from "../storage/profile";
 import { CalendarIcon, ShiftsIcon } from "./grid-icons";
+import { anchorCurrentMonth } from "./month-anchor";
 import {
   LiveModeCell,
   LIVE_ON,
@@ -152,13 +153,6 @@ const GAP_REM = 1.5;
 /** Уже этого месяц не читается: клетка выходит в два десятка точек. */
 const MONTH_FLOOR_REM = 9;
 
-/**
- * Просвет между полосой с числами и месяцем, поставленным под неё при
- * открытии телефона. Ровно столько, чтобы название месяца не касалось
- * кромки полосы, — это не отступ раскладки, а зазор одной прокрутки.
- */
-const MONTH_GAP = 8;
-
 function rootFontSize(): number {
   return Number.parseFloat(getComputedStyle(document.documentElement).fontSize);
 }
@@ -281,6 +275,16 @@ export function YearView({
    * экранов подряд. Человек, открывший расчёт в сентябре, начинал с января
    * и листал восемь экранов до того места, ради которого пришёл. Каждый раз.
    *
+   * --- Прокрутка одна на расчёт и на заглушку -------------------------------
+   *
+   * Заглушка делает ту же прокрутку тем же кодом, и делает её РАНЬШЕ — пока
+   * браузер разбирает страницу (`month-anchor.ts`). Здесь она повторяется
+   * уже по настоящим сеткам: те совпадают с костями до пикселя, поэтому
+   * второй вызов обычно не двигает ничего. Двинет он в одном случае — если
+   * нынешнего месяца в показанном отрезке нет вовсе (человек смотрит
+   * позапрошлый год): тогда страница возвращается к началу, потому что
+   * заглушка успела встать на месяц, которого в расчёте не будет.
+   *
    * --- Куда именно ставится месяц -------------------------------------------
    *
    * Верхним краем ВПЛОТНУЮ ПОД полосу с числами — ту самую, что закреплена
@@ -319,28 +323,25 @@ export function YearView({
   const centred = useRef(false);
   useEffect(() => {
     if (centred.current) return;
-    centred.current = true;
     if (!window.matchMedia("(max-width: 767px)").matches) return;
     const key = todayIso().slice(0, 7);
-    let second = 0;
     const frame = requestAnimationFrame(() => {
-      // Нынешнего месяца в показанном отрезке может не быть вовсе —
-      // человек смотрит позапрошлый год. Тогда не двигаемся никуда.
-      const month = document.querySelector(`[data-month="${key}"]`);
-      if (month === null) return;
-      month.scrollIntoView({ block: "start" });
-      // Второй приём: полоса с числами закреплена, и её нижняя кромка
-      // становится известна только после первой прокрутки.
-      second = requestAnimationFrame(() => {
-        const bar = document.querySelector("[data-summary]");
-        const under = bar === null ? 0 : bar.getBoundingClientRect().bottom;
-        window.scrollBy(0, month.getBoundingClientRect().top - under - MONTH_GAP);
-      });
+      // Отметка ставится здесь, а не при заводе кадра: в строгом режиме
+      // React монтирует дерево дважды, и первый заход отменяется своей же
+      // уборкой. Стой отметка выше — второй заход счёл бы дело сделанным, и
+      // на переходе с главной страница осталась бы на январе. Поймано на
+      // сервере разработки: прокрутка 0 при живой сетке из двенадцати
+      // месяцев.
+      centred.current = true;
+      if (document.querySelector(`[data-month="${key}"]`) === null) {
+        // Месяца нет — снимаем догадку заглушки: она прокрутила страницу к
+        // месту, которого в расчёте не оказалось.
+        window.scrollTo(0, 0);
+        return;
+      }
+      anchorCurrentMonth();
     });
-    return () => {
-      cancelAnimationFrame(frame);
-      cancelAnimationFrame(second);
-    };
+    return () => cancelAnimationFrame(frame);
   }, []);
 
   const fits = roomWidth === 0 ? MONTHS_CAP : monthsThatFit(roomWidth);
