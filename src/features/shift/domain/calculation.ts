@@ -162,6 +162,16 @@ export interface PeriodCalculation {
   /** Часы по графику, пришедшиеся на отсутствия. Вычитаются из нормы. */
   readonly excludedHours: Decimal;
 
+  /**
+   * Те же часы, разложенные по видам освобождения.
+   *
+   * Сумма значений равна `excludedHours` — это не два счёта, а один и тот
+   * же, записанный по ходу. Видов, которые норму не уменьшают (отгул),
+   * здесь нет вовсе, и это единственно верно: перечень, приписавший отгулу
+   * снятые часы, назвал бы цену, которой у него не было.
+   */
+  readonly excludedByKind: ReadonlyMap<AbsenceKind, Decimal>;
+
   /** Норма к отработке: `baseNormHours − excludedHours`. */
   readonly normHours: Decimal;
 
@@ -326,6 +336,7 @@ export function calculatePeriod({
   const shifts: ShiftRecord[] = [];
   const days: DayRecord[] = [];
   let excluded = ZERO;
+  const excludedByKind = new Map<AbsenceKind, Decimal>();
   let actual = ZERO;
   let nightTotal = ZERO;
   let holidayTotal = ZERO;
@@ -440,8 +451,17 @@ export function calculatePeriod({
     // переработкой, а не освобождает от неё.
     const covering = absences.find((item) => absenceCovers(item, day));
     if (!covering || !ABSENCE_REDUCES_NORM[covering.kind]) continue;
-    excluded = excluded.plus(dailyNorm);
-    if (preHolidayDays.has(day)) excluded = excluded.minus(PRE_HOLIDAY_REDUCTION_HOURS);
+    let day_ = dailyNorm;
+    if (preHolidayDays.has(day)) day_ = day_.minus(PRE_HOLIDAY_REDUCTION_HOURS);
+    excluded = excluded.plus(day_);
+    // Тот же час, но разложенный по видам: перечень освобождений в
+    // статистике обязан называть цену каждого, а сложить их сам он не
+    // может — правило исключения живёт здесь и второй копии иметь не
+    // должно. Разойдись копии, и перечень перестал бы сходиться с нормой.
+    excludedByKind.set(
+      covering.kind,
+      (excludedByKind.get(covering.kind) ?? ZERO).plus(day_),
+    );
   }
 
   // Вызовы. Это исполнение трудовых обязанностей, то есть рабочее время
@@ -493,6 +513,7 @@ export function calculatePeriod({
     calendar,
     baseNormHours: base,
     excludedHours: excluded,
+    excludedByKind,
     normHours: norm,
     actualHours: actual,
     nightHours: nightTotal,

@@ -1,4 +1,4 @@
-import { FolderOpen, Save, Settings, ZoomIn, ZoomOut } from "lucide-react";
+import { ChartColumn, FolderOpen, Save, Settings, ZoomIn, ZoomOut } from "lucide-react";
 
 import type { ReactNode } from "react";
 
@@ -309,7 +309,7 @@ function DeckCellBone({
 }
 
 /**
- * Кнопки шапки: настройки, открытие и выгрузка.
+ * Кнопки шапки: настройки, статистика, открытие и выгрузка.
  *
  * Живут они в рабочем экране, а тот появляется только с профилем, — и
  * пока профиль читается, шапка стояла пустой, а потом в ней разом
@@ -326,6 +326,7 @@ export function HeaderToolsBones() {
     <div className="flex items-center gap-2">
       {[
         { label: "Настройки", Icon: Settings },
+        { label: "Статистика", Icon: ChartColumn },
         { label: "Открыть", Icon: FolderOpen },
         { label: "Сохранить", Icon: Save },
       ].map(({ label, Icon }) => (
