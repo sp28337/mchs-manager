@@ -34,11 +34,21 @@ import { DangerActions, SettingsPanel } from "./settings-panel";
  * одном экране — и человеку пришлось бы узнавать её отдельно.
  */
 
-type Tab = "profile" | "changes";
+/**
+ * Общий тип и подписи закладок — с ними же на телефоне устроена полоса
+ * цифр (`period-summary.tsx`): там те же два раздела встают на место
+ * итога, и имена у них обязаны совпадать день в день с этими.
+ */
+export type SettingsTab = "profile" | "changes";
 
-const TABS: { id: Tab; label: string; Icon: typeof SlidersHorizontal }[] = [
-  { id: "profile", label: "Настройки профиля", Icon: SlidersHorizontal },
-  { id: "changes", label: "Внесённые изменения", Icon: ListChecks },
+export const SETTINGS_TAB_LABEL: Record<SettingsTab, string> = {
+  profile: "Настройки профиля",
+  changes: "Внесённые изменения",
+};
+
+const TABS: { id: SettingsTab; label: string; Icon: typeof SlidersHorizontal }[] = [
+  { id: "profile", label: SETTINGS_TAB_LABEL.profile, Icon: SlidersHorizontal },
+  { id: "changes", label: SETTINGS_TAB_LABEL.changes, Icon: ListChecks },
 ];
 
 export function SettingsTabs({
@@ -53,7 +63,7 @@ export function SettingsTabs({
   /** Открыть сутки на сетке — и закрыть настройки, чтобы их было видно. */
   onOpenDay: (day: IsoDate, grid: "shifts" | "calendar") => void;
 }) {
-  const [tab, setTab] = useState<Tab>("profile");
+  const [tab, setTab] = useState<SettingsTab>("profile");
 
   /**
    * Окно не схлопывается при переходе на другую закладку.
@@ -70,7 +80,7 @@ export function SettingsTabs({
   const pane = useRef<HTMLDivElement>(null);
   const [floor, setFloor] = useState(0);
 
-  function show(next: Tab) {
+  function show(next: SettingsTab) {
     if (next === tab) return;
     const box = pane.current;
     // Запоминается высота ПОКАЗАННОГО, а не содержимого.

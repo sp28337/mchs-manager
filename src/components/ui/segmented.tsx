@@ -52,17 +52,21 @@ export function SegmentedItem({
   onClick,
   children,
   className,
+  style,
 }: {
   active: boolean;
   onClick: () => void;
   children: ReactNode;
   className?: string;
+  /** Ручной сдвиг доли места — нужен только входной анимации переключателя. */
+  style?: React.CSSProperties;
 }) {
   return (
     <button
       type="button"
       aria-pressed={active}
       onClick={onClick}
+      style={style}
       className={cn(
         "inline-flex h-9 shrink-0 cursor-pointer items-center justify-center gap-1.5",
         "whitespace-nowrap rounded-lg px-3 text-xs font-medium transition-colors",

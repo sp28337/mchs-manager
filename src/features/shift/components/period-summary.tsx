@@ -1,9 +1,10 @@
 "use client";
 
-import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 
 import { BalanceCaption, BALANCE_SWAP_MS } from "@/components/ui/balance-caption";
 import { CountedNumber } from "@/components/ui/counted-number";
+import { Segmented, SegmentedItem } from "@/components/ui/segmented";
 import { cn } from "@/lib/utils/cn";
 
 import {
@@ -16,6 +17,7 @@ import {
 import { shiftMinutes } from "../domain/shift-hours";
 import { pendingTransfers } from "../domain/production-calendar";
 import type { PeriodCalculation } from "../domain/calculation";
+import { SETTINGS_TAB_LABEL, type SettingsTab } from "./settings-tabs";
 
 /**
  * Итог периода.
@@ -61,6 +63,7 @@ export function PeriodSummary({
   accountingYear,
   overtimeInDays,
   shiftDurationHours,
+  settings,
 }: {
   calculation: PeriodCalculation;
   accountingYear: number;
@@ -74,22 +77,134 @@ export function PeriodSummary({
    * бы назвать вдвое меньше смен, чем человек отработал сверх нормы.
    */
   shiftDurationHours: string;
+  /**
+   * Настройки вместо итога — только на телефоне (`workspace.tsx`): там
+   * блок цифр не закрывается окном, а сам превращается в закладки.
+   */
+  settings?: {
+    open: boolean;
+    tab: SettingsTab;
+    onTab: (tab: SettingsTab) => void;
+  };
 }) {
+  const settingsOpen = settings?.open ?? false;
   return (
     <>
       {/* `data-summary` — примета для дымки под закреплёнными полосами
           (`globals.css`): по ней она узнаёт, что под шапкой стоит ещё и
           полоса с числами, и растворение нужно длиннее — до её дна. */}
       <div data-summary className="sticky top-[calc(6rem+var(--safe-top))] z-40 -mx-6 -translate-y-8">
-        <FiguresRow
-          calculation={calculation}
-          inDays={overtimeInDays}
-          shiftHours={shiftDurationHours}
-        />
+        {/* Цифры и закладки лежат в одной ячейке грида и гаснут друг в
+            друга: блок занимает на экране одно и то же место, отмечает ли
+            человек день в календаре или открыл настройки, — меняется
+            только то, что внутри него. */}
+        <div className="relative grid">
+          <div
+            aria-hidden={settingsOpen}
+            inert={settingsOpen || undefined}
+            className={cn(
+              "col-start-1 row-start-1 transition-opacity duration-200",
+              settingsOpen ? "pointer-events-none opacity-0" : "opacity-100",
+            )}
+          >
+            <FiguresRow
+              calculation={calculation}
+              inDays={overtimeInDays}
+              shiftHours={shiftDurationHours}
+            />
+          </div>
+
+          {settings ? (
+            <div
+              aria-hidden={!settingsOpen}
+              inert={!settingsOpen || undefined}
+              className={cn(
+                "col-start-1 row-start-1 px-6 pb-3 transition-opacity duration-200",
+                settingsOpen ? "opacity-100" : "pointer-events-none opacity-0",
+              )}
+            >
+              <SettingsSwitch open={settingsOpen} tab={settings.tab} onTab={settings.onTab} />
+            </div>
+          ) : null}
+        </div>
       </div>
 
-      <PendingNotice accountingYear={accountingYear} />
+      {settingsOpen ? null : <PendingNotice accountingYear={accountingYear} />}
     </>
+  );
+}
+
+/**
+ * Переключатель закладок настроек — на месте итоговых цифр.
+ *
+ * --- Почему первая закладка сперва во всю ширину ----------------------------
+ *
+ * Цифры не подменяются переключателем мгновенно: гаснут они, а на их
+ * месте проступает одна широкая плашка «Настройки профиля» — там, где
+ * секунду назад читалась переработка, теперь читается имя раздела, тем же
+ * шрифтом, той же высоты. Только когда имя уже можно прочитать, правый
+ * край плашки трогается влево и освобождает место — утопленной дорожкой
+ * под второй закладкой, «Внесённые изменения».
+ *
+ * --- Как это устроено -------------------------------------------------------
+ *
+ * Обе закладки стоят в `Segmented` с самого начала, но у первой явно
+ * задана доля места (`flex-grow`) в несколько раз больше, чем у соседей по
+ * приложению принято, — она и забирает себе всю строку. Спустя короткую
+ * паузу доля возвращается к обычной (`grow` у `SegmentedItem` — единица),
+ * и переход на `flex-grow`, обычное число, доигрывает сдвиг сам: ничего не
+ * измеряется, потому что мерить нечего — итоговая ширина известна заранее.
+ */
+function SettingsSwitch({
+  open,
+  tab,
+  onTab,
+}: {
+  open: boolean;
+  tab: SettingsTab;
+  onTab: (tab: SettingsTab) => void;
+}) {
+  const [wide, setWide] = useState(true);
+
+  useEffect(() => {
+    if (!open) return;
+    // Каждое открытие обязано начинаться широкой плашкой заново — правило
+    // запрещает синхронный `setState` в эффекте ради лишнего прогона
+    // отрисовки, а здесь прогон и есть само появление, которое человек
+    // должен увидеть.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setWide(true);
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const timer = window.setTimeout(() => setWide(false), 260);
+    return () => window.clearTimeout(timer);
+  }, [open]);
+
+  return (
+    <Segmented label="Разделы настроек" className="relative flex h-14 w-full">
+      <SegmentedItem
+        active={tab === "profile"}
+        onClick={() => onTab("profile")}
+        style={{ flexGrow: wide ? 999 : 1 }}
+        className={cn(
+          "h-14 min-w-0 shrink text-sm",
+          "transition-[flex-grow] duration-[420ms] ease-[cubic-bezier(0.3,0,0.1,1)]",
+        )}
+      >
+        {SETTINGS_TAB_LABEL.profile}
+      </SegmentedItem>
+      <SegmentedItem
+        active={tab === "changes"}
+        onClick={() => onTab("changes")}
+        style={{ flexGrow: wide ? 0 : 1 }}
+        className={cn(
+          "h-14 min-w-0 shrink truncate text-sm",
+          "transition-[flex-grow,opacity] duration-[420ms] ease-[cubic-bezier(0.3,0,0.1,1)]",
+          wide && "opacity-0",
+        )}
+      >
+        {SETTINGS_TAB_LABEL.changes}
+      </SegmentedItem>
+    </Segmented>
   );
 }
 

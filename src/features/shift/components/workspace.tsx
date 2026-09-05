@@ -1,9 +1,10 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 
 import { Hint } from "@/components/ui/hint";
 import { SiteHeader } from "@/components/shared/site-header";
+import { useMediaQuery } from "@/lib/hooks/use-media-query";
 import { cn } from "@/lib/utils/cn";
 import { todayIso, type IsoDate } from "../domain/plain-date";
 import {
@@ -16,12 +17,15 @@ import {
   withShiftMoved,
 } from "../model/derive";
 import type { StoredProfile } from "../storage/profile";
+import { ChangesList } from "./changes-list";
 import { DayEditor } from "./day-editor";
 import { GridDeck, WORKSPACE_PAD } from "./grid-deck";
 import { HeaderTools } from "./header-tools";
 import { PeriodSummary } from "./period-summary";
 import { ProfileFooter } from "./profile-footer";
 import { ProfileName } from "./profile-name";
+import { DangerActions, SettingsPanel } from "./settings-panel";
+import { SETTINGS_TAB_LABEL, type SettingsTab } from "./settings-tabs";
 import { CalendarNote } from "./year-calendar-editor";
 import {
   YearView,
@@ -168,6 +172,36 @@ export function Workspace({ profile, onChange, onForget }: WorkspaceProps) {
   // то есть это ровно она: «по сегодня» кончается завтрашним днём.
   const upcoming = profile.liveMode ? periodEnd : null;
 
+  /**
+   * Настройки на телефоне — не окно, а другое содержимое ЭТОЙ страницы.
+   *
+   * --- Почему состояние живёт здесь --------------------------------------
+   *
+   * Открытие меняет разом три места: шапку (знак называет «Настройки»),
+   * полосу цифр (она становится закладками) и то, что стоит под ней
+   * (анкета вместо графика). Три разных места экрана нельзя привязать к
+   * состоянию одной кнопки в шапке — держать его пришлось бы здесь, откуда
+   * видно всех троих.
+   *
+   * --- Почему это работает, только пока `isMobile` ------------------------
+   *
+   * На столе у настроек по-прежнему обычное плавающее окно
+   * (`header-tools.tsx`): колонки и панели там никуда не убираются, и
+   * подменять содержимое страницы ради него незачем. `showSettings`
+   * поэтому требует оба условия разом — и если ширина экрана изменится,
+   * пока настройки открыты, страница молча вернётся к обычному виду.
+   */
+  const isMobile = useMediaQuery("(width < 40rem)");
+  const [mobileSettingsOpen, setMobileSettingsOpen] = useState(false);
+  const [settingsTab, setSettingsTab] = useState<SettingsTab>("profile");
+  const showSettings = isMobile && mobileSettingsOpen;
+
+  // Открыли настройки — вернулись к верху страницы: под цифрами теперь
+  // анкета, а не тот кусок графика, на который человек до этого смотрел, и
+  // прежняя прокрутка оставляла бы его посреди чужого содержимого.
+  useEffect(() => {
+    if (showSettings) window.scrollTo({ top: 0, behavior: "smooth" });
+  }, [showSettings]);
 
   // Что показано на сетке года. Живёт здесь, а не в самой сетке, потому
   // что от этого зависят заголовок и подпись раздела вокруг неё.
@@ -186,11 +220,18 @@ export function Workspace({ profile, onChange, onForget }: WorkspaceProps) {
           выбранным периодом — он живёт здесь. Тянуть его наверх значило бы
           поднять туда и выбор периода, то есть половину этого экрана. */}
       <SiteHeader
+        // Знак называет «Настройки» вместо «График 1|3», пока на телефоне
+        // показаны они, а не сам расчёт: страница та же, читает она о себе
+        // другое.
+        brandLabel={showSettings ? "Настройки" : undefined}
         tools={
           <HeaderTools
             profile={profile}
             onChange={onChange}
             onForget={onForget}
+            isMobile={isMobile}
+            mobileSettingsOpen={mobileSettingsOpen}
+            onToggleMobileSettings={() => setMobileSettingsOpen((open) => !open)}
             // Перечень изменений в настройках ведёт в сутки, а сутки
             // открывает тот же самый выбор, что и нажатие по клетке.
             // Сетку он тоже называет: правка вида дня живёт на
@@ -220,48 +261,89 @@ export function Workspace({ profile, onChange, onForget }: WorkspaceProps) {
           Числа и сетка нужны одновременно: человек отмечает день и тут же
           смотрит, что стало с нормой. Колонкой слева это стоило календарю
           четырёхсот точек ширины, а лентой сверху — прокрутки назад через
-          двенадцать сеток. */}
+          двенадцать сеток.
+
+          На телефоне та же полоса умеет становиться закладками настроек
+          (`settings`, ниже) — тем же способом, каким шапка выше умеет
+          называть себя «Настройки»: одно место экрана, разное содержимое. */}
       <PeriodSummary
         calculation={calculation}
         accountingYear={profile.accountingYear}
         overtimeInDays={profile.overtimeInDays}
         shiftDurationHours={profile.shiftDurationHours}
+        settings={{ open: showSettings, tab: settingsTab, onTab: setSettingsTab }}
       />
 
       <div className="space-y-10">
-      {/* Календарь не сворачивается. Крышка над ним была наследством от
-          времён, когда на странице стояло пять разделов и двенадцать сеток
-          отодвигали всё остальное вниз. Теперь ниже только подвал, а сетка
-          — то, ради чего экран открыт: закрывать её значит закрывать
-          страницу. */}
-      <section aria-labelledby="calendar-heading" className="space-y-4 -translate-y-2">
-        <h2 id="calendar-heading" className="flex items-center gap-2 text-xl sr-only">
-          Календарь
-          {yearView === "calendar" ? (
-            <Hint label="Про производственный календарь">
-              <CalendarNote profile={profile} />
-            </Hint>
-          ) : null}
-        </h2>
-        <YearView
-          profile={profile}
-          calculation={shown ?? calculation}
-          upcoming={upcoming}
-          view={yearView}
-          onViewChange={setYearView}
-          onChange={onChange}
-          statutory={statutory}
-          onStatutory={setStatutory}
-          month={month}
-          onMonth={setMonth}
-          onPickDay={setPickedDay}
-          // Перенос смены — одно событие, и в профиль он попадает одной
-          // правкой: снять здесь, назначить там (`withShiftMoved`).
-          onMoveShift={(from, to) =>
-            onChange((previous) => withShiftMoved(previous, from, to))
-          }
-        />
-      </section>
+      {showSettings ? (
+        // Настройки на месте графика — не поверх страницы, а вместо той
+        // его части, что сейчас не нужна: панель управления сеткой
+        // (`GridDeck`, ниже) при этом тоже скрыта — управлять ей больше
+        // нечем.
+        <FadeIn key={`settings-${settingsTab}`}>
+          <section aria-labelledby="settings-heading" className="space-y-4">
+            <h2 id="settings-heading" className="sr-only">
+              {SETTINGS_TAB_LABEL[settingsTab]}
+            </h2>
+            {settingsTab === "profile" ? (
+              <div className="space-y-4">
+                <SettingsPanel profile={profile} onChange={onChange} />
+                <DangerActions onForget={onForget} onChange={onChange} showReset={false} />
+              </div>
+            ) : (
+              <ChangesList
+                profile={profile}
+                onChange={onChange}
+                // Строка перечня ведёт в сутки, а значит и обратно на
+                // страницу — раз сутки уже открыты, показывать позади них
+                // ещё и анкету незачем.
+                onOpenDay={(day, grid) => {
+                  setMobileSettingsOpen(false);
+                  setYearView(grid === "calendar" ? "calendar" : "shifts");
+                  setPickedDay(day);
+                }}
+                onOpenProfile={() => setSettingsTab("profile")}
+              />
+            )}
+          </section>
+        </FadeIn>
+      ) : (
+        // Календарь не сворачивается. Крышка над ним была наследством от
+        // времён, когда на странице стояло пять разделов и двенадцать
+        // сеток отодвигали всё остальное вниз. Теперь ниже только подвал,
+        // а сетка — то, ради чего экран открыт: закрывать её значит
+        // закрывать страницу.
+        <FadeIn key="calendar">
+          <section aria-labelledby="calendar-heading" className="space-y-4 -translate-y-2">
+            <h2 id="calendar-heading" className="flex items-center gap-2 text-xl sr-only">
+              Календарь
+              {yearView === "calendar" ? (
+                <Hint label="Про производственный календарь">
+                  <CalendarNote profile={profile} />
+                </Hint>
+              ) : null}
+            </h2>
+            <YearView
+              profile={profile}
+              calculation={shown ?? calculation}
+              upcoming={upcoming}
+              view={yearView}
+              onViewChange={setYearView}
+              onChange={onChange}
+              statutory={statutory}
+              onStatutory={setStatutory}
+              month={month}
+              onMonth={setMonth}
+              onPickDay={setPickedDay}
+              // Перенос смены — одно событие, и в профиль он попадает одной
+              // правкой: снять здесь, назначить там (`withShiftMoved`).
+              onMoveShift={(from, to) =>
+                onChange((previous) => withShiftMoved(previous, from, to))
+              }
+            />
+          </section>
+        </FadeIn>
+      )}
 
       <ProfileFooter profile={profile} />
       </div>
@@ -292,18 +374,61 @@ export function Workspace({ profile, onChange, onForget }: WorkspaceProps) {
 
           Здесь, в самом низу разметки, панель ещё и встречается последней —
           и обходу клавишей, и чтению вслух. Управление, названное до
-          двенадцати сеток, человек с клавиатурой встречал бы дважды. */}
-      <GridDeck
-        profile={profile}
-        onChange={onChange}
-        view={yearView}
-        onViewChange={setYearView}
-        statutory={statutory}
-        onStatutory={setStatutory}
-        month={month}
-        onMonth={setMonth}
-      />
+          двенадцати сеток, человек с клавиатурой встречал бы дважды.
+
+          Пока показаны настройки, панели тоже нет: управлять ей нечем —
+          сетки на экране в этот момент нет вовсе. */}
+      {showSettings ? null : (
+        <GridDeck
+          profile={profile}
+          onChange={onChange}
+          view={yearView}
+          onViewChange={setYearView}
+          statutory={statutory}
+          onStatutory={setStatutory}
+          month={month}
+          onMonth={setMonth}
+        />
+      )}
       </main>
     </>
+  );
+}
+
+/**
+ * Появление содержимого — плавным проступанием, а не рывком.
+ *
+ * Настройки и календарь занимают одно и то же место на экране по очереди,
+ * а не разом: у них слишком разная высота, чтобы стоять друг под другом
+ * слоем, — свободного места под коротким перечнем правок было бы на весь
+ * рост несостоявшегося календаря. Поэтому смена — не перекрёстное
+ * растворение одного в другое, а простое появление того, что встало на
+ * освободившееся место.
+ *
+ * `key` снаружи (`workspace.tsx`) заставляет пересоздать обёртку при
+ * каждой смене раздела — календарь, анкета профиля, перечень правок, — и
+ * проступание играет заново.
+ */
+function FadeIn({ children }: { children: ReactNode }) {
+  // Отключённая анимация — не рывок, а готовый вид сразу: читается тем же
+  // умолчанием, что и у самой настройки (`window.matchMedia`), а не вторым
+  // прогоном отрисовки следом за первым.
+  const [shown, setShown] = useState(
+    () => window.matchMedia("(prefers-reduced-motion: reduce)").matches,
+  );
+
+  useEffect(() => {
+    if (shown) return;
+    // Первый кадр обязан прийти с нулевой прозрачностью — иначе браузер
+    // склеит появление и его исчезновение в один кадр, и переход не
+    // сыграет.
+    const frame = requestAnimationFrame(() => setShown(true));
+    return () => cancelAnimationFrame(frame);
+  }, [shown]);
+
+  return (
+    <div className={cn("transition-opacity duration-300", shown ? "opacity-100" : "opacity-0")}>
+      {children}
+    </div>
   );
 }

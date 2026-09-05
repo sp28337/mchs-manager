@@ -1,9 +1,8 @@
 "use client";
 
-import { FolderOpen, Save, Settings, type LucideIcon } from "lucide-react";
+import { FolderOpen, Save, Settings, X, type LucideIcon } from "lucide-react";
 import { useState } from "react";
 
-import { Logo } from "@/components/ui/logo";
 import { Modal } from "@/components/ui/modal";
 import { cn } from "@/lib/utils/cn";
 
@@ -53,25 +52,22 @@ import { SettingsTabs } from "./settings-tabs";
  * к списку из двух пунктов. Подписи появляются, как только для них
  * хватает ширины, — порог назначен замером и стоит в `LABELS_FROM`.
  *
- * --- Настройки на телефоне: та же страница, другое содержимое ------------
+ * --- Настройки на телефоне: не окно вовсе ---------------------------------
  *
- * Ниже `sm` окно настроек занимает экран целиком, но не выглядит другим
- * экраном: лист рисует ту же шапку, что и страница, — тот же знак, не
- * сдвинутый ни на точку, — и рядом с ним просто читается «Настройки» вместо
- * «График 1 3». Дальше по листу так же: там, где на странице цифры итога,
- * встают закладки настроек; там, где календарь, — сама анкета.
+ * Ниже `sm` кнопка «Настройки» не открывает `Modal`: она переключает то,
+ * что показано на самой странице (`workspace.tsx` решает, что́ именно, —
+ * знак сайта рядом читает «Настройки» вместо «График 1 3», полоса цифр
+ * становится закладками, календарь — анкетой). Экран не сменился ни на
+ * миг, и открывать его окном означало бы утверждать обратное.
  *
- * Раньше значок настроек уезжал на место знака, знак и кнопки гасли, а
- * подложка кнопки растягивалась, пока не накрывала шапку целиком, — заметный
- * переход, показывающий, что открылся НОВЫЙ экран. Он был нужен, пока лист
- * ничем не напоминал страницу под собой. Теперь напоминает: знак стоит на
- * месте, слово рядом с ним просто меняется, и лишний рывок только мешал бы
- * читать эту связь.
+ * Значок кнопки при этом меняется сам, шестерня на крестик: та же кнопка,
+ * которой открыли, и закрывает. Отдельного крестика в углу листа, как у
+ * прежнего окна, тут нет и не может быть — самого листа больше нет.
  *
- * Шапку листа всё равно рисует сам лист, а не страница: `dialog` живёт в
- * верхнем слое, и шапка страницы под ним недосягаема — анимировать тут
- * нечего, поэтому и не нужно. Слово «Настройки» одновременно и есть кнопка
- * возврата: нажатие по нему закрывает лист, как раньше — крестик в углу.
+ * На столе ширины хватает, и там кнопка ведёт себя как раньше — открывает
+ * `Modal`, обычное плавающее окно. Настройки в нём не выглядят частью
+ * страницы, но там и не нужно: колонки и панели по бокам никуда не
+ * прячутся, а окно посередине лишь дополняет их.
  */
 
 type ToolId = "settings" | "open" | "save";
@@ -115,6 +111,9 @@ export function HeaderTools({
   onForget,
   onOpenDay,
   className,
+  isMobile,
+  mobileSettingsOpen,
+  onToggleMobileSettings,
 }: {
   profile: StoredProfile;
   onChange: (change: (previous: StoredProfile) => StoredProfile) => void;
@@ -130,6 +129,11 @@ export function HeaderTools({
    */
   onOpenDay: (day: IsoDate, grid: "shifts" | "calendar") => void;
   className?: string;
+  /** Ширина экрана ниже `sm` — там у настроек нет своего окна. */
+  isMobile: boolean;
+  /** Показаны ли сейчас настройки вместо страницы. Имеет смысл только на телефоне. */
+  mobileSettingsOpen: boolean;
+  onToggleMobileSettings: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const save = useSaveToFile(profile);
@@ -146,6 +150,13 @@ export function HeaderTools({
       >
         {TOOL_ORDER.map((id) => {
           const { label, title, Icon } = TOOL_META[id];
+          // Кнопка настроек на телефоне не открывает окно — она переключает
+          // страницу и сама превращается в кнопку закрытия. Имя и подсказка
+          // называют то действие, которое нажатие СЕЙЧАС совершит.
+          const toggling = id === "settings" && isMobile;
+          const pressed = toggling && mobileSettingsOpen;
+          const label_ = pressed ? "Закрыть" : label;
+          const title_ = pressed ? "Закрыть настройки" : title;
           return (
             <button
               key={id}
@@ -153,13 +164,15 @@ export function HeaderTools({
               onClick={() => {
                 if (id === "save") save.ask();
                 else if (id === "open") file.ask();
+                else if (isMobile) onToggleMobileSettings();
                 else setOpen(true);
               }}
               // Имя кнопки не зависит от того, видна подпись или нет:
               // на узком экране от кнопки остаётся значок, и без имени она
               // стала бы для программы чтения безымянной.
-              aria-label={title}
-              title={title}
+              aria-label={title_}
+              aria-expanded={toggling ? mobileSettingsOpen : undefined}
+              title={title_}
               className={cn(
                 // `lit` — кнопка ловит свет лампы. Стоит она у правого
                 // края, дальше конца трубки, и блик ложится не сверху, а
@@ -173,44 +186,39 @@ export function HeaderTools({
                 "focus-visible:outline-trace",
               )}
             >
-              <Icon aria-hidden className="size-4.5 shrink-0 text-ink-muted" />
-              <span className={LABELS_FROM}>{label}</span>
+              {toggling ? (
+                // Шестерня и крестик стоят в одной ячейке грида и гаснут
+                // друг в друга — тот же приём, что у слова рядом со знаком
+                // сайта (`site-header.tsx`): один толкует то же самое
+                // действие («настройки»/«закрыть»), не сдвигая соседей.
+                <span className="grid">
+                  <Icon
+                    aria-hidden
+                    className={cn(
+                      "col-start-1 row-start-1 size-4.5 shrink-0 text-ink-muted transition-opacity duration-200",
+                      pressed ? "opacity-0" : "opacity-100",
+                    )}
+                  />
+                  <X
+                    aria-hidden
+                    className={cn(
+                      "col-start-1 row-start-1 size-4.5 shrink-0 text-ink-muted transition-opacity duration-200",
+                      pressed ? "opacity-100" : "opacity-0",
+                    )}
+                  />
+                </span>
+              ) : (
+                <Icon aria-hidden className="size-4.5 shrink-0 text-ink-muted" />
+              )}
+              <span className={LABELS_FROM}>{label_}</span>
             </button>
           );
         })}
       </div>
 
-      <Modal
-        open={open}
-        onClose={() => setOpen(false)}
-        sheet
-        // Заголовок читается по-разному в двух видах окна. В обычном, на
-        // десктопе, это просто имя окна. В листе на телефоне это ещё и знак
-        // сайта — тот же компонент, что в шапке страницы, той же величины
-        // и на том же месте, — а слово рядом с ним само служит кнопкой
-        // возврата: подробности у самого листа, в шапке файла.
-        title={
-          <>
-            <span className="hidden sm:inline">Настройки</span>
-            <button
-              type="button"
-              onClick={() => setOpen(false)}
-              className={cn(
-                "sm:hidden",
-                "group flex min-w-0 items-center gap-2.5 rounded-xs",
-                "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-trace",
-              )}
-            >
-              <Logo className="size-7 shrink-0 text-signal" />
-              <span className="min-w-0 leading-none">
-                <span className="block whitespace-nowrap font-display text-black/80 dark:text-ink text-xl font-bold uppercase leading-tight tracking-wide">
-                  Настройки
-                </span>
-              </span>
-            </button>
-          </>
-        }
-      >
+      {/* Окно — только на столе: на телефоне у кнопки настроек другая
+          работа, см. шапку файла. */}
+      <Modal open={open} onClose={() => setOpen(false)} title="Настройки">
         <SettingsTabs
           profile={profile}
           onChange={onChange}

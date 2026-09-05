@@ -62,9 +62,21 @@ export interface SiteHeaderProps {
   /** Кнопки рабочего экрана: настройки и выгрузка. */
   tools?: ReactNode;
   className?: string;
+  /**
+   * Чем заменить «График 1|3» рядом со знаком — не убрать знак, а
+   * переназвать то, что сейчас показано на экране под ним. Знак при этом
+   * не трогается: он называет сайт всегда, вне зависимости от того, что
+   * открыто, — рабочий экран, настройки или перечень правок.
+   *
+   * Задаёт рабочий экран, когда на телефоне вместо графика показаны
+   * настройки (`workspace.tsx`, `header-tools.tsx`): человек не уходил со
+   * страницы, и название рядом со знаком читает это вслух.
+   */
+  brandLabel?: ReactNode;
 }
 
-export function SiteHeader({ action, tools, className }: SiteHeaderProps) {
+export function SiteHeader({ action, tools, className, brandLabel }: SiteHeaderProps) {
+  const settled = brandLabel === undefined;
   return (
     // Шапка закреплена, но БЕЗ `top`: стоит она там, где стояла бы в
     // потоке, то есть по верхней кромке содержимого страницы. Отступ на
@@ -75,40 +87,59 @@ export function SiteHeader({ action, tools, className }: SiteHeaderProps) {
       <div className="mx-auto flex h-16 w-full flex-nowrap items-center gap-x-4 py-3 px-6 sm:gap-x-6 2xl:max-w-[2000px]">
         <Link
           href="/"
-          // Знак и кнопки помечены не для оформления: на телефоне окно
-          // настроек открывается листом во весь экран, и его шапка
-          // ЗАМЕЩАЕТ эту — значок настроек уезжает на место знака, а знак
-          // и кнопки к этому времени должны уйти. Метка даёт переходу
-          // зацепку и точку отсчёта для замера пути (`header-tools.tsx`).
           data-brand
           className="group flex min-w-0 items-center gap-2.5 rounded-xs focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-trace"
         >
           <Logo className="size-7 shrink-0 text-signal" />
           <span className="min-w-0 leading-none">
-            <span className="block whitespace-nowrap font-display text-black/80 dark:text-ink text-xl font-bold uppercase leading-tight tracking-wide">
-              {/* Ниже 360 точек уходит СЛОВО, а цифры остаются.
-                  ---------------------------------------------------------
-                  Кнопок в шапке три, и на самом узком телефоне (320 — это
-                  iPhone SE первых лет) название с ними в строку не влезает:
-                  замером оно переносилось на вторую строку, «ГРАФИК» над
-                  «1 3», и шапка переставала быть строкой.
+            {/* Обе надписи лежат в одной ячейке грида — так же, как
+                приставка «Пере»/«Недо» в `BalanceCaption`: ширина ячейки
+                считается по большей из них, и смена не дёргает соседей.
+                Гаснет одна, проступает другая — знак рядом с ними не
+                шевелится ни на точку. */}
+            <span className="grid">
+              <span
+                aria-hidden={!settled}
+                className={cn(
+                  "col-start-1 row-start-1 block whitespace-nowrap font-display text-black/80 dark:text-ink text-xl font-bold uppercase leading-tight tracking-wide",
+                  "transition-opacity duration-200",
+                  settled ? "opacity-100" : "opacity-0",
+                )}
+              >
+                {/* Ниже 360 точек уходит СЛОВО, а цифры остаются.
+                    -------------------------------------------------------
+                    Кнопок в шапке три, и на самом узком телефоне (320 — это
+                    iPhone SE первых лет) название с ними в строку не
+                    влезает: замером оно переносилось на вторую строку,
+                    «ГРАФИК» над «1 3», и шапка переставала быть строкой.
 
-                  Убирать при этом нужно именно слово. «График» — имя
-                  сервиса, и человек, добравшийся до своего расчёта, его уже
-                  знает; а цифры называют ЕГО график, тот самый, что он
-                  выбрал, и меняются вместе с ним. Из двух половин названия
-                  на узком экране полезна вторая.
+                    Убирать при этом нужно именно слово. «График» — имя
+                    сервиса, и человек, добравшийся до своего расчёта, его
+                    уже знает; а цифры называют ЕГО график, тот самый, что
+                    он выбрал, и меняются вместе с ним. Из двух половин
+                    названия на узком экране полезна вторая.
 
-                  Уходит слово только с глаз: `sr-only` оставляет его
-                  программе чтения, и ссылка домой не превращается в «1 3».
-                  Пробел спрятан вместе со словом — иначе цифры отъезжали бы
-                  от знака на его ширину.
+                    Уходит слово только с глаз: `sr-only` оставляет его
+                    программе чтения, и ссылка домой не превращается в
+                    «1 3». Пробел спрятан вместе со словом — иначе цифры
+                    отъезжали бы от знака на его ширину.
 
-                  Пробел перед цифрами намеренный и там, где слово видно: в
-                  тексте строки склеиваются, и программа чтения произносит
-                  «График13». */}
-              <span className="max-[359px]:sr-only">{"График "}</span>
-              <ScheduleMark />
+                    Пробел перед цифрами намеренный и там, где слово видно:
+                    в тексте строки склеиваются, и программа чтения
+                    произносит «График13». */}
+                <span className="max-[359px]:sr-only">{"График "}</span>
+                <ScheduleMark />
+              </span>
+              <span
+                aria-hidden={settled}
+                className={cn(
+                  "col-start-1 row-start-1 block whitespace-nowrap font-display text-black/80 dark:text-ink text-xl font-bold uppercase leading-tight tracking-wide",
+                  "transition-opacity duration-200",
+                  settled ? "opacity-0" : "opacity-100",
+                )}
+              >
+                {brandLabel}
+              </span>
             </span>
           </span>
         </Link>
