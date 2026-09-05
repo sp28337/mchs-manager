@@ -1,10 +1,13 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useRef, useState, type FormEvent, type KeyboardEvent } from "react";
 
 import { cn } from "@/lib/utils/cn";
 
 import type { StoredProfile } from "../storage/profile";
+
+/** Дальше имя не растёт — то же ограничение, что было у поля в настройках. */
+const MAX_NAME_LENGTH = 200;
 
 /**
  * Имя профиля — водяным знаком над цифрами, правится прямо в нём.
@@ -15,6 +18,20 @@ import type { StoredProfile } from "../storage/profile";
  * цифр: он и так смотрит на него. Отдельное поле в настройках спрашивало о
  * том же самом словом, но в другом месте экрана, и правка начиналась с
  * поиска этого места. Здесь она начинается нажатием по тому, что уже видно.
+ *
+ * --- Почему правится «текстом», а не полем ввода ----------------------------
+ *
+ * Пробовали `<input>`. У формы это ЧУЖОЙ элемент: браузер рисует
+ * содержимое полей своим путём, отдельным от обычного текста, — и на
+ * рукописной гарнитуре с её росчерками этот путь ведёт к другому
+ * начертанию, заметно мельче настоящего, хотя запрошенный размер шрифта
+ * тот же самый (замерено — совпадает). Слово по факту начинает выглядеть
+ * иначе ровно в момент нажатия, а должно оставаться тем же самым словом,
+ * просто ставшим печатным.
+ *
+ * `contenteditable` — не поле, а обычный текст, разрешивший себя
+ * редактировать: тот же обычный путь отрисовки, что и у кнопки рядом,
+ * буква в букву.
  *
  * --- Почему ярче только во время правки -------------------------------------
  *
@@ -31,55 +48,68 @@ export function ProfileName({
   onChange: (change: (previous: StoredProfile) => StoredProfile) => void;
 }) {
   const [editing, setEditing] = useState(false);
-  const input = useRef<HTMLInputElement>(null);
+  const field = useRef<HTMLSpanElement>(null);
 
   function edit() {
     setEditing(true);
-    // Фокус — уже ПОСЛЕ отрисовки поля: пока стоит кнопка с текстом,
-    // фокусировать нечего.
+    // Текст и фокус — уже ПОСЛЕ отрисовки поля: пока стоит кнопка, ставить
+    // курсор некуда. `contenteditable`, в отличие от `<input>`, не читает
+    // содержимое из атрибута — оно ставится здесь, один раз на вход в
+    // правку, и дальше это уже НЕ управляемый React элемент: перерисовка
+    // строки при каждой набранной букве сбивала бы курсор на середину.
     requestAnimationFrame(() => {
-      const field = input.current;
-      if (!field) return;
-      field.focus();
+      const el = field.current;
+      if (!el) return;
+      el.textContent = profile.displayName;
+      el.focus();
       // Курсор — в конец набранного, а не выделением всего имени: имя и
       // так уже целиком читается (правка только поднимает его
       // непрозрачность), а выделение заливкой поверх рукописных букв
       // выглядело бы другим словом, а не тем же самым, ставшим печатным.
-      field.setSelectionRange(field.value.length, field.value.length);
+      const range = document.createRange();
+      range.selectNodeContents(el);
+      range.collapse(false);
+      const selection = window.getSelection();
+      selection?.removeAllRanges();
+      selection?.addRange(range);
     });
+  }
+
+  function commit(event: FormEvent<HTMLSpanElement>) {
+    const el = event.currentTarget;
+    let text = el.textContent ?? "";
+    if (text.length > MAX_NAME_LENGTH) {
+      text = text.slice(0, MAX_NAME_LENGTH);
+      el.textContent = text;
+    }
+    onChange((previous) => ({ ...previous, displayName: text }));
+  }
+
+  // Enter и Esc уводят фокус из поля тем же путём, что и щелчок мимо:
+  // отдельного отката нет, как и у всех остальных полей приложения, —
+  // набранное уже записано в профиль по ходу правки.
+  function endOnKey(event: KeyboardEvent<HTMLSpanElement>) {
+    if (event.key === "Enter" || event.key === "Escape") {
+      event.preventDefault();
+      event.currentTarget.blur();
+    }
   }
 
   return (
     <h1 className="text-3xl font-hand sm:text-5xl leading-tight text-center">
       {editing ? (
-        <input
-          ref={input}
-          value={profile.displayName}
-          maxLength={200}
-          placeholder="Имя профиля"
+        <span
+          ref={field}
+          contentEditable
+          suppressContentEditableWarning
+          role="textbox"
+          aria-multiline="false"
           aria-label="Имя профиля"
-          onChange={(event) => {
-            const displayName = event.target.value;
-            onChange((previous) => ({ ...previous, displayName }));
-          }}
+          onInput={commit}
           onBlur={() => setEditing(false)}
-          // Enter и Esc уводят фокус из поля тем же путём, что и щелчок
-          // мимо: отдельного отката нет, как и у всех остальных полей
-          // приложения, — набранное уже записано в профиль по ходу правки.
-          onKeyDown={(event) => {
-            if (event.key === "Enter" || event.key === "Escape") {
-              event.currentTarget.blur();
-            }
-          }}
+          onKeyDown={endOnKey}
           className={cn(
-            "w-full bg-transparent text-center outline-none",
-            // Строчная высота шире обычной не для отступа, а для самих
-            // букв: у рукописной гарнитуры росчерки выше и ниже строки,
-            // чем у обычного шрифта, а поле ввода — в отличие от кнопки —
-            // рисует свой текст в собственной коробке и обрезает по ней.
-            // Тесная строчная высота (как у кнопки, `leading-tight`) резала
-            // росчерки, и буквы читались мельче, чем секунду назад.
-            "leading-[1.6]",
+            "inline-block min-w-[1ch] outline-none",
             // Указатель — сигнальным цветом и заметно шире обычного:
             // рукописная гарнитура тонкая, и волосяной курсор терялся бы в
             // её штрихах ровно там, где он нужнее всего.

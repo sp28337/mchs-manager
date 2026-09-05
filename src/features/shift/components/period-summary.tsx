@@ -143,20 +143,27 @@ export function PeriodSummary({
 /**
  * Пауза после того, как цифры погасли и до того, как проступает первая
  * закладка. Число здесь то же, что в задержке появления самой дорожки
- * (`delay-[220ms]` у обёртки в `PeriodSummary`) — разойдись они, дорожка
- * стояла бы пустой утопленной коробкой секунду до появления имени.
+ * (`delay-[220ms]` у обёртки в `PeriodSummary`) и что в задержке появления
+ * анкеты под ней (`workspace.tsx`, `FadeIn`) — все три обязаны трогаться
+ * ОДНИМ моментом, а не по очереди: иначе цифры гаснут, секунду ничего не
+ * происходит, потом порознь оживают то закладки, то анкета под ними, и всё
+ * вместе читается не одним превращением, а вознёй из нескольких.
  */
-const REVEAL_DELAY_MS = 220;
+export const REVEAL_DELAY_MS = 220;
 
-/** Сколько первая закладка стоит широкой, прежде чем начать сужаться. */
-const WIDE_HOLD_MS = 700;
+/**
+ * Сколько первая закладка стоит широкой, прежде чем начать сужаться. Не
+ * дольше удара сердца: дальше это уже не «прочитал имя», а «жду, когда
+ * само сдвинется».
+ */
+const WIDE_HOLD_MS = 450;
 
 /**
  * Само сужение — «не так быстро»: заметно медленнее обычных переходов
- * приложения (те укладываются в 200–300 мс). Число то же, что в
- * `duration-[750ms]` у обеих закладок ниже.
+ * приложения (те укладываются в 200–300 мс), но короче полного вдоха.
+ * Число то же, что в `duration-[550ms]` у обеих закладок ниже.
  */
-const NARROW_MS = 750;
+const NARROW_MS = 550;
 
 function reducedMotion(): boolean {
   return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -245,7 +252,7 @@ function SettingsSwitch({
           // иначе более узкое правило `SegmentedItem` побеждало бы по
           // порядку в таблице стилей, а не по месту в разметке.
           "h-14 min-w-0 shrink rounded-xl! text-sm",
-          "transition-[flex-grow] duration-[750ms] ease-[cubic-bezier(0.3,0,0.1,1)]",
+          "transition-[flex-grow] duration-[550ms] ease-[cubic-bezier(0.3,0,0.1,1)]",
         )}
       >
         <Materialize show={phase !== "idle"} durationClassName="duration-[340ms]">
@@ -258,7 +265,7 @@ function SettingsSwitch({
         style={{ flexGrow: phase === "narrow" || phase === "done" ? 1 : 0 }}
         className={cn(
           "h-14 min-w-0 shrink truncate rounded-xl! text-sm",
-          "transition-[flex-grow] duration-[750ms] ease-[cubic-bezier(0.3,0,0.1,1)]",
+          "transition-[flex-grow] duration-[550ms] ease-[cubic-bezier(0.3,0,0.1,1)]",
         )}
       >
         <Materialize show={phase === "done"} durationClassName="duration-[340ms]">
