@@ -21,6 +21,7 @@ import { GridDeck, WORKSPACE_PAD } from "./grid-deck";
 import { HeaderTools } from "./header-tools";
 import { PeriodSummary } from "./period-summary";
 import { ProfileFooter } from "./profile-footer";
+import { ProfileName } from "./profile-name";
 import { CalendarNote } from "./year-calendar-editor";
 import {
   YearView,
@@ -212,7 +213,7 @@ export function Workspace({ profile, onChange, onForget }: WorkspaceProps) {
           просвет под шапкой), и без этого зазора щиток лёг бы прямо на
           имя. */}
       <header className="pb-12">
-        <h1 className="text-3xl font-hand sm:text-5xl opacity-10 leading-tight text-center">{profile.displayName}</h1>
+        <ProfileName profile={profile} onChange={onChange} />
       </header>
 
       {/* Итог — закреплённой полосой, календарь — во всю ширину под ней.
