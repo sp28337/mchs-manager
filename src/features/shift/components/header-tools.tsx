@@ -3,6 +3,7 @@
 import { FolderOpen, Save, Settings, X, type LucideIcon } from "lucide-react";
 import { useState } from "react";
 
+import { Materialize } from "@/components/ui/materialize";
 import { Modal } from "@/components/ui/modal";
 import { cn } from "@/lib/utils/cn";
 
@@ -187,25 +188,25 @@ export function HeaderTools({
               )}
             >
               {toggling ? (
-                // Шестерня и крестик стоят в одной ячейке грида и гаснут
+                // Шестерня и крестик стоят в одной ячейке грида и проступают
                 // друг в друга — тот же приём, что у слова рядом со знаком
                 // сайта (`site-header.tsx`): один толкует то же самое
                 // действие («настройки»/«закрыть»), не сдвигая соседей.
                 <span className="grid">
-                  <Icon
-                    aria-hidden
-                    className={cn(
-                      "col-start-1 row-start-1 size-4.5 shrink-0 text-ink-muted transition-opacity duration-200",
-                      pressed ? "opacity-0" : "opacity-100",
-                    )}
-                  />
-                  <X
-                    aria-hidden
-                    className={cn(
-                      "col-start-1 row-start-1 size-4.5 shrink-0 text-ink-muted transition-opacity duration-200",
-                      pressed ? "opacity-100" : "opacity-0",
-                    )}
-                  />
+                  <Materialize
+                    show={!pressed}
+                    durationClassName="duration-200"
+                    className="col-start-1 row-start-1"
+                  >
+                    <Icon aria-hidden className="size-4.5 shrink-0 text-ink-muted" />
+                  </Materialize>
+                  <Materialize
+                    show={pressed}
+                    durationClassName="duration-200"
+                    className="col-start-1 row-start-1"
+                  >
+                    <X aria-hidden className="size-4.5 shrink-0 text-ink-muted" />
+                  </Materialize>
                 </span>
               ) : (
                 <Icon aria-hidden className="size-4.5 shrink-0 text-ink-muted" />

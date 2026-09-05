@@ -4,6 +4,7 @@ import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "re
 
 import { BalanceCaption, BALANCE_SWAP_MS } from "@/components/ui/balance-caption";
 import { CountedNumber } from "@/components/ui/counted-number";
+import { Materialize } from "@/components/ui/materialize";
 import { Segmented, SegmentedItem } from "@/components/ui/segmented";
 import { cn } from "@/lib/utils/cn";
 
@@ -119,8 +120,13 @@ export function PeriodSummary({
               aria-hidden={!settingsOpen}
               inert={!settingsOpen || undefined}
               className={cn(
-                "col-start-1 row-start-1 px-6 pb-3 transition-opacity duration-200",
-                settingsOpen ? "opacity-100" : "pointer-events-none opacity-0",
+                "col-start-1 row-start-1 px-6 pb-3 transition-opacity ease-out",
+                // Дорожка закладок ждёт своей паузы (`REVEAL_DELAY_MS` в
+                // `SettingsSwitch`) — иначе она проступала бы одновременно
+                // с гаснущими цифрами, а не после них.
+                settingsOpen
+                  ? "opacity-100 duration-200 delay-[220ms]"
+                  : "pointer-events-none opacity-0",
               )}
             >
               <SettingsSwitch open={settingsOpen} tab={settings.tab} onTab={settings.onTab} />
@@ -135,25 +141,54 @@ export function PeriodSummary({
 }
 
 /**
+ * Пауза после того, как цифры погасли и до того, как проступает первая
+ * закладка. Число здесь то же, что в задержке появления самой дорожки
+ * (`delay-[220ms]` у обёртки в `PeriodSummary`) — разойдись они, дорожка
+ * стояла бы пустой утопленной коробкой секунду до появления имени.
+ */
+const REVEAL_DELAY_MS = 220;
+
+/** Сколько первая закладка стоит широкой, прежде чем начать сужаться. */
+const WIDE_HOLD_MS = 700;
+
+/**
+ * Само сужение — «не так быстро»: заметно медленнее обычных переходов
+ * приложения (те укладываются в 200–300 мс). Число то же, что в
+ * `duration-[750ms]` у обеих закладок ниже.
+ */
+const NARROW_MS = 750;
+
+function reducedMotion(): boolean {
+  return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+}
+
+/**
  * Переключатель закладок настроек — на месте итоговых цифр.
  *
- * --- Почему первая закладка сперва во всю ширину ----------------------------
+ * --- Почему по стадиям, а не одним переходом --------------------------------
  *
- * Цифры не подменяются переключателем мгновенно: гаснут они, а на их
- * месте проступает одна широкая плашка «Настройки профиля» — там, где
- * секунду назад читалась переработка, теперь читается имя раздела, тем же
- * шрифтом, той же высоты. Только когда имя уже можно прочитать, правый
- * край плашки трогается влево и освобождает место — утопленной дорожкой
- * под второй закладкой, «Внесённые изменения».
+ * Цифры не подменяются переключателем разом. Сперва гаснут они сами —
+ * ЭТИМ занята обёртка снаружи (`PeriodSummary`). Только после паузы на
+ * дорожке проступает одна широкая плашка «Настройки профиля» — там, где
+ * секунду назад читалась переработка, теперь читается имя раздела.
+ * Прочитать его есть время (`WIDE_HOLD_MS`), и только потом правый край
+ * плашки трогается влево, освобождая утопленную дорожку соседу. Имя
+ * второй закладки, «Внесённые изменения», проступает НЕ вместе со сдвигом,
+ * а когда дорожка для него уже открылась целиком, — раньше там нечему
+ * было бы проступать.
  *
- * --- Как это устроено -------------------------------------------------------
+ * Каждое имя появляется не подменой прозрачности, а расфокусировкой,
+ * оседающей в резкость (`Materialize`): при отключённой анимации все
+ * стадии схлопываются в одну, и закладки встают готовыми сразу.
  *
- * Обе закладки стоят в `Segmented` с самого начала, но у первой явно
- * задана доля места (`flex-grow`) в несколько раз больше, чем у соседей по
- * приложению принято, — она и забирает себе всю строку. Спустя короткую
- * паузу доля возвращается к обычной (`grow` у `SegmentedItem` — единица),
- * и переход на `flex-grow`, обычное число, доигрывает сдвиг сам: ничего не
- * измеряется, потому что мерить нечего — итоговая ширина известна заранее.
+ * --- Как устроен сдвиг -------------------------------------------------------
+ *
+ * Обе закладки стоят в `Segmented` с самого начала, но у первой на стадии
+ * `wide` явно задана доля места (`flex-grow`) в несколько раз больше
+ * обычной — она и забирает себе всю строку. На стадии `narrow` доля
+ * возвращается к единице у обеих закладок разом, и переход на `flex-grow`,
+ * обычное число, доигрывает сдвиг сам: ничего не измеряется, итоговая
+ * ширина известна заранее.
  */
 function SettingsSwitch({
   open,
@@ -164,20 +199,39 @@ function SettingsSwitch({
   tab: SettingsTab;
   onTab: (tab: SettingsTab) => void;
 }) {
-  const [wide, setWide] = useState(true);
+  const [rawPhase, setPhase] = useState<"idle" | "wide" | "narrow" | "done">("idle");
+  // Пока настройки закрыты, хранимая стадия не читается вовсе — и
+  // сбрасывать её отдельным эффектом незачем: `open` маскирует её здесь,
+  // а следующее открытие честно заводит стадии заново.
+  const phase = open ? rawPhase : "idle";
 
   useEffect(() => {
     if (!open) return;
-    // Каждое открытие обязано начинаться широкой плашкой заново — правило
-    // запрещает синхронный `setState` в эффекте ради лишнего прогона
-    // отрисовки, а здесь прогон и есть само появление, которое человек
-    // должен увидеть.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setWide(true);
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-    const timer = window.setTimeout(() => setWide(false), 260);
-    return () => window.clearTimeout(timer);
+    if (reducedMotion()) {
+      // Однократная подстановка при заходе на «нет причин анимировать» —
+      // не лишний прогон отрисовки, а сам результат: без стадий закладки
+      // обязаны встать готовыми, а не застрять на «ничего не видно».
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setPhase("done");
+      return;
+    }
+    const toWide = window.setTimeout(() => setPhase("wide"), REVEAL_DELAY_MS);
+    return () => window.clearTimeout(toWide);
   }, [open]);
+
+  useEffect(() => {
+    if (phase !== "wide") return;
+    const toNarrow = window.setTimeout(() => setPhase("narrow"), WIDE_HOLD_MS);
+    return () => window.clearTimeout(toNarrow);
+  }, [phase]);
+
+  useEffect(() => {
+    if (phase !== "narrow") return;
+    const toDone = window.setTimeout(() => setPhase("done"), NARROW_MS);
+    return () => window.clearTimeout(toDone);
+  }, [phase]);
+
+  const wide = phase === "wide";
 
   return (
     <Segmented label="Разделы настроек" className="relative flex h-14 w-full">
@@ -186,23 +240,30 @@ function SettingsSwitch({
         onClick={() => onTab("profile")}
         style={{ flexGrow: wide ? 999 : 1 }}
         className={cn(
-          "h-14 min-w-0 shrink text-sm",
-          "transition-[flex-grow] duration-[420ms] ease-[cubic-bezier(0.3,0,0.1,1)]",
+          // Скругление — как у главной плашки цифр (`MainPlate`, `rounded-xl`):
+          // своё, крупнее обычного у закладок (`rounded-lg`), и важное —
+          // иначе более узкое правило `SegmentedItem` побеждало бы по
+          // порядку в таблице стилей, а не по месту в разметке.
+          "h-14 min-w-0 shrink rounded-xl! text-sm",
+          "transition-[flex-grow] duration-[750ms] ease-[cubic-bezier(0.3,0,0.1,1)]",
         )}
       >
-        {SETTINGS_TAB_LABEL.profile}
+        <Materialize show={phase !== "idle"} durationClassName="duration-[340ms]">
+          {SETTINGS_TAB_LABEL.profile}
+        </Materialize>
       </SegmentedItem>
       <SegmentedItem
         active={tab === "changes"}
         onClick={() => onTab("changes")}
-        style={{ flexGrow: wide ? 0 : 1 }}
+        style={{ flexGrow: phase === "narrow" || phase === "done" ? 1 : 0 }}
         className={cn(
-          "h-14 min-w-0 shrink truncate text-sm",
-          "transition-[flex-grow,opacity] duration-[420ms] ease-[cubic-bezier(0.3,0,0.1,1)]",
-          wide && "opacity-0",
+          "h-14 min-w-0 shrink truncate rounded-xl! text-sm",
+          "transition-[flex-grow] duration-[750ms] ease-[cubic-bezier(0.3,0,0.1,1)]",
         )}
       >
-        {SETTINGS_TAB_LABEL.changes}
+        <Materialize show={phase === "done"} durationClassName="duration-[340ms]">
+          {SETTINGS_TAB_LABEL.changes}
+        </Materialize>
       </SegmentedItem>
     </Segmented>
   );

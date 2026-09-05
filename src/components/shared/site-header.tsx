@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 
 import { Logo } from "@/components/ui/logo";
+import { Materialize } from "@/components/ui/materialize";
 import { ScheduleMark } from "@/components/shared/schedule-mark";
 import { cn } from "@/lib/utils/cn";
 
@@ -98,13 +99,11 @@ export function SiteHeader({ action, tools, className, brandLabel }: SiteHeaderP
                 Гаснет одна, проступает другая — знак рядом с ними не
                 шевелится ни на точку. */}
             <span className="grid">
-              <span
-                aria-hidden={!settled}
-                className={cn(
-                  "col-start-1 row-start-1 block whitespace-nowrap font-display text-black/80 dark:text-ink text-xl font-bold uppercase leading-tight tracking-wide",
-                  "transition-opacity duration-200",
-                  settled ? "opacity-100" : "opacity-0",
-                )}
+              <Materialize
+                show={settled}
+                ariaHidden={!settled}
+                durationClassName="duration-200"
+                className="col-start-1 row-start-1 font-display text-black/80 dark:text-ink text-xl font-bold uppercase leading-tight tracking-wide whitespace-nowrap"
               >
                 {/* Ниже 360 точек уходит СЛОВО, а цифры остаются.
                     -------------------------------------------------------
@@ -129,17 +128,15 @@ export function SiteHeader({ action, tools, className, brandLabel }: SiteHeaderP
                     произносит «График13». */}
                 <span className="max-[359px]:sr-only">{"График "}</span>
                 <ScheduleMark />
-              </span>
-              <span
-                aria-hidden={settled}
-                className={cn(
-                  "col-start-1 row-start-1 block whitespace-nowrap font-display text-black/80 dark:text-ink text-xl font-bold uppercase leading-tight tracking-wide",
-                  "transition-opacity duration-200",
-                  settled ? "opacity-0" : "opacity-100",
-                )}
+              </Materialize>
+              <Materialize
+                show={!settled}
+                ariaHidden={settled}
+                durationClassName="duration-200"
+                className="col-start-1 row-start-1 font-display text-black/80 dark:text-ink text-xl font-bold uppercase leading-tight tracking-wide whitespace-nowrap"
               >
                 {brandLabel}
-              </span>
+              </Materialize>
             </span>
           </span>
         </Link>

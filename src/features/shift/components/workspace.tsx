@@ -442,7 +442,17 @@ function FadeIn({ children }: { children: ReactNode }) {
   }, [shown]);
 
   return (
-    <div className={cn("transition-opacity duration-300", shown ? "opacity-100" : "opacity-0")}>
+    <div
+      className={cn(
+        // Расфокусировка, оседающая в резкость вместе с прозрачностью, —
+        // тот же приём, что у слова рядом со знаком сайта и у имён закладок
+        // (`Materialize`). Здесь не сам компонент: тот рассчитан на строку
+        // текста (`inline-block`), а тут — блок в колонку страницы, и
+        // сжимать его в строчный элемент значило бы сломать его ширину.
+        "transition-[opacity,filter] duration-300 ease-out",
+        shown ? "opacity-100 blur-none" : "opacity-0 blur-[6px]",
+      )}
+    >
       {children}
     </div>
   );
