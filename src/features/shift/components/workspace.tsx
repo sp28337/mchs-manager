@@ -19,6 +19,7 @@ import type { StoredProfile } from "../storage/profile";
 import { DayEditor } from "./day-editor";
 import { GridDeck, WORKSPACE_PAD } from "./grid-deck";
 import { HeaderTools } from "./header-tools";
+import { scrollMonthUnderBar, topmostVisibleMonth } from "./month-anchor";
 import { PeriodSummary } from "./period-summary";
 import { ProfileFooter } from "./profile-footer";
 import { CalendarNote } from "./year-calendar-editor";
@@ -172,6 +173,40 @@ export function Workspace({ profile, onChange, onForget }: WorkspaceProps) {
   // что от этого зависят заголовок и подпись раздела вокруг неё.
   const [yearView, setYearView] = useState<YearViewKind>("shifts");
 
+  /**
+   * Переключить график/календарь, не сдвинув то, что уже на экране.
+   *
+   * --- Почему это вообще нужно ---------------------------------------------
+   *
+   * У графика и календаря разная высота — те же двенадцать месяцев, но с
+   * разным содержимым в сутках, и разница набегает до пары сотен точек.
+   * Переключение меняет рост страницы, и браузер сам поджимает прокрутку,
+   * если новый вид короче прежнего, — но поджимает не до той точки, где
+   * человек смотрел, а до случайного предела: страница откатывалась почти
+   * к началу, будто читателя вернуло на январь.
+   *
+   * --- Как это чинится -------------------------------------------------------
+   *
+   * Тем же способом, что открытие страницы на нынешнем месяце
+   * (`month-anchor.ts`): месяц, чьи сутки видны под полосой цифр СЕЙЧАС,
+   * запоминается ДО переключения, а после того, как новая сетка встала на
+   * место, он же подводится обратно под полосу.
+   *
+   * --- Почему только на телефоне ---------------------------------------------
+   *
+   * Тот же порог и тот же довод, что у самого открытия на нынешнем месяце:
+   * там год — двенадцать экранов подряд, и любая прокрутка стоит дорого. На
+   * широком экране сетка не в один длинный столбец, и подводить месяц под
+   * полосу там нечем и незачем.
+   */
+  function changeYearView(next: YearViewKind) {
+    const mobile = window.matchMedia("(max-width: 767px)").matches;
+    const anchor = mobile ? topmostVisibleMonth() : null;
+    setYearView(next);
+    if (anchor === null) return;
+    requestAnimationFrame(() => scrollMonthUnderBar(anchor));
+  }
+
   // День, по которому нажали в сетке. Правка идёт от дня, а не от формы
   // со списком: человек уже нашёл в календаре те сутки, из-за которых
   // спорит, и переносить их дату в отдельную форму глазами — лишний шаг,
@@ -247,7 +282,7 @@ export function Workspace({ profile, onChange, onForget }: WorkspaceProps) {
           calculation={shown ?? calculation}
           upcoming={upcoming}
           view={yearView}
-          onViewChange={setYearView}
+          onViewChange={changeYearView}
           onChange={onChange}
           statutory={statutory}
           onStatutory={setStatutory}
@@ -296,7 +331,7 @@ export function Workspace({ profile, onChange, onForget }: WorkspaceProps) {
         profile={profile}
         onChange={onChange}
         view={yearView}
-        onViewChange={setYearView}
+        onViewChange={changeYearView}
         statutory={statutory}
         onStatutory={setStatutory}
         month={month}
