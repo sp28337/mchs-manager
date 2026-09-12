@@ -83,3 +83,53 @@ export function anchorCurrentMonth(): void {
 
 /** Та же функция строкой — для разметки заглушки. */
 export const MONTH_ANCHOR_SCRIPT = `(${anchorCurrentMonth.toString()})()`;
+
+/**
+ * Месяц, чьи сутки сейчас видны сразу под полосой с числами.
+ *
+ * --- Зачем это нужно --------------------------------------------------------
+ *
+ * График и календарь — те же двенадцать месяцев, но с разным содержимым в
+ * сутках, и высота у них разная: разница набегает до пары сотен точек.
+ * Переключение между ними меняет рост страницы, и браузер сам поджимает
+ * прокрутку, если новый вид короче прежнего, — но поджимает не до той
+ * точки, где человек смотрел, а до случайного предела. Со стороны это
+ * выглядит так, будто страницу вернуло к январю.
+ *
+ * Лечится тем же приёмом, что открытие страницы на нынешнем месяце
+ * (`anchorCurrentMonth`): месяц, видный СЕЙЧАС, запоминается ДО
+ * переключения, а после того, как новая сетка встала на место, он же
+ * подводится обратно под полосу (`scrollMonthUnderBar`).
+ */
+export function topmostVisibleMonth(): string | null {
+  const bar = document.querySelector("[data-summary]");
+  const barBottom = bar === null ? 0 : bar.getBoundingClientRect().bottom;
+  const months = document.querySelectorAll("[data-month]");
+  for (const month of months) {
+    // Первый месяц, чьи сутки ещё не скрылись под полосой целиком: у него
+    // виден хотя бы край, и именно этот край человек и держал в поле
+    // зрения перед переключением.
+    if (month.getBoundingClientRect().bottom > barBottom) {
+      return month.getAttribute("data-month");
+    }
+  }
+  return null;
+}
+
+/**
+ * Подвести сутки месяца `key` вплотную под полосу с числами.
+ *
+ * Тот же шаг в два приёма, что и в `anchorCurrentMonth`, но не её код: та
+ * функция обязана оставаться САМОДОСТАТОЧНОЙ — она уезжает в разметку
+ * заглушки строкой (`toString`), и внешний импорт там взяться неоткуда.
+ * Здесь же вызов обычный, из смонтированного приложения, и этого
+ * ограничения нет.
+ */
+export function scrollMonthUnderBar(key: string): void {
+  const month = document.querySelector(`[data-month="${key}"]`);
+  if (month === null) return;
+  month.scrollIntoView({ block: "start" });
+  const bar = document.querySelector("[data-summary]");
+  const under = bar === null ? 0 : bar.getBoundingClientRect().bottom;
+  window.scrollBy(0, month.getBoundingClientRect().top - under - 8);
+}
