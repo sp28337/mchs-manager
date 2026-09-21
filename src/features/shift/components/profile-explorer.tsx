@@ -13,7 +13,6 @@ import {
   createFolder,
   deleteEntry,
   deleteFolder,
-  detachActive,
   folderPath,
   importEntry,
   loadLibrary,
@@ -172,7 +171,6 @@ export function ProfileExplorer({
   onPreview,
   onChange,
   onOpenEntry,
-  onCreated,
 }: {
   /** Три действия из шапки и их состояние (`useExplorerTools`). */
   tools: ExplorerTools;
@@ -183,8 +181,6 @@ export function ProfileExplorer({
   onChange: (change: (previous: StoredProfile) => StoredProfile) => void;
   /** Человек выбрал профиль. Спросить про нынешний и открыть — забота вызывающего. */
   onOpenEntry: (entry: LibraryEntry) => void;
-  /** Создан новый профиль: он становится открытым. */
-  onCreated: (profile: StoredProfile) => void;
 }) {
   const { library, activeId } = useLibrary();
   const [renaming, setRenaming] = useState<Rename | null>(null);
@@ -435,22 +431,18 @@ export function ProfileExplorer({
         open={tools.creating}
         onClose={tools.closeCreate}
         onCreated={(profile) => {
-          // Новый профиль — новая запись: без этого его первая же правка
-          // легла бы поверх снимка того графика, что открыт сейчас.
-          detachActive();
+          // Заведённый профиль ложится ЗАПИСЬЮ в открытую папку — ровно
+          // так же, как загруженный из файла, и по той же причине:
+          // человек пришёл сюда пополнить список, а не сменить то, над
+          // чем работает.
+          //
+          // Прежде новый профиль немедленно становился открытым, и
+          // проводник закрывался: завести второй график, стоя в первом,
+          // было нельзя — страница уходила из-под рук. Теперь он просто
+          // появляется в папке, где его завели, а откроется тогда же,
+          // когда и любой другой: нажатием по нему.
           tools.closeCreate();
-          onCreated(profile);
-          // ...и запись эта ложится ТУДА, где человек стоит. Заводит её
-          // отражение открытого профиля (`syncActiveIntoLibrary`), а оно
-          // про папки не знает и кладёт всё в начало списка; здесь запись
-          // уже есть — сразу после `onCreated`, тот пишет профиль
-          // синхронно, — и остаётся её переложить. Иначе профиль, заведённый
-          // внутри папки, появлялся бы этажом выше, и человек искал бы его
-          // там, куда не клал.
-          const created = activeEntryId();
-          if (created !== null && current.id !== ROOT_FOLDER_ID) {
-            moveEntry(created, current.id);
-          }
+          importEntry(profile, current.id);
         }}
       />
     </div>

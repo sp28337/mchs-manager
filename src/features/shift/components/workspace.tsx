@@ -4,7 +4,6 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 
 import { Hint } from "@/components/ui/hint";
 import { SiteHeader } from "@/components/shared/site-header";
-import { useMediaQuery } from "@/lib/hooks/use-media-query";
 import { cn } from "@/lib/utils/cn";
 import { todayIso, type IsoDate } from "../domain/plain-date";
 import {
@@ -192,7 +191,7 @@ export function Workspace({
   const upcoming = profile.liveMode ? periodEnd : null;
 
   /**
-   * Настройки на телефоне — не окно, а другое содержимое ЭТОЙ страницы.
+   * Настройки — не окно, а другое содержимое ЭТОЙ страницы.
    *
    * --- Почему состояние живёт здесь --------------------------------------
    *
@@ -202,18 +201,23 @@ export function Workspace({
    * состоянию одной кнопки в шапке — держать его пришлось бы здесь, откуда
    * видно всех троих.
    *
-   * --- Почему это работает, только пока `isMobile` ------------------------
+   * --- Почему на любой ширине, а не только на телефоне --------------------
    *
-   * На столе у настроек по-прежнему обычное плавающее окно
-   * (`header-tools.tsx`): колонки и панели там никуда не убираются, и
-   * подменять содержимое страницы ради него незачем. `showSettings`
-   * поэтому требует оба условия разом — и если ширина экрана изменится,
-   * пока настройки открыты, страница молча вернётся к обычному виду.
+   * На столе у настроек было своё плавающее окно, и довод был такой:
+   * колонки и панели там никуда не убираются, окно посередине лишь
+   * дополняет страницу. Но настройки — это ответы про ТОТ САМЫЙ график,
+   * что лежит под ними, и правят их, глядя, что стало с нормой; окно
+   * поверх закрывало ровно то, ради чего его открыли, и вдобавок
+   * оказывалось третьим способом показать содержимое страницы — после
+   * проводника и самих настроек на телефоне.
+   *
+   * Теперь способ один: содержимое страницы подменяется на месте, а
+   * кнопка, которой открыли, закрывает. Проводник устроен так же
+   * (`explorerOpen` ниже), и узнавать второй порядок человеку не нужно.
    */
-  const isMobile = useMediaQuery("(width < 40rem)");
-  const [mobileSettingsOpen, setMobileSettingsOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsTab, setSettingsTab] = useState<SettingsTab>("profile");
-  const showSettings = isMobile && mobileSettingsOpen;
+  const showSettings = settingsOpen;
 
   /**
    * Открыть настройки — с анкеты, начатой от её собственного верха.
@@ -238,8 +242,8 @@ export function Workspace({
    * браузеру нечего. Содержимое подменяется уже следующей отрисовкой —
    * кадра с чужой прокруткой под новым содержимым просто не бывает.
    */
-  function toggleMobileSettings() {
-    setMobileSettingsOpen((open) => {
+  function toggleSettings() {
+    setSettingsOpen((open) => {
       const next = !open;
       if (next) window.scrollTo(0, 0);
       return next;
@@ -271,7 +275,7 @@ export function Workspace({
       if (next) window.scrollTo(0, 0);
       return next;
     });
-    setMobileSettingsOpen(false);
+    setSettingsOpen(false);
     setPreviewId(null);
   }
 
@@ -357,9 +361,8 @@ export function Workspace({
           выбранным периодом — он живёт здесь. Тянуть его наверх значило бы
           поднять туда и выбор периода, то есть половину этого экрана. */}
       <SiteHeader
-        // Знак называет «Настройки» вместо «График 1|3», пока на телефоне
-        // показаны они, а не сам расчёт: страница та же, читает она о себе
-        // другое.
+        // Знак называет «Настройки» вместо «График 1|3», пока показаны
+        // они, а не сам расчёт: страница та же, читает она о себе другое.
         brandLabel={
           explorerOpen ? (
             // Ниже 360 точек название уходит с глаз, но не из разметки:
@@ -374,22 +377,11 @@ export function Workspace({
         tools={
           <HeaderTools
             profile={profile}
-            onChange={onChange}
-            onForget={onForget}
-            isMobile={isMobile}
-            mobileSettingsOpen={mobileSettingsOpen}
-            onToggleMobileSettings={toggleMobileSettings}
+            settingsOpen={settingsOpen}
+            onToggleSettings={toggleSettings}
             explorerOpen={explorerOpen}
             onToggleExplorer={toggleExplorer}
             explorerTools={explorerTools}
-            // Перечень изменений в настройках ведёт в сутки, а сутки
-            // открывает тот же самый выбор, что и нажатие по клетке.
-            // Сетку он тоже называет: правка вида дня живёт на
-            // производственном календаре, остальное — на графике.
-            onOpenDay={(day, grid) => {
-              setYearView(grid === "calendar" ? "calendar" : "shifts");
-              setPickedDay(day);
-            }}
           />
         }
       />
@@ -460,11 +452,6 @@ export function Workspace({
               onPreview={setPreviewId}
               onChange={onChange}
               onOpenEntry={askOpenEntry}
-              onCreated={(next) => {
-                onReplace(next);
-                setPreviewId(null);
-                setExplorerOpen(false);
-              }}
             />
           </section>
         </FadeIn>
@@ -474,7 +461,17 @@ export function Workspace({
         // (`GridDeck`, ниже) при этом тоже скрыта — управлять ей больше
         // нечем.
         <FadeIn key={`settings-${settingsTab}`} delayMs={REVEAL_DELAY_MS}>
-          <section aria-labelledby="settings-heading" className="space-y-4">
+          {/* Анкета не растягивается во всю ширину монитора: строка
+              «Норма в неделю» с полем у правого края в двух тысячах точек
+              читалась бы как две разные строки. Предел тот же, что был у
+              окна настроек (44 рем), — ширина, к которой человек привык, и
+              она же ширина, на которой вопрос и ответ видны одним
+              взглядом. Проводнику такой предел не нужен: он раскладывает
+              плитки, и чем шире экран, тем больше их видно разом. */}
+          <section
+            aria-labelledby="settings-heading"
+            className="mx-auto w-full max-w-[44rem] space-y-4"
+          >
             <h2 id="settings-heading" className="sr-only">
               {SETTINGS_TAB_LABEL[settingsTab]}
             </h2>
@@ -491,7 +488,7 @@ export function Workspace({
                 // страницу — раз сутки уже открыты, показывать позади них
                 // ещё и анкету незачем.
                 onOpenDay={(day, grid) => {
-                  setMobileSettingsOpen(false);
+                  setSettingsOpen(false);
                   setYearView(grid === "calendar" ? "calendar" : "shifts");
                   setPickedDay(day);
                 }}

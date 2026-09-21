@@ -10,17 +10,14 @@ import {
   X,
   type LucideIcon,
 } from "lucide-react";
-import { useState, type ReactNode } from "react";
+import { type ReactNode } from "react";
 
 import { Materialize } from "@/components/ui/materialize";
-import { Modal } from "@/components/ui/modal";
 import { cn } from "@/lib/utils/cn";
 
 import type { StoredProfile } from "../storage/profile";
 import type { ExplorerTools } from "./profile-explorer";
 import { useSaveToFile } from "./save-to-file";
-import type { IsoDate } from "../domain/plain-date";
-import { SettingsTabs } from "./settings-tabs";
 
 /**
  * Настройки и выгрузка — из шапки.
@@ -55,12 +52,6 @@ import { SettingsTabs } from "./settings-tabs";
  * это единственное действие, уносящее нынешний профиль, и соседство с
  * «Сохранить» справа тут кстати.
  *
- * --- Почему в окне, а не выпадающим списком ------------------------------
- *
- * В настройках форма из десятка полей. Выпадающая панель такого размера —
- * то же модальное окно, только без перехвата фокуса и без Esc. Родной
- * `dialog` даёт и то и другое.
- *
  * --- Почему на узком экране остаются значки ------------------------------
  *
  * Кнопок стало две, и в меню их сворачивать больше незачем: два значка
@@ -76,22 +67,24 @@ import { SettingsTabs } from "./settings-tabs";
  * назвать его мимолётным. Кнопка при этом становится кнопкой закрытия —
  * той же самой, которой открыли.
  *
- * --- Настройки на телефоне: не окно вовсе ---------------------------------
+ * --- Настройки: не окно вовсе ---------------------------------------------
  *
- * Ниже `sm` кнопка «Настройки» не открывает `Modal`: она переключает то,
- * что показано на самой странице (`workspace.tsx` решает, что́ именно, —
- * знак сайта рядом читает «Настройки» вместо «График 1 3», полоса цифр
+ * Кнопка «Настройки» ничего не открывает поверх страницы: она переключает
+ * то, что на этой странице показано (`workspace.tsx` решает, что́ именно,
+ * — знак сайта рядом читает «Настройки» вместо «График 1 3», полоса цифр
  * становится закладками, календарь — анкетой). Экран не сменился ни на
  * миг, и открывать его окном означало бы утверждать обратное.
+ *
+ * Плавающее окно на столе тут было до тех пор, пока довод звучал так:
+ * колонки и панели по бокам никуда не прячутся, окно лишь дополняет их.
+ * Но настройки — ответы про ТОТ САМЫЙ график, что лежит под ними, и окно
+ * закрывало собой ровно то, ради чего его открыли. Теперь порядок один на
+ * всех ширинах, и он же у проводника: содержимое страницы подменяется на
+ * месте.
  *
  * Значок кнопки при этом меняется сам, шестерня на крестик: та же кнопка,
  * которой открыли, и закрывает. Отдельного крестика в углу листа, как у
  * прежнего окна, тут нет и не может быть — самого листа больше нет.
- *
- * На столе ширины хватает, и там кнопка ведёт себя как раньше — открывает
- * `Modal`, обычное плавающее окно. Настройки в нём не выглядят частью
- * страницы, но там и не нужно: колонки и панели по бокам никуда не
- * прячутся, а окно посередине лишь дополняет их.
  */
 
 type ToolId = "settings" | "open" | "save";
@@ -191,43 +184,25 @@ function ToolButton({
 
 export function HeaderTools({
   profile,
-  onChange,
-  onForget,
-  onOpenDay,
   className,
-  isMobile,
-  mobileSettingsOpen,
-  onToggleMobileSettings,
+  settingsOpen,
+  onToggleSettings,
   explorerOpen,
   onToggleExplorer,
   explorerTools,
 }: {
+  /** Нужен выгрузке в файл: она здесь и остаётся. */
   profile: StoredProfile;
-  onChange: (change: (previous: StoredProfile) => StoredProfile) => void;
-  /** Удалить профиль с устройства — из настроек, рядом со сбросом. */
-  onForget?: () => void;
-  /**
-   * Открыть сутки на сетке.
-   *
-   * Нужно перечню внесённых изменений: строка перечня ведёт в те самые
-   * сутки, а открывает их рабочий экран — там же, где и всё остальное.
-   * Заводить второе окно дня внутри настроек значило бы повторить его
-   * целиком и разойтись с ним при первой же правке.
-   */
-  onOpenDay: (day: IsoDate, grid: "shifts" | "calendar") => void;
   className?: string;
-  /** Ширина экрана ниже `sm` — там у настроек нет своего окна. */
-  isMobile: boolean;
-  /** Показаны ли сейчас настройки вместо страницы. Имеет смысл только на телефоне. */
-  mobileSettingsOpen: boolean;
-  onToggleMobileSettings: () => void;
+  /** Показаны ли сейчас настройки вместо графика. */
+  settingsOpen: boolean;
+  onToggleSettings: () => void;
   /** Показан ли сейчас проводник по профилям вместо календаря. */
   explorerOpen: boolean;
   onToggleExplorer: () => void;
   /** Действия проводника: пока он открыт, они стоят на месте обычных трёх. */
   explorerTools: ExplorerTools;
 }) {
-  const [open, setOpen] = useState(false);
   const save = useSaveToFile(profile);
 
   // Пока открыт проводник, страница занята другим — и кнопки у неё другие:
@@ -279,12 +254,12 @@ export function HeaderTools({
       >
         {TOOL_ORDER.map((id) => {
           const { label, title, Icon } = TOOL_META[id];
-          // Кнопка настроек на телефоне не открывает окно, а переключает
-          // то, что показано на самой странице, и сама превращается в
-          // кнопку закрытия. Имя и подсказка называют то действие, которое
+          // Кнопка настроек не открывает окно, а переключает то, что
+          // показано на самой странице, и сама превращается в кнопку
+          // закрытия. Имя и подсказка называют то действие, которое
           // нажатие СЕЙЧАС совершит.
-          const toggling = id === "settings" && isMobile;
-          const pressed = toggling && mobileSettingsOpen;
+          const toggling = id === "settings";
+          const pressed = toggling && settingsOpen;
           const label_ = pressed ? "Закрыть" : label;
           const title_ = pressed ? "Закрыть настройки" : title;
           return (
@@ -294,8 +269,7 @@ export function HeaderTools({
               onClick={() => {
                 if (id === "save") save.ask();
                 else if (id === "open") onToggleExplorer();
-                else if (isMobile) onToggleMobileSettings();
-                else setOpen(true);
+                else onToggleSettings();
               }}
               // Имя кнопки не зависит от того, видна подпись или нет:
               // на узком экране от кнопки остаётся значок, и без имени она
@@ -334,23 +308,6 @@ export function HeaderTools({
           );
         })}
       </div>
-
-      {/* Окно — только на столе: на телефоне у кнопки настроек другая
-          работа, см. шапку файла. */}
-      <Modal open={open} onClose={() => setOpen(false)} title="Настройки">
-        <SettingsTabs
-          profile={profile}
-          onChange={onChange}
-          onForget={onForget}
-          // Открыть сутки — значит закрыть настройки: окно дня встаёт
-          // поверх, и оставить под ним второе окно значило бы вернуть
-          // человека в настройки, как только он закончит с днём.
-          onOpenDay={(day, grid) => {
-            setOpen(false);
-            onOpenDay(day, grid);
-          }}
-        />
-      </Modal>
 
       {save.dialog}
     </>
