@@ -4,7 +4,6 @@ import { ChevronLeft, Folder, GripVertical, Pencil, Trash2 } from "lucide-react"
 import { useEffect, useState, type ReactNode } from "react";
 
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-import { trackGlow } from "@/components/ui/lit-edge";
 import { Input } from "@/components/ui/input";
 import { useMediaQuery } from "@/lib/hooks/use-media-query";
 import { cn } from "@/lib/utils/cn";
@@ -245,9 +244,8 @@ export function ProfileExplorer({
               data-folder-drop={ROOT_FOLDER_ID}
               onClick={() => tools.openFolder(ROOT_FOLDER_ID)}
               data-glow={drag?.over === ROOT_FOLDER_ID ? "on" : undefined}
-              onPointerMove={trackGlow}
               className={cn(
-                "lit-edge inline-flex h-9 cursor-pointer items-center gap-1 rounded-xl px-2",
+                "lit inline-flex h-9 cursor-pointer items-center gap-1 rounded-xl px-2",
                 "bg-paper-raised text-sm text-ink-muted transition-colors hover:text-ink",
               )}
             >
@@ -514,7 +512,6 @@ function FolderCard({
       // форму нельзя обвести рамкой (`ring` отрезается вместе со всем,
       // что вышло за контур), а свет ложится ровно по очертанию.
       data-glow={highlighted ? "on" : undefined}
-      onPointerMove={trackGlow}
       style={FOLDER_CLIP}
       className="lit-edge lit-edge--clipped lit-edge--rim aspect-[2/1]"
     >
@@ -629,8 +626,7 @@ function EntryCard({
     >
       <div
         data-glow={previewed ? "on" : undefined}
-        onPointerMove={trackGlow}
-        className="lit lit-edge relative flex h-full flex-col gap-1 rounded-xl bg-paper-raised p-3"
+        className="lit relative flex h-full flex-col gap-1 rounded-xl bg-paper-raised p-3"
       >
         {renaming ? (
           <NameField value={entry.name} onCommit={onCommit} onCancel={onCancel} />
