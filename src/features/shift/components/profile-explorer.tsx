@@ -343,18 +343,21 @@ export function ProfileExplorer({
 
       <FolderShape />
 
-      {/* Две папки в ряд помещаются уже на самом узком телефоне — оттуда и
-          считается всё остальное: с шириной экрана они сперва подрастают,
-          а дойдя до своего размера (11 рем), дальше не растягиваются —
-          прибавляется столбец. Папка предмет известного размера, и треть
-          монитора ей ни к чему. */}
+      {/* Папка — значок, а не плитка с содержимым: внутри у неё имя и две
+          кнопки, и всё. Прежние одиннадцать рем занимали столько же места,
+          сколько строка профиля, хотя говорили вчетверо меньше. Половина
+          от прежнего (5,5 рем) — размер, на котором имя ещё читается, а
+          ряд папок уже читается рядом ЗНАЧКОВ: четыре в строку на самом
+          узком телефоне, десяток на мониторе.
+
+          Правило одно на все ширины, без отдельного для телефона: папка
+          теперь меньше самой узкой колонки, и подгонять её под экран
+          больше не нужно. Столбцов становится столько, сколько поместится
+          (три на 320 точках, четыре на 390, десяток на мониторе), а ширина
+          гуляет в пределах от 4,5 до 5,5 рем — ниже этого от имени
+          осталось бы «1-й ка…». */}
       {folders.length > 0 || tools.addingFolder ? (
-        <ul
-          className={cn(
-            "grid gap-3 grid-cols-[repeat(auto-fill,minmax(7.5rem,1fr))]",
-            "min-[420px]:grid-cols-[repeat(auto-fill,minmax(9rem,11rem))]",
-          )}
-        >
+        <ul className="grid gap-2 grid-cols-[repeat(auto-fill,minmax(4.5rem,5.5rem))]">
           {folders
             .map((folder) => (
               <FolderCard
@@ -371,7 +374,7 @@ export function ProfileExplorer({
               />
             ))}
           {tools.addingFolder ? (
-            <li className="rounded-xl bg-paper-raised p-2 lit">
+            <li className="rounded-xl bg-paper-raised p-1.5 lit">
               <NameField
                 value=""
                 placeholder="Имя папки"
@@ -630,7 +633,7 @@ function FolderCard({
         // постоянное отношение сторон (4:3), и доля ширины растёт вместе с
         // высотой язычка. Рёмы на широкой карточке оставили бы имя в
         // вырезанной части — там, где бумаги ещё нет.
-        className="lit-clipped relative flex size-full flex-col bg-paper-raised px-2.5 pt-[16%] pb-2.5"
+        className="lit-clipped relative flex size-full flex-col bg-paper-raised px-1.5 pt-[16%] pb-1.5"
       >
         {renaming ? (
           <NameField value={folder.name} onCommit={onCommit} onCancel={onCancel} />
@@ -694,12 +697,12 @@ function FolderCard({
               {/* Нажатия ловят сами кнопки: ряд их не ловит вовсе
                   (`pointer-events-none` выше), иначе полоса поверх бумаги
                   съедала бы нажатие по карточке. */}
-              <span className="pointer-events-auto flex items-center gap-0.5">
+              <span className="pointer-events-auto flex items-center gap-1">
                 <IconButton label={`Переименовать папку «${folder.name}»`} onClick={onRename} bare>
-                  <Pencil aria-hidden className="size-4" />
+                  <Pencil aria-hidden className="size-3.5" />
                 </IconButton>
                 <IconButton label={`Удалить папку «${folder.name}»`} onClick={onDelete} bare>
-                  <Trash2 aria-hidden className="size-4" />
+                  <Trash2 aria-hidden className="size-3.5" />
                 </IconButton>
               </span>
             </div>
@@ -709,7 +712,10 @@ function FolderCard({
             <span
               className={cn(
                 "pointer-events-none relative flex flex-1 items-center justify-center",
-                "text-center text-sm font-medium",
+                // Кегль мельче основного: плитка вдвое у́же прежней, и
+                // обычные четырнадцать точек оставляли от «1-й караул»
+                // половину слова.
+                "text-center text-xs font-medium",
               )}
             >
               <span className="truncate">{folder.name}</span>
@@ -900,8 +906,13 @@ function IconButton({
    *
    * На плитке и без того две вещи — очертание и имя, — и плашка под
    * значком стала бы третьей. Отвечает наведению сам значок, цветом, как
-   * отвечают ссылки. Размер при этом полный, двадцать четыре точки:
-   * меньше — цель, в которую не попадают (WCAG 2.5.8).
+   * отвечают ссылки.
+   *
+   * Двадцать точек, а не двадцать четыре: плитка вдвое у́же прежней, и две
+   * полные кнопки заняли бы половину её ширины. Цель мельче двадцати
+   * четырёх допустима, когда соседние цели не спорят за касание, — их
+   * центры разведены ровно на двадцать четыре точки просветом между
+   * кнопками (WCAG 2.5.8, исключение про расстояние).
    */
   bare?: boolean;
   children: ReactNode;
@@ -916,7 +927,7 @@ function IconButton({
       className={cn(
         "inline-flex shrink-0 cursor-pointer items-center justify-center rounded-lg",
         bare
-          ? "size-6 text-ink-muted transition-colors hover:text-ink"
+          ? "size-5 text-ink-muted transition-colors hover:text-ink"
           : [
               "size-8 text-ink-muted transition-colors hover:bg-paper-sunken hover:text-ink",
               "disabled:hover:bg-transparent",
