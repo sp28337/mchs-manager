@@ -28,11 +28,6 @@ import { useRef, useState, type PointerEvent as ReactPointerEvent } from "react"
  * выключена заранее (`touch-none`). Палец на ручке тащит, палец на строке
  * листает, и спорить им не о чем.
  *
- * --- Почему нажатие на ручку тоже что-то делает ----------------------------
- *
- * Перетаскивание недоступно с клавиатуры и трудно тому, у кого дрожат руки.
- * Поэтому та же ручка, нажатая без движения, открывает перечень папок:
- * второй, равноправный путь к тому же действию.
  */
 
 export interface EntryDrag {
@@ -58,11 +53,8 @@ function folderUnder(x: number, y: number): string | null {
 
 export function useEntryDrag({
   onDrop,
-  onTap,
 }: {
   onDrop: (entryId: string, folderId: string) => void;
-  /** Нажатие на ручку без переноса — второй путь к тому же действию. */
-  onTap: (entryId: string) => void;
 }): {
   drag: EntryDrag | null;
   handlers: (entryId: string, name: string) => {
@@ -103,8 +95,7 @@ export function useEntryDrag({
       },
       onPointerUp: () => {
         if (drag === null) return;
-        if (!drag.moved) onTap(drag.entryId);
-        else if (drag.over !== null) onDrop(drag.entryId, drag.over);
+        if (drag.moved && drag.over !== null) onDrop(drag.entryId, drag.over);
         setDrag(null);
         start.current = null;
       },

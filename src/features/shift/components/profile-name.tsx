@@ -119,10 +119,11 @@ export function ProfileName({
           onKeyDown={endOnKey}
           className={cn(
             "inline-block min-w-[1ch] outline-none",
-            // Указатель — сигнальным цветом и заметно шире обычного:
-            // рукописная гарнитура тонкая, и волосяной курсор терялся бы в
-            // её штрихах ровно там, где он нужнее всего.
-            "caret-signal",
+            // Указатель — чернилами, то есть цветом самой надписи.
+            // Сигнальным он был ради заметности на тонкой рукописной
+            // гарнитуре, но красная черта поперёк росчерков читалась не
+            // курсором, а помаркой: будто слово зачёркнуто.
+            "caret-ink",
             "rounded-sm focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ink",
           )}
         />

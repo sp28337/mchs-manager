@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronLeft, Folder, GripVertical, Pencil, Trash2 } from "lucide-react";
+import { ChevronLeft, GripVertical, Pencil, Trash2 } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -11,10 +11,10 @@ import { cn } from "@/lib/utils/cn";
 import {
   activeEntryId,
   createFolder,
-  folderPath,
   deleteEntry,
   deleteFolder,
   detachActive,
+  folderPath,
   importEntry,
   loadLibrary,
   moveEntry,
@@ -189,7 +189,6 @@ export function ProfileExplorer({
   const { library, activeId } = useLibrary();
   const [renaming, setRenaming] = useState<Rename | null>(null);
   const [removing, setRemoving] = useState<Removal | null>(null);
-  const [movingEntry, setMovingEntry] = useState<string | null>(null);
 
   /**
    * Наведение показывает профиль наверху страницы, нажатие открывает.
@@ -212,10 +211,7 @@ export function ProfileExplorer({
     .filter((entry) => entry.folderId === current.id)
     .sort((a, b) => b.savedAt.localeCompare(a.savedAt));
 
-  const { drag, handlers } = useEntryDrag({
-    onDrop: moveEntry,
-    onTap: (entryId) => setMovingEntry((open) => (open === entryId ? null : entryId)),
-  });
+  const { drag, handlers } = useEntryDrag({ onDrop: moveEntry });
 
   function commitRename(value: string) {
     if (renaming === null) return;
@@ -238,34 +234,54 @@ export function ProfileExplorer({
           означать «в grafik13», и вернуться человек вправе на любую
           ступень. Каждое колено — ещё и место, куда можно перетащить
           профиль наверх. */}
-      <nav aria-label="Где мы в проводнике" className="flex flex-wrap items-center gap-1">
-        {path.map((folder, index) =>
-          index === path.length - 1 ? (
-            <h2 key={folder.id} className="font-display text-lg">
-              {folder.name}
-            </h2>
-          ) : (
-            <span key={folder.id} className="flex items-center gap-1">
-              <button
-                type="button"
-                data-folder-drop={folder.id}
-                onClick={() => tools.openFolder(folder.id)}
-                data-glow={drag?.over === folder.id ? "on" : undefined}
-                className={cn(
-                  "lit inline-flex h-8 cursor-pointer items-center gap-1 rounded-xl px-2",
-                  "bg-paper-raised text-sm text-ink-muted transition-colors hover:text-ink",
-                )}
-              >
-                {index === 0 ? <ChevronLeft aria-hidden className="size-4" /> : null}
+      {/* Путь до открытой папки: с вложенностью «назад» перестало означать
+          «в самый верх», и вернуться человек вправе на любую ступень.
+          Каждое колено — ещё и место, куда можно перетащить профиль наверх.
+
+          У самого верха имени нет. Служебное «grafik13» — название папки
+          в хранилище, а не то, что человек заводил: показывать его значило
+          бы называть началом списка чужое слово. От верха остаётся стрелка,
+          и она же ловит перетаскиваемый профиль. */}
+      {path.length > 1 ? (
+        <nav
+          aria-label="Где мы в проводнике"
+          className="flex flex-wrap items-center gap-1"
+        >
+          {path.map((folder, index) =>
+            index === path.length - 1 ? (
+              <h2 key={folder.id} className="font-display text-lg">
                 {folder.name}
-              </button>
-              <span aria-hidden className="text-ink-faint">
-                /
+              </h2>
+            ) : (
+              <span key={folder.id} className="flex items-center gap-1">
+                <button
+                  type="button"
+                  data-folder-drop={folder.id}
+                  onClick={() => tools.openFolder(folder.id)}
+                  data-glow={drag?.over === folder.id ? "on" : undefined}
+                  aria-label={
+                    folder.id === ROOT_FOLDER_ID ? "Ко всем профилям" : folder.name
+                  }
+                  className={cn(
+                    "lit inline-flex h-8 cursor-pointer items-center gap-1 rounded-xl px-2",
+                    "bg-paper-raised text-sm text-ink-muted transition-colors hover:text-ink",
+                  )}
+                >
+                  {index === 0 ? <ChevronLeft aria-hidden className="size-4" /> : null}
+                  {folder.id === ROOT_FOLDER_ID ? null : folder.name}
+                </button>
+                {/* Черта разделяет ИМЕНА, а у верха его нет: после стрелки
+                    она висела бы сама по себе. */}
+                {folder.id === ROOT_FOLDER_ID ? null : (
+                  <span aria-hidden className="text-ink-faint">
+                    /
+                  </span>
+                )}
               </span>
-            </span>
-          ),
-        )}
-      </nav>
+            ),
+          )}
+        </nav>
+      ) : null}
 
       {tools.error ? (
         <p className="rounded-xl bg-signal-soft px-4 py-3 text-sm">{tools.error}</p>
@@ -273,12 +289,18 @@ export function ProfileExplorer({
 
       <FolderShape />
 
-      {/* Дорожки шириной по самой папке, а не в долях экрана: папка —
-          предмет известного размера, и растягивать её на треть монитора
-          незачем. Сколько их встанет в ряд, решает сама ширина окна
-          (`auto-fill`), а лишнее место остаётся справа. */}
+      {/* Две папки в ряд помещаются уже на самом узком телефоне — оттуда и
+          считается всё остальное: с шириной экрана они сперва подрастают,
+          а дойдя до своего размера (11 рем), дальше не растягиваются —
+          прибавляется столбец. Папка предмет известного размера, и треть
+          монитора ей ни к чему. */}
       {folders.length > 0 || tools.addingFolder ? (
-        <ul className="grid grid-cols-[repeat(auto-fill,minmax(8.5rem,11rem))] gap-3">
+        <ul
+          className={cn(
+            "grid gap-3 grid-cols-[repeat(auto-fill,minmax(7.5rem,1fr))]",
+            "min-[420px]:grid-cols-[repeat(auto-fill,minmax(9rem,11rem))]",
+          )}
+        >
           {folders
             .map((folder) => (
               <FolderCard
@@ -327,8 +349,6 @@ export function ProfileExplorer({
             active={entry.id === activeId}
             dragging={drag?.moved === true && drag.entryId === entry.id}
             renaming={renaming?.kind === "entry" && renaming.id === entry.id}
-            folders={library.folders}
-            moving={movingEntry === entry.id}
             grip={handlers(entry.id, entry.name)}
             previewed={previewId === entry.id}
             // С указателем наведение показывает, нажатие открывает. Без
@@ -343,11 +363,6 @@ export function ProfileExplorer({
             onRename={() => setRenaming({ kind: "entry", id: entry.id, value: entry.name })}
             onCommit={commitRename}
             onCancel={() => setRenaming(null)}
-            onMove={(target) => {
-              moveEntry(entry.id, target);
-              setMovingEntry(null);
-            }}
-            onCloseMove={() => setMovingEntry(null)}
             onDelete={() => setRemoving({ kind: "entry", id: entry.id, name: entry.name })}
           />
         ))}
@@ -392,8 +407,8 @@ export function ProfileExplorer({
       >
         {removing?.kind === "folder" ? (
           <p>
-            Папка «{removing.name}» исчезнет, а профили из неё вернутся в{" "}
-            {ROOT_FOLDER_ID}. Данные не пропадут.
+            Папка «{removing.name}» исчезнет, а всё, что в ней лежало,
+            поднимется на ступень выше. Данные не пропадут.
           </p>
         ) : (
           <p>
@@ -413,6 +428,17 @@ export function ProfileExplorer({
           detachActive();
           tools.closeCreate();
           onCreated(profile);
+          // ...и запись эта ложится ТУДА, где человек стоит. Заводит её
+          // отражение открытого профиля (`syncActiveIntoLibrary`), а оно
+          // про папки не знает и кладёт всё в начало списка; здесь запись
+          // уже есть — сразу после `onCreated`, тот пишет профиль
+          // синхронно, — и остаётся её переложить. Иначе профиль, заведённый
+          // внутри папки, появлялся бы этажом выше, и человек искал бы его
+          // там, куда не клал.
+          const created = activeEntryId();
+          if (created !== null && current.id !== ROOT_FOLDER_ID) {
+            moveEntry(created, current.id);
+          }
         }}
       />
     </div>
@@ -563,9 +589,19 @@ function FolderCard({
                 Значка папки при имени больше нет: карточка сама имеет
                 очертание папки, и значок повторял бы это второй раз — да
                 ещё и отнимал бы у имени треть строки на узкой плитке. */}
-            <div className="pointer-events-none relative flex items-center gap-1">
-              <span className="min-w-0 flex-1 truncate text-sm font-medium">
-                {folder.name}
+            {/* Имени — вся строка, а кнопкам с числом профилей — нижняя.
+                Стоя при имени, кнопки отнимали у него половину плитки: на
+                320 точках от «Архив прошлых лет» оставалось «Ар…». */}
+            <span className="pointer-events-none relative truncate text-sm font-medium">
+              {folder.name}
+            </span>
+            <div className="pointer-events-none relative mt-auto flex items-end justify-between gap-1">
+              {/* Сколько внутри — на плитке шириной в 125 точек не
+                  помещается и обрывается на «0 п…»; там от него больше
+                  вреда, чем пользы, и остаётся оно с той же ширины, с
+                  которой плитка дорастает до своего размера. */}
+              <span className="hidden min-w-0 truncate text-xs text-ink-muted min-[420px]:block">
+                {profileCount(count)}
               </span>
               <span className="pointer-events-auto flex shrink-0 items-center gap-0.5">
                 <IconButton label={`Переименовать папку «${folder.name}»`} onClick={onRename}>
@@ -576,9 +612,6 @@ function FolderCard({
                 </IconButton>
               </span>
             </div>
-            <span className="pointer-events-none relative truncate text-xs text-ink-muted">
-              {profileCount(count)}
-            </span>
           </>
         )}
       </div>
@@ -591,8 +624,6 @@ function EntryCard({
   active,
   dragging,
   renaming,
-  folders,
-  moving,
   grip,
   previewed,
   onHover,
@@ -601,16 +632,12 @@ function EntryCard({
   onRename,
   onCommit,
   onCancel,
-  onMove,
-  onCloseMove,
   onDelete,
 }: {
   entry: LibraryEntry;
   active: boolean;
   dragging: boolean;
   renaming: boolean;
-  folders: LibraryFolder[];
-  moving: boolean;
   grip: ReturnType<ReturnType<typeof useEntryDrag>["handlers"]>;
   /** Этот профиль сейчас показан наверху страницы. */
   previewed: boolean;
@@ -621,8 +648,6 @@ function EntryCard({
   onRename: () => void;
   onCommit: (value: string) => void;
   onCancel: () => void;
-  onMove: (folderId: string) => void;
-  onCloseMove: () => void;
   onDelete: () => void;
 }) {
   return (
@@ -659,7 +684,7 @@ function EntryCard({
             <button
               type="button"
               {...grip}
-              aria-label={`Переместить профиль «${entry.name}» в папку`}
+              aria-label={`Перетащить профиль «${entry.name}» в папку`}
               title="Перетащите в папку или нажмите, чтобы выбрать её"
               className={cn(
                 // Прокрутка на ручке выключена заранее: менять
@@ -712,35 +737,6 @@ function EntryCard({
         )}
       </div>
 
-      {/* Перечень папок — тот же перенос для тех, кому перетаскивание
-          недоступно: с клавиатуры или дрожащей рукой. */}
-      {moving ? (
-        <div className="mt-1 flex flex-wrap items-center gap-2 pl-2">
-          {folders
-            .filter((folder) => folder.id !== entry.folderId)
-            .map((folder) => (
-              <button
-                key={folder.id}
-                type="button"
-                onClick={() => onMove(folder.id)}
-                className={cn(
-                  "inline-flex h-8 cursor-pointer items-center gap-1 rounded-lg bg-paper px-2",
-                  "text-xs transition-colors hover:bg-paper-sunken",
-                )}
-              >
-                <Folder aria-hidden className="size-3.5 text-ink-muted" />
-                {folder.name}
-              </button>
-            ))}
-          <button
-            type="button"
-            onClick={onCloseMove}
-            className="cursor-pointer text-xs text-ink-muted hover:underline"
-          >
-            Отмена
-          </button>
-        </div>
-      ) : null}
     </li>
   );
 }
