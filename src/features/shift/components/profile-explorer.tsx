@@ -4,6 +4,7 @@ import { ChevronLeft, Folder, GripVertical, Pencil, Trash2 } from "lucide-react"
 import { useEffect, useState, type ReactNode } from "react";
 
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { LitEdgeGlow, trackGlow } from "@/components/ui/lit-edge";
 import { Input } from "@/components/ui/input";
 import { useMediaQuery } from "@/lib/hooks/use-media-query";
 import { cn } from "@/lib/utils/cn";
@@ -243,12 +244,14 @@ export function ProfileExplorer({
               type="button"
               data-folder-drop={ROOT_FOLDER_ID}
               onClick={() => tools.openFolder(ROOT_FOLDER_ID)}
+              data-glow={drag?.over === ROOT_FOLDER_ID ? "on" : undefined}
+              onPointerMove={trackGlow}
               className={cn(
-                "inline-flex h-9 cursor-pointer items-center gap-1 rounded-xl px-2",
-                "text-sm text-ink-muted transition-colors hover:bg-paper-raised",
-                drag?.over === ROOT_FOLDER_ID && "bg-paper-raised text-ink ring-2 ring-trace",
+                "lit-edge inline-flex h-9 cursor-pointer items-center gap-1 rounded-xl px-2",
+                "text-sm text-ink-muted transition-colors hover:text-ink",
               )}
             >
+              <LitEdgeGlow className="rounded-xl" />
               <ChevronLeft aria-hidden className="size-4" />
               {ROOT_FOLDER_ID}
             </button>
@@ -261,12 +264,14 @@ export function ProfileExplorer({
         <p className="rounded-xl bg-signal-soft px-4 py-3 text-sm">{tools.error}</p>
       ) : null}
 
+      <FolderShape />
+
       {/* Папки — только в grafik13: внутрь друг друга они не вкладываются.
           В один столбец на самом узком телефоне: вдвоём на 320 точках у
           карточек остаётся по 132, и в них не встают ни имя папки, ни
           «0 профилей» рядом с двумя кнопками. */}
       {atRoot ? (
-        <ul className="grid grid-cols-1 gap-2 min-[360px]:grid-cols-2 sm:grid-cols-3 lg:grid-cols-4">
+        <ul className="grid grid-cols-1 gap-3 min-[360px]:grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
           {library.folders
             .filter((folder) => folder.id !== ROOT_FOLDER_ID)
             .map((folder) => (
@@ -300,9 +305,14 @@ export function ProfileExplorer({
         </ul>
       ) : null}
 
-      <ul className="divide-y divide-rule rounded-xl bg-paper-raised px-4 lit empty:hidden">
+      {/* Профили — плитками, а не строкой на всю ширину. Строка была
+          списком в одну колонку и на мониторе: имя слева, четыре пятых
+          ширины пустые. Плитка в тех же условиях встаёт второй и третьей в
+          ряд, и весь список видно разом — а выбирают здесь именно
+          сравнением. */}
+      <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3 empty:hidden">
         {entries.map((entry) => (
-          <EntryRow
+          <EntryCard
             key={entry.id}
             entry={entry}
             active={entry.id === activeId}
@@ -338,7 +348,7 @@ export function ProfileExplorer({
         <p className="rounded-xl bg-paper-raised px-4 py-6 text-center text-sm text-ink-muted lit">
           {atRoot
             ? "Здесь будут ваши графики. Создайте новый профиль или загрузите сохранённый файл."
-            : "Папка пуста. Перетащите сюда профиль за полоску слева от имени."}
+            : "Папка пуста. Перетащите сюда профиль за полоску в углу плитки."}
         </p>
       ) : null}
 
@@ -435,6 +445,47 @@ function useLibrary(): { library: Library; activeId: string | null } {
   return snapshot;
 }
 
+/**
+ * Очертание папки — вырезкой, а не картинкой.
+ *
+ * --- Почему не значок рядом с именем ----------------------------------------
+ *
+ * Значок папки на прямоугольной плашке — это подпись «здесь папка».
+ * Вырезанная плашка папкой БЫВАЕТ: в ряду одинаковых прямоугольников её
+ * видно, не читая. Бумага, свет по кромке и тень у неё при этом те же, что
+ * у всего остального, — меняется одно очертание.
+ *
+ * --- Почему `clipPath`, а не картинка ----------------------------------------
+ *
+ * Фоновая картинка не умеет быть той же бумагой, что и соседи: цвет её
+ * пришлось бы повторить второй раз и держать в согласии с темой, с
+ * которой он меняется. Вырезка же работает поверх любой заливки — и над
+ * ней по-прежнему лежит обычная разметка с именем и кнопками.
+ *
+ * Доли, а не точки (`objectBoundingBox`): очертание тянется за карточкой
+ * на любой ширине. Отношение сторон у карточки при этом закреплено (2:1) —
+ * иначе скругления стали бы овалами, а наклон плеча поехал бы вместе с
+ * ними.
+ */
+const FOLDER_CLIP = { clipPath: "url(#folder-shape)" } as const;
+
+function FolderShape() {
+  return (
+    <svg aria-hidden className="absolute size-0" focusable="false">
+      <defs>
+        <clipPath id="folder-shape" clipPathUnits="objectBoundingBox">
+          <path
+            d="M0.05,0 H0.33 C0.365,0 0.385,0.024 0.4,0.08 L0.42,0.15
+               C0.432,0.186 0.45,0.2 0.48,0.2 H0.95 A0.05,0.1 0 0 1 1,0.3
+               V0.9 A0.05,0.1 0 0 1 0.95,1 H0.05 A0.05,0.1 0 0 1 0,0.9
+               V0.1 A0.05,0.1 0 0 1 0.05,0 Z"
+          />
+        </clipPath>
+      </defs>
+    </svg>
+  );
+}
+
 function FolderCard({
   folder,
   count,
@@ -459,60 +510,73 @@ function FolderCard({
   return (
     <li
       data-folder-drop={folder.id}
-      className={cn(
-        "lit relative flex flex-col gap-1 rounded-xl bg-paper-raised p-3 transition-shadow",
-        highlighted && "ring-2 ring-trace",
-      )}
+      // Свет по кромке вместо подсветки заливкой — и у наведения, и у
+      // папки, над которой держат перетаскиваемый профиль. Вырезанную
+      // форму нельзя обвести рамкой (`ring` отрезается вместе со всем,
+      // что вышло за контур), а свет ложится ровно по очертанию.
+      data-glow={highlighted ? "on" : undefined}
+      onPointerMove={trackGlow}
+      className="lit-edge lit-edge--rim aspect-[2/1]"
     >
-      {renaming ? (
-        <NameField value={folder.name} onCommit={onCommit} onCancel={onCancel} />
-      ) : (
-        <>
-          {/* Папка открывается нажатием куда угодно по карточке, а не по
-              одному имени: карточка и есть папка, и требовать попасть в
-              строку текста — значит требовать точности там, где её неоткуда
-              взять, особенно пальцем.
+      <LitEdgeGlow style={FOLDER_CLIP} />
+      <div
+        style={FOLDER_CLIP}
+        // Отступ сверху — долей ШИРИНЫ, а не рёмами: у карточки
+        // постоянное отношение сторон (2:1), и доля ширины растёт вместе с
+        // высотой язычка. Рёмы на широкой карточке оставили бы имя в
+        // вырезанной части — там, где бумаги ещё нет.
+        className="lit-clipped relative flex size-full flex-col gap-0.5 bg-paper-raised px-3 pt-[13%] pb-2.5"
+      >
+        {renaming ? (
+          <NameField value={folder.name} onCommit={onCommit} onCancel={onCancel} />
+        ) : (
+          <>
+            {/* Папка открывается нажатием куда угодно по карточке, а не по
+                одному имени: карточка и есть папка, и требовать попасть в
+                строку текста — значит требовать точности там, где её неоткуда
+                взять, особенно пальцем.
 
-              Растянутая кнопка, а не кнопка вокруг всего: внутри карточки
-              стоят ещё две (переименовать, удалить), а кнопка в кнопке —
-              разметка, которой не бывает. Поэтому эта лежит подложкой, а
-              соседи подняты над ней (`relative`) и ловят нажатие сами. */}
-          <button
-            type="button"
-            onClick={onOpen}
-            aria-label={`Открыть папку «${folder.name}»`}
-            className={cn(
-              "absolute inset-0 cursor-pointer rounded-xl",
-              "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-trace",
-            )}
-          />
-          <span className="pointer-events-none relative flex items-center gap-2 text-sm font-medium">
-            <Folder aria-hidden className="size-4 shrink-0 text-ink-muted" />
-            <span className="truncate">{folder.name}</span>
-          </span>
-          {/* Строка не ловит указатель целиком — ловят только две кнопки в
-              ней: иначе она, лежащая поверх подложки, съедала бы нажатие по
-              середине карточки, то есть по самому вероятному месту. */}
-          <div className="pointer-events-none relative flex items-center justify-between gap-1">
-            <span className="min-w-0 truncate text-xs text-ink-muted">
+                Растянутая кнопка, а не кнопка вокруг всего: внутри карточки
+                стоят ещё две (переименовать, удалить), а кнопка в кнопке —
+                разметка, которой не бывает. Поэтому эта лежит подложкой, а
+                соседи подняты над ней (`relative`) и ловят нажатие сами. */}
+            <button
+              type="button"
+              onClick={onOpen}
+              aria-label={`Открыть папку «${folder.name}»`}
+              className="absolute inset-0 cursor-pointer focus-visible:outline-2 focus-visible:-outline-offset-4 focus-visible:outline-trace"
+            />
+            {/* Строки не ловят указатель целиком — ловят только две кнопки:
+                иначе они, лежащие поверх подложки, съедали бы нажатие по
+                середине карточки, то есть по самому вероятному месту.
+
+                Значка папки при имени больше нет: карточка сама имеет
+                очертание папки, и значок повторял бы это второй раз — да
+                ещё и отнимал бы у имени треть строки на узкой плитке. */}
+            <div className="pointer-events-none relative flex items-center gap-1">
+              <span className="min-w-0 flex-1 truncate text-sm font-medium">
+                {folder.name}
+              </span>
+              <span className="pointer-events-auto flex shrink-0 items-center gap-0.5">
+                <IconButton label={`Переименовать папку «${folder.name}»`} onClick={onRename}>
+                  <Pencil aria-hidden className="size-4" />
+                </IconButton>
+                <IconButton label={`Удалить папку «${folder.name}»`} onClick={onDelete}>
+                  <Trash2 aria-hidden className="size-4" />
+                </IconButton>
+              </span>
+            </div>
+            <span className="pointer-events-none relative truncate text-xs text-ink-muted">
               {profileCount(count)}
             </span>
-            <span className="pointer-events-auto flex items-center gap-1">
-              <IconButton label={`Переименовать папку «${folder.name}»`} onClick={onRename}>
-                <Pencil aria-hidden className="size-4" />
-              </IconButton>
-              <IconButton label={`Удалить папку «${folder.name}»`} onClick={onDelete}>
-                <Trash2 aria-hidden className="size-4" />
-              </IconButton>
-            </span>
-          </div>
-        </>
-      )}
+          </>
+        )}
+      </div>
     </li>
   );
 }
 
-function EntryRow({
+function EntryCard({
   entry,
   active,
   dragging,
@@ -554,122 +618,130 @@ function EntryRow({
   return (
     <li
       onPointerEnter={onHover}
+      onPointerMove={trackGlow}
       onPointerLeave={onLeave}
       // Фокус с клавиатуры — то же наведение: человек, идущий по списку
       // табуляцией, видит наверху тот же профиль, что и человек с мышью.
       onFocus={onHover}
       onBlur={onLeave}
-      className={cn(
-        "-mx-2 rounded-lg px-2 py-2 transition-colors",
-        dragging && "opacity-40",
-        // Показанный наверху отмечен и в списке: иначе на телефоне, где
-        // показ включается нажатием, непонятно, о каком профиле говорят
-        // цифры.
-        previewed && "bg-paper-sunken",
-      )}
+      // Показанный наверху светится и без указателя: на телефоне показ
+      // включается нажатием, и иначе непонятно, о каком профиле говорят
+      // цифры.
+      data-glow={previewed ? "on" : undefined}
+      className={cn("lit-edge", dragging && "opacity-40")}
     >
-      <div className="flex items-center gap-2">
-        <button
-          type="button"
-          {...grip}
-          aria-label={`Переместить профиль «${entry.name}» в папку`}
-          title="Перетащите в папку или нажмите, чтобы выбрать её"
-          className={cn(
-            // Прокрутка на ручке выключена заранее: менять `touch-action`
-            // посреди начатого жеста поздно (`use-entry-drag.ts`).
-            "touch-none inline-flex size-8 shrink-0 cursor-grab items-center justify-center",
-            "rounded-lg text-ink-muted transition-colors hover:bg-paper-sunken hover:text-ink",
-            "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-trace",
-          )}
-        >
-          <GripVertical aria-hidden className="size-4" />
-        </button>
+      <LitEdgeGlow className="rounded-[0.875rem]" />
 
+      <div className="lit relative flex h-full flex-col gap-1 rounded-xl bg-paper-raised p-3">
         {renaming ? (
           <NameField value={entry.name} onCommit={onCommit} onCancel={onCancel} />
         ) : (
           <>
+            {/* Нажатие по всей плитке, а не по одному имени: плитка и есть
+                профиль. Кнопка лежит подложкой, а ручка и две кнопки над
+                ней подняты (`relative`) и ловят нажатие сами. */}
             <button
               type="button"
               onClick={onOpen}
-              className="min-w-0 flex-1 cursor-pointer text-left"
-            >
-              {/* Имени — вся строка, отметке «открыт» — вторая, рядом со
-                  временем правки. Стоя при имени, она отнимала у него
-                  половину ширины: на 320 точках от «Тараканов Павел
-                  Николаевич» оставалось «Тара…». */}
-              <span className="block truncate text-sm font-medium">{entry.name}</span>
-              {/* Перенос, а не обрезка: на 320 точках отметка «открыт» и
-                  время правки в одну строку не встают, и обрезалось бы
-                  именно время — то самое, чем два снимка и различают. */}
-              <span className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-ink-muted">
-                {active ? (
-                  <span className="shrink-0 rounded-md bg-paper-sunken px-1.5 py-0.5 font-normal">
-                    открыт
-                  </span>
-                ) : null}
-                <span className="truncate">
-                  {/* Слово уходит с самых узких экранов, дата остаётся:
-                      столбец с именем там шириной в 120 точек, и «изменён»
-                      съедало ровно то время, ради которого строка и стоит.
-                      Программе чтения слово остаётся (`sr-only`). */}
-                  <span className="max-[359px]:sr-only">{"изменён "}</span>
-                  {savedAtLabel(entry.savedAt)}
-                </span>
-              </span>
-            </button>
+              aria-label={`Открыть профиль «${entry.name}»`}
+              className="absolute inset-0 cursor-pointer rounded-xl focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-trace"
+            />
 
-            <IconButton label={`Переименовать профиль «${entry.name}»`} onClick={onRename}>
-              <Pencil aria-hidden className="size-4" />
-            </IconButton>
-            {/* Открытый профиль отсюда не удаляется: стереть то, что сейчас
-                на экране, значило бы оставить страницу без данных, которые
-                она показывает. Для этого есть «Удалить профиль» в
-                настройках — там о последствиях сказано прямо. */}
-            <IconButton
-              label={
-                active
-                  ? "Открытый профиль удаляется из настроек"
-                  : `Удалить профиль «${entry.name}»`
-              }
-              onClick={onDelete}
-              disabled={active}
-            >
-              <Trash2 aria-hidden className="size-4" />
-            </IconButton>
+            <span className="pointer-events-none relative block truncate text-sm font-medium">
+              {entry.name}
+            </span>
+            {/* Перенос, а не обрезка: на 320 точках отметка «открыт» и
+                время правки в одну строку не встают, и обрезалось бы
+                именно время — то самое, чем два снимка и различают. */}
+            <span className="pointer-events-none relative flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-ink-muted">
+              {active ? (
+                <span className="shrink-0 rounded-md bg-paper-sunken px-1.5 py-0.5 font-normal">
+                  открыт
+                </span>
+              ) : null}
+              <span className="truncate">
+                {/* Слово уходит с самых узких экранов, дата остаётся:
+                    столбец с именем там шириной в 120 точек, и «изменён»
+                    съедало ровно то время, ради которого строка и стоит.
+                    Программе чтения слово остаётся (`sr-only`). */}
+                <span className="max-[359px]:sr-only">{"изменён "}</span>
+                {savedAtLabel(entry.savedAt)}
+              </span>
+            </span>
+
+            <div className="relative mt-auto flex items-center justify-between gap-1 pt-2">
+              <button
+                type="button"
+                {...grip}
+                aria-label={`Переместить профиль «${entry.name}» в папку`}
+                title="Перетащите в папку или нажмите, чтобы выбрать её"
+                className={cn(
+                  // Прокрутка на ручке выключена заранее: менять
+                  // `touch-action` посреди начатого жеста поздно
+                  // (`use-entry-drag.ts`).
+                  "touch-none inline-flex size-8 shrink-0 cursor-grab items-center justify-center",
+                  "rounded-lg text-ink-muted transition-colors hover:text-ink",
+                  "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-trace",
+                )}
+              >
+                <GripVertical aria-hidden className="size-4" />
+              </button>
+
+              <span className="flex items-center gap-1">
+                <IconButton label={`Переименовать профиль «${entry.name}»`} onClick={onRename}>
+                  <Pencil aria-hidden className="size-4" />
+                </IconButton>
+                {/* Открытый профиль отсюда не удаляется: стереть то, что
+                    сейчас на экране, значило бы оставить страницу без
+                    данных, которые она показывает. Для этого есть «Удалить
+                    профиль» в настройках — там о последствиях сказано
+                    прямо. */}
+                <IconButton
+                  label={
+                    active
+                      ? "Открытый профиль удаляется из настроек"
+                      : `Удалить профиль «${entry.name}»`
+                  }
+                  onClick={onDelete}
+                  disabled={active}
+                >
+                  <Trash2 aria-hidden className="size-4" />
+                </IconButton>
+              </span>
+            </div>
+
+            {/* Перечень папок — тот же перенос для тех, кому перетаскивание
+                недоступно: с клавиатуры или дрожащей рукой. */}
+            {moving ? (
+              <div className="relative flex flex-wrap items-center gap-2 pt-2">
+                {folders
+                  .filter((folder) => folder.id !== entry.folderId)
+                  .map((folder) => (
+                    <button
+                      key={folder.id}
+                      type="button"
+                      onClick={() => onMove(folder.id)}
+                      className={cn(
+                        "inline-flex h-8 cursor-pointer items-center gap-1 rounded-lg bg-paper px-2",
+                        "text-xs transition-colors hover:bg-paper-sunken",
+                      )}
+                    >
+                      <Folder aria-hidden className="size-3.5 text-ink-muted" />
+                      {folder.name}
+                    </button>
+                  ))}
+                <button
+                  type="button"
+                  onClick={onCloseMove}
+                  className="cursor-pointer text-xs text-ink-muted hover:underline"
+                >
+                  Отмена
+                </button>
+              </div>
+            ) : null}
           </>
         )}
       </div>
-
-      {/* Перечень папок — тот же перенос для тех, кому перетаскивание
-          недоступно: с клавиатуры или дрожащей рукой. */}
-      {moving ? (
-        <div className="mt-2 flex flex-wrap items-center gap-2 pl-10">
-          {folders
-            .filter((folder) => folder.id !== entry.folderId)
-            .map((folder) => (
-              <button
-                key={folder.id}
-                type="button"
-                onClick={() => onMove(folder.id)}
-                className={cn(
-                  "inline-flex h-8 cursor-pointer items-center gap-1 rounded-lg bg-paper px-2",
-                  "text-xs transition-colors hover:bg-paper-sunken",
-                )}
-              >
-                <Folder aria-hidden className="size-3.5 text-ink-muted" />
-                {folder.name}
-              </button>
-            ))}
-          <button
-            type="button"
-            onClick={onCloseMove}
-            className="cursor-pointer text-xs text-ink-muted hover:underline"
-          >
-            Отмена
-          </button>
-        </div>
-      ) : null}
     </li>
   );
 }
