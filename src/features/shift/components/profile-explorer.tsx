@@ -1,7 +1,7 @@
 "use client";
 
 import { ChevronLeft, ChevronRight, GripVertical, Pencil, Trash2 } from "lucide-react";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Input } from "@/components/ui/input";
@@ -199,6 +199,7 @@ export function ProfileExplorer({
   onOpenEntry: (entry: LibraryEntry) => void;
 }) {
   const { library, activeId } = useLibrary();
+  const list = useRef<HTMLUListElement>(null);
   const [renaming, setRenaming] = useState<Rename | null>(null);
   const [removing, setRemoving] = useState<Removal | null>(null);
   /** «Имя занято» — о переименовании; у действий шапки свой сказ. */
@@ -226,6 +227,49 @@ export function ProfileExplorer({
     .sort((a, b) => b.savedAt.localeCompare(a.savedAt));
 
   const { drag, handlers } = useEntryDrag({ onDrop: moveEntry });
+
+  /**
+   * Строки профилей — одной ширины, по самой длинной из них.
+   *
+   * --- Почему замером, а не правилом вёрстки ---------------------------------
+   *
+   * Ширина строки берётся из её содержимого — имени, у которого нет ни
+   * заданной длины, ни предела: «2025» и «Тараканов Павел Николаевич» стоят
+   * в одном списке. Разложенные переносом, такие строки дают рваный правый
+   * край; растянутые на колонку в треть экрана — пустую бумагу справа от
+   * короткого имени.
+   *
+   * Ни того ни другого не выражает ни одно правило вёрстки: `max-content` у
+   * колонки грида считается по КАЖДОЙ колонке отдельно, а `1fr` о
+   * содержимом не знает вовсе. Остаётся замер — им же меряется полоса цифр
+   * наверху страницы (`period-summary.tsx`).
+   *
+   * Меряется натуральная ширина: перед замером назначенная снимается, иначе
+   * со второго раза мерилась бы она сама. Ставится она прямо в разметку,
+   * минуя перерисовку, — состояние завело бы второй проход отрисовки на
+   * каждую правку имени.
+   *
+   * На телефоне ширины нет вовсе: там строки идут столбиком во всю ширину
+   * экрана (`ul` ниже), и равнять их не по чему.
+   */
+  const wideRows = useMediaQuery("(min-width: 40rem)");
+  const rowsKey = `${entries.map((entry) => `${entry.id}:${entry.name}`).join("|")}#${activeId}`;
+
+  useLayoutEffect(() => {
+    const ul = list.current;
+    if (ul === null) return;
+    const items = [...ul.children].filter(
+      (node): node is HTMLElement => node instanceof HTMLElement,
+    );
+    for (const item of items) item.style.width = "";
+    if (!wideRows) return;
+    const widest = items.reduce(
+      (max, item) => Math.max(max, item.getBoundingClientRect().width),
+      0,
+    );
+    if (widest === 0) return;
+    for (const item of items) item.style.width = `${Math.ceil(widest)}px`;
+  }, [wideRows, rowsKey, renaming]);
 
   function commitRename(value: string) {
     if (renaming === null) return;
@@ -406,8 +450,9 @@ export function ProfileExplorer({
           монитор, она занимала содержимым треть ширины, а две трети
           оставались пустой бумагой; поставленная одним узким столбцом —
           оставляла пустой всю правую половину экрана. Перенос по строкам
-          (`flex-wrap`) кладёт их по ширине содержимого и столько, сколько
-          помещается, — тем же способом, каким разложены папки выше.
+          (`flex-wrap`) кладёт их столько, сколько помещается в ряду, — тем
+          же способом, каким разложены папки выше, — а ширина у всех одна,
+          по самой длинной строке (замер выше).
 
           На телефоне переносить нечего: две строки в ряд там не встанут
           ни при какой длине имени, а растянутая на всю ширину строка —
@@ -418,6 +463,7 @@ export function ProfileExplorer({
           шире экрана не растянет её за край, имя упрётся в ширину
           страницы и обрежется многоточием, как и прежде. */}
       <ul
+        ref={list}
         className={cn(
           "flex flex-col gap-3 empty:hidden sm:flex-row sm:flex-wrap",
           folders.length > 0 || tools.addingFolder ? "mt-6" : null,
@@ -675,19 +721,18 @@ function FolderCard({
                 значком стала бы третьей. Наведение отвечает цветом самого
                 значка, как отвечают ссылки.
 
-                Строкой в столбце, а не накладкой: ряд отнимает себе
-                высоту, и имя встаёт НИЖЕ середины — ровно настолько,
-                насколько ряд занял сверху. Просвет над именем и под ним
-                от этого одинаков, и плитка читается уравновешенной, а не
-                «имя посередине, кнопки сами по себе».
-
                 С указателем кнопки появляются при наведении на карточку —
                 и при переходе на неё табуляцией (`focus-within`), иначе с
                 клавиатуры до них было бы не добраться. Пальцем наведения
                 не бывает, и там они видны всегда. */}
             <div
               className={cn(
-                "pointer-events-none relative flex shrink-0 items-center justify-end gap-0.5",
+                // Накладка, а не строка в столбце: строка отнимала у имени
+                // высоту и опускала его ниже середины плитки, а имя здесь —
+                // единственное, что читают. Поля у накладки те же, что у
+                // бумаги (`px-2.5 pt-[16%]`), поэтому кнопки встают ровно
+                // туда, где начинается её содержимое.
+                "pointer-events-none absolute inset-0 flex items-start justify-end px-2.5 pt-[16%]",
                 hoverable && [
                   // Прячется прозрачностью, а не `pointer-events`: чтобы
                   // нажать на кнопку мышью, к ней нужно сперва подвести
@@ -712,9 +757,9 @@ function FolderCard({
                 </IconButton>
               </span>
             </div>
-            {/* Имя — посреди того, что осталось под кнопками: значка при
-                нём нет, карточка сама имеет очертание папки, и значок
-                повторял бы это второй раз. */}
+            {/* Имя — посреди плитки: кнопки лежат накладкой и высоты у
+                него не отнимают. Значка при нём нет — карточка сама имеет
+                очертание папки, и значок повторял бы это второй раз. */}
             <span
               className={cn(
                 "pointer-events-none relative flex flex-1 items-center justify-center",
