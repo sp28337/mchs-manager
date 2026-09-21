@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronLeft, GripVertical, Pencil, Trash2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, GripVertical, Pencil, Trash2 } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -263,10 +263,6 @@ export function ProfileExplorer({
     // от папок ещё на ступень (`mt-6` ниже), и в колонке отступ
     // складывается с просветом, а не спорит с ним.
     <div className="flex flex-col gap-4">
-      {/* Путь до открытой папки целиком: с вложенностью «назад» перестало
-          означать «в grafik13», и вернуться человек вправе на любую
-          ступень. Каждое колено — ещё и место, куда можно перетащить
-          профиль наверх. */}
       {/* Путь до открытой папки: с вложенностью «назад» перестало означать
           «в самый верх», и вернуться человек вправе на любую ступень.
           Каждое колено — ещё и место, куда можно перетащить профиль наверх.
@@ -274,19 +270,40 @@ export function ProfileExplorer({
           У самого верха имени нет. Служебное «grafik13» — название папки
           в хранилище, а не то, что человек заводил: показывать его значило
           бы называть началом списка чужое слово. От верха остаётся стрелка,
-          и она же ловит перетаскиваемый профиль. */}
+          и она же ловит перетаскиваемый профиль.
+
+          --- Как строка собрана -------------------------------------------
+
+          Строка читается как заголовок раздела: слева квадратная плашка со
+          стрелкой — ровно такая же, как плашки в шапке страницы, и такой же
+          высоты, — а за ней имя открытой папки тем же начертанием, каким
+          названы заголовки везде.
+
+          Плашка квадратная, а не «кнопка с полями»: внутри у неё один
+          значок, и поля по бокам делали её то шире, то у́же соседних плашек
+          страницы. Имя выровнено по её середине (`leading-none`): у строки
+          заголовка собственная высота строки, и без этого слово стояло на
+          полточки выше стрелки — той самой неаккуратности, которую видно,
+          но не объяснить.
+
+          Ступени между верхом и открытой папкой — плашки помельче, и
+          разделяет их галочка, а не косая черта: та же стрелка, что и
+          слева, только повёрнутая, — одним знаком меньше в строке. */}
       {path.length > 1 ? (
         <nav
           aria-label="Где мы в проводнике"
-          className="flex flex-wrap items-center gap-1"
+          className="flex min-h-8 flex-wrap items-center gap-2"
         >
           {path.map((folder, index) =>
             index === path.length - 1 ? (
-              <h2 key={folder.id} className="font-display text-lg">
+              <h2
+                key={folder.id}
+                className="min-w-0 truncate font-display text-lg leading-none"
+              >
                 {folder.name}
               </h2>
             ) : (
-              <span key={folder.id} className="flex items-center gap-1">
+              <span key={folder.id} className="flex min-w-0 items-center gap-2">
                 <button
                   type="button"
                   data-folder-drop={folder.id}
@@ -296,19 +313,23 @@ export function ProfileExplorer({
                     folder.id === ROOT_FOLDER_ID ? "Ко всем профилям" : folder.name
                   }
                   className={cn(
-                    "lit inline-flex h-8 cursor-pointer items-center gap-1 rounded-xl px-2",
-                    "bg-paper-raised text-sm text-ink-muted transition-colors hover:text-ink",
+                    "lit inline-flex h-8 shrink-0 cursor-pointer items-center justify-center",
+                    "rounded-xl bg-paper-raised text-ink-muted transition-colors hover:text-ink",
+                    "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink",
+                    index === 0 ? "w-8" : "min-w-0 max-w-40 truncate px-3 text-sm",
                   )}
                 >
-                  {index === 0 ? <ChevronLeft aria-hidden className="size-4" /> : null}
-                  {folder.id === ROOT_FOLDER_ID ? null : folder.name}
+                  {index === 0 ? (
+                    <ChevronLeft aria-hidden className="size-4.5" />
+                  ) : (
+                    folder.name
+                  )}
                 </button>
-                {/* Черта разделяет ИМЕНА, а у верха его нет: после стрелки
-                    она висела бы сама по себе. */}
-                {folder.id === ROOT_FOLDER_ID ? null : (
-                  <span aria-hidden className="text-ink-faint">
-                    /
-                  </span>
+                {/* Галочка разделяет ИМЕНА: сразу после стрелки «назад» она
+                    висела бы сама по себе — там и так видно, где строка
+                    начинается. */}
+                {index === 0 ? null : (
+                  <ChevronRight aria-hidden className="size-3.5 shrink-0 text-ink-faint" />
                 )}
               </span>
             ),
@@ -549,8 +570,8 @@ function FolderShape() {
       <defs>
         <clipPath id="folder-shape" clipPathUnits="objectBoundingBox">
           <path
-            d="M0.05,0 H0.33 C0.365,0 0.385,0.024 0.4,0.0667 L0.42,0.12
-               C0.432,0.156 0.45,0.1667 0.48,0.1667 H0.95
+            d="M0.05,0 H0.40 C0.435,0 0.455,0.024 0.47,0.0667 L0.49,0.12
+               C0.502,0.156 0.52,0.1667 0.55,0.1667 H0.95
                A0.05,0.0667 0 0 1 1,0.2333 V0.9333
                A0.05,0.0667 0 0 1 0.95,1 H0.05 A0.05,0.0667 0 0 1 0,0.9333
                V0.0667 A0.05,0.0667 0 0 1 0.05,0 Z"
@@ -621,29 +642,43 @@ function FolderCard({
               aria-label={`Открыть папку «${folder.name}»`}
               className="absolute inset-0 cursor-pointer focus-visible:outline-2 focus-visible:-outline-offset-4 focus-visible:outline-ink"
             />
-            {/* Переименовать и удалить — под язычком, в начале бумаги.
+            {/* Переименовать и удалить — на самом язычке.
                 --------------------------------------------------------------
-                Место это у папки свободно всегда: язычок кончается, имя
-                стоит посередине, и первая строка бумаги ничем не занята.
-                Кнопки стояли внизу, рядом с именем, и были на плитке третьей
-                вещью после очертания и имени, хотя нужны реже всего; стояли
-                и в пустом углу правее язычка — но там у них не было под
-                собой бумаги, и на узкой плитке они ложились краем на самую
-                кромку.
+                Язычок — та часть, из-за которой плитка читается папкой, и
+                занят он одной только формой: надписи на нём нет, бумаги под
+                ним нет, соседствовать там не с чем. Кнопки стояли и под
+                ним, на первой строке бумаги, и правее его, в пустом углу, —
+                и в обоих местах были на плитке третьей вещью после
+                очертания и имени, хотя нужны реже всего.
+
+                Заливки у кнопок нет ни в покое, ни под указателем: язычок
+                шириной в два пальца, и плашка под значком заняла бы его
+                целиком, превратив форму папки в панель с кнопками.
+                Наведение отвечает цветом самого значка — так же, как
+                отвечают ссылки.
+
+                Значок 14 точек при язычке в 16–22: он помещается в него
+                целиком на любой ширине. Нажимается при этом не значок, а
+                двадцать точек вокруг него — коробка кнопки шире язычка и
+                заходит на бумагу, но её не видно, и попасть пальцем есть
+                куда. Просвет между кнопками (`gap-1`) держит их центры в
+                двадцати четырёх точках друг от друга — расстоянии, на
+                котором соседние цели не спорят за касание (WCAG 2.5.8).
 
                 Накладкой, а не строкой в столбце: строка отняла бы у имени
                 высоту и сдвинула бы его вниз от середины, а имя здесь —
-                единственное, что читают. Поля у накладки те же, что у
-                бумаги (`px-2.5 pt-[16%]`), поэтому кнопки встают ровно
-                туда, где начинается её содержимое.
+                единственное, что читают.
 
-                С указателем они появляются при наведении на карточку — и
+                С указателем кнопки появляются при наведении на карточку — и
                 при переходе на неё табуляцией (`focus-within`), иначе с
                 клавиатуры до них было бы не добраться. Пальцем наведения не
                 бывает, и там они видны всегда. */}
             <div
               className={cn(
-                "pointer-events-none absolute inset-0 flex items-start px-2.5 pt-[16%]",
+                // Высота — ровно язычок (та же доля, что в очертании), и
+                // значки стоят по его середине.
+                "pointer-events-none absolute inset-x-0 top-0 h-[16.67%]",
+                "flex items-center gap-1 pl-[5%]",
                 hoverable && [
                   // Прячется прозрачностью, а не `pointer-events`: чтобы
                   // нажать на кнопку мышью, к ней нужно сперва подвести
@@ -656,11 +691,14 @@ function FolderCard({
                 ],
               )}
             >
-              <span className="pointer-events-auto flex items-center gap-0.5">
-                <IconButton label={`Переименовать папку «${folder.name}»`} onClick={onRename} small>
+              {/* Нажатия ловят сами кнопки: накладка их не ловит вовсе
+                  (`pointer-events-none` выше), иначе прозрачная полоса
+                  поверх язычка съедала бы нажатие по карточке. */}
+              <span className="pointer-events-auto flex items-center gap-1">
+                <IconButton label={`Переименовать папку «${folder.name}»`} onClick={onRename} bare>
                   <Pencil aria-hidden className="size-3.5" />
                 </IconButton>
-                <IconButton label={`Удалить папку «${folder.name}»`} onClick={onDelete} small>
+                <IconButton label={`Удалить папку «${folder.name}»`} onClick={onDelete} bare>
                   <Trash2 aria-hidden className="size-3.5" />
                 </IconButton>
               </span>
@@ -850,21 +888,21 @@ function IconButton({
   label,
   onClick,
   disabled,
-  small,
+  bare,
   children,
 }: {
   label: string;
   onClick: () => void;
   disabled?: boolean;
   /**
-   * Кнопка для угла папки.
+   * Кнопка на язычке папки: без заливки и помельче.
    *
-   * Полоса над бумагой высотой в шестую часть карточки: обычные восемь
-   * единиц в неё не встают, а двадцать четыре точки — тот предел, ниже
-   * которого цель считается непопадаемой (WCAG 2.5.8), и опускаться под
-   * него нельзя даже ради красоты угла.
+   * Язычок узкий, и плашка под значком заняла бы его целиком — вместо
+   * папки получилась бы панель с кнопками. Поэтому отвечает наведению сам
+   * значок, цветом. Коробка при этом всё равно двадцать точек: значок в
+   * 14 точек — это то, что ВИДНО, а нажимают в то, что вокруг него.
    */
-  small?: boolean;
+  bare?: boolean;
   children: ReactNode;
 }) {
   return (
@@ -876,9 +914,13 @@ function IconButton({
       title={label}
       className={cn(
         "inline-flex shrink-0 cursor-pointer items-center justify-center rounded-lg",
-        small ? "size-6" : "size-8",
-        "text-ink-muted transition-colors hover:bg-paper-sunken hover:text-ink",
-        "disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent",
+        bare
+          ? "size-5 text-ink-muted transition-colors hover:text-ink"
+          : [
+              "size-8 text-ink-muted transition-colors hover:bg-paper-sunken hover:text-ink",
+              "disabled:hover:bg-transparent",
+            ],
+        "disabled:cursor-not-allowed disabled:opacity-40",
         "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink",
       )}
     >
