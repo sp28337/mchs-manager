@@ -342,6 +342,49 @@ export function forgetActive(): void {
   deleteEntry(id);
 }
 
+/**
+ * Имена профилей не повторяются.
+ *
+ * --- Почему это правило, а не забота человека ------------------------------
+ *
+ * В проводнике профиль называет одно только имя: ни графика, ни числа
+ * часов в строке нет, дата — время последней правки, и у двух «Основных»
+ * она разная лишь до первого открытия обоих. Два одинаковых имени
+ * превращают выбор в угадывание, а удаление — в лотерею с данными за год.
+ *
+ * Сравнение без учёта регистра и обрамляющих пробелов: «Основной» и
+ * «основной » стоят в списке одинаково, и разницу, которой не видно, за
+ * разницу считать нельзя.
+ */
+function sameName(a: string, b: string): boolean {
+  return a.trim().toLocaleLowerCase("ru") === b.trim().toLocaleLowerCase("ru");
+}
+
+/** Занято ли имя — кем-то, кроме записи `exceptId`. */
+export function nameTaken(name: string, exceptId?: string): boolean {
+  return loadLibrary().entries.some(
+    (entry) => entry.id !== exceptId && sameName(entry.name, name),
+  );
+}
+
+/**
+ * Свободное имя от заданного: «Основной», «Основной (2)», «Основной (3)».
+ *
+ * Нужно там, где отказать нельзя: файл человек уже выбрал, и вернуть ему
+ * «такое имя занято» значит не пустить в приложение его же сохранённый год
+ * — при том, что занято оно, скорее всего, прежней копией того же самого
+ * профиля.
+ */
+export function freeName(name: string): string {
+  const base = name.trim();
+  if (!nameTaken(base)) return base;
+  for (let n = 2; n < 1000; n += 1) {
+    const candidate = `${base} (${n})`;
+    if (!nameTaken(candidate)) return candidate;
+  }
+  return base;
+}
+
 /** Профиль из файла — новой записью, не трогая открытый. */
 export function importEntry(profile: StoredProfile, folderId = ROOT_FOLDER_ID): LibraryEntry {
   const library = loadLibrary();

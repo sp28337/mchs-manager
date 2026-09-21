@@ -14,9 +14,11 @@ import {
   deleteEntry,
   deleteFolder,
   folderPath,
+  freeName,
   importEntry,
   loadLibrary,
   moveEntry,
+  nameTaken,
   renameEntry,
   renameFolder,
   ROOT_FOLDER_ID,
@@ -116,7 +118,21 @@ export function useExplorerTools(): ExplorerTools {
       // Файл ложится в проводник ЗАПИСЬЮ, а не открывается сразу: человек
       // пришёл сюда за списком графиков, и подменять ему открытый профиль,
       // пока он только пополняет список, нельзя.
-      pickProfileFile((profile) => importEntry(profile, folderId), setError);
+      pickProfileFile((profile) => {
+        // Имена профилей не повторяются, но отказать здесь нельзя: файл
+        // уже выбран, и «такое имя занято» не пустило бы в приложение его
+        // же сохранённый год. Поэтому имя подбирается свободное — и о
+        // подмене говорится вслух, иначе человек искал бы в списке то, под
+        // которым сохранял.
+        const displayName = freeName(profile.displayName);
+        importEntry({ ...profile, displayName }, folderId);
+        if (displayName !== profile.displayName.trim()) {
+          setError(
+            `Профиль «${profile.displayName.trim()}» уже есть, поэтому ` +
+              `загруженный назван «${displayName}».`,
+          );
+        }
+      }, setError);
     },
     addingFolder,
     closeFolderField: () => setAddingFolder(false),
@@ -185,6 +201,8 @@ export function ProfileExplorer({
   const { library, activeId } = useLibrary();
   const [renaming, setRenaming] = useState<Rename | null>(null);
   const [removing, setRemoving] = useState<Removal | null>(null);
+  /** «Имя занято» — о переименовании; у действий шапки свой сказ. */
+  const [taken, setTaken] = useState<string | null>(null);
 
   /**
    * Наведение показывает профиль наверху страницы, нажатие открывает.
@@ -214,12 +232,28 @@ export function ProfileExplorer({
     const name = value.trim();
     if (name !== "") {
       if (renaming.kind === "folder") renameFolder(renaming.id, name);
-      // Имя открытого профиля правится на самой странице, а не в перечне:
-      // в перечень оно придёт отражением (`syncActiveIntoLibrary`), и двух
-      // разных имён у одного графика не случится.
-      else if (renaming.id === activeId) {
-        onChange((previous) => ({ ...previous, displayName: name }));
-      } else renameEntry(renaming.id, name);
+      else {
+        // Занятое имя — отказ, а не молчаливая замена: переименование
+        // сюда и привело, и подставить взамен «Основной (2)» значило бы
+        // ответить не на то, о чём просили. Строка остаётся собой, а
+        // почему — сказано над списком.
+        if (nameTaken(name, renaming.id)) {
+          setTaken(
+            `Профиль «${name}» уже есть. У двух одинаковых имён в списке ` +
+              `не отличить одно от другого.`,
+          );
+          setRenaming(null);
+          return;
+        }
+        setTaken(null);
+        // Имя открытого профиля правится на самой странице, а не в
+        // перечне: в перечень оно придёт отражением
+        // (`syncActiveIntoLibrary`), и двух разных имён у одного графика
+        // не случится.
+        if (renaming.id === activeId) {
+          onChange((previous) => ({ ...previous, displayName: name }));
+        } else renameEntry(renaming.id, name);
+      }
     }
     setRenaming(null);
   }
@@ -282,8 +316,8 @@ export function ProfileExplorer({
         </nav>
       ) : null}
 
-      {tools.error ? (
-        <p className="rounded-xl bg-signal-soft px-4 py-3 text-sm">{tools.error}</p>
+      {(tools.error ?? taken) !== null ? (
+        <p className="rounded-xl bg-signal-soft px-4 py-3 text-sm">{tools.error ?? taken}</p>
       ) : null}
 
       <FolderShape />
@@ -305,7 +339,7 @@ export function ProfileExplorer({
               <FolderCard
                 key={folder.id}
                 folder={folder}
-                count={library.entries.filter((entry) => entry.folderId === folder.id).length}
+                hoverable={hoverable}
                 highlighted={drag?.over === folder.id}
                 renaming={renaming?.kind === "folder" && renaming.id === folder.id}
                 onRename={() => setRenaming({ kind: "folder", id: folder.id, value: folder.name })}
@@ -529,9 +563,9 @@ function FolderShape() {
 
 function FolderCard({
   folder,
-  count,
   highlighted,
   renaming,
+  hoverable,
   onRename,
   onCommit,
   onCancel,
@@ -539,9 +573,10 @@ function FolderCard({
   onDelete,
 }: {
   folder: LibraryFolder;
-  count: number;
   highlighted: boolean;
   renaming: boolean;
+  /** Есть ли указатель: от этого зависит, спрятаны ли кнопки до наведения. */
+  hoverable: boolean;
   onRename: () => void;
   onCommit: (value: string) => void;
   onCancel: () => void;
@@ -549,90 +584,113 @@ function FolderCard({
   onDelete: () => void;
 }) {
   return (
-    <li
-      data-folder-drop={folder.id}
-      // Свет по кромке вместо подсветки заливкой — и у наведения, и у
-      // папки, над которой держат перетаскиваемый профиль. Вырезанную
-      // форму нельзя обвести рамкой (`ring` отрезается вместе со всем,
-      // что вышло за контур), а свет ложится ровно по очертанию.
-      data-glow={highlighted ? "on" : undefined}
-      style={FOLDER_CLIP}
-      className="lit-edge lit-edge--clipped lit-edge--rim aspect-[4/3]"
-    >
+    // Карточка — коробка 4:3, а вырезана из неё только бумага (ниже).
+    // Разделены они ради угла: правее язычка бумаги нет, и всё, что
+    // положено в вырезанный блок, этим вырезом и отрезается. Кнопкам же
+    // место именно там.
+    <li className="group relative aspect-[4/3]">
       <div
+        data-folder-drop={folder.id}
+        // Свет по кромке вместо подсветки заливкой — и у наведения, и у
+        // папки, над которой держат перетаскиваемый профиль. Вырезанную
+        // форму нельзя обвести рамкой (`ring` отрезается вместе со всем,
+        // что вышло за контур), а свет ложится ровно по очертанию.
+        //
+        // Загорается он от наведения на ВСЮ карточку, а не на бумагу:
+        // иначе, потянувшись к кнопкам в пустом углу, человек видел бы,
+        // как кайма гаснет у него под рукой.
+        data-glow={highlighted ? "on" : undefined}
         style={FOLDER_CLIP}
-        // Отступ сверху — долей ШИРИНЫ, а не рёмами: у карточки
-        // постоянное отношение сторон (4:3), и доля ширины растёт вместе с
-        // высотой язычка. Рёмы на широкой карточке оставили бы имя в
-        // вырезанной части — там, где бумаги ещё нет.
-        className="lit-clipped relative flex size-full flex-col gap-0.5 bg-paper-raised px-2.5 pt-[16%] pb-2.5"
+        className="lit-edge lit-edge--clipped lit-edge--rim size-full group-hover:[--rim:1]"
       >
-        {renaming ? (
-          <NameField value={folder.name} onCommit={onCommit} onCancel={onCancel} />
-        ) : (
-          <>
-            {/* Папка открывается нажатием куда угодно по карточке, а не по
-                одному имени: карточка и есть папка, и требовать попасть в
-                строку текста — значит требовать точности там, где её неоткуда
-                взять, особенно пальцем.
+        <div
+          style={FOLDER_CLIP}
+          // Отступ сверху — долей ШИРИНЫ, а не рёмами: у карточки
+          // постоянное отношение сторон (4:3), и доля ширины растёт вместе с
+          // высотой язычка. Рёмы на широкой карточке оставили бы имя в
+          // вырезанной части — там, где бумаги ещё нет.
+          className="lit-clipped relative flex size-full flex-col bg-paper-raised px-2.5 pt-[16%] pb-2.5"
+        >
+          {renaming ? (
+            <NameField value={folder.name} onCommit={onCommit} onCancel={onCancel} />
+          ) : (
+            <>
+              {/* Папка открывается нажатием куда угодно по бумаге, а не по
+                  одному имени: карточка и есть папка, и требовать попасть в
+                  строку текста — значит требовать точности там, где её
+                  неоткуда взять, особенно пальцем. */}
+              <button
+                type="button"
+                onClick={onOpen}
+                aria-label={`Открыть папку «${folder.name}»`}
+                className="absolute inset-0 cursor-pointer focus-visible:outline-2 focus-visible:-outline-offset-4 focus-visible:outline-ink"
+              />
+              {/* Имя — посреди плитки, и теперь посреди по-настоящему:
+                  строка «5 профилей» стояла внизу и сдвигала имя вверх от
+                  середины. Само число ушло — папку человек узнаёт по
+                  имени, а сколько в ней лежит, видно, как только он в неё
+                  зайдёт; на 320 точках оно к тому же обрывалось на «0 п…».
 
-                Растянутая кнопка, а не кнопка вокруг всего: внутри карточки
-                стоят ещё две (переименовать, удалить), а кнопка в кнопке —
-                разметка, которой не бывает. Поэтому эта лежит подложкой, а
-                соседи подняты над ней (`relative`) и ловят нажатие сами. */}
-            <button
-              type="button"
-              onClick={onOpen}
-              aria-label={`Открыть папку «${folder.name}»`}
-              className="absolute inset-0 cursor-pointer focus-visible:outline-2 focus-visible:-outline-offset-4 focus-visible:outline-ink"
-            />
-            {/* Строки не ловят указатель целиком — ловят только две кнопки:
-                иначе они, лежащие поверх подложки, съедали бы нажатие по
-                середине карточки, то есть по самому вероятному месту.
-
-                Значка папки при имени больше нет: карточка сама имеет
-                очертание папки, и значок повторял бы это второй раз — да
-                ещё и отнимал бы у имени треть строки на узкой плитке. */}
-            {/* Имя — посреди плитки, а не прижатое к язычку. Оно здесь
-                единственное, что читают: у папки нет ни даты, ни числа
-                часов, и строка, стоящая под верхним краем, оставляла под
-                собой пустое поле в половину плитки.
-
-                Вся строка целиком — кнопкам с числом профилей отдана
-                нижняя: стоя при имени, они отнимали у него половину
-                плитки, и на 320 точках от «Архив прошлых лет»
-                оставалось «Ар…». */}
-            <span
-              className={cn(
-                "pointer-events-none relative flex flex-1 items-center justify-center",
-                "text-center text-sm font-medium",
-              )}
-            >
-              <span className="truncate">{folder.name}</span>
-            </span>
-            {/* Число и кнопки — на одной оси: число стояло по нижнему
-                краю строки, а кнопки выше его на треть своей высоты, и
-                нижний ряд читался двумя разными строками. */}
-            <div className="pointer-events-none relative mt-auto flex items-center justify-between gap-1">
-              {/* Сколько внутри — на плитке шириной в 125 точек не
-                  помещается и обрывается на «0 п…»; там от него больше
-                  вреда, чем пользы, и остаётся оно с той же ширины, с
-                  которой плитка дорастает до своего размера. */}
-              <span className="hidden min-w-0 truncate text-xs text-ink-muted min-[420px]:block">
-                {profileCount(count)}
+                  Значка папки при имени тоже нет: карточка сама имеет
+                  очертание папки, и значок повторял бы это второй раз. */}
+              <span
+                className={cn(
+                  "pointer-events-none relative flex flex-1 items-center justify-center",
+                  "text-center text-sm font-medium",
+                )}
+              >
+                <span className="truncate">{folder.name}</span>
               </span>
-              <span className="pointer-events-auto flex shrink-0 items-center gap-0.5">
-                <IconButton label={`Переименовать папку «${folder.name}»`} onClick={onRename}>
-                  <Pencil aria-hidden className="size-4" />
-                </IconButton>
-                <IconButton label={`Удалить папку «${folder.name}»`} onClick={onDelete}>
-                  <Trash2 aria-hidden className="size-4" />
-                </IconButton>
-              </span>
-            </div>
-          </>
-        )}
+            </>
+          )}
+        </div>
       </div>
+
+      {/* Переименовать и удалить — в пустом углу над бумагой.
+          ------------------------------------------------------------------
+          Правее язычка у папки ничего нет: там кончается бумага и начинается
+          страница. Кнопки стояли внизу, на самой бумаге, рядом с именем — и
+          были на плитке третьей вещью после очертания и имени, хотя нужны
+          реже всего. В углу они не спорят ни с чем: место это и так пустое,
+          а ряд кнопок ровно в него и укладывается.
+
+          Ряд прижат к верхней кромке карточки и высотой ровно в кнопку.
+          Вырез под ней — от шестнадцати точек на самом узком телефоне до
+          двадцати двух на плитке во весь рост, то есть уже кнопки: цель
+          мельче двадцати четырёх точек — цель, в которую не попадают
+          (WCAG 2.5.8), и уменьшать её нельзя. Поэтому лишнее кнопка берёт
+          ВНИЗ, ложась краем на бумагу, а не вверх: наверху у неё просвет
+          между рядами папок, и, выйдя туда, она стояла бы уже не на
+          карточке, а над ней.
+
+          С указателем они появляются при наведении на карточку — и при
+          переходе на неё табуляцией (`focus-within`), иначе с клавиатуры до
+          них было бы не добраться. Пальцем наведения не бывает, и там они
+          видны всегда. */}
+      {renaming ? null : (
+        <div
+          className={cn(
+            "absolute inset-x-0 top-0 flex h-6 items-center justify-end gap-0.5 pr-1",
+            hoverable && [
+              // Прячется прозрачностью, а не `pointer-events`: чтобы
+              // нажать на кнопку мышью, к ней нужно сперва подвести
+              // указатель — а это и есть то наведение, от которого она
+              // появляется. Запрет нажатий добавил бы к этому только
+              // риск проглотить первое касание на экранах, где есть и
+              // палец, и мышь.
+              "opacity-0 transition-opacity duration-200",
+              "group-hover:opacity-100 group-focus-within:opacity-100",
+            ],
+          )}
+        >
+          <IconButton label={`Переименовать папку «${folder.name}»`} onClick={onRename} small>
+            <Pencil aria-hidden className="size-3.5" />
+          </IconButton>
+          <IconButton label={`Удалить папку «${folder.name}»`} onClick={onDelete} small>
+            <Trash2 aria-hidden className="size-3.5" />
+          </IconButton>
+        </div>
+      )}
     </li>
   );
 }
@@ -801,11 +859,21 @@ function IconButton({
   label,
   onClick,
   disabled,
+  small,
   children,
 }: {
   label: string;
   onClick: () => void;
   disabled?: boolean;
+  /**
+   * Кнопка для угла папки.
+   *
+   * Полоса над бумагой высотой в шестую часть карточки: обычные восемь
+   * единиц в неё не встают, а двадцать четыре точки — тот предел, ниже
+   * которого цель считается непопадаемой (WCAG 2.5.8), и опускаться под
+   * него нельзя даже ради красоты угла.
+   */
+  small?: boolean;
   children: ReactNode;
 }) {
   return (
@@ -816,7 +884,8 @@ function IconButton({
       aria-label={label}
       title={label}
       className={cn(
-        "inline-flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-lg",
+        "inline-flex shrink-0 cursor-pointer items-center justify-center rounded-lg",
+        small ? "size-6" : "size-8",
         "text-ink-muted transition-colors hover:bg-paper-sunken hover:text-ink",
         "disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent",
         "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink",
@@ -825,14 +894,6 @@ function IconButton({
       {children}
     </button>
   );
-}
-
-function profileCount(count: number): string {
-  const last = count % 10;
-  const teen = count % 100 >= 11 && count % 100 <= 14;
-  if (!teen && last === 1) return `${count} профиль`;
-  if (!teen && last >= 2 && last <= 4) return `${count} профиля`;
-  return `${count} профилей`;
 }
 
 /**

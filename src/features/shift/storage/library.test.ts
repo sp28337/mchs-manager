@@ -8,9 +8,11 @@ import {
   detachActive,
   folderPath,
   forgetActive,
+  freeName,
   importEntry,
   loadLibrary,
   moveEntry,
+  nameTaken,
   openEntry,
   readEntryProfile,
   renameEntry,
@@ -191,6 +193,33 @@ describe("папки", () => {
     moveEntry(entry.id, "папки-такой-нет");
 
     expect(loadLibrary().entries[0]!.folderId).toBe(ROOT_FOLDER_ID);
+  });
+});
+
+describe("имена профилей не повторяются", () => {
+  it("занятое имя видно и с другим регистром, и с пробелами по краям", () => {
+    importEntry(profileNamed("Основной"));
+
+    expect(nameTaken("Основной")).toBe(true);
+    expect(nameTaken("  основной ")).toBe(true);
+    expect(nameTaken("Подработка")).toBe(false);
+  });
+
+  it("сама запись себе не помеха: имя можно оставить прежним", () => {
+    const entry = importEntry(profileNamed("Основной"));
+
+    expect(nameTaken("Основной", entry.id)).toBe(false);
+  });
+
+  it("свободное имя подбирается по порядку, а не подменяет занятое", () => {
+    importEntry(profileNamed("Основной"));
+
+    expect(freeName("Основной")).toBe("Основной (2)");
+
+    importEntry(profileNamed("Основной (2)"));
+
+    expect(freeName("Основной")).toBe("Основной (3)");
+    expect(freeName("Подработка")).toBe("Подработка");
   });
 });
 

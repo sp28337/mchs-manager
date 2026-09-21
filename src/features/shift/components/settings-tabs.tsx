@@ -31,3 +31,9 @@ export const SETTINGS_TAB_LABEL: Record<SettingsTab, string> = {
   profile: "Настройки профиля",
   changes: "Внесённые изменения",
 };
+
+/** Те же два раздела по порядку — для дорожки закладок. */
+export const SETTINGS_TABS: readonly { id: SettingsTab; label: string }[] = [
+  { id: "profile", label: SETTINGS_TAB_LABEL.profile },
+  { id: "changes", label: SETTINGS_TAB_LABEL.changes },
+];

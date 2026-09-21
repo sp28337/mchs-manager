@@ -1,10 +1,9 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
 
 import { BalanceCaption, BALANCE_SWAP_MS } from "@/components/ui/balance-caption";
 import { CountedNumber } from "@/components/ui/counted-number";
-import { Materialize } from "@/components/ui/materialize";
 import { Segmented, SegmentedItem } from "@/components/ui/segmented";
 import { cn } from "@/lib/utils/cn";
 
@@ -17,7 +16,7 @@ import {
 import { shiftMinutes } from "../domain/shift-hours";
 import { pendingTransfers } from "../domain/production-calendar";
 import type { PeriodCalculation } from "../domain/calculation";
-import { SETTINGS_TAB_LABEL, type SettingsTab } from "./settings-tabs";
+import { SETTINGS_TABS, type SettingsTab } from "./settings-tabs";
 
 /**
  * Итог периода.
@@ -143,7 +142,7 @@ export function PeriodSummary({
                   : "pointer-events-none opacity-0",
               )}
             >
-              <SettingsSwitch open={settingsOpen} tab={settings.tab} onTab={settings.onTab} />
+              <SettingsSwitch tab={settings.tab} onTab={settings.onTab} />
             </div>
           ) : null}
         </div>
@@ -166,20 +165,6 @@ export function PeriodSummary({
 export const REVEAL_DELAY_MS = 220;
 
 /**
- * Сколько первая закладка стоит широкой, прежде чем начать сужаться. Не
- * дольше удара сердца: дальше это уже не «прочитал имя», а «жду, когда
- * само сдвинется».
- */
-const WIDE_HOLD_MS = 450;
-
-/**
- * Само сужение — «не так быстро»: заметно медленнее обычных переходов
- * приложения (те укладываются в 200–300 мс), но короче полного вдоха.
- * Число то же, что в `duration-[550ms]` у обеих закладок ниже.
- */
-const NARROW_MS = 550;
-
-/**
  * Кегль и поля закладок на самом узком телефоне.
  *
  * Имена закладок длинные и неразрывные: «Настройки профиля» и «Внесённые
@@ -193,115 +178,52 @@ const NARROW_MS = 550;
  */
 const NARROW_TAB = "px-2 text-xs min-[360px]:px-3 min-[360px]:text-sm";
 
-function reducedMotion(): boolean {
-  return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-}
-
 /**
  * Переключатель закладок настроек — на месте итоговых цифр.
  *
- * --- Почему по стадиям, а не одним переходом --------------------------------
+ * --- Почему обе закладки появляются разом -----------------------------------
  *
- * Цифры не подменяются переключателем разом. Сперва гаснут они сами —
- * ЭТИМ занята обёртка снаружи (`PeriodSummary`). Только после паузы на
- * дорожке проступает одна широкая плашка «Настройки профиля» — там, где
- * секунду назад читалась переработка, теперь читается имя раздела.
- * Прочитать его есть время (`WIDE_HOLD_MS`), и только потом правый край
- * плашки трогается влево, освобождая утопленную дорожку соседу. Имя
- * второй закладки, «Внесённые изменения», проступает НЕ вместе со сдвигом,
- * а когда дорожка для него уже открылась целиком, — раньше там нечему
- * было бы проступать.
+ * Здесь была лестница из трёх стадий: после паузы проступала одна широкая
+ * плашка «Настройки профиля», стояла так, чтобы её успели прочитать, потом
+ * съезжала влево, открывая дорожку соседу, и только тогда проявлялось имя
+ * «Внесённые изменения». Замысел был показать, что раздела два, но на деле
+ * от нажатия до второй закладки проходило больше секунды: человек, нажавший
+ * «Настройки», видел сперва одну кнопку во всю строку, а вторую — когда уже
+ * смотрел на анкету под ней. Появление читалось не превращением, а
+ * задержкой и вознёй.
  *
- * Каждое имя появляется не подменой прозрачности, а расфокусировкой,
- * оседающей в резкость (`Materialize`): при отключённой анимации все
- * стадии схлопываются в одну, и закладки встают готовыми сразу.
- *
- * --- Как устроен сдвиг -------------------------------------------------------
- *
- * Обе закладки стоят в `Segmented` с самого начала, но у первой на стадии
- * `wide` явно задана доля места (`flex-grow`) в несколько раз больше
- * обычной — она и забирает себе всю строку. На стадии `narrow` доля
- * возвращается к единице у обеих закладок разом, и переход на `flex-grow`,
- * обычное число, доигрывает сдвиг сам: ничего не измеряется, итоговая
- * ширина известна заранее.
+ * Теперь дорожка встаёт готовой. Единственное, что её отделяет от нажатия,
+ * — время, за которое гаснут цифры на её месте (`REVEAL_DELAY_MS` в
+ * задержке прозрачности у обёртки снаружи): подменять одно другим внахлёст
+ * значило бы показать на миг и то и другое сразу.
  */
 function SettingsSwitch({
-  open,
   tab,
   onTab,
 }: {
-  open: boolean;
   tab: SettingsTab;
   onTab: (tab: SettingsTab) => void;
 }) {
-  const [rawPhase, setPhase] = useState<"idle" | "wide" | "narrow" | "done">("idle");
-  // Пока настройки закрыты, хранимая стадия не читается вовсе — и
-  // сбрасывать её отдельным эффектом незачем: `open` маскирует её здесь,
-  // а следующее открытие честно заводит стадии заново.
-  const phase = open ? rawPhase : "idle";
-
-  useEffect(() => {
-    if (!open) return;
-    if (reducedMotion()) {
-      // Однократная подстановка при заходе на «нет причин анимировать» —
-      // не лишний прогон отрисовки, а сам результат: без стадий закладки
-      // обязаны встать готовыми, а не застрять на «ничего не видно».
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setPhase("done");
-      return;
-    }
-    const toWide = window.setTimeout(() => setPhase("wide"), REVEAL_DELAY_MS);
-    return () => window.clearTimeout(toWide);
-  }, [open]);
-
-  useEffect(() => {
-    if (phase !== "wide") return;
-    const toNarrow = window.setTimeout(() => setPhase("narrow"), WIDE_HOLD_MS);
-    return () => window.clearTimeout(toNarrow);
-  }, [phase]);
-
-  useEffect(() => {
-    if (phase !== "narrow") return;
-    const toDone = window.setTimeout(() => setPhase("done"), NARROW_MS);
-    return () => window.clearTimeout(toDone);
-  }, [phase]);
-
-  const wide = phase === "wide";
-
   return (
     <Segmented label="Разделы настроек" className="relative flex h-14 w-full">
-      <SegmentedItem
-        active={tab === "profile"}
-        onClick={() => onTab("profile")}
-        style={{ flexGrow: wide ? 999 : 1 }}
-        className={cn(
-          // Скругление — как у главной плашки цифр (`MainPlate`, `rounded-xl`):
-          // своё, крупнее обычного у закладок (`rounded-lg`), и важное —
-          // иначе более узкое правило `SegmentedItem` побеждало бы по
-          // порядку в таблице стилей, а не по месту в разметке.
-          "h-14 min-w-0 shrink truncate rounded-xl!",
-          NARROW_TAB,
-          "transition-[flex-grow] duration-[550ms] ease-[cubic-bezier(0.3,0,0.1,1)]",
-        )}
-      >
-        <Materialize show={phase !== "idle"} durationClassName="duration-[340ms]">
-          {SETTINGS_TAB_LABEL.profile}
-        </Materialize>
-      </SegmentedItem>
-      <SegmentedItem
-        active={tab === "changes"}
-        onClick={() => onTab("changes")}
-        style={{ flexGrow: phase === "narrow" || phase === "done" ? 1 : 0 }}
-        className={cn(
-          "h-14 min-w-0 shrink truncate rounded-xl!",
-          NARROW_TAB,
-          "transition-[flex-grow] duration-[550ms] ease-[cubic-bezier(0.3,0,0.1,1)]",
-        )}
-      >
-        <Materialize show={phase === "done"} durationClassName="duration-[340ms]">
-          {SETTINGS_TAB_LABEL.changes}
-        </Materialize>
-      </SegmentedItem>
+      {SETTINGS_TABS.map(({ id, label }) => (
+        <SegmentedItem
+          key={id}
+          active={tab === id}
+          onClick={() => onTab(id)}
+          className={cn(
+            // Скругление — как у главной плашки цифр (`MainPlate`,
+            // `rounded-xl`): своё, крупнее обычного у закладок
+            // (`rounded-lg`), и важное — иначе более узкое правило
+            // `SegmentedItem` побеждало бы по порядку в таблице стилей, а
+            // не по месту в разметке.
+            "h-14 min-w-0 shrink grow truncate rounded-xl!",
+            NARROW_TAB,
+          )}
+        >
+          {label}
+        </SegmentedItem>
+      ))}
     </Segmented>
   );
 }

@@ -12,6 +12,7 @@ import {
 import { DEFAULT_SHIFT_START } from "../domain/shift-hours";
 import { todayIso } from "../domain/plain-date";
 import { weeklyNormGroundFacts } from "../model/derive";
+import { nameTaken } from "../storage/library";
 import {
   createProfile,
   DEFAULT_PROFILE_NAME,
@@ -106,13 +107,21 @@ export function CreateProfileModal({
 
   function submit() {
     setError(null);
+    // Пустое имя — не ошибка: обращение нужно человеку, а не расчёту, и
+    // отказывать в графике из-за незаполненной строки было бы придиркой.
+    const displayName = draft.displayName.trim() || DEFAULT_PROFILE_NAME;
+    // Занятое — ошибка, и здесь единственное место, где её можно назвать
+    // до того, как профиль заведён: в проводнике два одинаковых имени
+    // означают выбор наугад, а удаление — лотерею с данными за год.
+    if (nameTaken(displayName)) {
+      setError(
+        `Профиль «${displayName}» уже есть. Дайте новому другое имя — в проводнике ` +
+          `они различаются только им.`,
+      );
+      return;
+    }
     try {
-      // Пустое имя — не ошибка: обращение нужно человеку, а не расчёту, и
-      // отказывать в графике из-за незаполненной строки было бы придиркой.
-      onCreated({
-        ...draft,
-        displayName: draft.displayName.trim() || DEFAULT_PROFILE_NAME,
-      });
+      onCreated({ ...draft, displayName });
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Не удалось сохранить профиль.");
     }

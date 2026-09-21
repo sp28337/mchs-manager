@@ -104,6 +104,9 @@ const TOOL_META: Record<ToolId, { label: string; title: string; Icon: LucideIcon
 
 export const TOOL_ORDER: readonly ToolId[] = ["settings", "open", "save"];
 
+/** Чем кнопка настроек называет себя, пока настройки открыты. */
+const CLOSE_LABEL = "Закрыть";
+
 /**
  * С какой ширины у кнопок появляются подписи.
  *
@@ -260,7 +263,7 @@ export function HeaderTools({
           // нажатие СЕЙЧАС совершит.
           const toggling = id === "settings";
           const pressed = toggling && settingsOpen;
-          const label_ = pressed ? "Закрыть" : label;
+          const label_ = pressed ? CLOSE_LABEL : label;
           const title_ = pressed ? "Закрыть настройки" : title;
           return (
             <button
@@ -303,7 +306,29 @@ export function HeaderTools({
               ) : (
                 <Icon aria-hidden className="size-4.5 shrink-0 text-ink-muted" />
               )}
-              <span className={LABELS_FROM}>{label_}</span>
+              {toggling ? (
+                // Оба слова стоят в одной ячейке грида, и ширину кнопки
+                // держит то, что длиннее. Подменой текста кнопка на слове
+                // «Закрыть» ужималась на два десятка точек, и весь ряд —
+                // «Открыть», «Сохранить» — сдвигался вправо в тот самый
+                // миг, когда человек в него целился. Спрятанное слово
+                // (`invisible`) занимает место, но не читается ни глазом,
+                // ни программой чтения.
+                <span className="hidden sm:grid">
+                  <span
+                    className={cn("col-start-1 row-start-1", pressed && "invisible")}
+                  >
+                    {label}
+                  </span>
+                  <span
+                    className={cn("col-start-1 row-start-1", !pressed && "invisible")}
+                  >
+                    {CLOSE_LABEL}
+                  </span>
+                </span>
+              ) : (
+                <span className={LABELS_FROM}>{label_}</span>
+              )}
             </button>
           );
         })}
