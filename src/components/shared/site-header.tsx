@@ -98,7 +98,11 @@ export function SiteHeader({ action, tools, className, brandLabel }: SiteHeaderP
                 считается по большей из них, и смена не дёргает соседей.
                 Гаснет одна, проступает другая — знак рядом с ними не
                 шевелится ни на точку. */}
-            <span className="grid">
+            {/* `min-w-0` и обрезка — страховка, а не расчёт: кнопки в шапке
+                не жмутся никогда (см. довод ниже), и слишком длинное
+                название обязано обрезаться само, а не выталкивать их за
+                край экрана. */}
+            <span className="grid min-w-0 overflow-hidden">
               <Materialize
                 show={settled}
                 ariaHidden={!settled}
@@ -133,7 +137,13 @@ export function SiteHeader({ action, tools, className, brandLabel }: SiteHeaderP
                 show={!settled}
                 ariaHidden={settled}
                 durationClassName="duration-200"
-                className="col-start-1 row-start-1 font-display text-black/80 dark:text-ink text-xl font-bold uppercase leading-tight tracking-wide whitespace-nowrap"
+                // Кегль меньше там же, где у названия сайта отваливается
+                // слово, — ниже 360 точек. Причина та же и место то же:
+                // «НАСТРОЙКИ» в обычном кегле занимают 96 точек, а между
+                // знаком и тремя кнопками их остаётся 76. Цифры графика
+                // рядом короткие и кегля не теряют — уступает только то
+                // слово, которому места не хватает.
+                className="col-start-1 row-start-1 font-display text-black/80 dark:text-ink text-sm tracking-normal min-[360px]:text-xl min-[360px]:tracking-wide font-bold uppercase leading-tight whitespace-nowrap"
               >
                 {brandLabel}
               </Materialize>

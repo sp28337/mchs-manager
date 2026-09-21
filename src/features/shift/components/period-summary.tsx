@@ -104,7 +104,13 @@ export function PeriodSummary({
             aria-hidden={settingsOpen}
             inert={settingsOpen || undefined}
             className={cn(
-              "col-start-1 row-start-1 transition-opacity duration-200",
+              // `min-w-0` — не про эту половину, а про общую ячейку грида.
+              // Ячейка `auto` шириной не меньше самого широкого содержимого
+              // ОБЕИХ половин, а у закладок настроек имена длинные и
+              // неразрывные. На 320 точках колонка раздувалась ими до 386, и
+              // цифры, растянутые на ту же ширину, уезжали за правый край —
+              // на экране, где закладок в этот момент нет вовсе.
+              "col-start-1 row-start-1 min-w-0 transition-opacity duration-200",
               settingsOpen ? "pointer-events-none opacity-0" : "opacity-100",
             )}
           >
@@ -120,7 +126,7 @@ export function PeriodSummary({
               aria-hidden={!settingsOpen}
               inert={!settingsOpen || undefined}
               className={cn(
-                "col-start-1 row-start-1 px-6 pb-3 transition-opacity ease-out",
+                "col-start-1 row-start-1 min-w-0 px-6 pb-3 transition-opacity ease-out",
                 // Дорожка закладок ждёт своей паузы (`REVEAL_DELAY_MS` в
                 // `SettingsSwitch`) — иначе она проступала бы одновременно
                 // с гаснущими цифрами, а не после них.
@@ -164,6 +170,20 @@ const WIDE_HOLD_MS = 450;
  * Число то же, что в `duration-[550ms]` у обеих закладок ниже.
  */
 const NARROW_MS = 550;
+
+/**
+ * Кегль и поля закладок на самом узком телефоне.
+ *
+ * Имена закладок длинные и неразрывные: «Настройки профиля» и «Внесённые
+ * изменения» в обычном кегле требуют 323 точки, а на 320-точечном экране
+ * дорожке достаётся 272 — второе имя уезжало за правый край. Уменьшенный
+ * кегль и поля укладывают обе в 269.
+ *
+ * Обрезка многоточием (`truncate` у самих закладок) при этом остаётся
+ * страховкой, а не расчётом: на другом наборе шрифтов имя обрежется, но за
+ * край не уедет.
+ */
+const NARROW_TAB = "px-2 text-xs min-[360px]:px-3 min-[360px]:text-sm";
 
 function reducedMotion(): boolean {
   return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -251,7 +271,8 @@ function SettingsSwitch({
           // своё, крупнее обычного у закладок (`rounded-lg`), и важное —
           // иначе более узкое правило `SegmentedItem` побеждало бы по
           // порядку в таблице стилей, а не по месту в разметке.
-          "h-14 min-w-0 shrink rounded-xl! text-sm",
+          "h-14 min-w-0 shrink truncate rounded-xl!",
+          NARROW_TAB,
           "transition-[flex-grow] duration-[550ms] ease-[cubic-bezier(0.3,0,0.1,1)]",
         )}
       >
@@ -264,7 +285,8 @@ function SettingsSwitch({
         onClick={() => onTab("changes")}
         style={{ flexGrow: phase === "narrow" || phase === "done" ? 1 : 0 }}
         className={cn(
-          "h-14 min-w-0 shrink truncate rounded-xl! text-sm",
+          "h-14 min-w-0 shrink truncate rounded-xl!",
+          NARROW_TAB,
           "transition-[flex-grow] duration-[550ms] ease-[cubic-bezier(0.3,0,0.1,1)]",
         )}
       >
@@ -495,7 +517,10 @@ function MainPlate({
   return (
     <dl
       className={cn(
-        "flex h-14 items-center rounded-xl bg-paper-raised px-4 py-2 lg:min-w-92.5 justify-around",
+        // Поля и просветы ужаты на самом узком телефоне: три числа с
+        // подписями требуют 267 точек, а на 320-точечном экране полосе
+        // достаётся 272 — впритык, и «Переработка» упиралась в край.
+        "flex h-14 items-center rounded-xl bg-paper-raised px-2 min-[360px]:px-4 py-2 lg:min-w-92.5 justify-around",
         // Свет лампы — на видимой плашке, но не на эталоне: тот невидим и
         // служит линейкой, а лишняя тень сбила бы замер ширины.
         !tight && "lit",
@@ -503,7 +528,7 @@ function MainPlate({
         // расходятся по ней: три числа, сжатые в левый угол полосы во всю
         // ширину экрана, читаются как незаконченная вёрстка.
         grow && !tight
-          ? "min-w-0 flex-1 justify-around gap-x-3"
+          ? "min-w-0 flex-1 justify-around gap-x-1.5 min-[360px]:gap-x-3"
           : "shrink-0 gap-x-5 sm:gap-x-6",
       )}
     >
@@ -664,7 +689,9 @@ function Figure({
           </span>
         ))}
       </dd>
-      <dt className="flex h-3.5 items-center justify-center gap-1 whitespace-nowrap text-[11px] leading-tight text-ink-muted">
+      {/* Подписи шире самих чисел — «Норма периода» занимает больше, чем
+          «1972 ч», — и на 320 точках место экономится именно на них. */}
+      <dt className="flex h-3.5 items-center justify-center gap-1 whitespace-nowrap text-[10px] min-[360px]:text-[11px] leading-tight text-ink-muted">
         {/* Двоеточие принадлежит строчной записи «Норма периода: 1972 ч»,
             которая стоит на средних экранах. Там, где подпись снова
             уходит под число, двоеточию не к чему прицепиться — и оно

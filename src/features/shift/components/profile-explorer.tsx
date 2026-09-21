@@ -165,9 +165,12 @@ export function ProfileExplorer({
         <p className="rounded-xl bg-signal-soft px-4 py-3 text-sm">{error}</p>
       ) : null}
 
-      {/* Папки — только в grafik13: внутрь друг друга они не вкладываются. */}
+      {/* Папки — только в grafik13: внутрь друг друга они не вкладываются.
+          В один столбец на самом узком телефоне: вдвоём на 320 точках у
+          карточек остаётся по 132, и в них не встают ни имя папки, ни
+          «0 профилей» рядом с двумя кнопками. */}
       {atRoot ? (
-        <ul className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
+        <ul className="grid grid-cols-1 gap-2 min-[360px]:grid-cols-2 sm:grid-cols-3 lg:grid-cols-4">
           {library.folders
             .filter((folder) => folder.id !== ROOT_FOLDER_ID)
             .map((folder) => (
@@ -407,7 +410,7 @@ function FolderCard({
     <li
       data-folder-drop={folder.id}
       className={cn(
-        "lit flex flex-col gap-1 rounded-xl bg-paper-raised p-3 transition-shadow",
+        "lit relative flex flex-col gap-1 rounded-xl bg-paper-raised p-3 transition-shadow",
         highlighted && "ring-2 ring-trace",
       )}
     >
@@ -415,17 +418,36 @@ function FolderCard({
         <NameField value={folder.name} onCommit={onCommit} onCancel={onCancel} />
       ) : (
         <>
+          {/* Папка открывается нажатием куда угодно по карточке, а не по
+              одному имени: карточка и есть папка, и требовать попасть в
+              строку текста — значит требовать точности там, где её неоткуда
+              взять, особенно пальцем.
+
+              Растянутая кнопка, а не кнопка вокруг всего: внутри карточки
+              стоят ещё две (переименовать, удалить), а кнопка в кнопке —
+              разметка, которой не бывает. Поэтому эта лежит подложкой, а
+              соседи подняты над ней (`relative`) и ловят нажатие сами. */}
           <button
             type="button"
             onClick={onOpen}
-            className="flex cursor-pointer items-center gap-2 text-left text-sm font-medium"
-          >
+            aria-label={`Открыть папку «${folder.name}»`}
+            className={cn(
+              "absolute inset-0 cursor-pointer rounded-xl",
+              "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-trace",
+            )}
+          />
+          <span className="pointer-events-none relative flex items-center gap-2 text-sm font-medium">
             <Folder aria-hidden className="size-4 shrink-0 text-ink-muted" />
             <span className="truncate">{folder.name}</span>
-          </button>
-          <div className="flex items-center justify-between gap-1">
-            <span className="text-xs text-ink-muted">{profileCount(count)}</span>
-            <span className="flex items-center gap-1">
+          </span>
+          {/* Строка не ловит указатель целиком — ловят только две кнопки в
+              ней: иначе она, лежащая поверх подложки, съедала бы нажатие по
+              середине карточки, то есть по самому вероятному месту. */}
+          <div className="pointer-events-none relative flex items-center justify-between gap-1">
+            <span className="min-w-0 truncate text-xs text-ink-muted">
+              {profileCount(count)}
+            </span>
+            <span className="pointer-events-auto flex items-center gap-1">
               <IconButton label={`Переименовать папку «${folder.name}»`} onClick={onRename}>
                 <Pencil aria-hidden className="size-4" />
               </IconButton>
@@ -497,18 +519,30 @@ function EntryRow({
             <button
               type="button"
               onClick={onOpen}
-              className="flex-1 cursor-pointer truncate text-left"
+              className="min-w-0 flex-1 cursor-pointer text-left"
             >
-              <span className="block truncate text-sm font-medium">
-                {entry.name}
+              {/* Имени — вся строка, отметке «открыт» — вторая, рядом со
+                  временем правки. Стоя при имени, она отнимала у него
+                  половину ширины: на 320 точках от «Тараканов Павел
+                  Николаевич» оставалось «Тара…». */}
+              <span className="block truncate text-sm font-medium">{entry.name}</span>
+              {/* Перенос, а не обрезка: на 320 точках отметка «открыт» и
+                  время правки в одну строку не встают, и обрезалось бы
+                  именно время — то самое, чем два снимка и различают. */}
+              <span className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-ink-muted">
                 {active ? (
-                  <span className="ml-2 rounded-md bg-paper-sunken px-1.5 py-0.5 text-xs font-normal text-ink-muted">
+                  <span className="shrink-0 rounded-md bg-paper-sunken px-1.5 py-0.5 font-normal">
                     открыт
                   </span>
                 ) : null}
-              </span>
-              <span className="block truncate text-xs text-ink-muted">
-                {savedAtLabel(entry.savedAt)}
+                <span className="truncate">
+                  {/* Слово уходит с самых узких экранов, дата остаётся:
+                      столбец с именем там шириной в 120 точек, и «изменён»
+                      съедало ровно то время, ради которого строка и стоит.
+                      Программе чтения слово остаётся (`sr-only`). */}
+                  <span className="max-[359px]:sr-only">{"изменён "}</span>
+                  {savedAtLabel(entry.savedAt)}
+                </span>
               </span>
             </button>
 
@@ -653,12 +687,17 @@ function profileCount(count: number): string {
  */
 function savedAtLabel(savedAt: string): string {
   const date = new Date(savedAt);
-  if (Number.isNaN(date.getTime())) return "время правки неизвестно";
-  return `изменён ${date.toLocaleString("ru-RU", {
+  // Читается следом за словом «изменён», которое стоит в разметке рядом.
+  if (Number.isNaN(date.getTime())) return "неизвестно когда";
+  // Год — только чужой. У правки этого года он не сообщает ничего, а
+  // строке на 320 точках стоит четверти ширины, и обрезалось из-за него
+  // время — то самое, чем два снимка одного дня и различают.
+  const thisYear = date.getFullYear() === new Date().getFullYear();
+  return date.toLocaleString("ru-RU", {
     day: "numeric",
     month: "short",
-    year: "numeric",
+    ...(thisYear ? {} : { year: "numeric" }),
     hour: "2-digit",
     minute: "2-digit",
-  })}`;
+  });
 }
