@@ -12,7 +12,7 @@ import {
 } from "lucide-react";
 import { useState, type ReactNode } from "react";
 
-import { LitEdgeGlow, trackGlow } from "@/components/ui/lit-edge";
+import { trackGlow } from "@/components/ui/lit-edge";
 import { Materialize } from "@/components/ui/materialize";
 import { Modal } from "@/components/ui/modal";
 import { cn } from "@/lib/utils/cn";
@@ -145,10 +145,10 @@ const TOOL_BUTTON = cn(
   // конца трубки, и блик ложится не сверху, а по верхней и левой кромке:
   // сторону считает сама лампа замером (`shared/lamp.tsx`).
   //
-  // `lit-edge` — та же лампа на наведении: света по кромке прибавляется со
-  // стороны курсора (`ui/lit-edge.tsx`). Прежде наведение меняло заливку —
-  // приём из интерфейсов без источника света, и здесь он спорил с тем, чем
-  // объяснён весь остальной вид кнопки.
+  // `lit-edge` — та же лампа на наведении: кромка загорается по всему
+  // периметру, а под курсором на ней встаёт блик (`globals.css`). Прежде
+  // наведение меняло заливку — приём из интерфейсов без источника света, и
+  // здесь он спорил с тем, чем объяснён весь остальной вид кнопки.
   "lit lit-edge",
   "inline-flex h-9 shrink-0 cursor-pointer items-center gap-2 rounded-xl",
   "bg-paper-raised px-2 min-[360px]:px-3 text-sm font-medium",
@@ -185,7 +185,6 @@ function ToolButton({
       onPointerMove={trackGlow}
       className={TOOL_BUTTON}
     >
-      <LitEdgeGlow className="rounded-xl" />
       {icon}
       <span className={LABELS_FROM}>{label}</span>
     </button>
@@ -309,7 +308,6 @@ export function HeaderTools({
               onPointerMove={trackGlow}
               className={TOOL_BUTTON}
             >
-              <LitEdgeGlow className="rounded-xl" />
               {toggling ? (
                 // Шестерня и крестик стоят в одной ячейке грида и проступают
                 // друг в друга — тот же приём, что у слова рядом со знаком

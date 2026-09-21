@@ -4,7 +4,7 @@ import { ChevronLeft, Folder, GripVertical, Pencil, Trash2 } from "lucide-react"
 import { useEffect, useState, type ReactNode } from "react";
 
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-import { LitEdgeGlow, trackGlow } from "@/components/ui/lit-edge";
+import { trackGlow } from "@/components/ui/lit-edge";
 import { Input } from "@/components/ui/input";
 import { useMediaQuery } from "@/lib/hooks/use-media-query";
 import { cn } from "@/lib/utils/cn";
@@ -248,10 +248,9 @@ export function ProfileExplorer({
               onPointerMove={trackGlow}
               className={cn(
                 "lit-edge inline-flex h-9 cursor-pointer items-center gap-1 rounded-xl px-2",
-                "text-sm text-ink-muted transition-colors hover:text-ink",
+                "bg-paper-raised text-sm text-ink-muted transition-colors hover:text-ink",
               )}
             >
-              <LitEdgeGlow className="rounded-xl" />
               <ChevronLeft aria-hidden className="size-4" />
               {ROOT_FOLDER_ID}
             </button>
@@ -516,9 +515,9 @@ function FolderCard({
       // что вышло за контур), а свет ложится ровно по очертанию.
       data-glow={highlighted ? "on" : undefined}
       onPointerMove={trackGlow}
-      className="lit-edge lit-edge--rim aspect-[2/1]"
+      style={FOLDER_CLIP}
+      className="lit-edge lit-edge--clipped lit-edge--rim aspect-[2/1]"
     >
-      <LitEdgeGlow style={FOLDER_CLIP} />
       <div
         style={FOLDER_CLIP}
         // Отступ сверху — долей ШИРИНЫ, а не рёмами: у карточки
@@ -618,7 +617,6 @@ function EntryCard({
   return (
     <li
       onPointerEnter={onHover}
-      onPointerMove={trackGlow}
       onPointerLeave={onLeave}
       // Фокус с клавиатуры — то же наведение: человек, идущий по списку
       // табуляцией, видит наверху тот же профиль, что и человек с мышью.
@@ -627,12 +625,13 @@ function EntryCard({
       // Показанный наверху светится и без указателя: на телефоне показ
       // включается нажатием, и иначе непонятно, о каком профиле говорят
       // цифры.
-      data-glow={previewed ? "on" : undefined}
-      className={cn("lit-edge", dragging && "opacity-40")}
+      className={cn(dragging && "opacity-40")}
     >
-      <LitEdgeGlow className="rounded-[0.875rem]" />
-
-      <div className="lit relative flex h-full flex-col gap-1 rounded-xl bg-paper-raised p-3">
+      <div
+        data-glow={previewed ? "on" : undefined}
+        onPointerMove={trackGlow}
+        className="lit lit-edge relative flex h-full flex-col gap-1 rounded-xl bg-paper-raised p-3"
+      >
         {renaming ? (
           <NameField value={entry.name} onCommit={onCommit} onCancel={onCancel} />
         ) : (
