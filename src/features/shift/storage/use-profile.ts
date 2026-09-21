@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { forgetActive, syncActiveIntoLibrary } from "./library";
 import {
   clearProfile,
   loadProfile,
@@ -53,6 +54,11 @@ export function useProfile(): UseProfile {
   useEffect(() => {
     const result = loadProfile();
     current.current = result.status === "ok" ? result.profile : null;
+    // Отражение в проводник — при чтении, а не только при записи. Так в
+    // список сохранённых графиков попадает профиль, заведённый до появления
+    // проводника: своей записи у него нет, и создаётся она здесь, при
+    // первом же открытии страницы, без единого действия человека.
+    if (result.status === "ok") syncActiveIntoLibrary(result.profile);
     // Правило запрещает синхронный `setState` в эффекте, и обычно верно:
     // это лишний прогон отрисовки. Здесь он неизбежен и однократен —
     // `localStorage` на сервере не существует, а прочитать его до
@@ -64,6 +70,10 @@ export function useProfile(): UseProfile {
   const save = useCallback((profile: StoredProfile) => {
     const saved = saveProfile(profile);
     current.current = saved;
+    // Проводник обновляется тем же движением, что и хранилище: своего
+    // «сохранить в список» у приложения нет — правка сохранена в тот же
+    // миг, когда сделана, и список, показывающий вчерашнее, врал бы.
+    syncActiveIntoLibrary(saved);
     setState({ status: "ok", profile: saved });
     return saved;
   }, []);
@@ -79,6 +89,10 @@ export function useProfile(): UseProfile {
 
   const forget = useCallback(() => {
     clearProfile();
+    // Вместе с профилем уходит и его запись в проводнике. Оставить снимок
+    // значило бы ответить «удалено» и сохранить копию — ровно то, чего
+    // человек этой кнопкой и избегает.
+    forgetActive();
     current.current = null;
     setState({ status: "empty" });
   }, []);

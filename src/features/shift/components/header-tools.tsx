@@ -8,7 +8,6 @@ import { Modal } from "@/components/ui/modal";
 import { cn } from "@/lib/utils/cn";
 
 import type { StoredProfile } from "../storage/profile";
-import { useOpenProfile } from "./open-profile";
 import { useSaveToFile } from "./save-to-file";
 import type { IsoDate } from "../domain/plain-date";
 import { SettingsTabs } from "./settings-tabs";
@@ -35,6 +34,12 @@ import { SettingsTabs } from "./settings-tabs";
  * всякой причины, кроме той, что когда-то оно завелось в окне создания
  * профиля и осталось жить рядом.
  *
+ * «Открыть» с тех пор перестало означать «выбрать файл»: оно показывает
+ * проводник по сохранённым графикам (`profile-explorer.tsx`), а файл стал
+ * одним из способов пополнить его — наравне с новым профилем. Кнопка от
+ * этого не изменилась ни местом, ни значком: действие то же самое, просто
+ * выбирать теперь есть из чего.
+ *
  * Теперь они в ряд и в том порядке, в каком читается история профиля:
  * настроить, открыть, сохранить. Открыть стоит посередине намеренно —
  * это единственное действие, уносящее нынешний профиль, и соседство с
@@ -52,6 +57,14 @@ import { SettingsTabs } from "./settings-tabs";
  * занимают меньше места, чем один значок меню, и ведут прямо к делу, а не
  * к списку из двух пунктов. Подписи появляются, как только для них
  * хватает ширины, — порог назначен замером и стоит в `LABELS_FROM`.
+ *
+ * --- Кнопка, которая не открывает окно ------------------------------------
+ *
+ * «Открыть» показывает проводник ПРЯМО НА СТРАНИЦЕ, на месте календаря, и
+ * на любой ширине: человек выбирает из своих графиков тот, который станет
+ * открытым, и показывать этот выбор окном поверх одного из них значило бы
+ * назвать его мимолётным. Кнопка при этом становится кнопкой закрытия —
+ * той же самой, которой открыли.
  *
  * --- Настройки на телефоне: не окно вовсе ---------------------------------
  *
@@ -82,7 +95,7 @@ type ToolId = "settings" | "open" | "save";
  */
 const TOOL_META: Record<ToolId, { label: string; title: string; Icon: LucideIcon }> = {
   settings: { label: "Настройки", title: "Настройки", Icon: Settings },
-  open: { label: "Открыть", title: "Открыть профиль из файла", Icon: FolderOpen },
+  open: { label: "Открыть", title: "Открыть профиль", Icon: FolderOpen },
   save: { label: "Сохранить", title: "Сохранить в файл", Icon: Save },
 };
 
@@ -115,6 +128,8 @@ export function HeaderTools({
   isMobile,
   mobileSettingsOpen,
   onToggleMobileSettings,
+  explorerOpen,
+  onToggleExplorer,
 }: {
   profile: StoredProfile;
   onChange: (change: (previous: StoredProfile) => StoredProfile) => void;
@@ -135,12 +150,12 @@ export function HeaderTools({
   /** Показаны ли сейчас настройки вместо страницы. Имеет смысл только на телефоне. */
   mobileSettingsOpen: boolean;
   onToggleMobileSettings: () => void;
+  /** Показан ли сейчас проводник по профилям вместо календаря. */
+  explorerOpen: boolean;
+  onToggleExplorer: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const save = useSaveToFile(profile);
-  // Открытый файл ЗАМЕЩАЕТ профиль целиком, а не правит его по полю:
-  // прежнего в нём не остаётся ничего.
-  const file = useOpenProfile(profile, (next) => onChange(() => next));
 
   return (
     <>
@@ -151,20 +166,26 @@ export function HeaderTools({
       >
         {TOOL_ORDER.map((id) => {
           const { label, title, Icon } = TOOL_META[id];
-          // Кнопка настроек на телефоне не открывает окно — она переключает
-          // страницу и сама превращается в кнопку закрытия. Имя и подсказка
-          // называют то действие, которое нажатие СЕЙЧАС совершит.
-          const toggling = id === "settings" && isMobile;
-          const pressed = toggling && mobileSettingsOpen;
+          // Две кнопки из трёх не открывают окно, а переключают то, что
+          // показано на самой странице, и сами превращаются в кнопку
+          // закрытия: настройки — на телефоне, проводник по профилям — на
+          // любой ширине. Имя и подсказка называют то действие, которое
+          // нажатие СЕЙЧАС совершит.
+          const toggling = id === "open" || (id === "settings" && isMobile);
+          const pressed = id === "open" ? explorerOpen : toggling && mobileSettingsOpen;
           const label_ = pressed ? "Закрыть" : label;
-          const title_ = pressed ? "Закрыть настройки" : title;
+          const title_ = pressed
+            ? id === "open"
+              ? "Закрыть проводник"
+              : "Закрыть настройки"
+            : title;
           return (
             <button
               key={id}
               type="button"
               onClick={() => {
                 if (id === "save") save.ask();
-                else if (id === "open") file.ask();
+                else if (id === "open") onToggleExplorer();
                 else if (isMobile) onToggleMobileSettings();
                 else setOpen(true);
               }}
@@ -172,7 +193,7 @@ export function HeaderTools({
               // на узком экране от кнопки остаётся значок, и без имени она
               // стала бы для программы чтения безымянной.
               aria-label={title_}
-              aria-expanded={toggling ? mobileSettingsOpen : undefined}
+              aria-expanded={toggling ? pressed : undefined}
               title={title_}
               className={cn(
                 // `lit` — кнопка ловит свет лампы. Стоит она у правого
@@ -235,7 +256,6 @@ export function HeaderTools({
       </Modal>
 
       {save.dialog}
-      {file.dialogs}
     </>
   );
 }

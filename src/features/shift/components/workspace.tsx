@@ -16,12 +16,15 @@ import {
   statutoryBounds,
   withShiftMoved,
 } from "../model/derive";
+import { openEntry, type LibraryEntry } from "../storage/library";
 import type { StoredProfile } from "../storage/profile";
 import { ChangesList } from "./changes-list";
 import { DayEditor } from "./day-editor";
 import { GridDeck, WORKSPACE_PAD } from "./grid-deck";
 import { HeaderTools } from "./header-tools";
+import { useConfirmSwitch } from "./open-profile";
 import { PeriodSummary, REVEAL_DELAY_MS } from "./period-summary";
+import { ProfileExplorer } from "./profile-explorer";
 import { ProfileFooter } from "./profile-footer";
 import { ProfileName } from "./profile-name";
 import { DangerActions, SettingsPanel } from "./settings-panel";
@@ -225,6 +228,53 @@ export function Workspace({ profile, onChange, onForget }: WorkspaceProps) {
       if (next) window.scrollTo(0, 0);
       return next;
     });
+    setExplorerOpen(false);
+  }
+
+  /**
+   * Проводник по профилям — на месте календаря, на любой ширине.
+   *
+   * --- Почему не только на телефоне ------------------------------------------
+   *
+   * У настроек на столе есть своё окно, и оно там уместно: анкета дополняет
+   * страницу, не заменяя её. Проводник — другое дело: он показывает СПИСОК
+   * графиков, один из которых сейчас и лежит на странице. Окно поверх него
+   * заявляло бы, что выбор — дело мимолётное, а это смена того, на что
+   * человек смотрит.
+   *
+   * Откат прокрутки — тот же и по той же причине, что у настроек выше:
+   * список короче двенадцати календарных сеток, и без отката браузер
+   * поджал бы страницу сам, показав проводник с середины.
+   */
+  const [explorerOpen, setExplorerOpen] = useState(false);
+
+  function toggleExplorer() {
+    setExplorerOpen((open) => {
+      const next = !open;
+      if (next) window.scrollTo(0, 0);
+      return next;
+    });
+    setMobileSettingsOpen(false);
+  }
+
+  /**
+   * Смена профиля: сперва выбор, потом вопрос про нынешний.
+   *
+   * Указатель проводника переставляется ВНУТРИ согласия, вместе с самой
+   * сменой (`openEntry`), а не в тот миг, когда человек нажал на строку:
+   * закрой он окно вопроса крестиком — и приложение осталось бы с прежним
+   * графиком на экране, но с указателем на чужую запись. Первая же правка
+   * ушла бы в чужой профиль.
+   */
+  const switchProfile = useConfirmSwitch(profile);
+
+  function askOpenEntry(entry: LibraryEntry) {
+    switchProfile.ask(() => {
+      const next = openEntry(entry.id);
+      if (next === null) return;
+      onChange(() => next);
+      setExplorerOpen(false);
+    });
   }
 
   // Что показано на сетке года. Живёт здесь, а не в самой сетке, потому
@@ -247,7 +297,9 @@ export function Workspace({ profile, onChange, onForget }: WorkspaceProps) {
         // Знак называет «Настройки» вместо «График 1|3», пока на телефоне
         // показаны они, а не сам расчёт: страница та же, читает она о себе
         // другое.
-        brandLabel={showSettings ? "Настройки" : undefined}
+        brandLabel={
+          explorerOpen ? "Профили" : showSettings ? "Настройки" : undefined
+        }
         tools={
           <HeaderTools
             profile={profile}
@@ -256,6 +308,8 @@ export function Workspace({ profile, onChange, onForget }: WorkspaceProps) {
             isMobile={isMobile}
             mobileSettingsOpen={mobileSettingsOpen}
             onToggleMobileSettings={toggleMobileSettings}
+            explorerOpen={explorerOpen}
+            onToggleExplorer={toggleExplorer}
             // Перечень изменений в настройках ведёт в сутки, а сутки
             // открывает тот же самый выбор, что и нажатие по клетке.
             // Сетку он тоже называет: правка вида дня живёт на
@@ -299,7 +353,23 @@ export function Workspace({ profile, onChange, onForget }: WorkspaceProps) {
       />
 
       <div className="space-y-10">
-      {showSettings ? (
+      {explorerOpen ? (
+        <FadeIn key="explorer">
+          <section aria-labelledby="explorer-heading" className="space-y-4">
+            <h2 id="explorer-heading" className="sr-only">
+              Профили
+            </h2>
+            <ProfileExplorer
+              onChange={onChange}
+              onOpenEntry={askOpenEntry}
+              onCreated={(next) => {
+                onChange(() => next);
+                setExplorerOpen(false);
+              }}
+            />
+          </section>
+        </FadeIn>
+      ) : showSettings ? (
         // Настройки на месте графика — не поверх страницы, а вместо той
         // его части, что сейчас не нужна: панель управления сеткой
         // (`GridDeck`, ниже) при этом тоже скрыта — управлять ей больше
@@ -384,6 +454,10 @@ export function Workspace({ profile, onChange, onForget }: WorkspaceProps) {
         onClose={() => setPickedDay(null)}
       />
 
+      {/* Вопрос «сначала сохранить нынешний в файл?» — он один на все пути
+          смены профиля, поэтому и стоит здесь, а не в проводнике. */}
+      {switchProfile.dialogs}
+
       {/* Нижняя панель телефона — здесь, а не внутри `YearView`, где
           стоят те же органы управления строкой над сеткой.
           -----------------------------------------------------------------
@@ -402,7 +476,7 @@ export function Workspace({ profile, onChange, onForget }: WorkspaceProps) {
 
           Пока показаны настройки, панели тоже нет: управлять ей нечем —
           сетки на экране в этот момент нет вовсе. */}
-      {showSettings ? null : (
+      {showSettings || explorerOpen ? null : (
         <GridDeck
           profile={profile}
           onChange={onChange}
