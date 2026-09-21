@@ -4,7 +4,6 @@ import { useState, type ReactNode } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
-import { Card, Field } from "@/components/ui/panel";
 
 import {
   DEFAULT_SCHEDULE_PATTERN,
@@ -18,7 +17,6 @@ import {
   DEFAULT_PROFILE_NAME,
   type StoredProfile,
 } from "../storage/profile";
-import { ImportProfileBlock } from "./import-profile";
 import { SettingsPanel } from "./settings-panel";
 
 /**
@@ -48,12 +46,14 @@ import { SettingsPanel } from "./settings-panel";
  * человек попадает, когда профиль создан, — то есть когда там есть что
  * показывать.
  *
- * --- Почему возврат из файла тоже в окне -----------------------------------
+ * --- Почему возврата из файла здесь больше нет -----------------------------
  *
- * Он отвечает на тот же вопрос — «откуда взять профиль», — только другим
- * способом: не заполнять заново, а вернуть сохранённый. Оставить его на
- * странице значило бы спрятать за окном единственный выход для того, кто
- * уже всё это однажды заполнял.
+ * Внизу окна стоял блок «Уже заполняли раньше» — заголовок, две строки
+ * пояснения и выбор файла. Человеку, который заводит профиль впервые (а
+ * это почти все, кто сюда попадает), он отвечал на вопрос, которого тот
+ * не задавал, и отодвигал кнопку «Построить мой график» на полэкрана
+ * вниз. Возврат из файла остаётся там, где за ним идут осознанно: кнопка
+ * «Из файла» в проводнике профилей.
  *
  * --- Почему черновик, а не поля по одному ----------------------------------
  *
@@ -134,19 +134,10 @@ export function CreateProfileModal({
 
         <SettingsPanel profile={draft} onChange={setDraft} purpose="create" />
 
-        <div className="space-y-4 pt-1">
+        <div className="pt-1">
           <Button type="button" className="w-full" onClick={submit}>
             Построить мой график
           </Button>
-
-          <Card>
-            <Field label="" stack>
-              <ImportProfileBlock title="Уже заполняли раньше" onImported={onCreated}>
-              Если вы сохраняли профиль в файл, загрузите его — график,
-              отсутствия и правки календаря вернутся как были.
-            </ImportProfileBlock>
-            </Field>
-          </Card>
         </div>
       </div>
     </Modal>

@@ -2,11 +2,11 @@ import { describe, expect, it } from "vitest";
 
 import {
   Dec,
-  formatDaysAndHours,
+  formatShiftsAndHours,
   numberWord,
   parseHours,
   shiftsWord,
-  splitIntoDays,
+  splitIntoShifts,
   toDecimal,
 } from "./decimal";
 
@@ -52,37 +52,43 @@ describe("разбор чисел из ввода человека", () => {
 });
 
 /**
- * Переработка в сутках показывается сменами и часами, а не десятой долей
- * суток: отгул берут сменами и часами, и «8,8 суток» человеку приходится
+ * Переработка показывается сменами и часами, а не десятой долей смены:
+ * отгул берут сменами и часами, и «8,8 смены» человеку приходится
  * пересчитывать в голове ровно тогда, когда он собрался что-то с этой
  * переработкой делать.
  */
-describe("часы в сутках дежурства", () => {
+describe("часы сменами", () => {
   it("раскладываются на смены и остаток", () => {
-    expect(splitIntoDays(new Dec(212))).toEqual({ days: 8, hours: new Dec(20) });
-    expect(formatDaysAndHours(new Dec(212))).toBe("8 суток 20 ч");
+    expect(splitIntoShifts(new Dec(212))).toEqual({ shifts: 8, hours: new Dec(20) });
+    expect(formatShiftsAndHours(new Dec(212))).toBe("8 смен 20 ч");
   });
 
-  it("ровные сутки не тянут за собой ноль часов", () => {
-    expect(formatDaysAndHours(new Dec(192))).toBe("8 суток");
+  it("ровные смены не тянут за собой ноль часов", () => {
+    expect(formatShiftsAndHours(new Dec(192))).toBe("8 смен");
   });
 
   it("меньше смены — просто часы", () => {
-    expect(formatDaysAndHours(new Dec(20))).toBe("20 ч");
-    expect(formatDaysAndHours(new Dec(0))).toBe("0 ч");
+    expect(formatShiftsAndHours(new Dec(20))).toBe("20 ч");
+    expect(formatShiftsAndHours(new Dec(0))).toBe("0 ч");
   });
 
   it("остаток сохраняет половины часа", () => {
-    expect(formatDaysAndHours(new Dec("30.5"))).toBe("1 сутки 6,5 ч");
+    expect(formatShiftsAndHours(new Dec("30.5"))).toBe("1 смена 6,5 ч");
   });
 
   it("слово согласуется с числом", () => {
-    // Единственного числа у слова нет, и форма зависит от последней цифры
-    // — кроме одиннадцати, где она обманывает.
-    expect(formatDaysAndHours(new Dec(24))).toBe("1 сутки");
-    expect(formatDaysAndHours(new Dec(24 * 2))).toBe("2 суток");
-    expect(formatDaysAndHours(new Dec(24 * 11))).toBe("11 суток");
-    expect(formatDaysAndHours(new Dec(24 * 21))).toBe("21 сутки");
+    // Форма зависит от последней цифры — кроме второй десятки, где она
+    // обманывает.
+    expect(formatShiftsAndHours(new Dec(24))).toBe("1 смена");
+    expect(formatShiftsAndHours(new Dec(24 * 2))).toBe("2 смены");
+    expect(formatShiftsAndHours(new Dec(24 * 11))).toBe("11 смен");
+    expect(formatShiftsAndHours(new Dec(24 * 21))).toBe("21 смена");
+  });
+
+  it("смена не суточная — делится на неё, а не на сутки", () => {
+    // «Два через два»: двенадцать часов в смене, 30 часов сверх нормы —
+    // это две смены и шесть часов, а не сутки с хвостом.
+    expect(splitIntoShifts(new Dec(30), 12)).toEqual({ shifts: 2, hours: new Dec(6) });
   });
 });
 

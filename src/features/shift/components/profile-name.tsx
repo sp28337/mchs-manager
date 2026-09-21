@@ -133,7 +133,10 @@ export function ProfileName({
           onClick={edit}
           aria-label="Изменить имя профиля"
           className={cn(
-            "rounded-sm opacity-10 transition-opacity",
+            // Указатель над текстом теперь везде стрелка (`globals.css`), и
+            // «палец» остался единственным признаком нажимаемого. У имени
+            // он тем нужнее, что на кнопку оно не похоже вовсе.
+            "cursor-pointer rounded-sm opacity-10 transition-opacity",
             "hover:opacity-20",
             "focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ink",
           )}

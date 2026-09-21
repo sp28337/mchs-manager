@@ -9,10 +9,9 @@ import { Segmented, SegmentedItem } from "@/components/ui/segmented";
 import { cn } from "@/lib/utils/cn";
 
 import {
-  daysWord,
   formatHoursTrim as hoursTrim,
   shiftsWord,
-  splitIntoDays,
+  splitIntoShifts,
   type Decimal,
 } from "../domain/decimal";
 import { shiftMinutes } from "../domain/shift-hours";
@@ -62,20 +61,21 @@ import { SETTINGS_TAB_LABEL, type SettingsTab } from "./settings-tabs";
 export function PeriodSummary({
   calculation,
   accountingYear,
-  overtimeInDays,
+  overtimeInShifts,
   shiftDurationHours,
   settings,
 }: {
   calculation: PeriodCalculation;
   accountingYear: number;
   /** В чём показывать переработку: в часах или сменами и часами. */
-  overtimeInDays: boolean;
+  overtimeInShifts: boolean;
   /**
    * Продолжительность смены, часами.
    *
    * Переработка «сменами» делится именно на неё: у графика «два через
-   * два» смена двенадцатичасовая, и делить её переработку на сутки значило
-   * бы назвать вдвое меньше смен, чем человек отработал сверх нормы.
+   * два» смена двенадцатичасовая, и делить её переработку на двадцать
+   * четыре часа значило бы назвать вдвое меньше смен, чем человек
+   * отработал сверх нормы.
    */
   shiftDurationHours: string;
   /**
@@ -116,7 +116,7 @@ export function PeriodSummary({
           >
             <FiguresRow
               calculation={calculation}
-              inDays={overtimeInDays}
+              inShifts={overtimeInShifts}
               shiftHours={shiftDurationHours}
             />
           </div>
@@ -322,7 +322,7 @@ function SettingsSwitch({
  * --- Почему по замеру, а не по ширине экрана ------------------------------
  *
  * Строка главных чисел не одной ширины: разница бывает и «212,0 ч», и
- * «8 суток 20 ч», а норма — и «160», и «1972,5». Любой порог вроде
+ * «8 смен 20 ч», а норма — и «160», и «1972,5». Любой порог вроде
  * «показывать с 1280» на одном профиле оставил бы пустоту, а на другом
  * полез бы за край.
  *
@@ -333,11 +333,11 @@ function SettingsSwitch({
  */
 function FiguresRow({
   calculation,
-  inDays,
+  inShifts,
   shiftHours,
 }: {
   calculation: PeriodCalculation;
-  inDays: boolean;
+  inShifts: boolean;
   shiftHours: string;
 }) {
   const row = useRef<HTMLDivElement>(null);
@@ -386,7 +386,7 @@ function FiguresRow({
     <div ref={row} className="relative flex items-stretch gap-2  px-6 pb-3">
       <MainPlate
         calculation={calculation}
-        inDays={inDays}
+        inShifts={inShifts}
         shiftHours={shiftHours}
         grow={!fits}
       />
@@ -410,7 +410,7 @@ function FiguresRow({
       >
         <MainPlate
           calculation={calculation}
-          inDays={inDays}
+          inShifts={inShifts}
           shiftHours={shiftHours}
           tight
         />
@@ -496,14 +496,14 @@ function MinorPlate({
  */
 function MainPlate({
   calculation,
-  inDays,
+  inShifts,
   shiftHours,
   grow,
   tight,
 }: {
   calculation: PeriodCalculation;
   /** Переработку — сменами и часами, а не часами. */
-  inDays: boolean;
+  inShifts: boolean;
   /** Продолжительность смены: на неё делится переработка. */
   shiftHours: string;
   /** Мелких итогов рядом нет — занять всю строку и развести числа. */
@@ -544,7 +544,7 @@ function MainPlate({
         still={tight}
       />
       <Figure
-        parts={overtimeParts(balance, inDays, shiftHours)}
+        parts={overtimeParts(balance, inShifts, shiftHours)}
         caption={<BalanceCaption under={under} />}
         // Ноль — это попадание в норму, и цвета у него нет: ни зелёного,
         // ни красного. Сигнальным становится только то, что требует
@@ -561,14 +561,23 @@ function MainPlate({
  *
  * --- Почему выбор, а не оба сразу ----------------------------------------
  *
- * Оба и стояли: «212,0 ч Переработка ≈ 8,8 суток В сутках» — четыре числа
+ * Оба и стояли: «212,0 ч Переработка ≈ 8,8 смены В сменах» — четыре числа
  * и знак приблизительности ради одной величины, и половина строки на то,
- * чтобы сказать её дважды. При этом «8,8 суток» само требовало пересчёта:
- * десятая доля суток это два часа с четвертью, а отгул берут сменами и
- * часами.
+ * чтобы сказать её дважды. При этом «8,8 смены» само требовало пересчёта:
+ * десятая доля суточной смены это два часа с четвертью, а отгул берут
+ * сменами и часами.
  *
  * Теперь величина одна, и мера у неё та, в которой человек привык считать:
- * либо «212,0 ч», либо «8 суток 20 ч».
+ * либо «212,0 ч», либо «8 смен 20 ч».
+ *
+ * --- Почему «смены», а не «сутки» ----------------------------------------
+ *
+ * У суточного графика тут стояло «8 суток» — по привычке речи. Но
+ * названо этим числом не время, а количество отработанного сверх нормы,
+ * и у графика «два через два» то же самое число пришлось бы называть
+ * сменами. Одна величина не может зваться двумя словами в зависимости от
+ * графика: человек, сменивший график, читал бы разные меры на одном и
+ * том же месте экрана.
  *
  * --- Почему недоработка в той же мере ------------------------------------
  *
@@ -577,25 +586,21 @@ function MainPlate({
  */
 function overtimeParts(
   value: Decimal,
-  inDays: boolean,
+  inShifts: boolean,
   shiftHours: string,
 ): FigurePart[] {
-  if (!inDays) return [{ value: hoursTrim(value), unit: "ч" }];
+  if (!inShifts) return [{ value: hoursTrim(value), unit: "ч" }];
 
-  // Мера — своя смена, а не астрономические сутки. У суточной смены слово
-  // остаётся прежним, «сутки»: так на этом графике и говорят. У всех
-  // остальных оно превратилось бы в неправду, поэтому там — «смены».
+  // Мера — своя смена: у графика «два через два» она двенадцатичасовая, и
+  // делить её переработку на двадцать четыре значило бы назвать вдвое
+  // меньше смен, чем человек отработал.
   const perShift = shiftMinutes(shiftHours) / 60;
-  const whole24 = perShift === 24;
-  const { days: whole, hours: rest } = splitIntoDays(value, perShift);
+  const { shifts: whole, hours: rest } = splitIntoShifts(value, perShift);
   const parts: FigurePart[] = [];
   if (whole > 0) {
-    parts.push({
-      value: String(whole),
-      unit: whole24 ? daysWord(whole) : shiftsWord(whole),
-    });
+    parts.push({ value: String(whole), unit: shiftsWord(whole) });
   }
-  // Ровные сутки не тянут за собой «0 ч», но и пустой строки не бывает:
+  // Ровные смены не тянут за собой «0 ч», но и пустой строки не бывает:
   // меньше смены — значит просто часы.
   if (!rest.isZero() || whole === 0) {
     parts.push({ value: hoursTrim(rest), unit: "ч" });
@@ -629,8 +634,8 @@ function PendingNotice({ accountingYear }: { accountingYear: number }) {
 /**
  * Величина числом с единицей — и, если нужно, не одним.
  *
- * Пар бывает две: переработка в сутках это «8 суток 20 ч», и остаток от
- * смены такое же число, как сами сутки. Оформлять его иначе значило бы
+ * Пар бывает две: переработка сменами это «8 смен 20 ч», и остаток от
+ * смены такое же число, как сами смены. Оформлять его иначе значило бы
  * сказать, что он менее настоящий.
  *
  * --- Почему число доходит до нового значения, а не подменяется -----------

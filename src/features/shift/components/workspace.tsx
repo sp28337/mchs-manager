@@ -398,7 +398,22 @@ export function Workspace({
           закреплена у кромки окна и места в потоке не занимает, поэтому
           подвал уезжал бы под неё, и последняя строка страницы была бы
           нечитаемой. С `md` панели нет, и поля тоже. */}
-      <main className={cn("mx-auto w-full px-6 pt-26 2xl:max-w-[2000px]", WORKSPACE_PAD)}>
+      {/* Страница — колонка во весь экран, и подвал в ней прижат книзу
+          (`mt-auto` ниже). Без этого на мониторе с коротким содержимым —
+          пустой проводник, папка на две плитки — подвал вставал сразу под
+          ним, посреди экрана, а под ним оставалась треть высоты голой
+          бумаги: страница выглядела оборванной, а не законченной.
+
+          Высота считается за вычетом безопасных зон: их поля лежат на
+          `body`, и ровные `100dvh` дали бы полосу прокрутки на пустом
+          месте. */}
+      <main
+        className={cn(
+          "mx-auto flex w-full flex-col px-6 pt-26 2xl:max-w-[2000px]",
+          "min-h-[calc(100dvh-var(--safe-top)-var(--safe-bottom))]",
+          WORKSPACE_PAD,
+        )}
+      >
       {/* Поле под именем — не про воздух: полоса с числами закрывает над
           собой двенадцать точек бумаги (щиток в `PeriodSummary`, он гасит
           просвет под шапкой), и без этого зазора щиток лёг бы прямо на
@@ -425,12 +440,14 @@ export function Workspace({
       <PeriodSummary
         calculation={previewCalculation ?? calculation}
         accountingYear={headProfile.accountingYear}
-        overtimeInDays={headProfile.overtimeInDays}
+        overtimeInShifts={headProfile.overtimeInDays}
         shiftDurationHours={headProfile.shiftDurationHours}
         settings={{ open: showSettings, tab: settingsTab, onTab: setSettingsTab }}
       />
 
-      <div className="space-y-10">
+      {/* Колонка, а не `space-y`: подвалу нужно `mt-auto`, а оно работает
+          только во флексе. */}
+      <div className="flex flex-1 flex-col gap-10">
       {explorerOpen ? (
         <FadeIn key="explorer">
           <section aria-labelledby="explorer-heading" className="space-y-4">

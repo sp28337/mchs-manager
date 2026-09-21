@@ -110,9 +110,9 @@ export function formatHoursTrim(value: Decimal | number | string): string {
  */
 const HOURS_IN_SHIFT = 24;
 
-/** Часы, разложенные на целые сутки и остаток. */
-export interface DaysAndHours {
-  days: number;
+/** Часы, разложенные на целые смены и остаток. */
+export interface ShiftsAndHours {
+  shifts: number;
   hours: Decimal;
 }
 
@@ -125,26 +125,16 @@ export interface DaysAndHours {
  * и часами, а не десятыми долями.
  *
  * Длина смены приходит параметром: у графика «два через два» она
- * двенадцать часов, и делить его переработку на сутки значило бы называть
- * человеку число смен, которых он не работал.
+ * двенадцать часов, и делить его переработку на двадцать четыре значило бы
+ * называть человеку число смен, которых он не работал.
  */
-export function splitIntoDays(
+export function splitIntoShifts(
   value: Decimal,
   hoursInShift: number = HOURS_IN_SHIFT,
-): DaysAndHours {
+): ShiftsAndHours {
   const per = hoursInShift > 0 ? hoursInShift : HOURS_IN_SHIFT;
-  const days = value.dividedToIntegerBy(per);
-  return { days: days.toNumber(), hours: value.minus(days.times(per)) };
-}
-
-/**
- * «Сутки» при числе: 1 сутки, 8 суток, 21 сутки.
- *
- * У слова нет единственного числа, и форма зависит от последней цифры —
- * кроме одиннадцати, где она обманывает.
- */
-export function daysWord(days: number): string {
-  return days % 10 === 1 && days % 100 !== 11 ? "сутки" : "суток";
+  const shifts = value.dividedToIntegerBy(per);
+  return { shifts: shifts.toNumber(), hours: value.minus(shifts.times(per)) };
 }
 
 /**
@@ -173,19 +163,22 @@ export function numberWord(count: number, one: string, few: string, many: string
 /**
  * «Смена» при числе: 1 смена, 2 смены, 8 смен.
  *
- * Нужна там, где смена не суточная: «8 суток» у графика «два через два»
- * назвало бы вдвое больше времени, чем человек отработал.
+ * Мера у переработки одна — смена, — и у суточного графика тоже.
+ * «8 суток» стояло там по привычке речи, но означало не время, а
+ * количество отработанного сверх нормы: то же самое, что и у графика
+ * «два через два», где сутки назвали бы вдвое больше, чем человек
+ * отработал. Одно слово на оба случая — одно и то же понятие.
  */
 export function shiftsWord(count: number): string {
   return numberWord(count, "смена", "смены", "смен");
 }
 
 /** То же одной строкой — для подписей, где разметки нет. */
-export function formatDaysAndHours(value: Decimal): string {
-  const { days, hours } = splitIntoDays(value);
-  if (days === 0) return `${formatHoursTrim(hours)} ч`;
-  if (hours.isZero()) return `${days} ${daysWord(days)}`;
-  return `${days} ${daysWord(days)} ${formatHoursTrim(hours)} ч`;
+export function formatShiftsAndHours(value: Decimal): string {
+  const { shifts, hours } = splitIntoShifts(value);
+  if (shifts === 0) return `${formatHoursTrim(hours)} ч`;
+  if (hours.isZero()) return `${shifts} ${shiftsWord(shifts)}`;
+  return `${shifts} ${shiftsWord(shifts)} ${formatHoursTrim(hours)} ч`;
 }
 
 /** Разбор числа, введённого человеком: и «168,5», и «168.5». */
