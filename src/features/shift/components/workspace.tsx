@@ -16,7 +16,7 @@ import {
   statutoryBounds,
   withShiftMoved,
 } from "../model/derive";
-import { openEntry, type LibraryEntry } from "../storage/library";
+import { openEntry, readEntryProfile, type LibraryEntry } from "../storage/library";
 import type { StoredProfile } from "../storage/profile";
 import { ChangesList } from "./changes-list";
 import { DayEditor } from "./day-editor";
@@ -24,7 +24,7 @@ import { GridDeck, WORKSPACE_PAD } from "./grid-deck";
 import { HeaderTools } from "./header-tools";
 import { useConfirmSwitch } from "./open-profile";
 import { PeriodSummary, REVEAL_DELAY_MS } from "./period-summary";
-import { ProfileExplorer } from "./profile-explorer";
+import { ProfileExplorer, useExplorerTools } from "./profile-explorer";
 import { ProfileFooter } from "./profile-footer";
 import { ProfileName } from "./profile-name";
 import { DangerActions, SettingsPanel } from "./settings-panel";
@@ -107,10 +107,26 @@ import {
 export interface WorkspaceProps {
   profile: StoredProfile;
   onChange: (change: (previous: StoredProfile) => StoredProfile) => void;
+  /**
+   * Поставить на место открытого профиля другой — целиком.
+   *
+   * Не то же, что правка: открытый из проводника профиль человек ещё не
+   * трогал, и спрашивать потом «сохранить внесённое?» не о чем
+   * (`use-profile.ts`, `touched`).
+   */
+  onReplace: (profile: StoredProfile) => void;
+  /** Правил ли человек открытый профиль с тех пор, как его открыли. */
+  touched: boolean;
   onForget: () => void;
 }
 
-export function Workspace({ profile, onChange, onForget }: WorkspaceProps) {
+export function Workspace({
+  profile,
+  onChange,
+  onReplace,
+  touched,
+  onForget,
+}: WorkspaceProps) {
   const periods = accountingPeriodsOf();
 
   // Умолчание — учётный период целиком: именно по его итогу определяется
@@ -247,6 +263,7 @@ export function Workspace({ profile, onChange, onForget }: WorkspaceProps) {
    * поджал бы страницу сам, показав проводник с середины.
    */
   const [explorerOpen, setExplorerOpen] = useState(false);
+  const explorerTools = useExplorerTools();
 
   function toggleExplorer() {
     setExplorerOpen((open) => {
@@ -255,7 +272,52 @@ export function Workspace({ profile, onChange, onForget }: WorkspaceProps) {
       return next;
     });
     setMobileSettingsOpen(false);
+    setPreviewId(null);
   }
+
+  /**
+   * Выбранный в проводнике профиль — наверху страницы, до открытия.
+   *
+   * --- Зачем показывать то, что ещё не открыто --------------------------------
+   *
+   * Список говорит о профиле имя и время последней правки, а человек
+   * выбирает между графиками по ЧИСЛАМ: где сколько переработки. Открыть
+   * ради этого каждый профиль по очереди значит каждый раз менять то, что
+   * лежит в хранилище, — и возвращаться обратно.
+   *
+   * Поэтому имя и полоса цифр перестраиваются под тот профиль, на который
+   * человек навёл указатель. Сам профиль при этом не открыт: в хранилище
+   * по-прежнему лежит нынешний, и стоит увести указатель — числа вернутся.
+   *
+   * На экране без указателя наведения не существует, и показ достаётся
+   * первому нажатию, а открытие — второму (`profile-explorer.tsx`).
+   */
+  const [previewId, setPreviewId] = useState<string | null>(null);
+  const preview = useMemo(
+    () => (previewId === null ? null : readEntryProfile(previewId)),
+    [previewId],
+  );
+
+  /**
+   * Расчёт для показанного профиля — свой, а не нынешний.
+   *
+   * Отрезок берётся у НЕГО же: учётный год и начало отсчёта у чужого
+   * профиля свои, и считать его часы по границам открытого значило бы
+   * показать число, которого в этом графике нет.
+   */
+  const previewCalculation = useMemo(() => {
+    if (preview === null) return null;
+    const bounds = countedBounds(
+      month === null
+        ? statutoryBounds(preview.accountingYear, statutory.kind, statutory.index)
+        : monthBounds(preview.accountingYear, month),
+      preview.countFrom,
+    );
+    const shown = preview.liveMode ? liveBounds(bounds, todayIso()) : bounds;
+    return calculateFor(preview, shown.periodStart, shown.periodEnd);
+  }, [preview, month, statutory]);
+
+  const headProfile = preview ?? profile;
 
   /**
    * Смена профиля: сперва выбор, потом вопрос про нынешний.
@@ -266,13 +328,14 @@ export function Workspace({ profile, onChange, onForget }: WorkspaceProps) {
    * графиком на экране, но с указателем на чужую запись. Первая же правка
    * ушла бы в чужой профиль.
    */
-  const switchProfile = useConfirmSwitch(profile);
+  const switchProfile = useConfirmSwitch(profile, touched);
 
   function askOpenEntry(entry: LibraryEntry) {
     switchProfile.ask(() => {
       const next = openEntry(entry.id);
       if (next === null) return;
-      onChange(() => next);
+      onReplace(next);
+      setPreviewId(null);
       setExplorerOpen(false);
     });
   }
@@ -298,7 +361,15 @@ export function Workspace({ profile, onChange, onForget }: WorkspaceProps) {
         // показаны они, а не сам расчёт: страница та же, читает она о себе
         // другое.
         brandLabel={
-          explorerOpen ? "Профили" : showSettings ? "Настройки" : undefined
+          explorerOpen ? (
+            // Ниже 360 точек название уходит с глаз, но не из разметки:
+            // кнопок в этом состоянии четыре, и в строку со словом
+            // «ПРОФИЛИ» они на таком экране не встают. Само состояние при
+            // этом видно и без слова — страница занята списком графиков.
+            <span className="max-[359px]:sr-only">Профили</span>
+          ) : showSettings ? (
+            "Настройки"
+          ) : undefined
         }
         tools={
           <HeaderTools
@@ -310,6 +381,7 @@ export function Workspace({ profile, onChange, onForget }: WorkspaceProps) {
             onToggleMobileSettings={toggleMobileSettings}
             explorerOpen={explorerOpen}
             onToggleExplorer={toggleExplorer}
+            explorerTools={explorerTools}
             // Перечень изменений в настройках ведёт в сутки, а сутки
             // открывает тот же самый выбор, что и нажатие по клетке.
             // Сетку он тоже называет: правка вида дня живёт на
@@ -332,7 +404,13 @@ export function Workspace({ profile, onChange, onForget }: WorkspaceProps) {
           просвет под шапкой), и без этого зазора щиток лёг бы прямо на
           имя. */}
       <header className="pb-12">
-        <ProfileName profile={profile} onChange={onChange} />
+        {/* Пока наверху показан ЧУЖОЙ профиль, имя не правится: нажатие по
+            нему правило бы открытый, а человек читает не его. */}
+        <ProfileName
+          profile={headProfile}
+          onChange={onChange}
+          editable={preview === null}
+        />
       </header>
 
       {/* Итог — закреплённой полосой, календарь — во всю ширину под ней.
@@ -345,10 +423,10 @@ export function Workspace({ profile, onChange, onForget }: WorkspaceProps) {
           (`settings`, ниже) — тем же способом, каким шапка выше умеет
           называть себя «Настройки»: одно место экрана, разное содержимое. */}
       <PeriodSummary
-        calculation={calculation}
-        accountingYear={profile.accountingYear}
-        overtimeInDays={profile.overtimeInDays}
-        shiftDurationHours={profile.shiftDurationHours}
+        calculation={previewCalculation ?? calculation}
+        accountingYear={headProfile.accountingYear}
+        overtimeInDays={headProfile.overtimeInDays}
+        shiftDurationHours={headProfile.shiftDurationHours}
         settings={{ open: showSettings, tab: settingsTab, onTab: setSettingsTab }}
       />
 
@@ -360,10 +438,14 @@ export function Workspace({ profile, onChange, onForget }: WorkspaceProps) {
               Профили
             </h2>
             <ProfileExplorer
+              tools={explorerTools}
+              previewId={previewId}
+              onPreview={setPreviewId}
               onChange={onChange}
               onOpenEntry={askOpenEntry}
               onCreated={(next) => {
-                onChange(() => next);
+                onReplace(next);
+                setPreviewId(null);
                 setExplorerOpen(false);
               }}
             />

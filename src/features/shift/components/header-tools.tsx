@@ -1,13 +1,23 @@
 "use client";
 
-import { FolderOpen, Save, Settings, X, type LucideIcon } from "lucide-react";
-import { useState } from "react";
+import {
+  FolderOpen,
+  FolderPlus,
+  Plus,
+  Save,
+  Settings,
+  Upload,
+  X,
+  type LucideIcon,
+} from "lucide-react";
+import { useState, type ReactNode } from "react";
 
 import { Materialize } from "@/components/ui/materialize";
 import { Modal } from "@/components/ui/modal";
 import { cn } from "@/lib/utils/cn";
 
 import type { StoredProfile } from "../storage/profile";
+import type { ExplorerTools } from "./profile-explorer";
 import { useSaveToFile } from "./save-to-file";
 import type { IsoDate } from "../domain/plain-date";
 import { SettingsTabs } from "./settings-tabs";
@@ -119,6 +129,61 @@ export const TOOL_ORDER: readonly ToolId[] = ["settings", "open", "save"];
  */
 export const LABELS_FROM = "hidden sm:inline";
 
+/**
+ * Общий вид кнопки шапки.
+ *
+ * Рядов у неё два — обычный («Настройки», «Открыть», «Сохранить») и ряд
+ * проводника, встающий на то же место, — и разойтись им нельзя: это одна
+ * и та же строка экрана, просто с разными действиями.
+ *
+ * Поля ужаты ниже 360 точек: там ряд проводника из четырёх кнопок в строку
+ * со знаком сайта иначе не встаёт.
+ */
+const TOOL_BUTTON = cn(
+  // `lit` — кнопка ловит свет лампы. Стоит она у правого края, дальше
+  // конца трубки, и блик ложится не сверху, а по верхней и левой кромке:
+  // сторону считает сама лампа замером (`shared/lamp.tsx`).
+  "lit",
+  "inline-flex h-9 shrink-0 cursor-pointer items-center gap-2 rounded-xl",
+  "bg-paper-raised px-2 min-[360px]:px-3 text-sm font-medium",
+  "text-ink transition-colors hover:bg-paper-sunken",
+  "focus-visible:outline-2 focus-visible:outline-offset-2",
+  "focus-visible:outline-trace",
+);
+
+function ToolButton({
+  icon,
+  label,
+  title,
+  expanded,
+  onClick,
+}: {
+  icon: ReactNode;
+  label: string;
+  /** Имя для программы чтения: называет действие целиком. */
+  title: string;
+  /** Кнопка закрывает то, что сейчас показано вместо страницы. */
+  expanded?: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      // Имя кнопки не зависит от того, видна подпись или нет: на узком
+      // экране от кнопки остаётся значок, и без имени она стала бы для
+      // программы чтения безымянной.
+      aria-label={title}
+      aria-expanded={expanded}
+      title={title}
+      className={TOOL_BUTTON}
+    >
+      {icon}
+      <span className={LABELS_FROM}>{label}</span>
+    </button>
+  );
+}
+
 export function HeaderTools({
   profile,
   onChange,
@@ -130,6 +195,7 @@ export function HeaderTools({
   onToggleMobileSettings,
   explorerOpen,
   onToggleExplorer,
+  explorerTools,
 }: {
   profile: StoredProfile;
   onChange: (change: (previous: StoredProfile) => StoredProfile) => void;
@@ -153,9 +219,51 @@ export function HeaderTools({
   /** Показан ли сейчас проводник по профилям вместо календаря. */
   explorerOpen: boolean;
   onToggleExplorer: () => void;
+  /** Действия проводника: пока он открыт, они стоят на месте обычных трёх. */
+  explorerTools: ExplorerTools;
 }) {
   const [open, setOpen] = useState(false);
   const save = useSaveToFile(profile);
+
+  // Пока открыт проводник, страница занята другим — и кнопки у неё другие:
+  // не «настроить, открыть, сохранить», а «папка, профиль, из файла».
+  // Закрытие при этом уезжает в конец ряда: открывали проводник кнопкой из
+  // середины, но закрывают его после того, как всё остальное сделано.
+  if (explorerOpen) {
+    return (
+      <div
+        role="group"
+        aria-label="Проводник: папка, профиль, из файла, закрыть"
+        className={cn("flex items-center gap-2", className)}
+      >
+        <ToolButton
+          icon={<FolderPlus aria-hidden className="size-4.5 shrink-0 text-ink-muted" />}
+          label="Папка"
+          title="Создать папку"
+          onClick={explorerTools.newFolder}
+        />
+        <ToolButton
+          icon={<Plus aria-hidden className="size-4.5 shrink-0 text-ink-muted" />}
+          label="Профиль"
+          title="Создать профиль"
+          onClick={explorerTools.newProfile}
+        />
+        <ToolButton
+          icon={<Upload aria-hidden className="size-4.5 shrink-0 text-ink-muted" />}
+          label="Из файла"
+          title="Загрузить профиль из файла"
+          onClick={explorerTools.importFile}
+        />
+        <ToolButton
+          icon={<X aria-hidden className="size-4.5 shrink-0 text-ink-muted" />}
+          label="Закрыть"
+          title="Закрыть проводник"
+          expanded
+          onClick={onToggleExplorer}
+        />
+      </div>
+    );
+  }
 
   return (
     <>
@@ -166,19 +274,14 @@ export function HeaderTools({
       >
         {TOOL_ORDER.map((id) => {
           const { label, title, Icon } = TOOL_META[id];
-          // Две кнопки из трёх не открывают окно, а переключают то, что
-          // показано на самой странице, и сами превращаются в кнопку
-          // закрытия: настройки — на телефоне, проводник по профилям — на
-          // любой ширине. Имя и подсказка называют то действие, которое
+          // Кнопка настроек на телефоне не открывает окно, а переключает
+          // то, что показано на самой странице, и сама превращается в
+          // кнопку закрытия. Имя и подсказка называют то действие, которое
           // нажатие СЕЙЧАС совершит.
-          const toggling = id === "open" || (id === "settings" && isMobile);
-          const pressed = id === "open" ? explorerOpen : toggling && mobileSettingsOpen;
+          const toggling = id === "settings" && isMobile;
+          const pressed = toggling && mobileSettingsOpen;
           const label_ = pressed ? "Закрыть" : label;
-          const title_ = pressed
-            ? id === "open"
-              ? "Закрыть проводник"
-              : "Закрыть настройки"
-            : title;
+          const title_ = pressed ? "Закрыть настройки" : title;
           return (
             <button
               key={id}
@@ -195,18 +298,7 @@ export function HeaderTools({
               aria-label={title_}
               aria-expanded={toggling ? pressed : undefined}
               title={title_}
-              className={cn(
-                // `lit` — кнопка ловит свет лампы. Стоит она у правого
-                // края, дальше конца трубки, и блик ложится не сверху, а
-                // по верхней и левой кромке: сторону считает сама лампа
-                // замером (`shared/lamp.tsx`).
-                "lit",
-                "inline-flex h-9 shrink-0 cursor-pointer items-center gap-2 rounded-xl",
-                "bg-paper-raised px-3 text-sm font-medium",
-                "text-ink transition-colors hover:bg-paper-sunken",
-                "focus-visible:outline-2 focus-visible:outline-offset-2",
-                "focus-visible:outline-trace",
-              )}
+              className={TOOL_BUTTON}
             >
               {toggling ? (
                 // Шестерня и крестик стоят в одной ячейке грида и проступают

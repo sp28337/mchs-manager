@@ -1,19 +1,11 @@
 "use client";
 
-import {
-  ChevronLeft,
-  Folder,
-  FolderPlus,
-  GripVertical,
-  Pencil,
-  Plus,
-  Trash2,
-  Upload,
-} from "lucide-react";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { ChevronLeft, Folder, GripVertical, Pencil, Trash2 } from "lucide-react";
+import { useEffect, useState, type ReactNode } from "react";
 
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Input } from "@/components/ui/input";
+import { useMediaQuery } from "@/lib/hooks/use-media-query";
 import { cn } from "@/lib/utils/cn";
 
 import {
@@ -65,13 +57,127 @@ import { useEntryDrag } from "./use-entry-drag";
  * Папки лежат в grafik13 и внутрь друг друга не вкладываются. Дерево здесь
  * нечему описывать: графиков у человека единицы, а путь из трёх колен на
  * телефоне не показать, не отняв у списка всю ширину.
+ *
+ * --- Почему кнопки действий стоят в шапке ----------------------------------
+ *
+ * «Папка», «Профиль», «Из файла» встают НА МЕСТО кнопок рабочего экрана —
+ * тех самых «Настройки», «Открыть», «Сохранить», из которых сюда и пришли
+ * (`header-tools.tsx`). Это те же три места в той же строке: пока открыт
+ * проводник, действия у страницы другие, а мест для них ровно столько же.
+ *
+ * Своя полоса кнопок внутри проводника была бы четвёртой строкой сверху —
+ * после шапки, имени и цифр, — и отодвигала бы сам список ещё ниже на
+ * экране, где его и так немного.
  */
 
+/**
+ * Состояние трёх действий проводника, вынесенных в шапку.
+ *
+ * Живёт отдельным крючком, потому что нажимают на них в ОДНОМ месте
+ * (шапка), а происходит от них другое — в ДРУГОМ (проводник): поле имени
+ * новой папки встаёт в сетку папок, окно создания открывается поверх
+ * списка, выбор файла прячется в нём же. Держать это состояние в шапке
+ * значило бы поселить там половину проводника, а в проводнике — узнавать о
+ * нажатиях кнопок, которых он не рисует.
+ */
+export interface ExplorerTools {
+  /** Три действия — для кнопок шапки. */
+  newFolder: () => void;
+  newProfile: () => void;
+  importFile: () => void;
+  /** Что из этого сейчас происходит — для самого проводника. */
+  addingFolder: boolean;
+  closeFolderField: () => void;
+  creating: boolean;
+  closeCreate: () => void;
+  /** Открытая папка: в неё же ложится и загруженный файл. */
+  folderId: string;
+  openFolder: (id: string) => void;
+  error: string | null;
+}
+
+export function useExplorerTools(): ExplorerTools {
+  const [addingFolder, setAddingFolder] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [folderId, setFolderId] = useState(ROOT_FOLDER_ID);
+  const [error, setError] = useState<string | null>(null);
+
+  return {
+    newFolder: () => {
+      setError(null);
+      setAddingFolder(true);
+    },
+    newProfile: () => {
+      setError(null);
+      setCreating(true);
+    },
+    importFile: () => {
+      setError(null);
+      // Файл ложится в проводник ЗАПИСЬЮ, а не открывается сразу: человек
+      // пришёл сюда за списком графиков, и подменять ему открытый профиль,
+      // пока он только пополняет список, нельзя.
+      pickProfileFile((profile) => importEntry(profile, folderId), setError);
+    },
+    addingFolder,
+    closeFolderField: () => setAddingFolder(false),
+    creating,
+    closeCreate: () => setCreating(false),
+    folderId,
+    openFolder: setFolderId,
+    error,
+  };
+}
+
+/**
+ * Выбор файла — полем, созданным на месте и тут же выброшенным.
+ *
+ * Поле, лежащее в разметке невидимкой, потребовало бы ссылки на себя
+ * (`ref`), а ссылка эта нужна была бы в ШАПКЕ, где стоит кнопка, — то есть
+ * в чужом дереве. Здесь поле живёт ровно столько, сколько длится нажатие.
+ *
+ * В документ оно всё же вставляется: Chromium срабатывает и на оторванном
+ * от дерева, а Safari исторически требует, чтобы поле в нём было, — та же
+ * оговорка, что и у ссылки для выгрузки (`save-to-file.tsx`).
+ */
+function pickProfileFile(
+  onPicked: (profile: StoredProfile) => void,
+  onError: (message: string) => void,
+): void {
+  const input = document.createElement("input");
+  input.type = "file";
+  input.accept = "application/json,.json";
+  input.className = "sr-only";
+  input.addEventListener("change", async () => {
+    const file = input.files?.[0];
+    input.remove();
+    if (!file) return;
+    try {
+      onPicked(importProfile(await file.text()));
+    } catch (cause) {
+      onError(
+        cause instanceof Error
+          ? `${cause.message} Нужен файл, сохранённый этим же приложением.`
+          : "Файл не прочитан.",
+      );
+    }
+  });
+  document.body.append(input);
+  input.click();
+}
+
 export function ProfileExplorer({
+  tools,
+  previewId,
+  onPreview,
   onChange,
   onOpenEntry,
   onCreated,
 }: {
+  /** Три действия из шапки и их состояние (`useExplorerTools`). */
+  tools: ExplorerTools;
+  /** Запись, которую сейчас показывают наверху страницы, или `null`. */
+  previewId: string | null;
+  onPreview: (entryId: string | null) => void;
   /** Правка открытого профиля: ею переименовывается открытая запись. */
   onChange: (change: (previous: StoredProfile) => StoredProfile) => void;
   /** Человек выбрал профиль. Спросить про нынешний и открыть — забота вызывающего. */
@@ -80,20 +186,25 @@ export function ProfileExplorer({
   onCreated: (profile: StoredProfile) => void;
 }) {
   const { library, activeId } = useLibrary();
-  const [folderId, setFolderId] = useState(ROOT_FOLDER_ID);
   const [renaming, setRenaming] = useState<Rename | null>(null);
-  const [addingFolder, setAddingFolder] = useState(false);
   const [removing, setRemoving] = useState<Removal | null>(null);
   const [movingEntry, setMovingEntry] = useState<string | null>(null);
-  const [creating, setCreating] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const fileInput = useRef<HTMLInputElement>(null);
+
+  /**
+   * Наведение показывает профиль наверху страницы, нажатие открывает.
+   *
+   * На экране без указателя наведения не бывает вовсе, и оба действия
+   * достаются одной и той же строке по очереди: первое нажатие
+   * показывает, второе — открывает. Порядок тот же, что и с мышью, просто
+   * оба шага делаются пальцем.
+   */
+  const hoverable = useMediaQuery("(hover: hover)");
 
   // Папка могла исчезнуть, пока её содержимое было открыто, — в соседней
   // вкладке или тем же человеком до входа сюда. Показывать пустоту с
   // заголовком удалённой папки нельзя, поэтому возврат к grafik13.
   const current =
-    library.folders.find((folder) => folder.id === folderId) ?? library.folders[0]!;
+    library.folders.find((folder) => folder.id === tools.folderId) ?? library.folders[0]!;
   const atRoot = current.id === ROOT_FOLDER_ID;
   const entries = library.entries
     .filter((entry) => entry.folderId === current.id)
@@ -131,7 +242,7 @@ export function ProfileExplorer({
             <button
               type="button"
               data-folder-drop={ROOT_FOLDER_ID}
-              onClick={() => setFolderId(ROOT_FOLDER_ID)}
+              onClick={() => tools.openFolder(ROOT_FOLDER_ID)}
               className={cn(
                 "inline-flex h-9 cursor-pointer items-center gap-1 rounded-xl px-2",
                 "text-sm text-ink-muted transition-colors hover:bg-paper-raised",
@@ -144,25 +255,10 @@ export function ProfileExplorer({
             <h2 className="font-display text-lg">{current.name}</h2>
           </div>
         )}
-
-        <div className="flex flex-wrap items-center gap-2">
-          <ToolButton icon={<FolderPlus aria-hidden className="size-4" />} onClick={() => setAddingFolder(true)}>
-            Папка
-          </ToolButton>
-          <ToolButton icon={<Plus aria-hidden className="size-4" />} onClick={() => setCreating(true)}>
-            Профиль
-          </ToolButton>
-          <ToolButton
-            icon={<Upload aria-hidden className="size-4" />}
-            onClick={() => fileInput.current?.click()}
-          >
-            Из файла
-          </ToolButton>
-        </div>
       </div>
 
-      {error ? (
-        <p className="rounded-xl bg-signal-soft px-4 py-3 text-sm">{error}</p>
+      {tools.error ? (
+        <p className="rounded-xl bg-signal-soft px-4 py-3 text-sm">{tools.error}</p>
       ) : null}
 
       {/* Папки — только в grafik13: внутрь друг друга они не вкладываются.
@@ -183,11 +279,11 @@ export function ProfileExplorer({
                 onRename={() => setRenaming({ kind: "folder", id: folder.id, value: folder.name })}
                 onCommit={commitRename}
                 onCancel={() => setRenaming(null)}
-                onOpen={() => setFolderId(folder.id)}
+                onOpen={() => tools.openFolder(folder.id)}
                 onDelete={() => setRemoving({ kind: "folder", id: folder.id, name: folder.name })}
               />
             ))}
-          {addingFolder ? (
+          {tools.addingFolder ? (
             <li className="rounded-xl bg-paper-raised p-2 lit">
               <NameField
                 value=""
@@ -195,9 +291,9 @@ export function ProfileExplorer({
                 onCommit={(value) => {
                   const name = value.trim();
                   if (name !== "") createFolder(name);
-                  setAddingFolder(false);
+                  tools.closeFolderField();
                 }}
-                onCancel={() => setAddingFolder(false)}
+                onCancel={tools.closeFolderField}
               />
             </li>
           ) : null}
@@ -215,7 +311,16 @@ export function ProfileExplorer({
             folders={library.folders}
             moving={movingEntry === entry.id}
             grip={handlers(entry.id, entry.name)}
-            onOpen={() => onOpenEntry(entry)}
+            previewed={previewId === entry.id}
+            // С указателем наведение показывает, нажатие открывает. Без
+            // него показывает первое нажатие, а открывает второе — по той
+            // же строке.
+            onHover={hoverable ? () => onPreview(entry.id) : undefined}
+            onLeave={hoverable ? () => onPreview(null) : undefined}
+            onOpen={() => {
+              if (hoverable || previewId === entry.id) onOpenEntry(entry);
+              else onPreview(entry.id);
+            }}
             onRename={() => setRenaming({ kind: "entry", id: entry.id, value: entry.name })}
             onCommit={commitRename}
             onCancel={() => setRenaming(null)}
@@ -253,33 +358,6 @@ export function ProfileExplorer({
         </div>
       ) : null}
 
-      <input
-        ref={fileInput}
-        type="file"
-        accept="application/json,.json"
-        className="sr-only"
-        // Поле не сбрасывается само: выбрав тот же файл второй раз, человек
-        // не получил бы события вовсе — значение не изменилось.
-        onChange={async (event) => {
-          const file = event.target.files?.[0];
-          event.target.value = "";
-          if (!file) return;
-          setError(null);
-          try {
-            // Файл ложится в проводник ЗАПИСЬЮ, а не открывается сразу:
-            // человек пришёл сюда за списком графиков, и подменять ему
-            // открытый профиль, пока он только пополняет список, нельзя.
-            importEntry(importProfile(await file.text()), current.id);
-          } catch (cause) {
-            setError(
-              cause instanceof Error
-                ? `${cause.message} Нужен файл, сохранённый этим же приложением.`
-                : "Файл не прочитан.",
-            );
-          }
-        }}
-      />
-
       <ConfirmDialog
         open={removing !== null}
         onClose={() => setRemoving(null)}
@@ -308,13 +386,13 @@ export function ProfileExplorer({
       </ConfirmDialog>
 
       <CreateProfileModal
-        open={creating}
-        onClose={() => setCreating(false)}
+        open={tools.creating}
+        onClose={tools.closeCreate}
         onCreated={(profile) => {
           // Новый профиль — новая запись: без этого его первая же правка
           // легла бы поверх снимка того графика, что открыт сейчас.
           detachActive();
-          setCreating(false);
+          tools.closeCreate();
           onCreated(profile);
         }}
       />
@@ -355,34 +433,6 @@ function useLibrary(): { library: Library; activeId: string | null } {
   );
 
   return snapshot;
-}
-
-function ToolButton({
-  icon,
-  children,
-  onClick,
-}: {
-  icon: ReactNode;
-  children: ReactNode;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={cn(
-        // Тот же вид, что у кнопок шапки (`header-tools.tsx`): это действия
-        // одного рода, и выглядеть они обязаны одинаково.
-        "lit inline-flex h-9 shrink-0 cursor-pointer items-center gap-2 rounded-xl",
-        "bg-paper-raised px-3 text-sm font-medium text-ink",
-        "transition-colors hover:bg-paper-sunken",
-        "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-trace",
-      )}
-    >
-      <span className="text-ink-muted">{icon}</span>
-      {children}
-    </button>
-  );
 }
 
 function FolderCard({
@@ -470,6 +520,9 @@ function EntryRow({
   folders,
   moving,
   grip,
+  previewed,
+  onHover,
+  onLeave,
   onOpen,
   onRename,
   onCommit,
@@ -485,6 +538,11 @@ function EntryRow({
   folders: LibraryFolder[];
   moving: boolean;
   grip: ReturnType<ReturnType<typeof useEntryDrag>["handlers"]>;
+  /** Этот профиль сейчас показан наверху страницы. */
+  previewed: boolean;
+  /** Показать профиль наверху. Пусто там, где наведения не бывает. */
+  onHover?: () => void;
+  onLeave?: () => void;
   onOpen: () => void;
   onRename: () => void;
   onCommit: (value: string) => void;
@@ -494,7 +552,22 @@ function EntryRow({
   onDelete: () => void;
 }) {
   return (
-    <li className={cn("py-2", dragging && "opacity-40")}>
+    <li
+      onPointerEnter={onHover}
+      onPointerLeave={onLeave}
+      // Фокус с клавиатуры — то же наведение: человек, идущий по списку
+      // табуляцией, видит наверху тот же профиль, что и человек с мышью.
+      onFocus={onHover}
+      onBlur={onLeave}
+      className={cn(
+        "-mx-2 rounded-lg px-2 py-2 transition-colors",
+        dragging && "opacity-40",
+        // Показанный наверху отмечен и в списке: иначе на телефоне, где
+        // показ включается нажатием, непонятно, о каком профиле говорят
+        // цифры.
+        previewed && "bg-paper-sunken",
+      )}
+    >
       <div className="flex items-center gap-2">
         <button
           type="button"

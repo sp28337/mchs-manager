@@ -39,16 +39,38 @@ export type ProfileState =
 
 export interface UseProfile {
   state: ProfileState;
-  /** Записать профиль целиком. */
+  /**
+   * Поставить на место открытого профиля другой — целиком.
+   *
+   * Это не правка, а ПОДМЕНА: так открывают профиль из проводника, из
+   * файла и только что созданный. Правкой она не считается намеренно —
+   * см. `touched`.
+   */
   save: (profile: StoredProfile) => StoredProfile;
   /** Изменить часть профиля. Бросает, если хранилище недоступно. */
   update: (change: (previous: StoredProfile) => StoredProfile) => void;
   /** Забыть профиль на этом устройстве. */
   forget: () => void;
+  /**
+   * Правил ли человек открытый профиль с тех пор, как его открыли.
+   *
+   * Нужно ровно одному вопросу — «сохранить в файл перед тем, как открыть
+   * другой?» (`open-profile.tsx`). Без этого признака вопрос опирался на
+   * одну отметку о выгрузке и задавался ВСЕГДА, пока профиль хоть раз не
+   * унесли файлом: человек открывал приложение, тут же шёл в проводник за
+   * другим графиком — и получал вопрос о сохранении того, к чему не
+   * прикасался.
+   *
+   * Живёт в памяти вкладки, а не в хранилище: вопрос о том, не пропадёт
+   * ли СДЕЛАННОЕ ТОЛЬКО ЧТО, и переживать перезагрузку ему незачем —
+   * профиль к тому времени и так лежит в проводнике.
+   */
+  touched: boolean;
 }
 
 export function useProfile(): UseProfile {
   const [state, setState] = useState<ProfileState>({ status: "loading" });
+  const [touched, setTouched] = useState(false);
   const current = useRef<StoredProfile | null>(null);
 
   useEffect(() => {
@@ -67,7 +89,7 @@ export function useProfile(): UseProfile {
     setState(result);
   }, []);
 
-  const save = useCallback((profile: StoredProfile) => {
+  const write = useCallback((profile: StoredProfile) => {
     const saved = saveProfile(profile);
     current.current = saved;
     // Проводник обновляется тем же движением, что и хранилище: своего
@@ -78,13 +100,25 @@ export function useProfile(): UseProfile {
     return saved;
   }, []);
 
+  const save = useCallback(
+    (profile: StoredProfile) => {
+      const saved = write(profile);
+      // Открытый профиль сменился целиком — считать его «правленым»
+      // нечему: человек к нему ещё не прикасался.
+      setTouched(false);
+      return saved;
+    },
+    [write],
+  );
+
   const update = useCallback(
     (change: (previous: StoredProfile) => StoredProfile) => {
       const previous = current.current;
       if (previous === null) return;
-      save(change(previous));
+      write(change(previous));
+      setTouched(true);
     },
-    [save],
+    [write],
   );
 
   const forget = useCallback(() => {
@@ -94,8 +128,9 @@ export function useProfile(): UseProfile {
     // человек этой кнопкой и избегает.
     forgetActive();
     current.current = null;
+    setTouched(false);
     setState({ status: "empty" });
   }, []);
 
-  return { state, save, update, forget };
+  return { state, save, update, forget, touched };
 }

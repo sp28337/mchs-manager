@@ -43,9 +43,18 @@ const MAX_NAME_LENGTH = 200;
 export function ProfileName({
   profile,
   onChange,
+  editable = true,
 }: {
   profile: StoredProfile;
   onChange: (change: (previous: StoredProfile) => StoredProfile) => void;
+  /**
+   * Имя правится нажатием по нему.
+   *
+   * Выключается, когда наверху страницы показан ЧУЖОЙ профиль — тот, на
+   * который человек навёл указатель в проводнике (`workspace.tsx`). Имя в
+   * этот миг принадлежит не открытому графику, и правка ушла бы не туда.
+   */
+  editable?: boolean;
 }) {
   const [editing, setEditing] = useState(false);
   const field = useRef<HTMLSpanElement>(null);
@@ -117,7 +126,7 @@ export function ProfileName({
             "rounded-sm focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-trace",
           )}
         />
-      ) : (
+      ) : editable ? (
         <button
           type="button"
           onClick={edit}
@@ -130,6 +139,8 @@ export function ProfileName({
         >
           {profile.displayName || "Имя профиля"}
         </button>
+      ) : (
+        <span className="opacity-10">{profile.displayName || "Имя профиля"}</span>
       )}
     </h1>
   );
