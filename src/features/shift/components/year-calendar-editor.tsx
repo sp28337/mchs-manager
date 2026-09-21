@@ -467,8 +467,8 @@ function DayButton({
           "items-center justify-center leading-tight",
           // Обводкой внутрь, а не рамкой: клетки стоят вплотную, и рамка
           // сдвинула бы соседей.
-          "hover:outline-2 hover:-outline-offset-2 hover:outline-ink/40 rounded-md",
-          "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-trace",
+          "rounded-md",
+          "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ink",
 
           // Рамки нет ни у одного дня: тип дня различается подложкой и
           // буквой. Триста шестьдесят пять контуров на год — это решётка,

@@ -153,7 +153,7 @@ const TOOL_BUTTON = cn(
   "bg-paper-raised px-2 min-[360px]:px-3 text-sm font-medium",
   "text-ink",
   "focus-visible:outline-2 focus-visible:outline-offset-2",
-  "focus-visible:outline-trace",
+  "focus-visible:outline-ink",
 );
 
 function ToolButton({

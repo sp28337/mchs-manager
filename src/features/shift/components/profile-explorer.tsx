@@ -11,6 +11,7 @@ import { cn } from "@/lib/utils/cn";
 import {
   activeEntryId,
   createFolder,
+  folderPath,
   deleteEntry,
   deleteFolder,
   detachActive,
@@ -205,7 +206,8 @@ export function ProfileExplorer({
   // заголовком удалённой папки нельзя, поэтому возврат к grafik13.
   const current =
     library.folders.find((folder) => folder.id === tools.folderId) ?? library.folders[0]!;
-  const atRoot = current.id === ROOT_FOLDER_ID;
+  const path = folderPath(library, current.id);
+  const folders = library.folders.filter((folder) => folder.parentId === current.id);
   const entries = library.entries
     .filter((entry) => entry.folderId === current.id)
     .sort((a, b) => b.savedAt.localeCompare(a.savedAt));
@@ -232,30 +234,38 @@ export function ProfileExplorer({
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        {atRoot ? (
-          <h2 className="font-display text-lg">{current.name}</h2>
-        ) : (
-          <div className="flex items-center gap-1">
-            {/* Возврат — он же место, куда можно перетащить профиль из
-                папки наружу: другого пути «вверх» у одного уровня нет. */}
-            <button
-              type="button"
-              data-folder-drop={ROOT_FOLDER_ID}
-              onClick={() => tools.openFolder(ROOT_FOLDER_ID)}
-              data-glow={drag?.over === ROOT_FOLDER_ID ? "on" : undefined}
-              className={cn(
-                "lit inline-flex h-9 cursor-pointer items-center gap-1 rounded-xl px-2",
-                "bg-paper-raised text-sm text-ink-muted transition-colors hover:text-ink",
-              )}
-            >
-              <ChevronLeft aria-hidden className="size-4" />
-              {ROOT_FOLDER_ID}
-            </button>
-            <h2 className="font-display text-lg">{current.name}</h2>
-          </div>
+      {/* Путь до открытой папки целиком: с вложенностью «назад» перестало
+          означать «в grafik13», и вернуться человек вправе на любую
+          ступень. Каждое колено — ещё и место, куда можно перетащить
+          профиль наверх. */}
+      <nav aria-label="Где мы в проводнике" className="flex flex-wrap items-center gap-1">
+        {path.map((folder, index) =>
+          index === path.length - 1 ? (
+            <h2 key={folder.id} className="font-display text-lg">
+              {folder.name}
+            </h2>
+          ) : (
+            <span key={folder.id} className="flex items-center gap-1">
+              <button
+                type="button"
+                data-folder-drop={folder.id}
+                onClick={() => tools.openFolder(folder.id)}
+                data-glow={drag?.over === folder.id ? "on" : undefined}
+                className={cn(
+                  "lit inline-flex h-8 cursor-pointer items-center gap-1 rounded-xl px-2",
+                  "bg-paper-raised text-sm text-ink-muted transition-colors hover:text-ink",
+                )}
+              >
+                {index === 0 ? <ChevronLeft aria-hidden className="size-4" /> : null}
+                {folder.name}
+              </button>
+              <span aria-hidden className="text-ink-faint">
+                /
+              </span>
+            </span>
+          ),
         )}
-      </div>
+      </nav>
 
       {tools.error ? (
         <p className="rounded-xl bg-signal-soft px-4 py-3 text-sm">{tools.error}</p>
@@ -263,14 +273,13 @@ export function ProfileExplorer({
 
       <FolderShape />
 
-      {/* Папки — только в grafik13: внутрь друг друга они не вкладываются.
-          В один столбец на самом узком телефоне: вдвоём на 320 точках у
-          карточек остаётся по 132, и в них не встают ни имя папки, ни
-          «0 профилей» рядом с двумя кнопками. */}
-      {atRoot ? (
-        <ul className="grid grid-cols-1 gap-3 min-[360px]:grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-          {library.folders
-            .filter((folder) => folder.id !== ROOT_FOLDER_ID)
+      {/* Дорожки шириной по самой папке, а не в долях экрана: папка —
+          предмет известного размера, и растягивать её на треть монитора
+          незачем. Сколько их встанет в ряд, решает сама ширина окна
+          (`auto-fill`), а лишнее место остаётся справа. */}
+      {folders.length > 0 || tools.addingFolder ? (
+        <ul className="grid grid-cols-[repeat(auto-fill,minmax(8.5rem,11rem))] gap-3">
+          {folders
             .map((folder) => (
               <FolderCard
                 key={folder.id}
@@ -292,7 +301,10 @@ export function ProfileExplorer({
                 placeholder="Имя папки"
                 onCommit={(value) => {
                   const name = value.trim();
-                  if (name !== "") createFolder(name);
+                  // Новая папка заводится ТАМ, где человек сейчас стоит, —
+                  // в открытой, а не в grafik13: иначе «создать папку»
+                  // внутри папки означало бы «создать где-то ещё».
+                  if (name !== "") createFolder(name, current.id);
                   tools.closeFolderField();
                 }}
                 onCancel={tools.closeFolderField}
@@ -341,11 +353,11 @@ export function ProfileExplorer({
         ))}
       </ul>
 
-      {entries.length === 0 ? (
+      {entries.length === 0 && folders.length === 0 ? (
         <p className="rounded-xl bg-paper-raised px-4 py-6 text-center text-sm text-ink-muted lit">
-          {atRoot
+          {current.id === ROOT_FOLDER_ID
             ? "Здесь будут ваши графики. Создайте новый профиль или загрузите сохранённый файл."
-            : "Папка пуста. Перетащите сюда профиль за полоску в углу плитки."}
+            : "Папка пуста. Перетащите сюда профиль за полоску слева от имени."}
         </p>
       ) : null}
 
@@ -460,9 +472,10 @@ function useLibrary(): { library: Library; activeId: string | null } {
  * ней по-прежнему лежит обычная разметка с именем и кнопками.
  *
  * Доли, а не точки (`objectBoundingBox`): очертание тянется за карточкой
- * на любой ширине. Отношение сторон у карточки при этом закреплено (2:1) —
+ * на любой ширине. Отношение сторон у карточки при этом закреплено (4:3) —
  * иначе скругления стали бы овалами, а наклон плеча поехал бы вместе с
- * ними.
+ * ними. Четыре к трём, а не два к одному, как было: папка — предмет, и
+ * вытянутая вдвое она читается полкой, а не папкой.
  */
 const FOLDER_CLIP = { clipPath: "url(#folder-shape)" } as const;
 
@@ -472,10 +485,11 @@ function FolderShape() {
       <defs>
         <clipPath id="folder-shape" clipPathUnits="objectBoundingBox">
           <path
-            d="M0.05,0 H0.33 C0.365,0 0.385,0.024 0.4,0.08 L0.42,0.15
-               C0.432,0.186 0.45,0.2 0.48,0.2 H0.95 A0.05,0.1 0 0 1 1,0.3
-               V0.9 A0.05,0.1 0 0 1 0.95,1 H0.05 A0.05,0.1 0 0 1 0,0.9
-               V0.1 A0.05,0.1 0 0 1 0.05,0 Z"
+            d="M0.05,0 H0.33 C0.365,0 0.385,0.024 0.4,0.0667 L0.42,0.12
+               C0.432,0.156 0.45,0.1667 0.48,0.1667 H0.95
+               A0.05,0.0667 0 0 1 1,0.2333 V0.9333
+               A0.05,0.0667 0 0 1 0.95,1 H0.05 A0.05,0.0667 0 0 1 0,0.9333
+               V0.0667 A0.05,0.0667 0 0 1 0.05,0 Z"
           />
         </clipPath>
       </defs>
@@ -513,15 +527,15 @@ function FolderCard({
       // что вышло за контур), а свет ложится ровно по очертанию.
       data-glow={highlighted ? "on" : undefined}
       style={FOLDER_CLIP}
-      className="lit-edge lit-edge--clipped lit-edge--rim aspect-[2/1]"
+      className="lit-edge lit-edge--clipped lit-edge--rim aspect-[4/3]"
     >
       <div
         style={FOLDER_CLIP}
         // Отступ сверху — долей ШИРИНЫ, а не рёмами: у карточки
-        // постоянное отношение сторон (2:1), и доля ширины растёт вместе с
+        // постоянное отношение сторон (4:3), и доля ширины растёт вместе с
         // высотой язычка. Рёмы на широкой карточке оставили бы имя в
         // вырезанной части — там, где бумаги ещё нет.
-        className="lit-clipped relative flex size-full flex-col gap-0.5 bg-paper-raised px-3 pt-[13%] pb-2.5"
+        className="lit-clipped relative flex size-full flex-col gap-0.5 bg-paper-raised px-2.5 pt-[16%] pb-2.5"
       >
         {renaming ? (
           <NameField value={folder.name} onCommit={onCommit} onCancel={onCancel} />
@@ -540,7 +554,7 @@ function FolderCard({
               type="button"
               onClick={onOpen}
               aria-label={`Открыть папку «${folder.name}»`}
-              className="absolute inset-0 cursor-pointer focus-visible:outline-2 focus-visible:-outline-offset-4 focus-visible:outline-trace"
+              className="absolute inset-0 cursor-pointer focus-visible:outline-2 focus-visible:-outline-offset-4 focus-visible:outline-ink"
             />
             {/* Строки не ловят указатель целиком — ловят только две кнопки:
                 иначе они, лежащие поверх подложки, съедали бы нажатие по
@@ -626,117 +640,107 @@ function EntryCard({
     >
       <div
         data-glow={previewed ? "on" : undefined}
-        className="lit relative flex h-full flex-col gap-1 rounded-xl bg-paper-raised p-3"
+        className="lit relative flex h-full items-center gap-2 rounded-xl bg-paper-raised py-1.5 pr-1.5 pl-1"
       >
         {renaming ? (
           <NameField value={entry.name} onCommit={onCommit} onCancel={onCancel} />
         ) : (
           <>
-            {/* Нажатие по всей плитке, а не по одному имени: плитка и есть
+            {/* Нажатие по всей строке, а не по одному имени: строка и есть
                 профиль. Кнопка лежит подложкой, а ручка и две кнопки над
                 ней подняты (`relative`) и ловят нажатие сами. */}
             <button
               type="button"
               onClick={onOpen}
               aria-label={`Открыть профиль «${entry.name}»`}
-              className="absolute inset-0 cursor-pointer rounded-xl focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-trace"
+              className="absolute inset-0 cursor-pointer rounded-xl focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ink"
             />
 
-            <span className="pointer-events-none relative block truncate text-sm font-medium">
+            <button
+              type="button"
+              {...grip}
+              aria-label={`Переместить профиль «${entry.name}» в папку`}
+              title="Перетащите в папку или нажмите, чтобы выбрать её"
+              className={cn(
+                // Прокрутка на ручке выключена заранее: менять
+                // `touch-action` посреди начатого жеста поздно
+                // (`use-entry-drag.ts`).
+                "touch-none relative inline-flex size-7 shrink-0 cursor-grab items-center justify-center",
+                "rounded-lg text-ink-muted transition-colors hover:text-ink",
+                "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink",
+              )}
+            >
+              <GripVertical aria-hidden className="size-4" />
+            </button>
+
+            {/* Всё в строку: ручка, имя, время правки. Имя жмётся первым —
+                остальное короткое и своей длины не меняет. */}
+            <span className="pointer-events-none relative min-w-0 flex-1 truncate text-sm font-medium">
               {entry.name}
             </span>
-            {/* Перенос, а не обрезка: на 320 точках отметка «открыт» и
-                время правки в одну строку не встают, и обрезалось бы
-                именно время — то самое, чем два снимка и различают. */}
-            <span className="pointer-events-none relative flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-ink-muted">
-              {active ? (
-                <span className="shrink-0 rounded-md bg-paper-sunken px-1.5 py-0.5 font-normal">
-                  открыт
-                </span>
-              ) : null}
-              <span className="truncate">
-                {/* Слово уходит с самых узких экранов, дата остаётся:
-                    столбец с именем там шириной в 120 точек, и «изменён»
-                    съедало ровно то время, ради которого строка и стоит.
-                    Программе чтения слово остаётся (`sr-only`). */}
-                <span className="max-[359px]:sr-only">{"изменён "}</span>
-                {savedAtLabel(entry.savedAt)}
+            {active ? (
+              <span className="pointer-events-none relative shrink-0 rounded-md bg-paper-sunken px-1.5 py-0.5 text-xs text-ink-muted">
+                открыт
               </span>
+            ) : null}
+            <span className="pointer-events-none relative hidden shrink-0 text-xs text-ink-muted min-[420px]:block">
+              {savedAtLabel(entry.savedAt)}
             </span>
 
-            <div className="relative mt-auto flex items-center justify-between gap-1 pt-2">
-              <button
-                type="button"
-                {...grip}
-                aria-label={`Переместить профиль «${entry.name}» в папку`}
-                title="Перетащите в папку или нажмите, чтобы выбрать её"
-                className={cn(
-                  // Прокрутка на ручке выключена заранее: менять
-                  // `touch-action` посреди начатого жеста поздно
-                  // (`use-entry-drag.ts`).
-                  "touch-none inline-flex size-8 shrink-0 cursor-grab items-center justify-center",
-                  "rounded-lg text-ink-muted transition-colors hover:text-ink",
-                  "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-trace",
-                )}
+            <span className="relative flex shrink-0 items-center">
+              <IconButton label={`Переименовать профиль «${entry.name}»`} onClick={onRename}>
+                <Pencil aria-hidden className="size-4" />
+              </IconButton>
+              {/* Открытый профиль отсюда не удаляется: стереть то, что
+                  сейчас на экране, значило бы оставить страницу без
+                  данных, которые она показывает. Для этого есть «Удалить
+                  профиль» в настройках — там о последствиях сказано
+                  прямо. */}
+              <IconButton
+                label={
+                  active
+                    ? "Открытый профиль удаляется из настроек"
+                    : `Удалить профиль «${entry.name}»`
+                }
+                onClick={onDelete}
+                disabled={active}
               >
-                <GripVertical aria-hidden className="size-4" />
-              </button>
-
-              <span className="flex items-center gap-1">
-                <IconButton label={`Переименовать профиль «${entry.name}»`} onClick={onRename}>
-                  <Pencil aria-hidden className="size-4" />
-                </IconButton>
-                {/* Открытый профиль отсюда не удаляется: стереть то, что
-                    сейчас на экране, значило бы оставить страницу без
-                    данных, которые она показывает. Для этого есть «Удалить
-                    профиль» в настройках — там о последствиях сказано
-                    прямо. */}
-                <IconButton
-                  label={
-                    active
-                      ? "Открытый профиль удаляется из настроек"
-                      : `Удалить профиль «${entry.name}»`
-                  }
-                  onClick={onDelete}
-                  disabled={active}
-                >
-                  <Trash2 aria-hidden className="size-4" />
-                </IconButton>
-              </span>
-            </div>
-
-            {/* Перечень папок — тот же перенос для тех, кому перетаскивание
-                недоступно: с клавиатуры или дрожащей рукой. */}
-            {moving ? (
-              <div className="relative flex flex-wrap items-center gap-2 pt-2">
-                {folders
-                  .filter((folder) => folder.id !== entry.folderId)
-                  .map((folder) => (
-                    <button
-                      key={folder.id}
-                      type="button"
-                      onClick={() => onMove(folder.id)}
-                      className={cn(
-                        "inline-flex h-8 cursor-pointer items-center gap-1 rounded-lg bg-paper px-2",
-                        "text-xs transition-colors hover:bg-paper-sunken",
-                      )}
-                    >
-                      <Folder aria-hidden className="size-3.5 text-ink-muted" />
-                      {folder.name}
-                    </button>
-                  ))}
-                <button
-                  type="button"
-                  onClick={onCloseMove}
-                  className="cursor-pointer text-xs text-ink-muted hover:underline"
-                >
-                  Отмена
-                </button>
-              </div>
-            ) : null}
+                <Trash2 aria-hidden className="size-4" />
+              </IconButton>
+            </span>
           </>
         )}
       </div>
+
+      {/* Перечень папок — тот же перенос для тех, кому перетаскивание
+          недоступно: с клавиатуры или дрожащей рукой. */}
+      {moving ? (
+        <div className="mt-1 flex flex-wrap items-center gap-2 pl-2">
+          {folders
+            .filter((folder) => folder.id !== entry.folderId)
+            .map((folder) => (
+              <button
+                key={folder.id}
+                type="button"
+                onClick={() => onMove(folder.id)}
+                className={cn(
+                  "inline-flex h-8 cursor-pointer items-center gap-1 rounded-lg bg-paper px-2",
+                  "text-xs transition-colors hover:bg-paper-sunken",
+                )}
+              >
+                <Folder aria-hidden className="size-3.5 text-ink-muted" />
+                {folder.name}
+              </button>
+            ))}
+          <button
+            type="button"
+            onClick={onCloseMove}
+            className="cursor-pointer text-xs text-ink-muted hover:underline"
+          >
+            Отмена
+          </button>
+        </div>
+      ) : null}
     </li>
   );
 }
@@ -801,7 +805,7 @@ function IconButton({
         "inline-flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-lg",
         "text-ink-muted transition-colors hover:bg-paper-sunken hover:text-ink",
         "disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent",
-        "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-trace",
+        "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink",
       )}
     >
       {children}

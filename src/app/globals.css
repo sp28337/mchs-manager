@@ -1343,7 +1343,8 @@
    страницы, где он всегда ноль, а блоки унаследовали бы уже погасший
    цвет. */
 .lit,
-.lit-edge {
+.lit-edge,
+.lit-tile {
   --rim-paint: radial-gradient(
     ellipse 34% 115% at var(--glow-x, 50%) var(--glow-y, 0%),
     color-mix(in srgb, var(--rim-colour) calc(var(--rim-lit) * 1% * var(--rim)), transparent),
@@ -1355,8 +1356,9 @@
 /* Загорается ближняя к курсору поверхность, а не все под ним разом:
    наведение достаётся и предкам тоже, и плашка, внутри которой лежит
    другая, зажигалась бы с ней за компанию. */
-.lit:hover:not(:has(.lit:hover)),
+.lit:hover:not(:has(:is(.lit, .lit-tile):hover)),
 .lit-edge:hover:not(:has(.lit-edge:hover)),
+.lit-tile:hover,
 .lit[data-glow="on"],
 .lit-edge[data-glow="on"] {
   --rim: 1;
@@ -1376,8 +1378,19 @@
    браузера: подмени его — и окно уедет из середины экрана. Да и наведение
    на окно во весь экран означает не «показал на эту плашку», а «курсор
    где-то внутри». */
-.lit:where(:not(dialog)) {
-  position: relative;
+/* Накладке нужна система отсчёта, но НАВЯЗЫВАТЬ её нельзя: `sticky` у
+   закреплённой легенды и `fixed` у чего угодно важнее каймы.
+   
+   Поэтому правило лежит В СЛОЕ. Одного лёгкого селектора (`:where`) тут
+   мало: слои сильнее веса, и правило вне слоя перебивает любую утилиту
+   Tailwind, как бы тяжела та ни была. Легенда именно так и потеряла
+   `sticky` — встала посреди колонки вместо её верха. В `components`
+   утилиты снова главнее, а там, где положение не задано, остаётся
+   наше. */
+@layer components {
+  :where(.lit:not(dialog)) {
+    position: relative;
+  }
 }
 
 :root[data-lamp] .lit:where(:not(dialog))::after {
@@ -1420,7 +1433,8 @@
    он достаётся сразу целиком, без проступания. */
 @media (prefers-reduced-motion: reduce) {
   .lit,
-  .lit-edge {
+  .lit-edge,
+  .lit-tile {
     transition: none;
   }
 }
@@ -1478,7 +1492,9 @@
    Наклон блика клетка берёт у месяца (`--lit-tilt` на `.lit-aim`): свет
    приходит к ним всем с одной стороны. */
 .lit-tile {
-  transition: box-shadow 900ms ease-out;
+  transition:
+    box-shadow 900ms ease-out,
+    --rim 220ms ease-out;
 }
 
 :root[data-lamp] .lit-tile {
@@ -1512,10 +1528,25 @@
   content: "";
   position: absolute;
   inset: 0;
+  padding: 1px;
   border-radius: inherit;
   pointer-events: none;
   box-shadow: inset calc(var(--lit-tilt, 0) * 1px) 1px 0 0
     rgb(var(--lamp-rgb) / calc(var(--lamp-sheen) * var(--sheen, 1)));
+  /* Та же кайма, что у плашек: клетка — такая же поднятая поверхность,
+     только маленькая, и отзываться на указатель обязана так же. Блик
+     лампы и кайма лежат на ОДНОЙ накладке: второй ради этого заводить
+     незачем, а маска, оставляющая от накладки кромку, блику не мешает —
+     он и так лежит по верхнему краю. */
+  background: var(--rim-paint);
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  mask-composite: exclude;
 }
 
 /* --------------------------------------------------------------------------

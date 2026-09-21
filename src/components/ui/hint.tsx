@@ -106,7 +106,7 @@ export function Hint({
         className={cn(
           "cursor-pointer rounded-full text-ink-faint transition-colors",
           "hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2",
-          "focus-visible:outline-trace",
+          "focus-visible:outline-ink",
           open && "text-ink",
         )}
       >

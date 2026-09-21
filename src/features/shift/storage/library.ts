@@ -70,6 +70,14 @@ export const MAX_FOLDER_NAME_LENGTH = 60;
 export interface LibraryFolder {
   id: string;
   name: string;
+  /**
+   * Папка, в которой лежит эта, или `null` у самой grafik13.
+   *
+   * Появилось позже остального, и потому необязательное: у папок,
+   * заведённых до вложенности, поля нет вовсе — они лежали прямо в
+   * grafik13, туда же их и относит умолчание.
+   */
+  parentId: string | null;
 }
 
 export interface LibraryEntry {
@@ -88,6 +96,7 @@ export interface Library {
 const folderSchema = z.object({
   id: z.string().min(1),
   name: z.string().min(1).max(MAX_FOLDER_NAME_LENGTH),
+  parentId: z.string().min(1).nullable().default(ROOT_FOLDER_ID),
 });
 
 const entrySchema = z.object({
@@ -196,13 +205,24 @@ export function loadLibrary(): Library {
     }
   }
 
-  const folders = library.folders.some((folder) => folder.id === ROOT_FOLDER_ID)
+  const listed = library.folders.some((folder) => folder.id === ROOT_FOLDER_ID)
     ? library.folders
-    : [{ id: ROOT_FOLDER_ID, name: ROOT_FOLDER_NAME }, ...library.folders];
+    : [{ id: ROOT_FOLDER_ID, name: ROOT_FOLDER_NAME, parentId: null }, ...library.folders];
+
+  // У grafik13 родителя нет по определению: она и есть верх. Папка, чей
+  // родитель исчез, поднимается в неё — вместе со всем, что внутри.
+  const ids = new Set(listed.map((folder) => folder.id));
+  const folders = listed.map((folder) =>
+    folder.id === ROOT_FOLDER_ID
+      ? { ...folder, parentId: null }
+      : folder.parentId !== null && ids.has(folder.parentId)
+        ? folder
+        : { ...folder, parentId: ROOT_FOLDER_ID },
+  );
 
   // Запись, чья папка исчезла, возвращается в grafik13, а не пропадает с
   // глаз: в ней лежит чей-то год работы.
-  const known = new Set(folders.map((folder) => folder.id));
+  const known = ids;
   const entries = library.entries.map((entry) =>
     known.has(entry.folderId) ? entry : { ...entry, folderId: ROOT_FOLDER_ID },
   );
@@ -338,9 +358,15 @@ export function importEntry(profile: StoredProfile, folderId = ROOT_FOLDER_ID): 
   return entry;
 }
 
-export function createFolder(name: string): LibraryFolder {
+export function createFolder(name: string, parentId = ROOT_FOLDER_ID): LibraryFolder {
   const library = loadLibrary();
-  const folder: LibraryFolder = { id: newId(), name: folderName(name) };
+  const folder: LibraryFolder = {
+    id: newId(),
+    name: folderName(name),
+    parentId: library.folders.some((known) => known.id === parentId)
+      ? parentId
+      : ROOT_FOLDER_ID,
+  };
   writeLibrary({ ...library, folders: [...library.folders, folder] });
   return folder;
 }
@@ -356,21 +382,48 @@ export function renameFolder(id: string, name: string): void {
 }
 
 /**
- * Удалить папку. Профили из неё возвращаются в grafik13.
+ * Удалить папку. Всё, что в ней лежало, поднимается на ступень выше.
  *
  * Удаление папки — про порядок на полке, а не про данные: унести с собой
  * чужой год работы она не вправе. Поэтому отдельного «удалить вместе с
- * содержимым» здесь нет вовсе.
+ * содержимым» здесь нет вовсе, а вложенные папки и профили переезжают к её
+ * родителю — туда, где человек их и будет искать.
  */
 export function deleteFolder(id: string): void {
   if (id === ROOT_FOLDER_ID) return;
   const library = loadLibrary();
+  const parent = library.folders.find((folder) => folder.id === id)?.parentId ?? ROOT_FOLDER_ID;
   writeLibrary({
-    folders: library.folders.filter((folder) => folder.id !== id),
+    folders: library.folders
+      .filter((folder) => folder.id !== id)
+      .map((folder) => (folder.parentId === id ? { ...folder, parentId: parent } : folder)),
     entries: library.entries.map((entry) =>
-      entry.folderId === id ? { ...entry, folderId: ROOT_FOLDER_ID } : entry,
+      entry.folderId === id ? { ...entry, folderId: parent } : entry,
     ),
   });
+}
+
+/**
+ * Путь до папки — от grafik13 и вниз, включая её саму.
+ *
+ * Нужен хлебным крошкам: с вложенностью «назад» перестало означать
+ * «в grafik13», и вернуться человек вправе на любую ступень.
+ *
+ * Глубина ограничена намеренно: в испорченном хранилище папка могла
+ * оказаться собственной прародительницей, и обход без предела зациклил бы
+ * страницу наглухо.
+ */
+export function folderPath(library: Library, id: string): LibraryFolder[] {
+  const path: LibraryFolder[] = [];
+  let current = library.folders.find((folder) => folder.id === id);
+  while (current !== undefined && path.length < 32) {
+    path.unshift(current);
+    const parentId: string | null = current.parentId;
+    current = parentId === null
+      ? undefined
+      : library.folders.find((folder) => folder.id === parentId);
+  }
+  return path;
 }
 
 export function moveEntry(entryId: string, folderId: string): void {

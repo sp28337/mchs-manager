@@ -208,7 +208,7 @@ export function PeriodPicker({
             "bg-paper-raised px-3 text-sm font-medium",
             "text-ink",
             "focus-visible:outline-2 focus-visible:outline-offset-2",
-            "focus-visible:outline-trace",
+            "focus-visible:outline-ink",
           )}
         >
           <PeriodIcon className="text-ink-muted" />

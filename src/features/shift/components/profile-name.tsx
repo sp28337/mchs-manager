@@ -123,7 +123,7 @@ export function ProfileName({
             // рукописная гарнитура тонкая, и волосяной курсор терялся бы в
             // её штрихах ровно там, где он нужнее всего.
             "caret-signal",
-            "rounded-sm focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-trace",
+            "rounded-sm focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ink",
           )}
         />
       ) : editable ? (
@@ -134,7 +134,7 @@ export function ProfileName({
           className={cn(
             "rounded-sm opacity-10 transition-opacity",
             "hover:opacity-20",
-            "focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-trace",
+            "focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ink",
           )}
         >
           {profile.displayName || "Имя профиля"}

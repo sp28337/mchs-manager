@@ -619,9 +619,9 @@ function DayCell({
           "flex flex-col",
           "relative flex aspect-square w-full min-w-0 cursor-pointer flex-col",
           "items-center justify-center leading-tight rounded-md",
-          "hover:outline-2 hover:-outline-offset-2 hover:outline-ink/40",
+
           "focus-visible:outline-2 focus-visible:-outline-offset-2",
-          "focus-visible:outline-trace",
+          "focus-visible:outline-ink",
           records.length === 0 && !quiet && "bg-paper-raised text-ink-faint rounded-md",
           worked && shift.isShiftStart && "bg-verify/30 text-verify rounded-md border border-verify/25",
           worked && !shift.isShiftStart && "bg-verify/5 text-verify rounded-md border border-verify/15",

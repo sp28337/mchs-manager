@@ -66,7 +66,7 @@ export default function NotFound() {
         action={
           <Link
             href="/calculator"
-            className="font-semibold inline-flex gap-2 h-9 items-center rounded-xl bg-ink px-4 text-sm text-paper hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-trace no-underline"
+            className="font-semibold inline-flex gap-2 h-9 items-center rounded-xl bg-ink px-4 text-sm text-paper hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink no-underline"
           >
             <span className="hidden xxs:block">График</span>
             <span className="xxs:hidden xs:block">
@@ -111,7 +111,7 @@ export default function NotFound() {
         <div className="flex flex-wrap items-center gap-4 pt-2">
           <Link
             href="/calculator"
-            className="inline-flex h-11 items-center rounded-xl bg-ink px-6 text-base font-bold text-paper no-underline hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-trace"
+            className="inline-flex h-11 items-center rounded-xl bg-ink px-6 text-base font-bold text-paper no-underline hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
           >
             Открыть график
           </Link>

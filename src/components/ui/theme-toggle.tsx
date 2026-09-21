@@ -60,7 +60,7 @@ export function ThemeToggle() {
             aria-pressed={mounted ? active : undefined}
             className={cn(
               "flex size-7 items-center justify-center rounded-lg cursor-pointer",
-              "focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-trace",
+              "focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ink",
               active ? "bg-ink text-paper" : "text-ink-muted hover:text-ink",
             )}
             onClick={() => setTheme(value)}

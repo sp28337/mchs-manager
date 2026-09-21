@@ -89,7 +89,7 @@ export function SiteHeader({ action, tools, className, brandLabel }: SiteHeaderP
         <Link
           href="/"
           data-brand
-          className="group flex min-w-0 items-center gap-2.5 rounded-xs focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-trace"
+          className="group flex min-w-0 items-center gap-2.5 rounded-xs focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
         >
           <Logo className="size-7 shrink-0 text-signal" />
           <span className="min-w-0 leading-none">

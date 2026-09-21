@@ -66,7 +66,7 @@ export function ImportProfileBlock({
           className={cn(
             "inline-flex h-9 cursor-pointer items-center rounded-xl border border-rule-strong",
             "bg-paper px-3 text-sm font-normal",
-            "hover:border-ink focus-within:outline-2 focus-within:outline-offset-1 focus-within:outline-trace",
+            "hover:border-ink focus-within:outline-2 focus-within:outline-offset-1 focus-within:outline-ink",
           )}
         >
           Выбрать файл профиля

@@ -133,7 +133,7 @@ export function LiveSignal({ on }: { on: boolean }) {
 export const LIVE_ROW_CELL = cn(
   "inline-flex h-9 shrink-0 cursor-pointer items-center gap-2 rounded-xl px-3",
   "transition-colors focus-visible:outline-2 focus-visible:outline-offset-2",
-  "focus-visible:outline-trace",
+  "focus-visible:outline-ink",
   // Знак здесь того же размера, что у соседей по строке; в панели он
   // крупнее, и там свой размер задаёт она (`DECK_CELL`).
   "[&_svg]:size-4.5 [&_svg]:shrink-0",

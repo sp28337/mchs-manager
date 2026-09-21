@@ -589,7 +589,7 @@ function ZoomButton({
         // соседнюю под самым пальцем, а человеку нужно видеть, что
         // мельче уже некуда.
         "disabled:pointer-events-none disabled:opacity-40",
-        "cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-trace",
+        "cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink",
         "[&_svg]:size-4.5 [&_svg]:shrink-0",
       )}
     >

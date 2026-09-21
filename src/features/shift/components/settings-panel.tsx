@@ -490,7 +490,7 @@ function TuneButton({ label, onClick }: { label: string; onClick: () => void }) 
       aria-label={`Настроить: ${label}`}
       className="inline-flex size-7 shrink-0 cursor-pointer items-center justify-center
                  rounded-sm text-ink-faint transition-colors hover:text-ink
-                 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-trace"
+                 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
     >
       <Pencil aria-hidden className="size-3.5" />
     </button>

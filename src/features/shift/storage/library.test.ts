@@ -6,6 +6,7 @@ import {
   createFolder,
   deleteFolder,
   detachActive,
+  folderPath,
   forgetActive,
   importEntry,
   loadLibrary,
@@ -147,6 +148,36 @@ describe("папки", () => {
 
     expect(loadLibrary().entries[0]!.folderId).toBe(ROOT_FOLDER_ID);
     expect(readEntryProfile(entry.id)?.displayName).toBe("Архивный");
+  });
+
+  it("папка заводится внутри другой, и путь до неё читается сверху вниз", () => {
+    const outer = createFolder("Архив");
+    const inner = createFolder("2024 год", outer.id);
+
+    const path = folderPath(loadLibrary(), inner.id);
+
+    expect(path.map((folder) => folder.name)).toEqual(["grafik13", "Архив", "2024 год"]);
+  });
+
+  it("удаление папки поднимает её содержимое на ступень выше, а не в самый верх", () => {
+    const outer = createFolder("Архив");
+    const inner = createFolder("2024 год", outer.id);
+    const entry = importEntry(profileNamed("Прошлогодний"));
+    moveEntry(entry.id, inner.id);
+
+    deleteFolder(inner.id);
+
+    const library = loadLibrary();
+    expect(library.entries[0]!.folderId).toBe(outer.id);
+    expect(library.folders.some((folder) => folder.id === inner.id)).toBe(false);
+  });
+
+  it("папка, чей родитель исчез, поднимается в grafik13 при чтении", () => {
+    const orphan = createFolder("Сирота", "папки-такой-нет");
+
+    expect(loadLibrary().folders.find((f) => f.id === orphan.id)?.parentId).toBe(
+      ROOT_FOLDER_ID,
+    );
   });
 
   it("grafik13 не удаляется: в ней оказываются профили изначально", () => {

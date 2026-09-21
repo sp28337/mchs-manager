@@ -90,7 +90,7 @@ export function Switch({
       className={cn(
         "group inline-flex cursor-pointer items-center gap-2 rounded-xl",
         "text-sm text-ink transition-colors",
-        "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-trace",
+        "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink",
         spread ? "w-full justify-between" : "shrink-0",
         className,
       )}

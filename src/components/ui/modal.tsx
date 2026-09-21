@@ -436,7 +436,7 @@ export function Modal({
             // и подъём увёл бы крестик выше неё.
             sheet && "max-sm:mt-0",
             "border border-transparent transition-colors hover:border-ink-muted hover:text-ink",
-            "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-trace",
+            "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink",
           )}
         >
           <X className="size-4" />

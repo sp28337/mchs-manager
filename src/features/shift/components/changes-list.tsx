@@ -339,7 +339,7 @@ export function ChangesList({
                 }
                 className={cn(
                   "flex min-w-0 grow cursor-pointer items-center gap-2 rounded-lg py-1 text-left",
-                  "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-trace",
+                  "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink",
                 )}
               >
                 <span className="min-w-0 grow">
@@ -360,7 +360,7 @@ export function ChangesList({
                 className={cn(
                   "grid size-8 shrink-0 cursor-pointer place-items-center rounded-lg text-ink-faint",
                   "hover:text-ink-muted",
-                  "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-trace",
+                  "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ink",
                 )}
               >
                 <X aria-hidden className="size-4" />

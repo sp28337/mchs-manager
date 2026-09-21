@@ -94,7 +94,7 @@ export function CtaIcon({ size = "md" }: { size?: "sm" | "md" }) {
 export function ctaClass(size: "sm" | "md" = "md"): string {
   return cn(
     "inline-flex shrink-0 cursor-pointer items-center gap-2 rounded-xl bg-ink font-bold text-paper no-underline",
-    "hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-trace",
+    "hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink",
     size === "sm" ? "h-9 px-4 text-sm" : "h-11 px-6 text-base",
   );
 }

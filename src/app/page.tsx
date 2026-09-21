@@ -285,7 +285,7 @@ export default function LandingPage() {
                     // лежала на бумаге наклейкой, вырезанной ножницами,
                     // рядом с блоками, у которых толщина есть.
                     "lit group relative flex h-full flex-col gap-1.5 rounded-xl bg-paper-raised p-5 pr-12",
-                    "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-trace",
+                    "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink",
                   )}
                 >
                   <ExternalMark />

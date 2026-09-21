@@ -1275,7 +1275,7 @@ function DayChoiceRow({
           className="absolute right-8 top-1/2 -translate-y-1/2 inline-flex size-7 items-center
                      justify-center rounded-sm text-ink-faint transition-colors
                      hover:text-ink cursor-pointer
-                     focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-trace"
+                     focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
         >
           <Pencil aria-hidden className="size-3.5" />
         </button>
