@@ -13,23 +13,37 @@ import { cn } from "@/lib/utils/cn";
 import { parseHours } from "../domain/decimal";
 import { formatDayMonthRu } from "../domain/format";
 import type { IsoDate } from "../domain/plain-date";
+import { statutoryCalendar } from "../domain/production-calendar";
 import {
   shiftOn,
   withAbsenceToggled,
   withAbsenceUntil,
   withCalloutToggled,
   withCalloutUntil,
+  withDayTypeAt,
   withNoteAt,
   withShiftAt,
 } from "../model/derive";
 import {
   ABSENCE_LABELS,
   CALLOUT_LABELS,
+  DAY_TYPE_LABELS,
+  DAY_TYPE_MARK,
+  DAY_TYPE_TONE,
   type AbsenceKind,
   type CalloutKind,
+  type DayType,
 } from "../schemas";
 import type { StoredProfile } from "../storage/profile";
-import { ABSENCE_MARK, CALLOUT_MARK, DAY_OFF_MARK } from "./day-marks";
+import {
+  ABSENCE_MARK,
+  ABSENCE_TONE,
+  CALLOUT_MARK,
+  CALLOUT_TONE,
+  DAY_OFF_MARK,
+  DAY_OFF_TONE,
+  SHIFT_TONE,
+} from "./day-marks";
 import { DateField } from "./date-field";
 
 /**
@@ -47,16 +61,15 @@ import { DateField } from "./date-field";
  * ЗАКРЫВАЛА собой клетку и соседей, и день, о котором шла речь, приходилось
  * рисовать в ней заново.
  *
- * Теперь клетка остаётся на месте и остаётся видимой: восемь квадратов
- * распускаются вокруг неё, по восьми соседним местам сетки, и каждый —
- * размером с саму клетку. Отметка ложится в клетку тут же, у человека на
- * глазах, и подтверждать её нечем и незачем: он видит, что день стал
- * больничным.
+ * Теперь клетка остаётся на месте и остаётся видимой: квадраты распускаются
+ * вокруг неё, по соседним местам сетки, и каждый — размером с саму клетку.
+ * Отметка ложится в клетку тут же, у человека на глазах, и подтверждать её
+ * нечем и незачем: он видит, что день стал больничным.
  *
  * --- Почему они вылетают, а не появляются ------------------------------------
  *
- * Восемь квадратов, возникших разом, читаются новым слоем поверх сетки —
- * тем же окном, только без рамки. Вылетая из клетки, они читаются её
+ * Квадраты, возникшие разом, читаются новым слоем поверх сетки — тем же
+ * окном, только без рамки. Вылетая из клетки, они читаются её
  * продолжением: это её собственные ответы, и вернутся они туда же.
  * Движение короткое (200 мс) и с небольшим запаздыванием друг за другом —
  * столько, чтобы глаз успел заметить, откуда они. При отключённой анимации
@@ -64,17 +77,24 @@ import { DateField } from "./date-field";
  *
  * --- Что в кольце и почему именно это ----------------------------------------
  *
- * Пять освобождений от работы (отпуск, доп. отпуск, больничный, отгул,
- * учебный), вызов, смена-или-выходной и заметка. Это всё, что человек
- * отмечает изо дня в день. Пять остальных видов вызова — соревнования,
- * сбор, резерв, праздник, выборы — редки и требуют часов, и живут там, где
- * часы и спрашивают: в полном окне, которое открывается повторным нажатием
- * по самому дню.
+ * На графике смен: пять освобождений от работы (отпуск, доп. отпуск,
+ * больничный, отгул, учебный), вызов, смена-или-выходной и заметка. Это
+ * всё, что человек отмечает изо дня в день. Пять остальных видов вызова —
+ * соревнования, сбор, резерв, праздник, выборы — редки и требуют часов, и
+ * живут там, где часы и спрашивают: в полном окне, которое открывается
+ * нажатием по самому дню в середине кольца.
+ *
+ * На производственном календаре вопрос другой — каким этот день считается
+ * по закону, — и ответов на него ровно четыре: рабочий, предпраздничный,
+ * праздничный, выходной. Плюс заметка: она к виду дня не относится, но
+ * нужна на обеих сетках одинаково. Кольцо там из пяти квадратов, а не из
+ * восьми, но ведёт себя так же — и в этом весь смысл: человек не должен
+ * узнавать способ правки заново, переключив вид сетки.
  *
  * --- Почему в квадрате смены стоит ПРОТИВОПОЛОЖНОЕ ---------------------------
  *
- * Семь квадратов — отметки: нажал, и в сутках появилось то, чего не было.
- * Восьмой не отмечает ничего нового, он правит сам график, и у него есть
+ * Остальные квадраты — отметки: нажал, и в сутках появилось то, чего не
+ * было. Этот не отмечает ничего нового, он правит сам график, и у него есть
  * только два значения: смена или выходной. Показывать в нём то, что и так
  * стоит в клетке, значило бы предлагать нажать на «уже так»; поэтому он
  * показывает второе — на рабочем дне «В», на выходном «С». Нажатие делает
@@ -86,42 +106,56 @@ import { DateField } from "./date-field";
  * он остался на своём месте, в середине. Восемь квадратов с одним и тем же
  * числом читались бы восемью днями.
  *
- * Буквы — те самые, что стоят в клетках на сетке и в легенде («О», «Б»,
- * «ВЗ»), и яркость у них одна на все восемь: цвет вида говорит заливкой и
- * рамкой, а буква остаётся чернилами. Разная яркость означала бы разную
- * важность, а её здесь нет — это восемь равных ответов на один вопрос.
+ * --- Почему квадрат выглядит ровно так, как выглядел бы день -----------------
+ *
+ * Свой набор цветов у кольца был, и был он ярче сеточного: квадрат — это
+ * предложение, рассуждали мы, и читаться он должен первым. Но человек
+ * нажимает в кольце на то, что потом будет смотреть в клетке, и если
+ * «больничный» в кольце и «больничный» на сетке — два разных оттенка, он
+ * учит два языка вместо одного.
+ *
+ * Поэтому цвет, рамка и буква берутся из общего словаря (`day-marks.ts`,
+ * `DAY_TYPE_TONE`) — те же, какими вид суток нарисован в клетке, где есть
+ * смена. Буква своего цвета, а не чернильная: на сетке она такая же.
+ * Заметный квадрат делает не оттенок, а погасшая вокруг страница.
+ *
+ * --- Почему погасшее нельзя нажать -------------------------------------------
+ *
+ * Страница вокруг кольца гаснет, и гаснет не для красоты: пока кольцо
+ * открыто, разговор идёт об одном дне, и всё остальное к нему отношения не
+ * имеет. Значит, и нажиматься оно не должно. Погашенное ловит нажатие само
+ * и не пропускает его дальше: кольцо закрывается, человек возвращается к
+ * сетке — и ни соседний день, ни кнопка под пальцем при этом не
+ * срабатывают. Нажатие мимо стоит ровно один шаг назад, а не шаг назад и
+ * случайную правку заодно.
+ *
+ * Открытых мест в затемнении два: легенда, по которой эти буквы читают, и
+ * сам день. День при этом не просто виден — он нажимается: за ним полное
+ * окно со всеми видами, временем и часами.
+ *
+ * --- Почему кольцо уходит сразу после выбора ---------------------------------
+ *
+ * Выбор в кольце — один, и после него разговор окончен: отметка уже в
+ * клетке, смотреть на неё надо на сетке, а не сквозь затемнение. Поэтому
+ * кольцо и затемнение снимаются тем же нажатием, каким сделан выбор.
+ *
+ * У того, что ДЛИТСЯ (отпуска, больничный, вызов), следом открывается окно
+ * срока — и кольца за ним уже нет: гасит страницу само окно, и второе
+ * затемнение поверх первого было бы вдвое темнее. То же с заметкой: ей
+ * нужна строка, а строка в квадрат со стороной в клетку не встаёт.
  */
 
 /** Часы вызова по умолчанию: обычная смена. */
 const DEFAULT_CALLOUT_HOURS = "8";
 
 /**
- * Цвет квадратов кольца — в полную силу, а не вполголоса.
+ * Заметка в кольце — обычная клетка с уголком.
  *
- * В клетке сетки у вида суток заливка приглушённая (`day-marks.ts`,
- * `*-soft`): там она лежит под числом и буквой, и спорить с ними ей
- * нельзя. Здесь наоборот: квадрат — это не день, а ПРЕДЛОЖЕНИЕ, и
- * читаться он должен первым. Взятая с клетки, приглушённая заливка
- * делала кольцо блёклым — теми самыми полутонами, какими сетка помечает
- * выходные.
- *
- * Поэтому здесь сам цвет вида, разбавленный на треть: он заметно ярче
- * `*-soft` и при этом не спорит с чернильной буквой поверх него.
- * Рамка сплошная, а не пунктирная: пунктир на сетке означает «смена была,
- * но не состоялась», а у предложения такого свойства нет.
+ * На сетке заметку показывает не цвет, а маленький треугольник в углу
+ * клетки: цвет там занят видом суток. В кольце занимать нечего, и всё
+ * равно уголок остаётся — по нему заметку и узнают, когда она уже стоит.
  */
-const RING_TONE: Record<AbsenceKind, string> = {
-  annual_leave: "border-signal/70 bg-signal/30",
-  extra_leave: "border-trip/70 bg-trip/30",
-  sick_leave: "border-sick/70 bg-sick/30",
-  time_off_in_lieu: "border-rest/70 bg-rest/30",
-  study_leave: "border-study/70 bg-study/30",
-};
-
-const RING_CALLOUT_TONE = "border-trace/70 bg-trace/30";
-const RING_SHIFT_TONE = "border-verify/70 bg-verify/40";
-const RING_DAY_OFF_TONE = "border-ink-faint/60 bg-paper-raised";
-const RING_NOTE_TONE = "border-rule-strong bg-paper-sunken";
+const RING_NOTE_TONE = "border-rule bg-paper-raised text-ink-muted";
 
 /** Не мельче этого квадрат не бывает: в цель меньше пальца не попадают. */
 const LEAST_CELL = 34;
@@ -129,14 +163,18 @@ const LEAST_CELL = 34;
 /** Просвет между клеткой и кольцом — тот же, что между клетками сетки. */
 const RING_GAP = 4;
 
+/** С какой сетки открыто кольцо — от этого зависит, о чём оно спрашивает. */
+export type DayRingKind = "shifts" | "calendar";
+
 type Slot =
   | { kind: "absence"; absence: AbsenceKind }
   | { kind: "callout"; callout: CalloutKind }
   | { kind: "shift" }
+  | { kind: "dayType"; type: DayType }
   | { kind: "note" };
 
 /**
- * Восемь видов в порядке чтения: слева направо, сверху вниз.
+ * Восемь видов графика в порядке чтения: слева направо, сверху вниз.
  *
  * Сверху и по бокам — освобождения от работы, одной семьёй. Снизу то, что
  * к ней не относится: работа помимо графика, сам график и заметка. Заметка
@@ -146,7 +184,7 @@ type Slot =
  * Места здесь нет нарочно: его считает `placesAround` — по тому, сколько
  * бумаги осталось вокруг клетки до края окна.
  */
-const RING: readonly Slot[] = [
+const SHIFT_RING: readonly Slot[] = [
   { kind: "absence", absence: "annual_leave" },
   { kind: "absence", absence: "extra_leave" },
   { kind: "absence", absence: "study_leave" },
@@ -156,6 +194,26 @@ const RING: readonly Slot[] = [
   { kind: "shift" },
   { kind: "note" },
 ];
+
+/** Четыре вида дня по закону и заметка — кольцо производственного календаря. */
+const CALENDAR_RING: readonly Slot[] = [
+  { kind: "dayType", type: "working" },
+  { kind: "dayType", type: "pre_holiday" },
+  { kind: "dayType", type: "holiday" },
+  { kind: "dayType", type: "weekend" },
+  { kind: "note" },
+];
+
+/**
+ * Места кольца из пяти: крест вокруг дня и один угол.
+ *
+ * Мест вокруг клетки восемь, а видов дня четыре. Разложить четыре по
+ * восьми местам подряд значило бы собрать их в одну сторону и оставить
+ * полкольца пустым. Крест — сверху, слева, справа, снизу — окружает день
+ * ровно и не выделяет ни один из видов местом. Заметка становится в угол:
+ * она не вид дня, и стоять с ними в одном ряду ей незачем.
+ */
+const CROSS_AND_CORNER: readonly number[] = [1, 3, 4, 6, 7];
 
 /**
  * Восемь мест вокруг клетки — и как они смещаются у края экрана.
@@ -201,15 +259,20 @@ function placesAround(
 
 export function DayRing({
   day,
+  kind,
   profile,
   onChange,
   onClose,
+  onOpenEditor,
 }: {
   /** Сутки, вокруг которых стоит кольцо. `null` — кольца нет. */
   day: IsoDate | null;
+  kind: DayRingKind;
   profile: StoredProfile;
   onChange: (change: (previous: StoredProfile) => StoredProfile) => void;
   onClose: () => void;
+  /** Нажали по самому дню: за кольцом открывается полное окно суток. */
+  onOpenEditor: () => void;
 }) {
   // Кольцо живёт только по нажатию, то есть заведомо в браузере: при сборке
   // страницы `day` пуст, и до портала дело не доходит. Проверка на документ
@@ -222,7 +285,15 @@ export function DayRing({
   // заводит новую систему отсчёта для `position: fixed` — кольцо уехало бы
   // вместе со страницей. В теле документа предков у него нет.
   return createPortal(
-    <Ring key={day} day={day} profile={profile} onChange={onChange} onClose={onClose} />,
+    <Ring
+      key={day}
+      day={day}
+      kind={kind}
+      profile={profile}
+      onChange={onChange}
+      onClose={onClose}
+      onOpenEditor={onOpenEditor}
+    />,
     document.body,
   );
 }
@@ -248,19 +319,23 @@ function boxOf(rect: DOMRect): Box {
 
 function Ring({
   day,
+  kind,
   profile,
   onChange,
   onClose,
+  onOpenEditor,
 }: {
   day: IsoDate;
+  kind: DayRingKind;
   profile: StoredProfile;
   onChange: (change: (previous: StoredProfile) => StoredProfile) => void;
   onClose: () => void;
+  onOpenEditor: () => void;
 }) {
   const [spot, setSpot] = useState<Spot | null>(null);
   /** Где стоит легенда: её страница не гасит (см. `Scrim`). */
   const [legend, setLegend] = useState<Box | null>(null);
-  /** Правка заметки: поле под кольцом вместо восьмого квадрата. */
+  /** Правка заметки: окно вместо кольца — строка в квадрат не встаёт. */
   const [noting, setNoting] = useState(false);
   const [note, setNote] = useState(profile.dayNotes[day] ?? "");
   /**
@@ -299,7 +374,7 @@ function Ring({
         y: box.top + box.height / 2,
         size: Math.max(Math.round(box.width), LEAST_CELL),
       });
-      const panel = document.querySelector<HTMLElement>("[data-shift-legend]");
+      const panel = document.querySelector<HTMLElement>("[data-grid-legend]");
       setLegend(panel === null ? null : boxOf(panel.getBoundingClientRect()));
     }
 
@@ -316,56 +391,68 @@ function Ring({
   }, [day, onClose]);
 
   /**
-   * Нажатие мимо закрывает кольцо — но не нажатие по самой клетке.
+   * Esc закрывает кольцо.
    *
-   * Прозрачного слоя во весь экран здесь нет нарочно: он перехватил бы
-   * нажатие по дню, а второе нажатие по нему открывает полное окно.
-   * Поэтому слушатель на документе, и своё он пропускает: квадраты кольца
-   * (`data-day-ring`) и клетку, вокруг которой оно стоит.
+   * Нажатия мимо ловит само затемнение (`Scrim`) — своим слоем, а не
+   * слушателем на документе: погашенная страница обязана быть неактивной, а
+   * слушатель только ДОБАВЛЯЛ бы закрытие к чужому нажатию, не отменяя его.
+   *
+   * Пока открыто окно срока или заметки, кольца нет, и Esc принадлежит
+   * окну: закрывает его оно само.
    */
   useEffect(() => {
-    function outside(event: PointerEvent) {
-      // Пока спрашивают срок, нажатия принадлежат окну: закрыв кольцо, мы
-      // унесли бы окно вместе с ним — оно рисуется отсюда.
-      if (asking !== null) return;
-      const target = event.target;
-      if (!(target instanceof Element)) return;
-      if (target.closest("[data-day-ring]") !== null) return;
-      if (target.closest(`[data-day="${day}"]`) !== null) return;
-      onClose();
-    }
     function onKey(event: KeyboardEvent) {
-      // Esc при открытом окне срока закрывает окно, а не кольцо: этим
-      // занимается само окно.
-      if (event.key === "Escape" && asking === null) onClose();
+      if (event.key === "Escape" && asking === null && !noting) onClose();
     }
-    // На погружении: пока нажатие не дошло до цели. Иначе кольцо закрылось
-    // бы уже после того, как чужая кнопка на него ответила.
-    document.addEventListener("pointerdown", outside, true);
     window.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("pointerdown", outside, true);
-      window.removeEventListener("keydown", onKey);
-    };
-  }, [day, onClose, asking]);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose, asking, noting]);
+
+  /**
+   * Фокус в поле заметки — после того, как окно открылось.
+   *
+   * `showModal()` уводит фокус на первое, за что в окне можно зацепиться,
+   * то есть на крестик, и родной `autoFocus` до этого мига не доживает:
+   * поле появляется раньше, чем окно открывают. Этот эффект стоит в
+   * РОДИТЕЛЕ окна, а родительские эффекты выполняются после его
+   * собственных — значит, последнее слово о фокусе остаётся за ним.
+   */
+  useEffect(() => {
+    if (!noting) return;
+    document.getElementById("day-ring-note")?.focus();
+  }, [noting]);
 
   const shift = shiftOn(profile, day);
-  const hasAbsence = (kind: AbsenceKind) =>
+  const lawful = statutoryCalendar(profile.accountingYear).get(day) ?? "working";
+  const effective = profile.calendarOverrides[day] ?? lawful;
+  const hasAbsence = (absence: AbsenceKind) =>
     profile.absences.some(
-      (item) => item.kind === kind && item.startsOn <= day && day <= item.endsOn,
+      (item) => item.kind === absence && item.startsOn <= day && day <= item.endsOn,
     );
-  const hasCallout = (kind: CalloutKind) =>
+  const hasCallout = (callout: CalloutKind) =>
     profile.callouts.some(
-      (item) => item.kind === kind && item.startsOn <= day && day <= item.endsOn,
+      (item) => item.kind === callout && item.startsOn <= day && day <= item.endsOn,
     );
 
+  /**
+   * Выбор сделан — кольцо уходит.
+   *
+   * Кроме того, что длится: там кольцо тоже уходит, но следом открывается
+   * окно срока, и закрыть кольцо нельзя — окно рисуется отсюда и ушло бы
+   * вместе с ним. Уходит оно с виду: квадраты и затемнение не рисуются,
+   * пока окно открыто.
+   */
   function act(slot: Slot) {
     if (slot.kind === "absence") {
       const on = hasAbsence(slot.absence);
       onChange((previous) => withAbsenceToggled(previous, day, slot.absence));
       // Снятое не спрашивает ни о чём: срок у того, чего в сутках больше
       // нет, назначать не по чему.
-      if (!on) setAsking({ slot, endsOn: day, hours: DEFAULT_CALLOUT_HOURS });
+      if (on) {
+        onClose();
+        return;
+      }
+      setAsking({ slot, endsOn: day, hours: DEFAULT_CALLOUT_HOURS });
       return;
     }
     if (slot.kind === "callout") {
@@ -373,11 +460,21 @@ function Ring({
       onChange((previous) =>
         withCalloutToggled(previous, day, slot.callout, DEFAULT_CALLOUT_HOURS),
       );
-      if (!on) setAsking({ slot, endsOn: day, hours: DEFAULT_CALLOUT_HOURS });
+      if (on) {
+        onClose();
+        return;
+      }
+      setAsking({ slot, endsOn: day, hours: DEFAULT_CALLOUT_HOURS });
       return;
     }
     if (slot.kind === "shift") {
       onChange((previous) => withShiftAt(previous, day, !shift));
+      onClose();
+      return;
+    }
+    if (slot.kind === "dayType") {
+      onChange((previous) => withDayTypeAt(previous, day, slot.type));
+      onClose();
       return;
     }
     setNoting(true);
@@ -385,7 +482,7 @@ function Ring({
 
   function commitNote() {
     onChange((previous) => withNoteAt(previous, day, note));
-    setNoting(false);
+    onClose();
   }
 
   /** Срок назван: продлить ту же запись, а не завести вторую. */
@@ -394,7 +491,7 @@ function Ring({
     const { slot, endsOn, hours } = asking;
     if (slot.kind === "absence") {
       onChange((previous) => withAbsenceUntil(previous, day, slot.absence, endsOn));
-      setAsking(null);
+      onClose();
       return;
     }
     if (slot.kind === "callout") {
@@ -407,7 +504,7 @@ function Ring({
         withCalloutUntil(previous, day, slot.callout, endsOn, parsed.toString()),
       );
     }
-    setAsking(null);
+    onClose();
   }
 
   if (spot === null) {
@@ -417,9 +514,23 @@ function Ring({
   }
 
   const step = spot.size + RING_GAP;
-  const places = placesAround(spot, step);
+  const ring = kind === "calendar" ? CALENDAR_RING : SHIFT_RING;
+  const around = placesAround(spot, step);
+  const places =
+    ring.length === around.length
+      ? around
+      : CROSS_AND_CORNER.map((index) => around[index]!);
 
+  // Пока спрашивают срок или пишут заметку, кольца с затемнением нет: их
+  // место занял разговор, который начался нажатием в кольце.
+  const picking = asking === null && !noting;
   const face = asking === null ? null : faceOf(asking.slot, shift);
+  const cellBox = {
+    left: spot.x - spot.size / 2,
+    top: spot.y - spot.size / 2,
+    width: spot.size,
+    height: spot.size,
+  };
 
   return (
     <div
@@ -427,112 +538,101 @@ function Ring({
       role="group"
       aria-label={`Что было ${formatDayMonthRu(day)}`}
     >
-      {/* Страница гаснет, кроме самого дня и легенды. Пока спрашивают срок,
-          гасит окно — своим затемнением, и второе было бы вдвое темнее. */}
-      {asking === null ? (
-        <Scrim
-          holes={[
-            {
-              left: spot.x - spot.size / 2 - 2,
-              top: spot.y - spot.size / 2 - 2,
-              width: spot.size + 4,
-              height: spot.size + 4,
-            },
-            ...(legend === null ? [] : [legend]),
-          ]}
-        />
-      ) : null}
-      {RING.map((slot, index) => {
-        const { col, row } = places[index]!;
-        const face = faceOf(slot, shift);
-        const on =
-          slot.kind === "absence"
-            ? hasAbsence(slot.absence)
-            : slot.kind === "callout"
-              ? hasCallout(slot.callout)
-              : slot.kind === "note"
-                ? (profile.dayNotes[day] ?? "") !== ""
-                : false;
-        return (
+      {picking ? (
+        <>
+          {/* Страница гаснет, кроме самого дня и легенды, и погашенное
+              нажатий дальше не пускает: нажал мимо — вернулся к сетке. */}
+          <Scrim
+            holes={[
+              {
+                left: cellBox.left - 2,
+                top: cellBox.top - 2,
+                width: cellBox.width + 4,
+                height: cellBox.height + 4,
+              },
+              ...(legend === null ? [] : [legend]),
+            ]}
+            onDismiss={onClose}
+          />
+          {/* Окошко в затемнении — сам день, и он по-прежнему нажимается:
+              затемнение лежит поверх сетки и до клетки нажатию не дойти.
+              Поэтому прозрачная накладка ровно по клетке: за ней полное
+              окно суток — со всеми видами, временем и часами. */}
           <button
-            key={index}
             type="button"
             data-day-ring
-            onClick={() => act(slot)}
-            // У смены состояния нет: она не отметка, а сам график, и
-            // квадрат называет то, чего в сутках ещё НЕТ.
-            aria-pressed={slot.kind === "shift" ? undefined : on}
-            aria-label={face.label}
-            title={face.label}
-            style={{
-              left: spot.x - spot.size / 2,
-              top: spot.y - spot.size / 2,
-              width: spot.size,
-              height: spot.size,
-              // Куда лететь и когда трогаться — считает разметка, а
-              // рисует правило `.day-ring-cell` в `globals.css`.
-              ["--dx" as string]: `${col * step}px`,
-              ["--dy" as string]: `${row * step}px`,
-              ["--delay" as string]: `${index * 16}ms`,
-            }}
+            onClick={onOpenEditor}
+            title="Открыть день целиком"
+            aria-label={`Открыть ${formatDayMonthRu(day)} целиком`}
+            style={cellBox}
             className={cn(
-              // Слои страницы: шапка 100, нижняя панель 90, лампа 120.
-              // Кольцо стоит выше затемнения (110) и ниже лампы: гасится
-              // всё, кроме лампы — так же, как это делают окна
-              // (`.scrim` в `globals.css`).
-              "day-ring-cell fixed z-[115] flex cursor-pointer items-center justify-center",
-              "rounded-md border font-mono text-[13px] leading-none shadow-lg",
-              face.tone,
-              // Буква — чернилами у всех восьми: цвет вида уже сказан
-              // заливкой и рамкой, и повторять его буквой значило бы делать
-              // одни виды бледнее других на ровном месте.
-              "text-ink",
-              // Отмеченное обведено изнутри — тем же чернильным контуром,
-              // каким приложение показывает выбранное. Не яркостью и не
-              // заливкой: и то и другое здесь занято видом суток.
-              on && "outline-2 -outline-offset-2 outline-ink",
+              "fixed z-[115] cursor-pointer rounded-md bg-transparent",
               "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink",
             )}
-          >
-            {face.mark}
-          </button>
-        );
-      })}
-
-      {noting ? (
-        // Заметке нужна строка, а строка не встаёт в квадрат со стороной в
-        // клетку. Поэтому поле раскрывается под кольцом — единственное во
-        // всём кольце, у чего есть своя плашка.
-        <div
-          data-day-ring
-          className="lit modal-lift fixed z-[115] w-64 max-w-[calc(100vw-1rem)] rounded-xl bg-paper p-2"
-          style={{
-            left: clamp(spot.x - 128, 8, Math.max(8, window.innerWidth - 264)),
-            top: Math.min(
-              spot.y + step + spot.size / 2 + 8,
-              Math.max(8, window.innerHeight - 120),
-            ),
-          }}
-        >
-          <p className="px-0.5 pb-2 text-[11px] leading-4 text-ink-muted">
-            Заметка · {formatDayMonthRu(day)}
-          </p>
-          <Input
-            autoFocus
-            value={note}
-            maxLength={500}
-            placeholder="Например: обещали отгул"
-            aria-label={`Заметка к ${formatDayMonthRu(day)}`}
-            onChange={(event) => setNote(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === "Enter") commitNote();
-              if (event.key === "Escape") setNoting(false);
-            }}
           />
-          <Button type="button" size="sm" className="mt-2 w-full" onClick={commitNote}>
-            Готово
-          </Button>
-        </div>
+          {ring.map((slot, index) => {
+            const { col, row } = places[index]!;
+            const face = faceOf(slot, shift);
+            const on =
+              slot.kind === "absence"
+                ? hasAbsence(slot.absence)
+                : slot.kind === "callout"
+                  ? hasCallout(slot.callout)
+                  : slot.kind === "dayType"
+                    ? effective === slot.type
+                    : slot.kind === "note"
+                      ? (profile.dayNotes[day] ?? "") !== ""
+                      : false;
+            return (
+              <button
+                key={index}
+                type="button"
+                data-day-ring
+                onClick={() => act(slot)}
+                // У смены состояния нет: она не отметка, а сам график, и
+                // квадрат называет то, чего в сутках ещё НЕТ.
+                aria-pressed={slot.kind === "shift" ? undefined : on}
+                aria-label={face.label}
+                title={face.label}
+                style={{
+                  ...cellBox,
+                  // Куда лететь и когда трогаться — считает разметка, а
+                  // рисует правило `.day-ring-cell` в `globals.css`.
+                  ["--dx" as string]: `${col * step}px`,
+                  ["--dy" as string]: `${row * step}px`,
+                  ["--delay" as string]: `${index * 16}ms`,
+                }}
+                className={cn(
+                  // Слои страницы: шапка 100, нижняя панель 90, лампа 120.
+                  // Кольцо стоит выше затемнения (110) и ниже лампы: гасится
+                  // всё, кроме лампы — так же, как это делают окна
+                  // (`.scrim` в `globals.css`).
+                  "day-ring-cell fixed z-[115] flex cursor-pointer items-center justify-center",
+                  "rounded-md border font-mono text-[13px] leading-none shadow-lg",
+                  // Цвет, рамка и цвет буквы — из общего словаря сетки: в
+                  // кольце вид суток выглядит ровно так, как он будет
+                  // выглядеть в клетке, где есть смена.
+                  face.tone,
+                  // Отмеченное обведено изнутри — тем же чернильным контуром,
+                  // каким приложение показывает выбранное. Не яркостью и не
+                  // заливкой: и то и другое здесь занято видом суток.
+                  on && "outline-2 -outline-offset-2 outline-ink",
+                  "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink",
+                )}
+              >
+                {/* Уголок заметки — тот же, каким она помечает клетку на
+                    сетке: цвет квадрата занят видом суток и там, и здесь. */}
+                {face.corner ? (
+                  <span
+                    aria-hidden
+                    className="absolute right-0 top-0 size-0 border-l-4 border-t-4 border-l-transparent border-t-trace"
+                  />
+                ) : null}
+                {face.mark}
+              </button>
+            );
+          })}
+        </>
       ) : null}
 
       {/* Срок у того, что длится. Отметка уже стоит в клетке — окно
@@ -540,7 +640,7 @@ function Ring({
           ничего не назвав, значит согласиться на один день. */}
       <Modal
         open={asking !== null}
-        onClose={() => setAsking(null)}
+        onClose={onClose}
         title={face?.label ?? ""}
         className="w-[min(30rem,calc(100vw-2rem))]"
       >
@@ -579,6 +679,37 @@ function Ring({
           </div>
         )}
       </Modal>
+
+      {/* Заметке нужна строка, а строка в квадрат со стороной в клетку не
+          встаёт. Поэтому единственный квадрат кольца, за которым не отметка,
+          а окно. */}
+      <Modal
+        open={noting}
+        onClose={onClose}
+        title={`Заметка · ${formatDayMonthRu(day)}`}
+        className="w-[min(30rem,calc(100vw-2rem))]"
+      >
+        <div className="flex flex-col items-center space-y-4">
+          <Card>
+            <Field id="day-ring-note" label="Что было в этот день">
+              <Input
+                id="day-ring-note"
+                value={note}
+                maxLength={500}
+                placeholder="Например: обещали отгул"
+                onChange={(event) => setNote(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") commitNote();
+                }}
+              />
+            </Field>
+          </Card>
+
+          <Button type="button" onClick={commitNote}>
+            Готово
+          </Button>
+        </div>
+      </Modal>
     </div>
   );
 }
@@ -606,8 +737,25 @@ function Ring({
  * Поэтому затемнение одно, сплошное, а окошки в нём ВЫРЕЗАНЫ маской: два
  * прямоугольника вычитаются из полного слоя (`exclude`). Тот же приём, что
  * у каймы `lit`, только там вычитается середина, а здесь — два места.
+ *
+ * --- Почему слой ловит нажатия --------------------------------------------
+ *
+ * Маска — дело рисования, а не нажатий: вырезанное окошко видно насквозь,
+ * но слой над ним остаётся. Здесь это кстати. Погашенная страница обязана
+ * быть неактивной, и слой её такой и делает: нажатие достаётся ему, кольцо
+ * закрывается, а кнопка под пальцем не срабатывает — человек возвращается
+ * к сетке, не тронув её.
+ *
+ * Тем же слоем закрыт и день в окошке — но у него сверху своя прозрачная
+ * накладка, за которой полное окно суток.
  */
-function Scrim({ holes }: { holes: readonly Box[] }) {
+function Scrim({
+  holes,
+  onDismiss,
+}: {
+  holes: readonly Box[];
+  onDismiss: () => void;
+}) {
   // Окошко за краем экрана вырезается НЕ ТАМ, где просят.
   // ---------------------------------------------------------------------
   // Замечено на телефоне: легенда лежит внизу длинной страницы, её место в
@@ -648,9 +796,14 @@ function Scrim({ holes }: { holes: readonly Box[] }) {
   return (
     <div
       aria-hidden
-      // Нажатия слой не ловит: закрытие кольца слушает документ, а гасить
-      // страницу — не то же самое, что перехватывать её.
-      className="fixed inset-0 z-[110] bg-black/65 pointer-events-none"
+      data-day-ring-scrim
+      // На погружении и с отменой родного поведения: нажатие не должно ни
+      // уйти под слой, ни увести фокус со страницы.
+      onPointerDown={(event) => {
+        event.preventDefault();
+        onDismiss();
+      }}
+      className="fixed inset-0 z-[110] bg-black/65"
       style={{
         maskImage: image,
         WebkitMaskImage: image,
@@ -669,38 +822,45 @@ function Scrim({ holes }: { holes: readonly Box[] }) {
 }
 
 /** Буква, цвет и название квадрата. */
-function faceOf(slot: Slot, shift: boolean): { mark: ReactNode; tone: string; label: string } {
+function faceOf(
+  slot: Slot,
+  shift: boolean,
+): { mark: ReactNode; tone: string; label: string; corner?: boolean } {
   if (slot.kind === "absence") {
     return {
       mark: ABSENCE_MARK[slot.absence],
-      tone: RING_TONE[slot.absence],
+      tone: ABSENCE_TONE[slot.absence],
       label: ABSENCE_LABELS[slot.absence],
     };
   }
   if (slot.kind === "callout") {
     return {
       mark: CALLOUT_MARK[slot.callout],
-      tone: RING_CALLOUT_TONE,
+      tone: CALLOUT_TONE,
       label: CALLOUT_LABELS[slot.callout],
+    };
+  }
+  if (slot.kind === "dayType") {
+    return {
+      mark: DAY_TYPE_MARK[slot.type],
+      tone: DAY_TYPE_TONE[slot.type],
+      label: DAY_TYPE_LABELS[slot.type],
     };
   }
   if (slot.kind === "shift") {
     // Противоположное тому, что стоит в клетке: на рабочем дне предлагается
     // выходной, на выходном — смена. Довод целиком — в шапке файла.
     return shift
-      ? { mark: DAY_OFF_MARK, tone: RING_DAY_OFF_TONE, label: "Сделать выходным" }
+      ? { mark: DAY_OFF_MARK, tone: DAY_OFF_TONE, label: "Сделать выходным" }
       : // «С» — смена. На сетке у смены буквы нет (там в клетке часы), но в
         // кольце место одно на все виды, и оставить квадрат пустым значило
         // бы сделать его единственным неподписанным.
-        { mark: "С", tone: RING_SHIFT_TONE, label: "Поставить смену" };
+        { mark: "С", tone: SHIFT_TONE, label: "Поставить смену" };
   }
   return {
     mark: <Pencil aria-hidden className="size-4" />,
     tone: RING_NOTE_TONE,
     label: "Заметка к этому дню",
+    corner: true,
   };
-}
-
-function clamp(value: number, least: number, most: number): number {
-  return Math.min(Math.max(value, least), most);
 }

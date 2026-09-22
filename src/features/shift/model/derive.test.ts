@@ -10,6 +10,7 @@ import {
   shiftSpanAt,
   withAbsenceToggled,
   withCalloutToggled,
+  withDayTypeAt,
   withNoteAt,
   withShiftAt,
   withShiftMoved,
@@ -423,5 +424,28 @@ describe("отметки одним нажатием", () => {
     expect(noted.dayNotes).toEqual({ "2026-03-12": "обещали отгул" });
 
     expect(withNoteAt(noted, "2026-03-12", "   ").dayNotes).toEqual({});
+  });
+
+  it("вид дня по календарю записывается правкой, только если спорит с законом", () => {
+    // 12 марта 2026 — обычный четверг: по закону рабочий.
+    const holiday = withDayTypeAt(profile, "2026-03-12", "holiday");
+    expect(holiday.calendarOverrides).toEqual({ "2026-03-12": "holiday" });
+
+    // Тот же день назад в рабочие — и правки не остаётся вовсе: хранить
+    // «как и было по закону» значит копить в профиле пустые записи.
+    expect(withDayTypeAt(holiday, "2026-03-12", "working").calendarOverrides).toEqual({});
+  });
+
+  it("правка вида дня не трогает соседние дни", () => {
+    const marked = withDayTypeAt(
+      withDayTypeAt(profile, "2026-03-12", "weekend"),
+      "2026-03-13",
+      "pre_holiday",
+    );
+
+    expect(marked.calendarOverrides).toEqual({
+      "2026-03-12": "weekend",
+      "2026-03-13": "pre_holiday",
+    });
   });
 });

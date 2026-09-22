@@ -373,7 +373,7 @@ export function ShiftLegend({ skeleton }: { skeleton?: boolean }) {
       // незатемнённой. Она и есть словарь этих букв, и гасить её в тот
       // самый миг, когда человек выбирает по ней вид суток, значило бы
       // прятать ответ вместе с вопросом.
-      data-shift-legend
+      data-grid-legend
       className="lit space-y-4 border-t border-rule xl:border-none translate-y-1 xl:translate-y-3
                       xl:max-w-70 xl:w-full xl:flex xl:flex-col xl:gap-6 xl:sticky
                       xl:top-[calc(8rem+var(--safe-top))] xl:self-start bg-paper-raised/70 p-4 rounded-xl lg:min-w-92.5">

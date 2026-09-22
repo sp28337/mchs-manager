@@ -331,8 +331,14 @@ export function YearCalendarEditor({
       {/* Легенда держится на месте вместе с числами: тот же приём, что в
           графике смен, — `sticky` под полосой итога и `self-start`, иначе
           растянутому элементу прилипать некуда. */}
-      <div className="lit xl:max-w-70 xl:w-full xl:sticky xl:top-[calc(8rem+var(--safe-top))] xl:self-start translate-y-1
-                      bg-paper-raised/70 p-4 rounded-xl lg:min-w-92.5">
+      <div
+        // Примета легенды: по ней её находит кольцо видов (`day-ring.tsx`) —
+        // гася страницу вокруг выбранного дня, оно оставляет легенду
+        // незатемнённой. Читать буквы в кольце человеку не по чему больше.
+        data-grid-legend
+        className="lit xl:max-w-70 xl:w-full xl:sticky xl:top-[calc(8rem+var(--safe-top))] xl:self-start translate-y-1
+                      bg-paper-raised/70 p-4 rounded-xl lg:min-w-92.5"
+      >
         <dl className="flex flex-wrap gap-x-6 gap-y-2 text-xs xl:flex-col">
           {DAY_TYPES.map((type) => (
             <div key={type} className="flex items-center gap-2">
@@ -408,8 +414,9 @@ export function CalendarNote({ profile }: { profile: StoredProfile }) {
         </>
       )}{" "}
       Если ваш производственный календарь всё-таки отличается, поправьте здесь:
-      ошибка в одном дне — это 8 часов нормы. Нажмите по числу — в окне этих
-      суток выбирается вид дня.
+      ошибка в одном дне — это 8 часов нормы. Нажмите по числу — вокруг него
+      появятся виды дня; нажмите по числу ещё раз — откроются эти сутки
+      целиком.
     </>
   );
 }
@@ -449,6 +456,9 @@ function DayButton({
     <button
       type="button"
       title={label}
+      // Примета дня: по ней клетку находит кольцо видов (`day-ring.tsx`) —
+      // так же, как на графике смен, где её ставит перенос смены.
+      data-day={item.day}
       aria-label={label}
       aria-current={today ? "date" : undefined}
       onClick={onPick}

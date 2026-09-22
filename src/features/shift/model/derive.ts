@@ -617,3 +617,23 @@ export function withCalloutUntil(
     ),
   };
 }
+
+/**
+ * Вид дня в производственном календаре — одним нажатием.
+ *
+ * Совпал с законом — правка снимается: в профиле лежит только то, что
+ * человек утверждает ВОПРЕКИ ст. 112 и 95 ТК РФ, и «ваших правок» должно
+ * быть ровно столько, сколько он готов отстаивать. Тот же довод, что у
+ * правок графика (`withShiftAt`) и у окна дня.
+ */
+export function withDayTypeAt(
+  profile: StoredProfile,
+  day: IsoDate,
+  type: DayType,
+): StoredProfile {
+  const lawful = statutoryCalendar(profile.accountingYear).get(day) ?? "working";
+  const calendarOverrides = { ...profile.calendarOverrides };
+  if (type === lawful) delete calendarOverrides[day];
+  else calendarOverrides[day] = type;
+  return { ...profile, calendarOverrides };
+}
