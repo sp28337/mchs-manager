@@ -215,6 +215,20 @@ export function Workspace({
    * кнопка, которой открыли, закрывает. Проводник устроен так же
    * (`explorerOpen` ниже), и узнавать второй порядок человеку не нужно.
    */
+  /**
+   * Переключали ли уже разделы на этом экране.
+   *
+   * Нужно проступанию (`FadeIn`). Оно затем, чтобы раздел, встающий на
+   * место другого, не возникал рывком; а ПЕРВЫЙ раздел ни на чьё место не
+   * встаёт — до него на этом месте стояла заглушка с костями, ровно
+   * такого же роста (`workspace-skeleton.tsx`).
+   *
+   * Пока признака не было, выходило мигание: кости пропадали, а календарь
+   * следующие триста миллисекунд проявлялся из прозрачности — и между
+   * ними человек видел пустую страницу. Заглушка есть, содержимое есть, а
+   * посередине дырка, которой никто не просил.
+   */
+  const [switched, setSwitched] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsTab, setSettingsTab] = useState<SettingsTab>("profile");
   const showSettings = settingsOpen;
@@ -243,6 +257,7 @@ export function Workspace({
    * кадра с чужой прокруткой под новым содержимым просто не бывает.
    */
   function toggleSettings() {
+    setSwitched(true);
     setSettingsOpen((open) => {
       const next = !open;
       if (next) window.scrollTo(0, 0);
@@ -270,6 +285,7 @@ export function Workspace({
   const explorerTools = useExplorerTools();
 
   function toggleExplorer() {
+    setSwitched(true);
     setExplorerOpen((open) => {
       const next = !open;
       if (next) window.scrollTo(0, 0);
@@ -451,7 +467,7 @@ export function Workspace({
           только во флексе. */}
       <div className="flex flex-1 flex-col gap-10">
       {explorerOpen ? (
-        <FadeIn key="explorer">
+        <FadeIn key="explorer" instant={!switched}>
           <section aria-labelledby="explorer-heading" className="space-y-4">
             <h2 id="explorer-heading" className="sr-only">
               Профили
@@ -475,7 +491,7 @@ export function Workspace({
         // одной закладки на другую — не открытие, и заново проигранное
         // проявление превращало бы нажатие по соседней закладке в четверть
         // секунды пустоты, а потом всплытие из размытия.
-        <FadeIn key="settings" delayMs={REVEAL_DELAY_MS}>
+        <FadeIn key="settings" delayMs={REVEAL_DELAY_MS} instant={!switched}>
           {/* Анкета не растягивается во всю ширину монитора: строка
               «Норма в неделю» с полем у правого края в двух тысячах точек
               читалась бы как две разные строки. Предел тот же, что был у
@@ -490,23 +506,51 @@ export function Workspace({
             <h2 id="settings-heading" className="sr-only">
               {SETTINGS_TAB_LABEL[settingsTab]}
             </h2>
-            {settingsTab === "profile" ? (
-              <div className="space-y-4">
+            {/* Обе закладки стоят в одной клетке сетки, одна поверх другой.
+                -----------------------------------------------------------------
+                Показана всегда одна, но высоту клетка берёт по большей из
+                них — и страница от переключения не меняет роста. Иначе
+                выходило так: анкета длиннее экрана, перечень правок
+                короче, — и, нажав соседнюю закладку, человек видел, как
+                подвал прыгает снизу вверх, на середину экрана. Он не
+                трогал подвал; он просто посмотрел, что наотмечал.
+
+                Скрытая закладка не `display: none`, а `visibility:
+                hidden`: первое убрало бы её из раскладки вместе с
+                высотой, ради которой всё и затеяно. `inert` вдобавок
+                убирает её из обхода табуляцией и от программы чтения —
+                невидимое не должно отвечать ни на фокус, ни на вопрос
+                «что на странице». */}
+            <div className="grid">
+              <div
+                className={cn(
+                  "col-start-1 row-start-1 space-y-4",
+                  settingsTab !== "profile" && "invisible",
+                )}
+                inert={settingsTab !== "profile"}
+              >
                 <SettingsPanel profile={profile} onChange={onChange} />
                 <DangerActions onForget={onForget} onChange={onChange} showReset={false} />
               </div>
-            ) : (
-              // Правка строки перечня со страницы никуда не уводит: окно
-              // события открывается прямо там, поверх перечня
-              // (`changes-list.tsx`). Уводило — на сетку, к тем суткам, и
-              // человек, поправив часы вызова, оказывался в другом месте
-              // приложения, откуда сам не уходил.
-              <ChangesList
-                profile={profile}
-                onChange={onChange}
-                onOpenProfile={() => setSettingsTab("profile")}
-              />
-            )}
+              <div
+                className={cn(
+                  "col-start-1 row-start-1",
+                  settingsTab !== "changes" && "invisible",
+                )}
+                inert={settingsTab !== "changes"}
+              >
+                {/* Правка строки перечня со страницы никуда не уводит: окно
+                    события открывается прямо там, поверх перечня
+                    (`changes-list.tsx`). Уводило — на сетку, к тем суткам, и
+                    человек, поправив часы вызова, оказывался в другом месте
+                    приложения, откуда сам не уходил. */}
+                <ChangesList
+                  profile={profile}
+                  onChange={onChange}
+                  onOpenProfile={() => setSettingsTab("profile")}
+                />
+              </div>
+            </div>
           </section>
         </FadeIn>
       ) : (
@@ -515,7 +559,7 @@ export function Workspace({
         // сеток отодвигали всё остальное вниз. Теперь ниже только подвал,
         // а сетка — то, ради чего экран открыт: закрывать её значит
         // закрывать страницу.
-        <FadeIn key="calendar">
+        <FadeIn key="calendar" instant={!switched}>
           <section aria-labelledby="calendar-heading" className="space-y-4 -translate-y-2">
             <h2 id="calendar-heading" className="flex items-center gap-2 text-xl sr-only">
               Календарь
@@ -625,12 +669,28 @@ export function Workspace({
  * `period-summary.tsx`), иначе цифры гаснут, и дальше два соседних места
  * экрана оживают порознь, каждое в своё время, — а должны одним движением.
  */
-function FadeIn({ children, delayMs = 0 }: { children: ReactNode; delayMs?: number }) {
+function FadeIn({
+  children,
+  delayMs = 0,
+  instant = false,
+}: {
+  children: ReactNode;
+  delayMs?: number;
+  /**
+   * Показать сразу, без проступания.
+   *
+   * Первый раздел после заглушки ни на чьё место не встаёт: кости стояли
+   * ровно там же и ровно такого же роста. Проявляться ему не из чего —
+   * между костями и содержимым получилась бы пустая страница на треть
+   * секунды, то есть мигание.
+   */
+  instant?: boolean;
+}) {
   // Отключённая анимация — не рывок, а готовый вид сразу: читается тем же
   // умолчанием, что и у самой настройки (`window.matchMedia`), а не вторым
   // прогоном отрисовки следом за первым.
   const [shown, setShown] = useState(
-    () => window.matchMedia("(prefers-reduced-motion: reduce)").matches,
+    () => instant || window.matchMedia("(prefers-reduced-motion: reduce)").matches,
   );
 
   useEffect(() => {

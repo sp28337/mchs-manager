@@ -539,9 +539,8 @@ export function ProfileExplorer({
           </p>
         ) : (
           <p>
-            Профиль «{removing?.name}» будет стёрт с устройства вместе со всеми
-            внесёнными отпусками и правками календаря. Отменить будет нельзя:
-            копии на сервере нет.
+            Профиль «{removing?.name}» и все его данные будут удалены. Это
+            действие нельзя отменить.
           </p>
         )}
       </ConfirmDialog>
@@ -749,10 +748,10 @@ function FolderCard({
                   (`pointer-events-none` выше), иначе полоса поверх бумаги
                   съедала бы нажатие по карточке. */}
               <span className="pointer-events-auto flex items-center gap-0.5">
-                <IconButton label={`Переименовать папку «${folder.name}»`} onClick={onRename} bare>
+                <IconButton label={`Переименовать папку «${folder.name}»`} onClick={onRename} small>
                   <Pencil aria-hidden className="size-4" />
                 </IconButton>
-                <IconButton label={`Удалить папку «${folder.name}»`} onClick={onDelete} bare>
+                <IconButton label={`Удалить папку «${folder.name}»`} onClick={onDelete} small>
                   <Trash2 aria-hidden className="size-4" />
                 </IconButton>
               </span>
@@ -947,21 +946,20 @@ function IconButton({
   label,
   onClick,
   disabled,
-  bare,
+  small,
   children,
 }: {
   label: string;
   onClick: () => void;
   disabled?: boolean;
   /**
-   * Кнопка на папке: без заливки.
+   * Кнопка на папке: та же, но меньше.
    *
-   * На плитке и без того две вещи — очертание и имя, — и плашка под
-   * значком стала бы третьей. Отвечает наведению сам значок, цветом, как
-   * отвечают ссылки. Размер при этом полный, двадцать четыре точки:
+   * Стоит она во вкладке папки — в узкой полоске над её верхним краем, —
+   * и восемь точек высоты там взять негде. Двадцать четыре остаётся:
    * меньше — цель, в которую не попадают (WCAG 2.5.8).
    */
-  bare?: boolean;
+  small?: boolean;
   children: ReactNode;
 }) {
   return (
@@ -973,12 +971,16 @@ function IconButton({
       title={label}
       className={cn(
         "inline-flex shrink-0 cursor-pointer items-center justify-center rounded-lg",
-        bare
-          ? "size-6 text-ink-muted transition-colors hover:text-ink"
-          : [
-              "size-8 text-ink-muted transition-colors hover:bg-paper-sunken hover:text-ink",
-              "disabled:hover:bg-transparent",
-            ],
+        // Заливки под значком нет ни у той, ни у другой.
+        // -------------------------------------------------------------------
+        // Была у строчных: плашка под курсором, как у кнопок в окнах. Но
+        // строка профиля сама нажимается — вся целиком, — и плашка внутри
+        // неё читалась вторым, вложенным предметом: будто у строки есть
+        // своя маленькая кнопка со своими краями. Наведению отвечает сам
+        // значок, цветом, как отвечают ссылки; попасть в него помогает
+        // размер, а не заливка.
+        "text-ink-muted transition-colors hover:text-ink",
+        small ? "size-6" : "size-8",
         "disabled:cursor-not-allowed disabled:opacity-40",
         "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink",
       )}
