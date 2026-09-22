@@ -1,7 +1,13 @@
 "use client";
 
 import { Pencil } from "lucide-react";
-import { useEffect, useLayoutEffect, useState, type ReactNode } from "react";
+import {
+  useEffect,
+  useLayoutEffect,
+  useState,
+  type CSSProperties,
+  type ReactNode,
+} from "react";
 import { createPortal } from "react-dom";
 
 import { Button } from "@/components/ui/button";
@@ -121,17 +127,33 @@ import { DateField } from "./date-field";
  *
  * --- Почему погасшее нельзя нажать -------------------------------------------
  *
- * Страница вокруг кольца гаснет, и гаснет не для красоты: пока кольцо
- * открыто, разговор идёт об одном дне, и всё остальное к нему отношения не
- * имеет. Значит, и нажиматься оно не должно. Погашенное ловит нажатие само
+ * Страница вокруг кольца гаснет и размывается, и не для красоты: пока
+ * кольцо открыто, разговор идёт об одном дне, и всё остальное к нему
+ * отношения не имеет. Значит, и нажиматься оно не должно. Погашенное ловит нажатие само
  * и не пропускает его дальше: кольцо закрывается, человек возвращается к
  * сетке — и ни соседний день, ни кнопка под пальцем при этом не
  * срабатывают. Нажатие мимо стоит ровно один шаг назад, а не шаг назад и
  * случайную правку заодно.
  *
- * Открытых мест в затемнении два: легенда, по которой эти буквы читают, и
- * сам день. День при этом не просто виден — он нажимается: за ним полное
- * окно со всеми видами, временем и часами.
+ * Открытое место в затемнении одно — сам день. И он не просто виден: он
+ * нажимается, за ним полное окно со всеми видами, временем и часами.
+ *
+ * --- Почему перечень видов стоит у кольца, а не внизу страницы ---------------
+ *
+ * Буквы в квадратах короткие («О», «Д», «ВЗ»), и человек, открывший кольцо
+ * впервые, их не знает. Раньше ответ был внизу страницы, в легенде сетки, и
+ * ради него затемнение оставляло легенду незатемнённой — но легенда лежит в
+ * стороне, а на телефоне и вовсе за краем экрана: доводить до неё взгляд
+ * (а то и прокрутку) значило уйти от дня, ради которого всё и открыли.
+ *
+ * Теперь перечень стоит вплотную к кольцу: тот же квадрат и рядом название.
+ * Легенда страницы гаснет вместе со всем остальным — второй словарь в двух
+ * концах экрана только раздваивал бы внимание.
+ *
+ * Наведение связывает половины: подведённый в кольце квадрат светлеет и
+ * подаётся вперёд, а в перечне разгорается его строка — и гаснут соседние.
+ * Знак и название называют одно и то же, и показать это лучше всего
+ * одновременным движением с двух сторон.
  *
  * --- Почему кольцо уходит сразу после выбора ---------------------------------
  *
@@ -257,6 +279,113 @@ function placesAround(
   return places;
 }
 
+/** Как выглядит и называется один вид суток в кольце. */
+interface Face {
+  mark: ReactNode;
+  tone: string;
+  label: string;
+  /**
+   * Короткое имя для перечня у кольца.
+   *
+   * Подпись самой кнопки остаётся полной — её читает вслух программа
+   * чтения, и «Заметка» без продолжения там ничего не говорит. А в перечне
+   * на телефоне длинное название обрывается многоточием, и обрывок
+   * объясняет хуже, чем короткое слово целиком.
+   */
+  short?: string;
+  /** Уголок заметки: цвет у квадрата занят видом суток, и здесь тоже. */
+  corner?: boolean;
+}
+
+/** Где и в сколько столбцов встанет перечень видов у кольца. */
+interface LegendPlace {
+  style: CSSProperties;
+  columns: 1 | 2;
+}
+
+/** Ширина перечня: столько занимает самое длинное название в один столбец. */
+const LEGEND_WIDTH = 208;
+
+/** Уже этого перечень сбоку не встанет — названия начнут рваться. */
+const LEGEND_LEAST = 150;
+
+/** Просвет между кольцом и перечнем — заметно больше, чем внутри кольца. */
+const LEGEND_GAP = 12;
+
+/** Поле до кромки окна: перечень не должен упираться в край. */
+const SCREEN_EDGE = 8;
+
+/**
+ * Куда положить перечень видов, чтобы он не закрыл кольцо.
+ *
+ * Сбоку — если сбоку есть место: перечень читается столбцом, а столбец
+ * рядом с кольцом не спорит с ним ни за одну строку экрана. Какой стороной
+ * — той, где места больше; у дня в январе это правая, у дня в декабре
+ * левая.
+ *
+ * По высоте перечень держится того края, к которому ближе день: у дня
+ * вверху экрана — верха, внизу — низа, посередине — середины. Это вместо
+ * подсчёта его собственной высоты: высоту пришлось бы мерить после
+ * отрисовки, то есть рисовать дважды, и на второй раз перечень прыгал бы
+ * на глазах.
+ *
+ * Не встал сбоку (телефон, где кольцо занимает половину ширины) — значит
+ * под кольцом или над ним, во всю ширину и в два столбца: восемь строк
+ * столбиком под кольцом на телефоне не помещаются.
+ */
+function placeLegend(
+  spot: Spot,
+  step: number,
+  around: readonly { col: number; row: number }[],
+): LegendPlace {
+  const half = spot.size / 2;
+  const cols = around.map((place) => place.col);
+  const rows = around.map((place) => place.row);
+  const left = spot.x - half + Math.min(...cols) * step;
+  const right = spot.x + half + Math.max(...cols) * step;
+  const top = spot.y - half + Math.min(...rows) * step;
+  const bottom = spot.y + half + Math.max(...rows) * step;
+
+  const roomLeft = left - LEGEND_GAP - SCREEN_EDGE;
+  const roomRight = window.innerWidth - right - LEGEND_GAP - SCREEN_EDGE;
+
+  if (Math.max(roomLeft, roomRight) >= LEGEND_LEAST) {
+    const onRight = roomRight >= roomLeft;
+    const width = Math.min(LEGEND_WIDTH, onRight ? roomRight : roomLeft);
+    const third = window.innerHeight / 3;
+    return {
+      columns: 1,
+      style: {
+        left: onRight ? right + LEGEND_GAP : left - LEGEND_GAP - width,
+        top: SCREEN_EDGE,
+        height: window.innerHeight - SCREEN_EDGE * 2,
+        width,
+        justifyContent:
+          spot.y < third
+            ? "flex-start"
+            : spot.y > window.innerHeight - third
+              ? "flex-end"
+              : "center",
+      },
+    };
+  }
+
+  const under = window.innerHeight - bottom - LEGEND_GAP - SCREEN_EDGE;
+  const over = top - LEGEND_GAP - SCREEN_EDGE;
+  const below = under >= over;
+  return {
+    columns: 2,
+    style: {
+      left: SCREEN_EDGE,
+      width: window.innerWidth - SCREEN_EDGE * 2,
+      ...(below
+        ? { top: bottom + LEGEND_GAP, maxHeight: under }
+        : { bottom: window.innerHeight - top + LEGEND_GAP, maxHeight: over }),
+      justifyContent: below ? "flex-start" : "flex-end",
+    },
+  };
+}
+
 export function DayRing({
   day,
   kind,
@@ -313,10 +442,6 @@ interface Box {
   height: number;
 }
 
-function boxOf(rect: DOMRect): Box {
-  return { left: rect.left, top: rect.top, width: rect.width, height: rect.height };
-}
-
 function Ring({
   day,
   kind,
@@ -333,8 +458,15 @@ function Ring({
   onOpenEditor: () => void;
 }) {
   const [spot, setSpot] = useState<Spot | null>(null);
-  /** Где стоит легенда: её страница не гасит (см. `Scrim`). */
-  const [legend, setLegend] = useState<Box | null>(null);
+  /**
+   * Квадрат под курсором — он же строка, горящая в перечне видов.
+   *
+   * Одно состояние на обе половины нарочно: знак и название — это один и
+   * тот же ответ, и показывать их связь надо сразу с двух сторон. Ставится
+   * оно и наведением на строку перечня: подвёл к названию — загорелся
+   * квадрат в кольце.
+   */
+  const [hovered, setHovered] = useState<number | null>(null);
   /** Правка заметки: окно вместо кольца — строка в квадрат не встаёт. */
   const [noting, setNoting] = useState(false);
   const [note, setNote] = useState(profile.dayNotes[day] ?? "");
@@ -374,8 +506,6 @@ function Ring({
         y: box.top + box.height / 2,
         size: Math.max(Math.round(box.width), LEAST_CELL),
       });
-      const panel = document.querySelector<HTMLElement>("[data-grid-legend]");
-      setLegend(panel === null ? null : boxOf(panel.getBoundingClientRect()));
     }
 
     place();
@@ -531,6 +661,8 @@ function Ring({
     width: spot.size,
     height: spot.size,
   };
+  const faces = ring.map((slot) => faceOf(slot, shift));
+  const legendPlace = placeLegend(spot, step, around);
 
   return (
     <div
@@ -540,18 +672,15 @@ function Ring({
     >
       {picking ? (
         <>
-          {/* Страница гаснет, кроме самого дня и легенды, и погашенное
+          {/* Страница гаснет и размывается, кроме самого дня, и погашенное
               нажатий дальше не пускает: нажал мимо — вернулся к сетке. */}
           <Scrim
-            holes={[
-              {
-                left: cellBox.left - 2,
-                top: cellBox.top - 2,
-                width: cellBox.width + 4,
-                height: cellBox.height + 4,
-              },
-              ...(legend === null ? [] : [legend]),
-            ]}
+            hole={{
+              left: cellBox.left - 2,
+              top: cellBox.top - 2,
+              width: cellBox.width + 4,
+              height: cellBox.height + 4,
+            }}
             onDismiss={onClose}
           />
           {/* Окошко в затемнении — сам день, и он по-прежнему нажимается:
@@ -572,7 +701,7 @@ function Ring({
           />
           {ring.map((slot, index) => {
             const { col, row } = places[index]!;
-            const face = faceOf(slot, shift);
+            const face = faces[index]!;
             const on =
               slot.kind === "absence"
                 ? hasAbsence(slot.absence)
@@ -589,6 +718,13 @@ function Ring({
                 type="button"
                 data-day-ring
                 onClick={() => act(slot)}
+                // Наведение и отвод — вместе с подписью в перечне видов.
+                // Клавиатуре то же самое даёт фокус: кольцо проходится
+                // табуляцией так же, как мышью.
+                onPointerEnter={() => setHovered(index)}
+                onPointerLeave={() => setHovered(null)}
+                onFocus={() => setHovered(index)}
+                onBlur={() => setHovered(null)}
                 // У смены состояния нет: она не отметка, а сам график, и
                 // квадрат называет то, чего в сутках ещё НЕТ.
                 aria-pressed={slot.kind === "shift" ? undefined : on}
@@ -632,6 +768,15 @@ function Ring({
               </button>
             );
           })}
+          {/* Словарь этих букв — здесь же, у кольца: легенда страницы под
+              затемнением, и доводить до неё взгляд теперь незачем. */}
+          <RingLegend
+            faces={faces}
+            hovered={hovered}
+            onHover={setHovered}
+            onDismiss={onClose}
+            place={legendPlace}
+          />
         </>
       ) : null}
 
@@ -715,28 +860,31 @@ function Ring({
 }
 
 /**
- * Затемнение страницы с окошками.
+ * Затемнение страницы с окошком.
  *
  * --- Зачем оно кольцу ------------------------------------------------------
  *
  * Кольцо стоит не поверх страницы, а ВНУТРИ неё, между клетками своего же
  * месяца, и от соседних дней его отличает только то, что оно ярче. Пока
  * рядом горит триста шестьдесят пять таких же квадратов, выбор теряется
- * среди них. Погасшая страница оставляет на виду ровно то, о чём сейчас
- * речь: сам день, кольцо вокруг него — и легенду, по которой эти буквы и
- * читают.
+ * среди них. Погасшая и размытая страница оставляет на виду ровно то, о
+ * чём сейчас речь: сам день и кольцо вокруг него. Словарь букв стоит тут
+ * же, у кольца (`RingLegend`), и вырезать для него второе окошко больше не
+ * нужно.
  *
  * --- Почему маска, а не рамки вокруг --------------------------------------
  *
- * Незатемнённых мест два, и лежат они в разных концах экрана. Четыре
- * полосы вокруг одного из них второе не обходят, а поднять их над
- * затемнением нельзя: сетка лежит в сдвинутом разделе (`-translate-y-2` в
- * `workspace.tsx`), и весь он рисуется одним слоем — `z-index` внутри него
- * наружу не действует.
+ * Четыре полосы вокруг клетки — это четыре слоя, которые надо держать
+ * сведёнными при каждой прокрутке, а поднять клетку над затемнением нельзя:
+ * сетка лежит в сдвинутом разделе (`-translate-y-2` в `workspace.tsx`), и
+ * весь он рисуется одним слоем — `z-index` внутри него наружу не действует.
  *
- * Поэтому затемнение одно, сплошное, а окошки в нём ВЫРЕЗАНЫ маской: два
- * прямоугольника вычитаются из полного слоя (`exclude`). Тот же приём, что
- * у каймы `lit`, только там вычитается середина, а здесь — два места.
+ * Поэтому затемнение одно, сплошное, а окошко в нём ВЫРЕЗАНО маской:
+ * прямоугольник клетки вычитается из полного слоя (`exclude`). Тот же
+ * приём, что у каймы `lit`, только там вычитается середина, а здесь —
+ * место клетки. Размытие следует за маской само: браузер размывает
+ * подложку там, где слой РИСУЕТ, а в окошке он не рисует ничего — день
+ * остаётся резким.
  *
  * --- Почему слой ловит нажатия --------------------------------------------
  *
@@ -749,49 +897,35 @@ function Ring({
  * Тем же слоем закрыт и день в окошке — но у него сверху своя прозрачная
  * накладка, за которой полное окно суток.
  */
-function Scrim({
-  holes,
-  onDismiss,
-}: {
-  holes: readonly Box[];
-  onDismiss: () => void;
-}) {
+function Scrim({ hole, onDismiss }: { hole: Box; onDismiss: () => void }) {
   // Окошко за краем экрана вырезается НЕ ТАМ, где просят.
   // ---------------------------------------------------------------------
-  // Замечено на телефоне: легенда лежит внизу длинной страницы, её место в
-  // окне — четыре тысячи точек, то есть далеко за нижней кромкой. Браузер
-  // такую подложку не отбрасывает, а рисует её где-то у себя, и внизу
-  // экрана появляется светлое пятно шириной с легенду — дырка в
-  // затемнении там, где ничего нет.
+  // Замечено на телефоне ещё когда окошек было два: второе, для легенды,
+  // лежало внизу длинной страницы — четыре тысячи точек, то есть далеко за
+  // нижней кромкой окна. Браузер такую подложку не отбрасывает, а рисует
+  // её где-то у себя, и внизу экрана появлялось светлое пятно шириной с
+  // легенду — дырка в затемнении там, где ничего нет.
   //
-  // Поэтому окошки обрезаются по окну, а вышедшие из него целиком
-  // выбрасываются: гасить нечего — того, что они открывают, и так не
-  // видно.
-  const shown = holes
-    .map((hole) => ({
-      left: Math.max(0, hole.left),
-      top: Math.max(0, hole.top),
-      right: Math.min(window.innerWidth, hole.left + hole.width),
-      bottom: Math.min(window.innerHeight, hole.top + hole.height),
-    }))
-    .filter((hole) => hole.right > hole.left && hole.bottom > hole.top)
-    .map((hole) => ({
-      left: hole.left,
-      top: hole.top,
-      width: hole.right - hole.left,
-      height: hole.bottom - hole.top,
-    }));
+  // Окошко теперь одно и всегда на виду (кольцо закрывается, стоит клетке
+  // уйти за кромку), но обрезка осталась: у самого края окна клетка видна
+  // наполовину, и просить вырезать её целиком значит просить о том же
+  // самом.
+  const shown = {
+    left: Math.max(0, hole.left),
+    top: Math.max(0, hole.top),
+    right: Math.min(window.innerWidth, hole.left + hole.width),
+    bottom: Math.min(window.innerHeight, hole.top + hole.height),
+  };
+  const open = shown.right > shown.left && shown.bottom > shown.top;
 
   const layer = "linear-gradient(#000 0 0)";
-  const image = [...shown.map(() => layer), layer].join(", ");
-  const size = [
-    ...shown.map((hole) => `${Math.ceil(hole.width)}px ${Math.ceil(hole.height)}px`),
-    "100% 100%",
-  ].join(", ");
-  const position = [
-    ...shown.map((hole) => `${Math.floor(hole.left)}px ${Math.floor(hole.top)}px`),
-    "0 0",
-  ].join(", ");
+  const image = open ? `${layer}, ${layer}` : layer;
+  const size = open
+    ? `${Math.ceil(shown.right - shown.left)}px ${Math.ceil(shown.bottom - shown.top)}px, 100% 100%`
+    : "100% 100%";
+  const position = open
+    ? `${Math.floor(shown.left)}px ${Math.floor(shown.top)}px, 0 0`
+    : "0 0";
 
   return (
     <div
@@ -803,7 +937,14 @@ function Scrim({
         event.preventDefault();
         onDismiss();
       }}
-      className="fixed inset-0 z-[110] bg-black/65"
+      // Размытие вдобавок к темноте: одной темноты мало. Под ней сетка
+      // года остаётся сеткой — те же триста шестьдесят пять квадратов, тот
+      // же ритм столбцов, — и глаз продолжает её читать. Размытая, она
+      // становится фоном: разобрать в ней нечего, и смотреть остаётся
+      // только на кольцо. Радиус небольшой: это не занавес, а отступ
+      // назад — человек должен видеть, что сетка на месте и он с неё
+      // никуда не уходил.
+      className="fixed inset-0 z-[110] bg-black/65 backdrop-blur-[3px]"
       style={{
         maskImage: image,
         WebkitMaskImage: image,
@@ -813,19 +954,119 @@ function Scrim({
         WebkitMaskPosition: position,
         maskRepeat: "no-repeat",
         WebkitMaskRepeat: "no-repeat",
-        maskComposite: [...shown.map(() => "exclude"), "add"].join(", "),
+        maskComposite: open ? "exclude, add" : "add",
         // Старое написание для Safari: `xor` — то же, что `exclude`.
-        WebkitMaskComposite: [...shown.map(() => "xor"), "source-over"].join(", "),
+        WebkitMaskComposite: open ? "xor, source-over" : "source-over",
       }}
     />
   );
 }
 
+/**
+ * Перечень видов у кольца: тот же квадрат и рядом его название.
+ *
+ * --- Почему он здесь, а не внизу страницы ---------------------------------
+ *
+ * Буквы в кольце короткие, и человек, открывший его впервые, их не знает.
+ * Легенда сетки на этот вопрос отвечает — но лежит она в стороне от дня, а
+ * на телефоне и вовсе за краем экрана. Ответ, до которого надо
+ * прокручивать, не ответ: пока его ищут, забывается вопрос.
+ *
+ * --- Почему он гаснет, пока никуда не подведён -----------------------------
+ *
+ * Перечень — подсказка, а не второе кольцо. В полную силу он спорил бы с
+ * квадратами за внимание, а нажимают всё-таки в них. Поэтому вполголоса, а
+ * при наведении строка наведённого вида разгорается, и разом гаснут
+ * остальные: в этот миг человек читает одно название, а не восемь.
+ *
+ * Наведение работает и с этой стороны: подвёл к названию — загорелся
+ * квадрат в кольце. Связь двусторонняя, потому что и читают её с двух
+ * сторон: «что это за буква» и «а где тут больничный».
+ *
+ * --- Почему нажатие по нему закрывает кольцо -------------------------------
+ *
+ * Отмечают в кольце, и своей отметки у строки перечня нет. Значит, для
+ * нажатия она — такая же погасшая страница, как всё вокруг, и отвечать
+ * должна тем же: шагом назад, к сетке.
+ */
+function RingLegend({
+  faces,
+  hovered,
+  onHover,
+  onDismiss,
+  place,
+}: {
+  faces: readonly Face[];
+  hovered: number | null;
+  onHover: (index: number | null) => void;
+  onDismiss: () => void;
+  place: LegendPlace;
+}) {
+  return (
+    // Названия видов уже объявлены самими квадратами (`aria-label`), и
+    // второй раз программе чтения они не нужны: для неё это украшение.
+    <div
+      aria-hidden
+      style={place.style}
+      className="pointer-events-none fixed z-[115] flex flex-col"
+    >
+      <div
+        data-day-ring
+        onPointerDown={(event) => {
+          event.preventDefault();
+          onDismiss();
+        }}
+        className="lit modal-lift pointer-events-auto min-h-0 overflow-y-auto rounded-xl bg-paper p-2"
+      >
+        <ul
+          className={cn(
+            "grid gap-x-2 gap-y-0.5",
+            place.columns === 2 ? "grid-cols-2" : "grid-cols-1",
+          )}
+        >
+          {faces.map((face, index) => (
+            <li
+              key={index}
+              onPointerEnter={() => onHover(index)}
+              onPointerLeave={() => onHover(null)}
+              className={cn(
+                "flex items-center gap-2 rounded-md px-1 py-1 transition-opacity duration-150",
+                hovered === null
+                  ? "opacity-80"
+                  : index === hovered
+                    ? "opacity-100"
+                    : "opacity-40",
+                index === hovered && "bg-paper-raised",
+              )}
+            >
+              <span
+                className={cn(
+                  "relative flex size-5 shrink-0 items-center justify-center",
+                  "rounded-md border font-mono text-[10px] leading-none",
+                  face.tone,
+                )}
+              >
+                {face.corner ? (
+                  <span
+                    aria-hidden
+                    className="absolute right-0 top-0 size-0 border-l-[3px] border-t-[3px] border-l-transparent border-t-trace"
+                  />
+                ) : null}
+                {face.mark}
+              </span>
+              <span className="truncate text-[11px] leading-4 text-ink">
+                {face.short ?? face.label}
+              </span>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </div>
+  );
+}
+
 /** Буква, цвет и название квадрата. */
-function faceOf(
-  slot: Slot,
-  shift: boolean,
-): { mark: ReactNode; tone: string; label: string; corner?: boolean } {
+function faceOf(slot: Slot, shift: boolean): Face {
   if (slot.kind === "absence") {
     return {
       mark: ABSENCE_MARK[slot.absence],
@@ -861,6 +1102,7 @@ function faceOf(
     mark: <Pencil aria-hidden className="size-4" />,
     tone: RING_NOTE_TONE,
     label: "Заметка к этому дню",
+    short: "Заметка",
     corner: true,
   };
 }
