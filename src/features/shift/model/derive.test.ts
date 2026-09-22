@@ -407,6 +407,26 @@ describe("отметки одним нажатием", () => {
     expect(both.absences.map((item) => item.kind)).toEqual(["annual_leave", "sick_leave"]);
   });
 
+  it("нажатие снимает и старый вид вызова, которого в разметке больше нет", () => {
+    // Профиль из прежних времён: «Соревнования» отдельным видом. Кольцо
+    // отмечает теперь один вызов на все случаи, и снять старую запись оно
+    // обязано — иначе в сутках оказалось бы два выхода и двойные часы.
+    const old = {
+      ...profile,
+      callouts: [
+        {
+          id: "c1",
+          kind: "competition" as const,
+          startsOn: "2026-03-12" as const,
+          endsOn: "2026-03-12" as const,
+          hoursPerDay: "6",
+        },
+      ],
+    };
+
+    expect(withCalloutToggled(old, "2026-03-12", "callout", "8").callouts).toEqual([]);
+  });
+
   it("вызов отмечается с часами и снимается тем же нажатием", () => {
     const marked = withCalloutToggled(profile, "2026-03-12", "callout", "8");
 

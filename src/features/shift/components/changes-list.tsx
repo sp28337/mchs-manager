@@ -148,7 +148,7 @@ export function changesOf(profile: StoredProfile): Change[] {
     rows.push({
       id: `callout:${callout.id}`,
       day: callout.startsOn as IsoDate,
-      mark: <Mark tone={CALLOUT_TONE}>{CALLOUT_MARK[callout.kind]}</Mark>,
+      mark: <Mark tone={CALLOUT_TONE}>{CALLOUT_MARK}</Mark>,
       what: CALLOUT_LABELS[callout.kind],
       when: `${period(callout.startsOn as IsoDate, callout.endsOn as IsoDate)} · ${callout.hoursPerDay} ч в сутки`,
       grid: "shifts",

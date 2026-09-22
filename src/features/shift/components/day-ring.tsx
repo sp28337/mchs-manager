@@ -1,6 +1,6 @@
 "use client";
 
-import { Pencil } from "lucide-react";
+import { Pencil, X } from "lucide-react";
 import {
   useEffect,
   useLayoutEffect,
@@ -210,11 +210,19 @@ const SHIFT_RING: readonly Slot[] = [
   { kind: "absence", absence: "annual_leave" },
   { kind: "absence", absence: "extra_leave" },
   { kind: "absence", absence: "study_leave" },
-  { kind: "absence", absence: "time_off_in_lieu" },
   { kind: "absence", absence: "sick_leave" },
   { kind: "callout", callout: "callout" },
   { kind: "shift" },
   { kind: "note" },
+  // Отгул — последним, хотя по смыслу он у отпусков и больничного.
+  // -------------------------------------------------------------------
+  // Он единственный, кого в кольце иногда нет: отгул берут ВМЕСТО смены, и
+  // на свободных по графику сутках отмечать им нечего. Стой он в середине
+  // ряда, его исчезновение сдвигало бы всё, что за ним, и один и тот же
+  // вид оказывался бы то слева от дня, то справа — в зависимости от того,
+  // рабочий он или нет. Последним же он просто пропадает, не трогая
+  // остальных: места раздаются по порядку, и лишним оказывается последнее.
+  { kind: "absence", absence: "time_off_in_lieu" },
 ];
 
 /** Четыре вида дня по закону и заметка — кольцо производственного календаря. */
@@ -229,11 +237,12 @@ const CALENDAR_RING: readonly Slot[] = [
 /**
  * Места кольца из пяти: крест вокруг дня и один угол.
  *
- * Мест вокруг клетки восемь, а видов дня четыре. Разложить четыре по
- * восьми местам подряд значило бы собрать их в одну сторону и оставить
- * полкольца пустым. Крест — сверху, слева, справа, снизу — окружает день
- * ровно и не выделяет ни один из видов местом. Заметка становится в угол:
- * она не вид дня, и стоять с ними в одном ряду ей незачем.
+ * Мест вокруг клетки восемь, а видов дня по календарю четыре. Разложить
+ * четыре по восьми местам подряд значило бы собрать их в одну сторону и
+ * оставить полкольца пустым. Крест — сверху, слева, справа, снизу —
+ * окружает день ровно и не выделяет ни один из видов местом. Заметка
+ * становится в угол: она не вид дня, и стоять с ними в одном ряду ей
+ * незачем.
  */
 const CROSS_AND_CORNER: readonly number[] = [1, 3, 4, 6, 7];
 
@@ -309,6 +318,9 @@ const LEGEND_WIDTH = 208;
 /** Уже этого перечень сбоку не встанет — названия начнут рваться. */
 const LEGEND_LEAST = 150;
 
+/** Заметке хватает меньшего: это одна строка текста, а не восемь. */
+const NOTE_LEAST = 96;
+
 /** Просвет между кольцом и перечнем — заметно больше, чем внутри кольца. */
 const LEGEND_GAP = 12;
 
@@ -316,28 +328,36 @@ const LEGEND_GAP = 12;
 const SCREEN_EDGE = 8;
 
 /**
- * Куда положить перечень видов, чтобы он не закрыл кольцо.
+ * Куда положить перечень видов и заметку, чтобы они не закрыли кольцо.
  *
- * Сбоку — если сбоку есть место: перечень читается столбцом, а столбец
+ * Перечень — сбоку, если сбоку есть место: он читается столбцом, а столбец
  * рядом с кольцом не спорит с ним ни за одну строку экрана. Какой стороной
  * — той, где места больше; у дня в январе это правая, у дня в декабре
  * левая.
  *
- * По высоте перечень держится того края, к которому ближе день: у дня
+ * Заметка встаёт с ПРОТИВОПОЛОЖНОЙ стороны. Две подписи по одну руку
+ * слиплись бы в один столбец текста, и стало бы непонятно, где кончается
+ * словарь и начинаются слова самого человека. По разные стороны кольца
+ * спутать их нельзя: слева читают, что значат буквы, справа — что было в
+ * этот день. Не хватило места напротив — заметки в кольце просто нет: на
+ * сетке о ней говорит уголок клетки, как и говорил.
+ *
+ * По высоте обе подписи держатся того края, к которому ближе день: у дня
  * вверху экрана — верха, внизу — низа, посередине — середины. Это вместо
- * подсчёта его собственной высоты: высоту пришлось бы мерить после
- * отрисовки, то есть рисовать дважды, и на второй раз перечень прыгал бы
+ * подсчёта их собственной высоты: высоту пришлось бы мерить после
+ * отрисовки, то есть рисовать дважды, и на второй раз подпись прыгала бы
  * на глазах.
  *
  * Не встал сбоку (телефон, где кольцо занимает половину ширины) — значит
  * под кольцом или над ним, во всю ширину и в два столбца: восемь строк
- * столбиком под кольцом на телефоне не помещаются.
+ * столбиком под кольцом на телефоне не помещаются. Заметка тогда уходит на
+ * другую сторону по вертикали — над кольцом, если перечень под ним.
  */
-function placeLegend(
+function placeAside(
   spot: Spot,
   step: number,
   around: readonly { col: number; row: number }[],
-): LegendPlace {
+): { legend: LegendPlace; note: LegendPlace | null } {
   const half = spot.size / 2;
   const cols = around.map((place) => place.col);
   const rows = around.map((place) => place.row);
@@ -346,43 +366,56 @@ function placeLegend(
   const top = spot.y - half + Math.min(...rows) * step;
   const bottom = spot.y + half + Math.max(...rows) * step;
 
+  const third = window.innerHeight / 3;
+  const align =
+    spot.y < third
+      ? "flex-start"
+      : spot.y > window.innerHeight - third
+        ? "flex-end"
+        : "center";
+
   const roomLeft = left - LEGEND_GAP - SCREEN_EDGE;
   const roomRight = window.innerWidth - right - LEGEND_GAP - SCREEN_EDGE;
 
   if (Math.max(roomLeft, roomRight) >= LEGEND_LEAST) {
     const onRight = roomRight >= roomLeft;
-    const width = Math.min(LEGEND_WIDTH, onRight ? roomRight : roomLeft);
-    const third = window.innerHeight / 3;
+    const room = onRight ? roomRight : roomLeft;
+    const other = onRight ? roomLeft : roomRight;
+    const width = Math.min(LEGEND_WIDTH, room);
+    const noteWidth = Math.min(LEGEND_WIDTH, other);
+    const column = (side: "left" | "right", size: number): CSSProperties => ({
+      left: side === "right" ? right + LEGEND_GAP : left - LEGEND_GAP - size,
+      top: SCREEN_EDGE,
+      height: window.innerHeight - SCREEN_EDGE * 2,
+      width: size,
+      justifyContent: align,
+    });
     return {
-      columns: 1,
-      style: {
-        left: onRight ? right + LEGEND_GAP : left - LEGEND_GAP - width,
-        top: SCREEN_EDGE,
-        height: window.innerHeight - SCREEN_EDGE * 2,
-        width,
-        justifyContent:
-          spot.y < third
-            ? "flex-start"
-            : spot.y > window.innerHeight - third
-              ? "flex-end"
-              : "center",
-      },
+      legend: { columns: 1, style: column(onRight ? "right" : "left", width) },
+      note:
+        other >= NOTE_LEAST
+          ? { columns: 1, style: column(onRight ? "left" : "right", noteWidth) }
+          : null,
     };
   }
 
   const under = window.innerHeight - bottom - LEGEND_GAP - SCREEN_EDGE;
   const over = top - LEGEND_GAP - SCREEN_EDGE;
   const below = under >= over;
+  const band = (side: "below" | "above"): CSSProperties => ({
+    left: SCREEN_EDGE,
+    width: window.innerWidth - SCREEN_EDGE * 2,
+    ...(side === "below"
+      ? { top: bottom + LEGEND_GAP, maxHeight: under }
+      : { bottom: window.innerHeight - top + LEGEND_GAP, maxHeight: over }),
+    justifyContent: side === "below" ? "flex-start" : "flex-end",
+  });
   return {
-    columns: 2,
-    style: {
-      left: SCREEN_EDGE,
-      width: window.innerWidth - SCREEN_EDGE * 2,
-      ...(below
-        ? { top: bottom + LEGEND_GAP, maxHeight: under }
-        : { bottom: window.innerHeight - top + LEGEND_GAP, maxHeight: over }),
-      justifyContent: below ? "flex-start" : "flex-end",
-    },
+    legend: { columns: 2, style: band(below ? "below" : "above") },
+    note:
+      (below ? over : under) >= NOTE_LEAST
+        ? { columns: 1, style: band(below ? "above" : "below") }
+        : null,
   };
 }
 
@@ -392,7 +425,6 @@ export function DayRing({
   profile,
   onChange,
   onClose,
-  onOpenEditor,
 }: {
   /** Сутки, вокруг которых стоит кольцо. `null` — кольца нет. */
   day: IsoDate | null;
@@ -400,8 +432,6 @@ export function DayRing({
   profile: StoredProfile;
   onChange: (change: (previous: StoredProfile) => StoredProfile) => void;
   onClose: () => void;
-  /** Нажали по самому дню: за кольцом открывается полное окно суток. */
-  onOpenEditor: () => void;
 }) {
   // Кольцо живёт только по нажатию, то есть заведомо в браузере: при сборке
   // страницы `day` пуст, и до портала дело не доходит. Проверка на документ
@@ -421,7 +451,6 @@ export function DayRing({
       profile={profile}
       onChange={onChange}
       onClose={onClose}
-      onOpenEditor={onOpenEditor}
     />,
     document.body,
   );
@@ -448,14 +477,12 @@ function Ring({
   profile,
   onChange,
   onClose,
-  onOpenEditor,
 }: {
   day: IsoDate;
   kind: DayRingKind;
   profile: StoredProfile;
   onChange: (change: (previous: StoredProfile) => StoredProfile) => void;
   onClose: () => void;
-  onOpenEditor: () => void;
 }) {
   const [spot, setSpot] = useState<Spot | null>(null);
   /**
@@ -491,16 +518,49 @@ function Ring({
    *
    * Середина кольца — середина клетки, и другой она не бывает: у края окна
    * сдвигается не кольцо, а места в нём (`placesAround`).
+   *
+   * --- Первый замер — особый --------------------------------------------
+   *
+   * Почти всегда кольцо открывают нажатием по клетке, то есть по тому, что
+   * человек видит. Но есть и второй путь: строка в перечне внесённых
+   * изменений («12 марта, больничный»), и оттуда сутки могут оказаться в
+   * любом конце года — за нижним краем страницы, а то и в ещё не
+   * отрисованной сетке, которая в этот миг только проявляется.
+   *
+   * Поэтому в первый раз кольцо не закрывается, а ждёт клетку кадр за
+   * кадром и, дождавшись, подводит её к середине экрана. Закрываться из-за
+   * того, что день оказался не в поле зрения, оно начинает потом — когда
+   * человек сам уводит страницу прокруткой.
    */
   useLayoutEffect(() => {
+    // Сколько кадров ждать клетку: сетка года собирается за несколько,
+    // а проявление раздела занимает около двух десятых секунды.
+    let waiting = 60;
+    let frame = 0;
+    let settled = false;
+
     function place() {
       const cell = document.querySelector<HTMLElement>(`[data-day="${day}"]`);
-      if (cell === null) return;
+      if (cell === null) {
+        // Сетки ещё нет. Ждём её, пока есть терпение: без клетки кольцу
+        // негде стоять, и рисовать оно ничего не станет.
+        if (!settled && waiting-- > 0) frame = requestAnimationFrame(place);
+        return;
+      }
       const box = cell.getBoundingClientRect();
-      if (box.bottom < 0 || box.top > window.innerHeight) {
+      const away = box.bottom < 0 || box.top > window.innerHeight;
+      if (away && settled) {
         onClose();
         return;
       }
+      if (away) {
+        // Первый замер: день не виден — значит, пришли не с сетки.
+        // Подводим его к глазам и меряем на следующем кадре.
+        cell.scrollIntoView({ block: "center" });
+        if (waiting-- > 0) frame = requestAnimationFrame(place);
+        return;
+      }
+      settled = true;
       setSpot({
         x: box.left + box.width / 2,
         y: box.top + box.height / 2,
@@ -515,6 +575,7 @@ function Ring({
     // погружении.
     window.addEventListener("scroll", place, true);
     return () => {
+      cancelAnimationFrame(frame);
       window.removeEventListener("resize", place);
       window.removeEventListener("scroll", place, true);
     };
@@ -559,9 +620,14 @@ function Ring({
     profile.absences.some(
       (item) => item.kind === absence && item.startsOn <= day && day <= item.endsOn,
     );
-  const hasCallout = (callout: CalloutKind) =>
+  // Вид здесь не спрашивается нарочно: выход сверх графика в кольце один, а
+  // пять старых видов (соревнования, сбор, резерв, праздник, выборы)
+  // встречаются только в прежних профилях. Квадрат «Вызов» обязан видеть и
+  // их — иначе на таком дне он предложил бы поставить второй выход поверх
+  // первого (см. `withCalloutToggled`).
+  const hasCallout = () =>
     profile.callouts.some(
-      (item) => item.kind === callout && item.startsOn <= day && day <= item.endsOn,
+      (item) => item.startsOn <= day && day <= item.endsOn,
     );
 
   /**
@@ -577,8 +643,11 @@ function Ring({
       const on = hasAbsence(slot.absence);
       onChange((previous) => withAbsenceToggled(previous, day, slot.absence));
       // Снятое не спрашивает ни о чём: срок у того, чего в сутках больше
-      // нет, назначать не по чему.
-      if (on) {
+      // нет, назначать не по чему. И отгул не спрашивает никогда: он не
+      // длится — его берут за одну конкретную смену, и «отгул по такое-то
+      // число» означало бы череду отгулов, каждый за свою смену. Их и
+      // отмечают по одному, в тех сутках, где смена была.
+      if (on || slot.absence === "time_off_in_lieu") {
         onClose();
         return;
       }
@@ -586,7 +655,7 @@ function Ring({
       return;
     }
     if (slot.kind === "callout") {
-      const on = hasCallout(slot.callout);
+      const on = hasCallout();
       onChange((previous) =>
         withCalloutToggled(previous, day, slot.callout, DEFAULT_CALLOUT_HOURS),
       );
@@ -644,12 +713,23 @@ function Ring({
   }
 
   const step = spot.size + RING_GAP;
-  const ring = kind === "calendar" ? CALENDAR_RING : SHIFT_RING;
+  // Отгул берут вместо смены: на свободных по графику сутках его в кольце
+  // нет. Стоит он последним — и убыль никого не двигает с места.
+  const ring = (
+    kind === "calendar"
+      ? CALENDAR_RING
+      : shift
+        ? SHIFT_RING
+        : SHIFT_RING.filter(
+            (slot) =>
+              !(slot.kind === "absence" && slot.absence === "time_off_in_lieu"),
+          )
+  ) as readonly Slot[];
   const around = placesAround(spot, step);
   const places =
-    ring.length === around.length
-      ? around
-      : CROSS_AND_CORNER.map((index) => around[index]!);
+    ring.length === CROSS_AND_CORNER.length
+      ? CROSS_AND_CORNER.map((index) => around[index]!)
+      : around;
 
   // Пока спрашивают срок или пишут заметку, кольца с затемнением нет: их
   // место занял разговор, который начался нажатием в кольце.
@@ -662,7 +742,10 @@ function Ring({
     height: spot.size,
   };
   const faces = ring.map((slot) => faceOf(slot, shift));
-  const legendPlace = placeLegend(spot, step, around);
+  const aside = placeAside(spot, step, around);
+  // Записанная заметка, а не та, что человек сейчас набирает: черновик
+  // живёт в окне заметки, и кольца в этот миг всё равно нет.
+  const storedNote = profile.dayNotes[day] ?? "";
 
   return (
     <div
@@ -683,16 +766,25 @@ function Ring({
             }}
             onDismiss={onClose}
           />
-          {/* Окошко в затемнении — сам день, и он по-прежнему нажимается:
-              затемнение лежит поверх сетки и до клетки нажатию не дойти.
-              Поэтому прозрачная накладка ровно по клетке: за ней полное
-              окно суток — со всеми видами, временем и часами. */}
+          {/* Окошко в затемнении — сам день, и нажатие по нему закрывает
+              кольцо.
+              -----------------------------------------------------------------
+              Раньше за ним стояло полное окно суток: список из двенадцати
+              видов, время смены, часы. Кольцо забрало у него всё, ради чего
+              его открывали, и окно ушло — остался жест: нажал по дню,
+              раскрылось кольцо; нажал по нему же ещё раз — закрылось.
+              Погашенная страница закрывает кольцо отовсюду, и день, единственное
+              незатемнённое место на ней, не должен быть исключением.
+
+              Накладка нужна потому, что затемнение лежит поверх сетки:
+              вырезанное маской окошко видно насквозь, но нажатию через него
+              не пройти. */}
           <button
             type="button"
             data-day-ring
-            onClick={onOpenEditor}
-            title="Открыть день целиком"
-            aria-label={`Открыть ${formatDayMonthRu(day)} целиком`}
+            onClick={onClose}
+            title="Закрыть"
+            aria-label={`Закрыть выбор для ${formatDayMonthRu(day)}`}
             style={cellBox}
             className={cn(
               "fixed z-[115] cursor-pointer rounded-md bg-transparent",
@@ -706,12 +798,36 @@ function Ring({
               slot.kind === "absence"
                 ? hasAbsence(slot.absence)
                 : slot.kind === "callout"
-                  ? hasCallout(slot.callout)
+                  ? hasCallout()
                   : slot.kind === "dayType"
                     ? effective === slot.type
                     : slot.kind === "note"
                       ? (profile.dayNotes[day] ?? "") !== ""
                       : false;
+            /**
+             * То, что в сутках УЖЕ стоит: нажатие его уберёт.
+             *
+             * Квадрат в кольце отвечает на вопрос «что сделать», и у
+             * отмеченного вида ответ обратный — снять. Так он и называется
+             * («Убрать: Больничный»), и так его объявляет программа чтения,
+             * не дожидаясь курсора: у неё курсора нет.
+             *
+             * Только у отсутствий и вызова: у видов дня по календарю
+             * снятия нет (день всегда какой-то), у смены нет отметки
+             * вовсе, а заметку нажатие открывает править, а не стирает.
+             */
+            const marked =
+              on && (slot.kind === "absence" || slot.kind === "callout");
+            /**
+             * Под курсором буква уступает место крестику.
+             *
+             * Буква называет вид, а не действие, и на отмеченном дне она
+             * обещает не то, что случится. Крестик — тот же знак, каким
+             * приложение убирает правки в перечне изменений, — говорит об
+             * этом прямо, и только в тот миг, когда до нажатия остаётся
+             * одно движение. Клавиатуре его показывает фокус.
+             */
+            const erasing = marked && hovered === index;
             return (
               <button
                 key={index}
@@ -728,8 +844,8 @@ function Ring({
                 // У смены состояния нет: она не отметка, а сам график, и
                 // квадрат называет то, чего в сутках ещё НЕТ.
                 aria-pressed={slot.kind === "shift" ? undefined : on}
-                aria-label={face.label}
-                title={face.label}
+                aria-label={marked ? `Убрать: ${face.label}` : face.label}
+                title={marked ? `Убрать: ${face.label}` : face.label}
                 style={{
                   ...cellBox,
                   // Куда лететь и когда трогаться — считает разметка, а
@@ -764,7 +880,7 @@ function Ring({
                     className="absolute right-0 top-0 size-0 border-l-4 border-t-4 border-l-transparent border-t-trace"
                   />
                 ) : null}
-                {face.mark}
+                {erasing ? <X aria-hidden className="size-4" /> : face.mark}
               </button>
             );
           })}
@@ -775,8 +891,18 @@ function Ring({
             hovered={hovered}
             onHover={setHovered}
             onDismiss={onClose}
-            place={legendPlace}
+            place={aside.legend}
+            // Напротив кольца места не нашлось — заметка едет сюда, вниз
+            // того же столбца.
+            note={aside.note === null ? storedNote : undefined}
           />
+          {/* Заметка этих суток — с другой стороны кольца, тем же
+              негромким текстом. На сетке от неё виден только уголок в углу
+              клетки, и прочесть её можно было, лишь открыв. Раз день
+              открыт — она уже ответ на вопрос «а что тут было». */}
+          {storedNote !== "" && aside.note !== null ? (
+            <RingNote text={storedNote} onDismiss={onClose} place={aside.note} />
+          ) : null}
         </>
       ) : null}
 
@@ -979,6 +1105,17 @@ function Scrim({ hole, onDismiss }: { hole: Box; onDismiss: () => void }) {
  * при наведении строка наведённого вида разгорается, и разом гаснут
  * остальные: в этот миг человек читает одно название, а не восемь.
  *
+ * --- Почему у него нет ни плашки, ни рамки ---------------------------------
+ *
+ * Плашка была: бумага со светом по кромке, как у окна. И читалась она
+ * ровно как окно — второй предмет на экране, у которого своя граница,
+ * своя глубина и, значит, своя важность. Но перечень ничего не делает,
+ * он подписывает; у подписи границ не бывает. Осталcя один текст на
+ * погасшей странице — и на ней он виден без всякой бумаги.
+ *
+ * Строка под курсором тоже не заливается: она просто разгорается. Заливка
+ * здесь означала бы, что в неё можно нажать, — а нажимают в кольцо.
+ *
  * Наведение работает и с этой стороны: подвёл к названию — загорелся
  * квадрат в кольце. Связь двусторонняя, потому что и читают её с двух
  * сторон: «что это за буква» и «а где тут больничный».
@@ -995,12 +1132,24 @@ function RingLegend({
   onHover,
   onDismiss,
   place,
+  note,
 }: {
   faces: readonly Face[];
   hovered: number | null;
   onHover: (index: number | null) => void;
   onDismiss: () => void;
   place: LegendPlace;
+  /**
+   * Заметка, которой не нашлось места напротив кольца.
+   *
+   * На телефоне кольцо занимает половину ширины экрана, и вторая сторона
+   * — та, где заметке полагается стоять, — уже подписи. Прятать её из-за
+   * этого нельзя: она и есть ответ на вопрос, ради которого день открыли.
+   * Тогда она встаёт под перечнем, отделённая просветом: столбец один, но
+   * читаются они по-прежнему как разные вещи — сверху словарь, снизу
+   * слова самого человека.
+   */
+  note?: string;
 }) {
   return (
     // Названия видов уже объявлены самими квадратами (`aria-label`), и
@@ -1016,7 +1165,7 @@ function RingLegend({
           event.preventDefault();
           onDismiss();
         }}
-        className="lit modal-lift pointer-events-auto min-h-0 overflow-y-auto rounded-xl bg-paper p-2"
+        className="pointer-events-auto min-h-0 overflow-y-auto"
       >
         <ul
           className={cn(
@@ -1030,13 +1179,15 @@ function RingLegend({
               onPointerEnter={() => onHover(index)}
               onPointerLeave={() => onHover(null)}
               className={cn(
-                "flex items-center gap-2 rounded-md px-1 py-1 transition-opacity duration-150",
+                "flex items-center gap-2 py-1 transition-opacity duration-150",
+                // Вполголоса, пока не спросили; в полный голос — строка,
+                // на чей квадрат сейчас смотрят; остальные в этот миг
+                // отступают ещё на шаг.
                 hovered === null
-                  ? "opacity-80"
+                  ? "opacity-60"
                   : index === hovered
                     ? "opacity-100"
-                    : "opacity-40",
-                index === hovered && "bg-paper-raised",
+                    : "opacity-35",
               )}
             >
               <span
@@ -1060,6 +1211,57 @@ function RingLegend({
             </li>
           ))}
         </ul>
+        {note ? (
+          <div className="mt-3 flex gap-2 opacity-70">
+            <Pencil aria-hidden className="mt-0.5 size-3.5 shrink-0 text-ink-faint" />
+            <p className="text-[11px] leading-4 text-ink">{note}</p>
+          </div>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Заметка этих суток — с другой стороны кольца.
+ *
+ * На сетке от заметки виден только уголок в углу клетки: цвет там занят
+ * видом суток, и места под текст в клетке размером с палец нет. Прочесть
+ * её можно было, лишь открыв день, то есть уйдя с сетки.
+ *
+ * Но раз день уже открыт кольцом, она — готовый ответ на вопрос «а что тут
+ * было»: человек нажал по дню как раз потому, что не помнит. Поэтому она
+ * стоит рядом, тем же негромким текстом, что и перечень видов, только
+ * напротив него — и карандаш перед ней говорит, чья это строка.
+ *
+ * Нажатие по ней закрывает кольцо, как и по любому погасшему месту:
+ * править заметку — дело квадрата с карандашом, а не самой подписи.
+ */
+function RingNote({
+  text,
+  onDismiss,
+  place,
+}: {
+  text: string;
+  onDismiss: () => void;
+  place: LegendPlace;
+}) {
+  return (
+    <div
+      aria-hidden
+      style={place.style}
+      className="pointer-events-none fixed z-[115] flex flex-col"
+    >
+      <div
+        data-day-ring
+        onPointerDown={(event) => {
+          event.preventDefault();
+          onDismiss();
+        }}
+        className="pointer-events-auto flex min-h-0 gap-2 overflow-y-auto py-1 opacity-70"
+      >
+        <Pencil aria-hidden className="mt-0.5 size-3.5 shrink-0 text-ink-faint" />
+        <p className="text-[11px] leading-4 text-ink">{text}</p>
       </div>
     </div>
   );
@@ -1076,7 +1278,7 @@ function faceOf(slot: Slot, shift: boolean): Face {
   }
   if (slot.kind === "callout") {
     return {
-      mark: CALLOUT_MARK[slot.callout],
+      mark: CALLOUT_MARK,
       tone: CALLOUT_TONE,
       label: CALLOUT_LABELS[slot.callout],
     };
