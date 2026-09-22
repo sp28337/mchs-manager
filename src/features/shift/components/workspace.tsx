@@ -543,9 +543,23 @@ export function Workspace({
               onStatutory={setStatutory}
               month={month}
               onMonth={setMonth}
-              onPickDay={(day) =>
-                yearView === "calendar" ? setPickedDay(day) : setRingDay(day)
-              }
+              // Нажатие по дню на графике раскрывает кольцо видов вокруг
+              // клетки, а повторное нажатие по тому же дню — полное окно:
+              // одно и то же место, два шага вглубь. На производственном
+              // календаре кольца нет (вопрос там другой), и окно
+              // открывается сразу.
+              onPickDay={(day) => {
+                if (yearView === "calendar") {
+                  setPickedDay(day);
+                  return;
+                }
+                if (ringDay === day) {
+                  setRingDay(null);
+                  setPickedDay(day);
+                  return;
+                }
+                setRingDay(day);
+              }}
               // Перенос смены — одно событие, и в профиль он попадает одной
               // правкой: снять здесь, назначить там (`withShiftMoved`).
               onMoveShift={(from, to) =>
@@ -570,11 +584,6 @@ export function Workspace({
         day={ringDay}
         profile={profile}
         onChange={onChange}
-        onOpenEditor={() => {
-          const day = ringDay;
-          setRingDay(null);
-          setPickedDay(day);
-        }}
         onClose={() => setRingDay(null)}
       />
 
