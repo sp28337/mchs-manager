@@ -19,6 +19,7 @@ import { openEntry, readEntryProfile, type LibraryEntry } from "../storage/libra
 import type { StoredProfile } from "../storage/profile";
 import { ChangesList } from "./changes-list";
 import { DayEditor } from "./day-editor";
+import { DayRing } from "./day-ring";
 import { GridDeck, WORKSPACE_PAD } from "./grid-deck";
 import { HeaderTools } from "./header-tools";
 import { useConfirmSwitch } from "./open-profile";
@@ -353,6 +354,19 @@ export function Workspace({
   // спорит, и переносить их дату в отдельную форму глазами — лишний шаг,
   // в котором и ошибаются.
   const [pickedDay, setPickedDay] = useState<IsoDate | null>(null);
+  /**
+   * Сутки, вокруг которых стоит кольцо видов (`day-ring.tsx`).
+   *
+   * Отдельно от `pickedDay`, потому что это две разные глубины одного
+   * действия: нажатие по клетке раскрывает кольцо ПРЯМО НА СЕТКЕ, а
+   * нажатие по самому дню в середине кольца открывает полное окно. Одним
+   * состоянием их не описать — в миг перехода открыты оба.
+   *
+   * Кольцо — только на графике смен: на производственном календаре вопрос
+   * другой (какой это день по закону), видов там четыре, и спрашивает о
+   * них то же окно, что и раньше.
+   */
+  const [ringDay, setRingDay] = useState<IsoDate | null>(null);
 
   return (
     <>
@@ -529,7 +543,9 @@ export function Workspace({
               onStatutory={setStatutory}
               month={month}
               onMonth={setMonth}
-              onPickDay={setPickedDay}
+              onPickDay={(day) =>
+                yearView === "calendar" ? setPickedDay(day) : setRingDay(day)
+              }
               // Перенос смены — одно событие, и в профиль он попадает одной
               // правкой: снять здесь, назначить там (`withShiftMoved`).
               onMoveShift={(from, to) =>
@@ -547,6 +563,21 @@ export function Workspace({
           нажали: на производственном календаре — вид дня, на графике смен
           — отпуск, больничный или вызов. Состояние это уже есть здесь
           (`yearView`), и второго источника правды заводить не нужно. */}
+      {/* Кольцо видов вокруг клетки — первый и самый частый ответ на
+          нажатие по дню. Полное окно за ним: нажатие по самому дню в
+          середине кольца. */}
+      <DayRing
+        day={ringDay}
+        profile={profile}
+        onChange={onChange}
+        onOpenEditor={() => {
+          const day = ringDay;
+          setRingDay(null);
+          setPickedDay(day);
+        }}
+        onClose={() => setRingDay(null)}
+      />
+
       <DayEditor
         day={pickedDay}
         kind={yearView === "calendar" ? "calendar" : "shifts"}

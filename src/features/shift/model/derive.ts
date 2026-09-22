@@ -27,7 +27,9 @@ import {
   onShiftCycle,
   weeklyNormGroundOf,
   weeklyNormGroundToFacts,
+  type AbsenceKind,
   type AccountingPeriodKind,
+  type CalloutKind,
   type WeeklyNorm,
   type WeeklyNormGround,
   type WeeklyNormInput,
@@ -488,4 +490,86 @@ export function withShiftMoved(
   const carried = profile.shiftTimes[from] ?? null;
   const moved = withShiftAt(withShiftAt(profile, from, false), to, true);
   return carried === null ? moved : withShiftTimeAt(moved, to, carried);
+}
+
+/**
+ * Отметить или снять вид суток одним нажатием.
+ *
+ * --- Зачем отдельно от окна дня --------------------------------------------
+ *
+ * В окне дня (`day-editor.tsx`) у каждого вида спрашивают ещё и время: до
+ * какого числа отпуск, сколько часов вызов. Кольцо вокруг клетки
+ * (`day-ring.tsx`) не спрашивает ничего — оно отвечает на «что было в этот
+ * день» одним движением, и день у него ровно один.
+ *
+ * Поэтому здесь самый простой случай: включить на эти сутки и выключить.
+ * Правит он ту же запись, которую показывает и окно, — ту, что накрывает
+ * эти сутки; снятие уносит её целиком. Отпуск с первого по четырнадцатое,
+ * снятый шестого, исчезает весь: человек сказал, что отпуска в этот день не
+ * было, а резать чужой период надвое за него приложение не вправе — для
+ * этого есть окно с датой окончания.
+ */
+export function withAbsenceToggled(
+  profile: StoredProfile,
+  day: IsoDate,
+  kind: AbsenceKind,
+): StoredProfile {
+  const covering = profile.absences.find(
+    (item) => item.kind === kind && item.startsOn <= day && day <= item.endsOn,
+  );
+  if (covering !== undefined) {
+    return {
+      ...profile,
+      absences: profile.absences.filter((item) => item.id !== covering.id),
+    };
+  }
+  return {
+    ...profile,
+    absences: [
+      ...profile.absences,
+      { id: crypto.randomUUID(), kind, startsOn: day, endsOn: day },
+    ],
+  };
+}
+
+/** То же для работы помимо графика. Часы — обычная смена, правятся в окне. */
+export function withCalloutToggled(
+  profile: StoredProfile,
+  day: IsoDate,
+  kind: CalloutKind,
+  hoursPerDay: string,
+): StoredProfile {
+  const covering = profile.callouts.find(
+    (item) => item.kind === kind && item.startsOn <= day && day <= item.endsOn,
+  );
+  if (covering !== undefined) {
+    return {
+      ...profile,
+      callouts: profile.callouts.filter((item) => item.id !== covering.id),
+    };
+  }
+  return {
+    ...profile,
+    callouts: [
+      ...profile.callouts,
+      { id: crypto.randomUUID(), kind, startsOn: day, endsOn: day, hoursPerDay },
+    ],
+  };
+}
+
+/**
+ * Заметка к суткам.
+ *
+ * Пустая не хранится: иначе профиль обрастал бы пустыми строками на каждом
+ * дне, который человек когда-либо открывал.
+ */
+export function withNoteAt(
+  profile: StoredProfile,
+  day: IsoDate,
+  text: string,
+): StoredProfile {
+  const dayNotes = { ...profile.dayNotes };
+  if (text.trim() === "") delete dayNotes[day];
+  else dayNotes[day] = text.trim();
+  return { ...profile, dayNotes };
 }

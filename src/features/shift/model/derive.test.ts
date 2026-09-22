@@ -8,6 +8,9 @@ import {
   scheduleSpanAt,
   shiftOn,
   shiftSpanAt,
+  withAbsenceToggled,
+  withCalloutToggled,
+  withNoteAt,
   withShiftAt,
   withShiftMoved,
   withShiftTimeAt,
@@ -344,5 +347,81 @@ describe("начало отсчёта", () => {
 
     expect(calculation.normHours.toString()).toBe("0");
     expect(calculation.scheduledShifts).toBe(0);
+  });
+});
+
+/**
+ * Отметки одним нажатием — то, чем правит кольцо вокруг клетки
+ * (`day-ring.tsx`).
+ *
+ * Проверяется ровно то, что у нажатия два исхода и третьего нет: не было —
+ * появилось на эти сутки; было — исчезло целиком. «Целиком» здесь и есть
+ * правило: отпуск, снятый посреди срока, уходит весь, а не режется надвое.
+ */
+describe("отметки одним нажатием", () => {
+  const profile = createProfile({
+    displayName: "Тест",
+    workingConditions: "normal",
+    disabilityGroupIorII: false,
+    firstShiftDate: "2026-01-01",
+    accountingYear: 2026,
+    shiftStartTime: "08:00",
+    schedulePattern: "1|3",
+    shiftDurationHours: "24",
+    customWorkDays: 1,
+    customRestDays: 3,
+  });
+
+  it("отмеченное отсутствие занимает ровно эти сутки", () => {
+    const marked = withAbsenceToggled(profile, "2026-03-12", "sick_leave");
+
+    expect(marked.absences).toHaveLength(1);
+    expect(marked.absences[0]).toMatchObject({
+      kind: "sick_leave",
+      startsOn: "2026-03-12",
+      endsOn: "2026-03-12",
+    });
+  });
+
+  it("повторное нажатие снимает запись целиком, даже если она длиннее суток", () => {
+    const long = {
+      ...profile,
+      absences: [
+        {
+          id: "a1",
+          kind: "annual_leave" as const,
+          startsOn: "2026-03-09" as const,
+          endsOn: "2026-03-15" as const,
+        },
+      ],
+    };
+
+    expect(withAbsenceToggled(long, "2026-03-12", "annual_leave").absences).toEqual([]);
+  });
+
+  it("чужой вид не мешает: рядом с отпуском встаёт больничный", () => {
+    const withLeave = withAbsenceToggled(profile, "2026-03-12", "annual_leave");
+    const both = withAbsenceToggled(withLeave, "2026-03-12", "sick_leave");
+
+    expect(both.absences.map((item) => item.kind)).toEqual(["annual_leave", "sick_leave"]);
+  });
+
+  it("вызов отмечается с часами и снимается тем же нажатием", () => {
+    const marked = withCalloutToggled(profile, "2026-03-12", "callout", "8");
+
+    expect(marked.callouts[0]).toMatchObject({
+      kind: "callout",
+      startsOn: "2026-03-12",
+      endsOn: "2026-03-12",
+      hoursPerDay: "8",
+    });
+    expect(withCalloutToggled(marked, "2026-03-12", "callout", "8").callouts).toEqual([]);
+  });
+
+  it("пустая заметка не хранится, а записанная обрезается по краям", () => {
+    const noted = withNoteAt(profile, "2026-03-12", "  обещали отгул  ");
+    expect(noted.dayNotes).toEqual({ "2026-03-12": "обещали отгул" });
+
+    expect(withNoteAt(noted, "2026-03-12", "   ").dayNotes).toEqual({});
   });
 });
