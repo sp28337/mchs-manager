@@ -573,3 +573,47 @@ export function withNoteAt(
   else dayNotes[day] = text.trim();
   return { ...profile, dayNotes };
 }
+
+/**
+ * Докуда длится отметка: срок у записи, накрывающей эти сутки.
+ *
+ * Отметка в кольце (`day-ring.tsx`) ложится на один день, а спрошенный
+ * следом срок её продлевает — ту же самую запись, а не вторую рядом.
+ * Открыв середину отпуска с первого по четырнадцатое и назвав двадцатое,
+ * человек меняет ЭТОТ отпуск: у него остаются и опознаватель, и дата
+ * начала, которая может быть раньше открытых суток. Вторая запись удвоила
+ * бы отпуск.
+ */
+export function withAbsenceUntil(
+  profile: StoredProfile,
+  day: IsoDate,
+  kind: AbsenceKind,
+  endsOn: IsoDate,
+): StoredProfile {
+  return {
+    ...profile,
+    absences: profile.absences.map((item) =>
+      item.kind === kind && item.startsOn <= day && day <= item.endsOn
+        ? { ...item, endsOn }
+        : item,
+    ),
+  };
+}
+
+/** То же для работы помимо графика — вместе с часами в сутки. */
+export function withCalloutUntil(
+  profile: StoredProfile,
+  day: IsoDate,
+  kind: CalloutKind,
+  endsOn: IsoDate,
+  hoursPerDay: string,
+): StoredProfile {
+  return {
+    ...profile,
+    callouts: profile.callouts.map((item) =>
+      item.kind === kind && item.startsOn <= day && day <= item.endsOn
+        ? { ...item, endsOn, hoursPerDay }
+        : item,
+    ),
+  };
+}
