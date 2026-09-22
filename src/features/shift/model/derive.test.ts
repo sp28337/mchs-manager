@@ -10,6 +10,8 @@ import {
   shiftSpanAt,
   withAbsenceToggled,
   withCalloutToggled,
+  withAbsenceEnd,
+  withCalloutEnd,
   withDayTypeAt,
   withNoteAt,
   withShiftAt,
@@ -454,6 +456,56 @@ describe("отметки одним нажатием", () => {
     // Тот же день назад в рабочие — и правки не остаётся вовсе: хранить
     // «как и было по закону» значит копить в профиле пустые записи.
     expect(withDayTypeAt(holiday, "2026-03-12", "working").calendarOverrides).toEqual({});
+  });
+
+  it("срок правится по номеру записи, а не по дню", () => {
+    // Два отпуска с одной датой начала приложение не запрещает: перечень
+    // изменений правит тот, на строку которого нажали, и поиск по дню
+    // поправил бы не тот.
+    const two = {
+      ...profile,
+      absences: [
+        {
+          id: "a1",
+          kind: "annual_leave" as const,
+          startsOn: "2026-03-09" as const,
+          endsOn: "2026-03-10" as const,
+        },
+        {
+          id: "a2",
+          kind: "annual_leave" as const,
+          startsOn: "2026-03-09" as const,
+          endsOn: "2026-03-12" as const,
+        },
+      ],
+    };
+
+    const moved = withAbsenceEnd(two, "a2", "2026-03-20");
+    expect(moved.absences.map((item) => item.endsOn)).toEqual([
+      "2026-03-10",
+      "2026-03-20",
+    ]);
+  });
+
+  it("срок раньше начала не принимается: остаются одни сутки", () => {
+    const one = {
+      ...profile,
+      callouts: [
+        {
+          id: "c1",
+          kind: "callout" as const,
+          startsOn: "2026-03-09" as const,
+          endsOn: "2026-03-12" as const,
+          hoursPerDay: "8",
+        },
+      ],
+    };
+
+    expect(withCalloutEnd(one, "c1", "2026-03-01", "6").callouts[0]).toMatchObject({
+      startsOn: "2026-03-09",
+      endsOn: "2026-03-09",
+      hoursPerDay: "6",
+    });
   });
 
   it("правка вида дня не трогает соседние дни", () => {

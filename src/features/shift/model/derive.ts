@@ -631,6 +631,58 @@ export function withCalloutUntil(
 }
 
 /**
+ * Подвинуть границу уже записанного события — по его номеру.
+ *
+ * --- Зачем номер, если есть день -------------------------------------------
+ *
+ * `withAbsenceUntil` ищет запись по суткам и виду: так её находит кольцо,
+ * которому известен день под курсором и больше ничего. Перечень внесённых
+ * изменений (`changes-list.tsx`) знает другое — саму запись, — и искать её
+ * заново по дню было бы не просто лишним, а неверным: двух отпусков подряд
+ * с одной датой начала приложение не запрещает, и поиск по дню поправил бы
+ * не тот.
+ *
+ * Дата раньше начала не принимается: событие, кончающееся прежде, чем
+ * началось, — это не срок, а опечатка. Вместо неё остаётся начало, то есть
+ * «одни сутки»; так же поступает и поле даты, которому назначен `min`.
+ */
+export function withAbsenceEnd(
+  profile: StoredProfile,
+  id: string,
+  endsOn: IsoDate,
+): StoredProfile {
+  return {
+    ...profile,
+    absences: profile.absences.map((item) =>
+      item.id === id
+        ? { ...item, endsOn: endsOn < item.startsOn ? item.startsOn : endsOn }
+        : item,
+    ),
+  };
+}
+
+/** То же для работы сверх графика — со своими часами в сутки. */
+export function withCalloutEnd(
+  profile: StoredProfile,
+  id: string,
+  endsOn: IsoDate,
+  hoursPerDay: string,
+): StoredProfile {
+  return {
+    ...profile,
+    callouts: profile.callouts.map((item) =>
+      item.id === id
+        ? {
+            ...item,
+            endsOn: endsOn < item.startsOn ? item.startsOn : endsOn,
+            hoursPerDay,
+          }
+        : item,
+    ),
+  };
+}
+
+/**
  * Вид дня в производственном календаре — одним нажатием.
  *
  * Совпал с законом — правка снимается: в профиле лежит только то, что

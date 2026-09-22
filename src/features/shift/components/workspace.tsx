@@ -496,21 +496,14 @@ export function Workspace({
                 <DangerActions onForget={onForget} onChange={onChange} showReset={false} />
               </div>
             ) : (
+              // Правка строки перечня со страницы никуда не уводит: окно
+              // события открывается прямо там, поверх перечня
+              // (`changes-list.tsx`). Уводило — на сетку, к тем суткам, и
+              // человек, поправив часы вызова, оказывался в другом месте
+              // приложения, откуда сам не уходил.
               <ChangesList
                 profile={profile}
                 onChange={onChange}
-                // Строка перечня ведёт в сутки, а значит и обратно на
-                // страницу — раз сутки уже открыты, показывать позади них
-                // ещё и анкету незачем.
-                onOpenDay={(day, grid) => {
-                  setSettingsOpen(false);
-                  setYearView(grid === "calendar" ? "calendar" : "shifts");
-                  // Те же сутки, что и по нажатию в сетке: кольцо вокруг
-                  // клетки. Сетка в этот миг только строится, а клетка
-                  // может оказаться и за нижним краем — кольцо дождётся её
-                  // и подведёт к глазам само (`day-ring.tsx`).
-                  setRingDay(day);
-                }}
                 onOpenProfile={() => setSettingsTab("profile")}
               />
             )}

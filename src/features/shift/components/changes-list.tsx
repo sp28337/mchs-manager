@@ -1,7 +1,7 @@
 "use client";
 
 import { CalendarCog, Clock, Flag, Pencil, StickyNote, X } from "lucide-react";
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 
 import { cn } from "@/lib/utils/cn";
 
@@ -13,7 +13,9 @@ import {
   CALLOUT_LABELS,
   DAY_TYPE_LABELS,
 } from "../schemas";
+import { withAbsenceEnd, withCalloutEnd, withNoteAt } from "../model/derive";
 import type { StoredProfile } from "../storage/profile";
+import { NoteModal, SpanModal } from "./day-event-modal";
 import { DangerActions } from "./settings-panel";
 import {
   ABSENCE_MARK,
@@ -64,16 +66,50 @@ type Change = {
   what: string;
   when: string;
   /**
-   * Куда ведёт нажатие по строке.
+   * Что открывает нажатие по строке. Нет его — строка не нажимается.
    *
-   * Сетка — для того, что человек отмечал НА СУТКАХ: там же это и правится.
-   * `profile` — для начала отсчёта: оно живёт не в сутках, а в анкете, и
-   * отправлять человека в клетку 16 марта значило бы открыть ему окно, где
-   * про начало отсчёта не сказано ни слова.
+   * --- Почему правка здесь, а не на сетке ---------------------------------
+   *
+   * Было так: нажатие уводило на график, к тем суткам, и правку человек
+   * делал там. Дорога выходила длинная и с потерями — перечень
+   * закрывался, страница уезжала к нужному месяцу, вокруг клетки
+   * раскрывалось кольцо, — а спрашивали в конце пути ровно то же, что
+   * спрашивали, когда событие ставили: по какое число и сколько часов.
+   *
+   * Теперь это окно открывается прямо отсюда. Оно то же самое
+   * (`day-event-modal.tsx`), не «второе такое же»: разойтись им негде,
+   * деталь одна на оба места.
+   *
+   * --- Почему не у всех строк ----------------------------------------------
+   *
+   * У переноса смены, вида дня и своих часов правки нет: у первых двух
+   * менять нечего (они и есть одно нажатие), последние остались от
+   * прежнего окна суток. Таким строкам карандаш не рисуется вовсе —
+   * обещать правку, которой нет, хуже, чем её не предлагать. Убрать их
+   * по-прежнему можно крестиком.
    */
-  grid: "shifts" | "calendar" | "profile";
+  edit?: Edit;
   remove: (previous: StoredProfile) => StoredProfile;
 };
+
+/** Чем правится строка перечня. */
+type Edit =
+  | {
+      modal: "span";
+      /** Заголовок окна — название события. */
+      title: string;
+      startsOn: IsoDate;
+      endsOn: IsoDate;
+      /** Часы в сутки или `null` у того, у чего их нет. */
+      hours: string | null;
+      apply: (
+        endsOn: IsoDate,
+        hours: string | null,
+      ) => (previous: StoredProfile) => StoredProfile;
+    }
+  | { modal: "note"; day: IsoDate; text: string }
+  /** Начало отсчёта живёт в анкете: туда и ведёт. */
+  | { modal: "profile" };
 
 /** Клетка со значком — ровно такая же, как на сетке и в легенде. */
 function Mark({ tone, children }: { tone: string; children: ReactNode }) {
@@ -136,7 +172,14 @@ export function changesOf(profile: StoredProfile): Change[] {
       ),
       what: ABSENCE_LABELS[absence.kind],
       when: period(absence.startsOn as IsoDate, absence.endsOn as IsoDate),
-      grid: "shifts",
+      edit: {
+        modal: "span",
+        title: ABSENCE_LABELS[absence.kind],
+        startsOn: absence.startsOn as IsoDate,
+        endsOn: absence.endsOn as IsoDate,
+        hours: null,
+        apply: (endsOn) => (previous) => withAbsenceEnd(previous, absence.id, endsOn),
+      },
       remove: (previous) => ({
         ...previous,
         absences: previous.absences.filter((x) => x.id !== absence.id),
@@ -151,7 +194,15 @@ export function changesOf(profile: StoredProfile): Change[] {
       mark: <Mark tone={CALLOUT_TONE}>{CALLOUT_MARK}</Mark>,
       what: CALLOUT_LABELS[callout.kind],
       when: `${period(callout.startsOn as IsoDate, callout.endsOn as IsoDate)} · ${callout.hoursPerDay} ч в сутки`,
-      grid: "shifts",
+      edit: {
+        modal: "span",
+        title: CALLOUT_LABELS[callout.kind],
+        startsOn: callout.startsOn as IsoDate,
+        endsOn: callout.endsOn as IsoDate,
+        hours: callout.hoursPerDay,
+        apply: (endsOn, hours) => (previous) =>
+          withCalloutEnd(previous, callout.id, endsOn, hours ?? callout.hoursPerDay),
+      },
       remove: (previous) => ({
         ...previous,
         callouts: previous.callouts.filter((x) => x.id !== callout.id),
@@ -171,7 +222,6 @@ export function changesOf(profile: StoredProfile): Change[] {
         ),
       what: kind === "shift" ? "Смена вне графика" : "Смена отменена",
       when: formatDateRu(day as IsoDate),
-      grid: "shifts",
       remove: (previous) => ({
         ...previous,
         shiftOverrides: without(previous.shiftOverrides, day),
@@ -190,7 +240,6 @@ export function changesOf(profile: StoredProfile): Change[] {
       ),
       what: "Свои часы смены",
       when: `${formatDateRu(day as IsoDate)} · с ${span.startsAt} до ${span.endsAt}`,
-      grid: "shifts",
       remove: (previous) => ({
         ...previous,
         shiftTimes: without(previous.shiftTimes, day),
@@ -209,7 +258,6 @@ export function changesOf(profile: StoredProfile): Change[] {
       ),
       what: `Вид дня: ${DAY_TYPE_LABELS[type as DayType].toLowerCase()}`,
       when: formatDateRu(day as IsoDate),
-      grid: "calendar",
       remove: (previous) => ({
         ...previous,
         calendarOverrides: without(previous.calendarOverrides, day),
@@ -243,7 +291,7 @@ export function changesOf(profile: StoredProfile): Change[] {
       // «С такого-то», а не голая дата: остальные строки называют сутки или
       // отрезок, а это — граница, от которой идёт счёт.
       when: `с ${formatDateRu(from)}`,
-      grid: "profile",
+      edit: { modal: "profile" },
       remove: (previous) => ({ ...previous, countFrom: null }),
     });
   }
@@ -259,7 +307,7 @@ export function changesOf(profile: StoredProfile): Change[] {
       ),
       what: note,
       when: formatDateRu(day as IsoDate),
-      grid: "shifts",
+      edit: { modal: "note", day: day as IsoDate, text: note },
       remove: (previous) => ({
         ...previous,
         dayNotes: without(previous.dayNotes, day),
@@ -273,32 +321,30 @@ export function changesOf(profile: StoredProfile): Change[] {
 export function ChangesList({
   profile,
   onChange,
-  onOpenDay,
   onOpenProfile,
 }: {
   profile: StoredProfile;
   onChange: (change: (previous: StoredProfile) => StoredProfile) => void;
   /**
-   * Открыть сутки на сетке.
-   *
-   * «Перенастроить» здесь не делается на месте, и это решение, а не
-   * недоделка. Правка отпуска — это выбор периода, правка часов — два
-   * времени, правка вида дня — четыре кнопки: собрать всё это второй раз
-   * в перечне значило бы завести второе окно дня, которое обязано
-   * повторять первое и разойдётся с ним при первой же правке.
-   *
-   * Поэтому перечень отвечает на «что у меня внесено» и «убрать это», а
-   * «поменять» отдаёт туда, где это уже умеют, — в те самые сутки.
-   */
-  onOpenDay: (day: IsoDate, grid: "shifts" | "calendar") => void;
-  /**
    * Открыть закладку анкеты.
    *
    * Нужно одной строке — началу отсчёта: оно задаётся там, а не в сутках.
+   * Всё остальное правится здесь же, своим окном, и со страницы никуда не
+   * уводит.
    */
   onOpenProfile: () => void;
 }) {
   const rows = changesOf(profile);
+  /**
+   * Строка, которую сейчас правят.
+   *
+   * Строка, а не её номер: окно показывает то, что в ней было на миг
+   * нажатия, и пересчитывать её из профиля заново незачем — правка эта
+   * короткая и кончается закрытием окна.
+   */
+  const [editing, setEditing] = useState<Change | null>(null);
+  const span = editing?.edit?.modal === "span" ? editing.edit : null;
+  const noting = editing?.edit?.modal === "note" ? editing.edit : null;
 
   // Пустой перечень — и сбрасывать нечего: кнопка сброса не показывается
   // вовсе, чтобы не предлагать убрать то, чего нет.
@@ -329,25 +375,33 @@ export function ChangesList({
               {/* Кнопкой — вся строка целиком, а не отдельный значок
                   правки: попасть пальцем в строку легко, в значок нет.
                   Карандаш стоит внутри неё и правее текста — он подпись к
-                  нажатию, а не вторая кнопка. */}
-              <button
-                type="button"
-                onClick={() =>
-                  row.grid === "profile"
-                    ? onOpenProfile()
-                    : onOpenDay(row.day, row.grid)
-                }
-                className={cn(
-                  "flex min-w-0 grow cursor-pointer items-center gap-2 rounded-lg py-1 text-left",
-                  "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink",
-                )}
-              >
-                <span className="min-w-0 grow">
+                  нажатию, а не вторая кнопка.
+
+                  Строке, которую нечем править, кнопка не полагается: она
+                  просто текст, и нажимать в ней не на что. */}
+              {row.edit === undefined ? (
+                <span className="min-w-0 grow py-1">
                   <span className="block truncate text-sm font-medium">{row.what}</span>
                   <span className="block truncate text-xs text-ink-muted">{row.when}</span>
                 </span>
-                <Pencil aria-hidden className="size-4 shrink-0 text-ink-faint hover:text-ink-muted" />
-              </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() =>
+                    row.edit?.modal === "profile" ? onOpenProfile() : setEditing(row)
+                  }
+                  className={cn(
+                    "flex min-w-0 grow cursor-pointer items-center gap-2 rounded-lg py-1 text-left",
+                    "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink",
+                  )}
+                >
+                  <span className="min-w-0 grow">
+                    <span className="block truncate text-sm font-medium">{row.what}</span>
+                    <span className="block truncate text-xs text-ink-muted">{row.when}</span>
+                  </span>
+                  <Pencil aria-hidden className="size-4 shrink-0 text-ink-faint hover:text-ink-muted" />
+                </button>
+              )}
 
               {/* Своя кнопка, а не общая `Button`: та растянута во всю
                   ширину строки по замыслу — она стоит в окнах, где кнопка
@@ -377,6 +431,37 @@ export function ChangesList({
 
           Удаления профиля здесь нет: оно стирает не отметки, а саму
           анкету, и живёт в закладке настроек — рядом с тем, что стирает. */}
+      {/* Те же два окна, что открываются, когда событие ставят: срок у
+          длящегося и строка у заметки. Не «такие же» — те же самые
+          (`day-event-modal.tsx`). */}
+      <SpanModal
+        key={span === null ? "none" : editing?.id}
+        open={span !== null}
+        title={span?.title ?? ""}
+        startsOn={span?.startsOn ?? ("2000-01-01" as IsoDate)}
+        endsOn={span?.endsOn ?? ("2000-01-01" as IsoDate)}
+        hours={span?.hours ?? null}
+        onCommit={(endsOn, hours) => {
+          if (span !== null) onChange(span.apply(endsOn, hours));
+          setEditing(null);
+        }}
+        onClose={() => setEditing(null)}
+      />
+
+      <NoteModal
+        key={noting === null ? "none-note" : `note:${editing?.id}`}
+        open={noting !== null}
+        day={noting?.day ?? ("2000-01-01" as IsoDate)}
+        text={noting?.text ?? ""}
+        onCommit={(text) => {
+          if (noting !== null) {
+            onChange((previous) => withNoteAt(previous, noting.day, text));
+          }
+          setEditing(null);
+        }}
+        onClose={() => setEditing(null)}
+      />
+
       <DangerActions onChange={onChange} />
     </div>
   );

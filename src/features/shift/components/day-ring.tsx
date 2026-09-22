@@ -10,13 +10,8 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Modal } from "@/components/ui/modal";
-import { Card, Field } from "@/components/ui/panel";
 import { cn } from "@/lib/utils/cn";
 
-import { parseHours } from "../domain/decimal";
 import { formatDayMonthRu } from "../domain/format";
 import type { IsoDate } from "../domain/plain-date";
 import { statutoryCalendar } from "../domain/production-calendar";
@@ -50,7 +45,11 @@ import {
   DAY_OFF_TONE,
   SHIFT_TONE,
 } from "./day-marks";
-import { DateField } from "./date-field";
+import {
+  DEFAULT_CALLOUT_HOURS,
+  NoteModal,
+  SpanModal,
+} from "./day-event-modal";
 
 /**
  * Кольцо видов ВОКРУГ клетки: чем эти сутки были на самом деле.
@@ -140,7 +139,7 @@ import { DateField } from "./date-field";
  *
  * --- Почему перечень видов стоит у кольца, а не внизу страницы ---------------
  *
- * Буквы в квадратах короткие («О», «Д», «ВЗ»), и человек, открывший кольцо
+ * Буквы в квадратах короткие («О», «Д», «Р»), и человек, открывший кольцо
  * впервые, их не знает. Раньше ответ был внизу страницы, в легенде сетки, и
  * ради него затемнение оставляло легенду незатемнённой — но легенда лежит в
  * стороне, а на телефоне и вовсе за краем экрана: доводить до неё взгляд
@@ -166,9 +165,6 @@ import { DateField } from "./date-field";
  * затемнение поверх первого было бы вдвое темнее. То же с заметкой: ей
  * нужна строка, а строка в квадрат со стороной в клетку не встаёт.
  */
-
-/** Часы вызова по умолчанию: обычная смена. */
-const DEFAULT_CALLOUT_HOURS = "8";
 
 /**
  * Заметка в кольце — обычная клетка с уголком.
@@ -496,7 +492,6 @@ function Ring({
   const [hovered, setHovered] = useState<number | null>(null);
   /** Правка заметки: окно вместо кольца — строка в квадрат не встаёт. */
   const [noting, setNoting] = useState(false);
-  const [note, setNote] = useState(profile.dayNotes[day] ?? "");
   /**
    * Отметка, у которой спрашивают срок.
    *
@@ -599,20 +594,6 @@ function Ring({
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose, asking, noting]);
 
-  /**
-   * Фокус в поле заметки — после того, как окно открылось.
-   *
-   * `showModal()` уводит фокус на первое, за что в окне можно зацепиться,
-   * то есть на крестик, и родной `autoFocus` до этого мига не доживает:
-   * поле появляется раньше, чем окно открывают. Этот эффект стоит в
-   * РОДИТЕЛЕ окна, а родительские эффекты выполняются после его
-   * собственных — значит, последнее слово о фокусе остаётся за ним.
-   */
-  useEffect(() => {
-    if (!noting) return;
-    document.getElementById("day-ring-note")?.focus();
-  }, [noting]);
-
   const shift = shiftOn(profile, day);
   const lawful = statutoryCalendar(profile.accountingYear).get(day) ?? "working";
   const effective = profile.calendarOverrides[day] ?? lawful;
@@ -679,28 +660,21 @@ function Ring({
     setNoting(true);
   }
 
-  function commitNote() {
-    onChange((previous) => withNoteAt(previous, day, note));
+  function commitNote(text: string) {
+    onChange((previous) => withNoteAt(previous, day, text));
     onClose();
   }
 
   /** Срок назван: продлить ту же запись, а не завести вторую. */
-  function commitSpan() {
+  function commitSpan(endsOn: IsoDate, hours: string | null) {
     if (asking === null) return;
-    const { slot, endsOn, hours } = asking;
+    const { slot } = asking;
     if (slot.kind === "absence") {
       onChange((previous) => withAbsenceUntil(previous, day, slot.absence, endsOn));
-      onClose();
-      return;
     }
-    if (slot.kind === "callout") {
-      const parsed = parseHours(hours);
-      // Больше суток в сутках не бывает, и ноль часов — это не вызов.
-      if (parsed === null || parsed.lessThanOrEqualTo(0) || parsed.greaterThan(24)) {
-        return;
-      }
+    if (slot.kind === "callout" && hours !== null) {
       onChange((previous) =>
-        withCalloutUntil(previous, day, slot.callout, endsOn, parsed.toString()),
+        withCalloutUntil(previous, day, slot.callout, endsOn, hours),
       );
     }
     onClose();
@@ -889,7 +863,6 @@ function Ring({
           <RingLegend
             faces={faces}
             hovered={hovered}
-            onHover={setHovered}
             onDismiss={onClose}
             place={aside.legend}
             // Напротив кольца места не нашлось — заметка едет сюда, вниз
@@ -908,79 +881,32 @@ function Ring({
 
       {/* Срок у того, что длится. Отметка уже стоит в клетке — окно
           спрашивает не «отмечать ли», а «по какое число», и закрыть его,
-          ничего не назвав, значит согласиться на один день. */}
-      <Modal
+          ничего не назвав, значит согласиться на один день.
+          Окно общее с перечнем внесённых изменений (`day-event-modal.tsx`):
+          там тем же окном двигают границу уже поставленного. */}
+      <SpanModal
+        // Ключ — событие, о котором речь: с новым событием окно заводится
+        // заново, с его собственными сроком и часами.
+        key={asking === null ? "none" : `${asking.slot.kind}:${day}`}
         open={asking !== null}
-        onClose={onClose}
         title={face?.label ?? ""}
-        className="w-[min(30rem,calc(100vw-2rem))]"
-      >
-        {asking === null ? null : (
-          <div className="flex flex-col items-center space-y-4">
-            <Card>
-              <Field id="day-ring-ends" label="По дату включительно">
-                <DateField
-                  id="day-ring-ends"
-                  defaultValue={asking.endsOn}
-                  min={day}
-                  onChange={(next) =>
-                    setAsking({ ...asking, endsOn: next ?? day })
-                  }
-                />
-              </Field>
-
-              {asking.slot.kind === "callout" ? (
-                <Field id="day-ring-hours" label="Часов в сутки">
-                  <Input
-                    id="day-ring-hours"
-                    inputMode="decimal"
-                    value={asking.hours}
-                    onChange={(event) =>
-                      setAsking({ ...asking, hours: event.target.value })
-                    }
-                    className="w-28 font-mono"
-                  />
-                </Field>
-              ) : null}
-            </Card>
-
-            <Button type="button" onClick={commitSpan}>
-              Готово
-            </Button>
-          </div>
-        )}
-      </Modal>
+        startsOn={day}
+        endsOn={asking?.endsOn ?? day}
+        hours={asking?.slot.kind === "callout" ? asking.hours : null}
+        onCommit={commitSpan}
+        onClose={onClose}
+      />
 
       {/* Заметке нужна строка, а строка в квадрат со стороной в клетку не
           встаёт. Поэтому единственный квадрат кольца, за которым не отметка,
           а окно. */}
-      <Modal
+      <NoteModal
         open={noting}
+        day={day}
+        text={storedNote}
+        onCommit={commitNote}
         onClose={onClose}
-        title={`Заметка · ${formatDayMonthRu(day)}`}
-        className="w-[min(30rem,calc(100vw-2rem))]"
-      >
-        <div className="flex flex-col items-center space-y-4">
-          <Card>
-            <Field id="day-ring-note" label="Что было в этот день">
-              <Input
-                id="day-ring-note"
-                value={note}
-                maxLength={500}
-                placeholder="Например: обещали отгул"
-                onChange={(event) => setNote(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter") commitNote();
-                }}
-              />
-            </Field>
-          </Card>
-
-          <Button type="button" onClick={commitNote}>
-            Готово
-          </Button>
-        </div>
-      </Modal>
+      />
     </div>
   );
 }
@@ -1116,9 +1042,15 @@ function Scrim({ hole, onDismiss }: { hole: Box; onDismiss: () => void }) {
  * Строка под курсором тоже не заливается: она просто разгорается. Заливка
  * здесь означала бы, что в неё можно нажать, — а нажимают в кольцо.
  *
- * Наведение работает и с этой стороны: подвёл к названию — загорелся
- * квадрат в кольце. Связь двусторонняя, потому что и читают её с двух
- * сторон: «что это за буква» и «а где тут больничный».
+ * Сам перечень курсора не замечает вовсе.
+ * -------------------------------------------------------------------------
+ * Отзывался: подвёл к названию — загоралась строка и квадрат в кольце.
+ * Связь-то двусторонняя, но подводят курсор не к ней. К кольцу идут мимо
+ * перечня или сквозь него, и строки вспыхивали по дороге одна за другой —
+ * подсказка мигала там, где человек просто вёл рукой к квадрату.
+ *
+ * Теперь она отвечает только кольцу: горит та строка, на чей квадрат
+ * смотрят, и ничего не происходит, пока курсор не дошёл до кольца.
  *
  * --- Почему нажатие по нему закрывает кольцо -------------------------------
  *
@@ -1129,14 +1061,13 @@ function Scrim({ hole, onDismiss }: { hole: Box; onDismiss: () => void }) {
 function RingLegend({
   faces,
   hovered,
-  onHover,
   onDismiss,
   place,
   note,
 }: {
   faces: readonly Face[];
+  /** Какой квадрат кольца под курсором: перечень только отражает его. */
   hovered: number | null;
-  onHover: (index: number | null) => void;
   onDismiss: () => void;
   place: LegendPlace;
   /**
@@ -1176,8 +1107,6 @@ function RingLegend({
           {faces.map((face, index) => (
             <li
               key={index}
-              onPointerEnter={() => onHover(index)}
-              onPointerLeave={() => onHover(null)}
               className={cn(
                 "flex items-center gap-2 py-1 transition-opacity duration-150",
                 // Вполголоса, пока не спросили; в полный голос — строка,
