@@ -175,25 +175,39 @@ export function NoteModal({
       open={open}
       onClose={onClose}
       title={`Заметка · ${formatDayMonthRu(day)}`}
-      className="w-[min(30rem,calc(100vw-2rem))]"
+      // Окно заметки — один блок от края до края.
+      // ---------------------------------------------------------------
+      // У прочих окон внутри стоит плашка (`Card`): она собирает в себя
+      // НЕСКОЛЬКО строк-вопросов и отделяет их от полей окна. Здесь вопрос
+      // один, и плашка внутри окна получалась коробкой в коробке: две
+      // рамки, два фона и полоска бумаги между ними — там, где всего-то
+      // строка текста.
+      //
+      // Поэтому плашки нет, а её бумага (`bg-paper-raised`) отдана самому
+      // окну — и заголовку, и телу: заголовок «Заметка · 3 марта» стоит на
+      // том же фоне, что и поле под ним. Поле при этом остаётся видно: оно
+      // темнее (`bg-paper` у `Input`) и обведено.
+      className="w-[min(30rem,calc(100vw-2rem))] bg-paper-raised"
+      bodyClassName="bg-paper-raised"
     >
-      <div className="flex flex-col items-center space-y-4">
-        <Card>
-          <Field id="day-event-note" label="Что было в этот день">
-            <Input
-              id="day-event-note"
-              value={draft}
-              maxLength={500}
-              placeholder="Например: обещали отгул"
-              onChange={(event) => setDraft(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === "Enter") onCommit(draft);
-              }}
-            />
-          </Field>
-        </Card>
+      <div className="space-y-4">
+        {/* Подписи над полем нет. Она повторяла заголовок окна другими
+            словами — «Заметка · 3 марта» и «Что было в этот день», — а
+            пример внутри поля («Например: обещали отгул») отвечает на тот
+            же вопрос точнее любой подписи. */}
+        <Input
+          id="day-event-note"
+          value={draft}
+          maxLength={500}
+          placeholder="Например: обещали отгул"
+          aria-label={`Заметка к ${formatDayMonthRu(day)}`}
+          onChange={(event) => setDraft(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") onCommit(draft);
+          }}
+        />
 
-        <Button type="button" onClick={() => onCommit(draft)}>
+        <Button type="button" className="w-full" onClick={() => onCommit(draft)}>
           Готово
         </Button>
       </div>
