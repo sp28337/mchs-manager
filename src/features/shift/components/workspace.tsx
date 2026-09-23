@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 
 import { Hint } from "@/components/ui/hint";
 import { SiteHeader } from "@/components/shared/site-header";
@@ -15,13 +15,20 @@ import {
   statutoryBounds,
   withShiftMoved,
 } from "../model/derive";
+import { openEntry, readEntryProfile, type LibraryEntry } from "../storage/library";
 import type { StoredProfile } from "../storage/profile";
-import { DayEditor } from "./day-editor";
+import { ChangesList } from "./changes-list";
+import { DayRing } from "./day-ring";
 import { GridDeck, WORKSPACE_PAD } from "./grid-deck";
 import { HeaderTools } from "./header-tools";
 import { scrollMonthUnderBar, topmostVisibleMonth } from "./month-anchor";
-import { PeriodSummary } from "./period-summary";
+import { useConfirmSwitch } from "./open-profile";
+import { PeriodSummary, REVEAL_DELAY_MS } from "./period-summary";
+import { ProfileExplorer, useExplorerTools } from "./profile-explorer";
 import { ProfileFooter } from "./profile-footer";
+import { ProfileName } from "./profile-name";
+import { DangerActions, SettingsPanel } from "./settings-panel";
+import { SETTINGS_TAB_LABEL, type SettingsTab } from "./settings-tabs";
 import { CalendarNote } from "./year-calendar-editor";
 import {
   YearView,
@@ -100,10 +107,26 @@ import {
 export interface WorkspaceProps {
   profile: StoredProfile;
   onChange: (change: (previous: StoredProfile) => StoredProfile) => void;
+  /**
+   * Поставить на место открытого профиля другой — целиком.
+   *
+   * Не то же, что правка: открытый из проводника профиль человек ещё не
+   * трогал, и спрашивать потом «сохранить внесённое?» не о чем
+   * (`use-profile.ts`, `touched`).
+   */
+  onReplace: (profile: StoredProfile) => void;
+  /** Правил ли человек открытый профиль с тех пор, как его открыли. */
+  touched: boolean;
   onForget: () => void;
 }
 
-export function Workspace({ profile, onChange, onForget }: WorkspaceProps) {
+export function Workspace({
+  profile,
+  onChange,
+  onReplace,
+  touched,
+  onForget,
+}: WorkspaceProps) {
   const periods = accountingPeriodsOf();
 
   // Умолчание — учётный период целиком: именно по его итогу определяется
@@ -168,6 +191,175 @@ export function Workspace({ profile, onChange, onForget }: WorkspaceProps) {
   // то есть это ровно она: «по сегодня» кончается завтрашним днём.
   const upcoming = profile.liveMode ? periodEnd : null;
 
+  /**
+   * Настройки — не окно, а другое содержимое ЭТОЙ страницы.
+   *
+   * --- Почему состояние живёт здесь --------------------------------------
+   *
+   * Открытие меняет разом три места: шапку (знак называет «Настройки»),
+   * полосу цифр (она становится закладками) и то, что стоит под ней
+   * (анкета вместо графика). Три разных места экрана нельзя привязать к
+   * состоянию одной кнопки в шапке — держать его пришлось бы здесь, откуда
+   * видно всех троих.
+   *
+   * --- Почему на любой ширине, а не только на телефоне --------------------
+   *
+   * На столе у настроек было своё плавающее окно, и довод был такой:
+   * колонки и панели там никуда не убираются, окно посередине лишь
+   * дополняет страницу. Но настройки — это ответы про ТОТ САМЫЙ график,
+   * что лежит под ними, и правят их, глядя, что стало с нормой; окно
+   * поверх закрывало ровно то, ради чего его открыли, и вдобавок
+   * оказывалось третьим способом показать содержимое страницы — после
+   * проводника и самих настроек на телефоне.
+   *
+   * Теперь способ один: содержимое страницы подменяется на месте, а
+   * кнопка, которой открыли, закрывает. Проводник устроен так же
+   * (`explorerOpen` ниже), и узнавать второй порядок человеку не нужно.
+   */
+  /**
+   * Переключали ли уже разделы на этом экране.
+   *
+   * Нужно проступанию (`FadeIn`). Оно затем, чтобы раздел, встающий на
+   * место другого, не возникал рывком; а ПЕРВЫЙ раздел ни на чьё место не
+   * встаёт — до него на этом месте стояла заглушка с костями, ровно
+   * такого же роста (`workspace-skeleton.tsx`).
+   *
+   * Пока признака не было, выходило мигание: кости пропадали, а календарь
+   * следующие триста миллисекунд проявлялся из прозрачности — и между
+   * ними человек видел пустую страницу. Заглушка есть, содержимое есть, а
+   * посередине дырка, которой никто не просил.
+   */
+  const [switched, setSwitched] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [settingsTab, setSettingsTab] = useState<SettingsTab>("profile");
+  const showSettings = settingsOpen;
+
+  /**
+   * Открыть настройки — с анкеты, начатой от её собственного верха.
+   *
+   * --- Почему откат всё-таки нужен ------------------------------------------
+   *
+   * Без него на глубокой прокрутке (открыли график, долистали до осени)
+   * браузер сам поджимал страницу до нового, короткого предела — но не до
+   * нуля, а до того, что от старой глубины ещё оставалось. Анкета
+   * открывалась не с «Онлайн» наверху, а где-то с середины, «Нормой в
+   * неделю»: переключатели над ней и заголовок закладок в этот миг были
+   * прокручены за край.
+   *
+   * --- Почему откат не повторяет прежнюю поломку ----------------------------
+   *
+   * Раньше откат стоял ПОСЛЕ смены состояния, эффектом, — к этому моменту
+   * страница уже осела до высоты анкеты, и откат доигрывал остаток
+   * отдельным, заметным движением: то самое дёрганье. Здесь порядок
+   * обратный. Прокрутка уходит к нулю мгновенно (`behavior` не задан — не
+   * `smooth`) и СИНХРОННО, в этом же обработчике, пока на странице ещё
+   * стоит календарь во весь рост: прокрутить к нулю есть куда, обрезать
+   * браузеру нечего. Содержимое подменяется уже следующей отрисовкой —
+   * кадра с чужой прокруткой под новым содержимым просто не бывает.
+   */
+  function toggleSettings() {
+    setSwitched(true);
+    setSettingsOpen((open) => {
+      const next = !open;
+      if (next) window.scrollTo(0, 0);
+      return next;
+    });
+    setExplorerOpen(false);
+  }
+
+  /**
+   * Проводник по профилям — на месте календаря, на любой ширине.
+   *
+   * --- Почему не только на телефоне ------------------------------------------
+   *
+   * У настроек на столе есть своё окно, и оно там уместно: анкета дополняет
+   * страницу, не заменяя её. Проводник — другое дело: он показывает СПИСОК
+   * графиков, один из которых сейчас и лежит на странице. Окно поверх него
+   * заявляло бы, что выбор — дело мимолётное, а это смена того, на что
+   * человек смотрит.
+   *
+   * Откат прокрутки — тот же и по той же причине, что у настроек выше:
+   * список короче двенадцати календарных сеток, и без отката браузер
+   * поджал бы страницу сам, показав проводник с середины.
+   */
+  const [explorerOpen, setExplorerOpen] = useState(false);
+  const explorerTools = useExplorerTools();
+
+  function toggleExplorer() {
+    setSwitched(true);
+    setExplorerOpen((open) => {
+      const next = !open;
+      if (next) window.scrollTo(0, 0);
+      return next;
+    });
+    setSettingsOpen(false);
+    setPreviewId(null);
+  }
+
+  /**
+   * Выбранный в проводнике профиль — наверху страницы, до открытия.
+   *
+   * --- Зачем показывать то, что ещё не открыто --------------------------------
+   *
+   * Список говорит о профиле имя и время последней правки, а человек
+   * выбирает между графиками по ЧИСЛАМ: где сколько переработки. Открыть
+   * ради этого каждый профиль по очереди значит каждый раз менять то, что
+   * лежит в хранилище, — и возвращаться обратно.
+   *
+   * Поэтому имя и полоса цифр перестраиваются под тот профиль, на который
+   * человек навёл указатель. Сам профиль при этом не открыт: в хранилище
+   * по-прежнему лежит нынешний, и стоит увести указатель — числа вернутся.
+   *
+   * На экране без указателя наведения не существует, и показ достаётся
+   * первому нажатию, а открытие — второму (`profile-explorer.tsx`).
+   */
+  const [previewId, setPreviewId] = useState<string | null>(null);
+  const preview = useMemo(
+    () => (previewId === null ? null : readEntryProfile(previewId)),
+    [previewId],
+  );
+
+  /**
+   * Расчёт для показанного профиля — свой, а не нынешний.
+   *
+   * Отрезок берётся у НЕГО же: учётный год и начало отсчёта у чужого
+   * профиля свои, и считать его часы по границам открытого значило бы
+   * показать число, которого в этом графике нет.
+   */
+  const previewCalculation = useMemo(() => {
+    if (preview === null) return null;
+    const bounds = countedBounds(
+      month === null
+        ? statutoryBounds(preview.accountingYear, statutory.kind, statutory.index)
+        : monthBounds(preview.accountingYear, month),
+      preview.countFrom,
+    );
+    const shown = preview.liveMode ? liveBounds(bounds, todayIso()) : bounds;
+    return calculateFor(preview, shown.periodStart, shown.periodEnd);
+  }, [preview, month, statutory]);
+
+  const headProfile = preview ?? profile;
+
+  /**
+   * Смена профиля: сперва выбор, потом вопрос про нынешний.
+   *
+   * Указатель проводника переставляется ВНУТРИ согласия, вместе с самой
+   * сменой (`openEntry`), а не в тот миг, когда человек нажал на строку:
+   * закрой он окно вопроса крестиком — и приложение осталось бы с прежним
+   * графиком на экране, но с указателем на чужую запись. Первая же правка
+   * ушла бы в чужой профиль.
+   */
+  const switchProfile = useConfirmSwitch(profile, touched);
+
+  function askOpenEntry(entry: LibraryEntry) {
+    switchProfile.ask(() => {
+      const next = openEntry(entry.id);
+      if (next === null) return;
+      onReplace(next);
+      setPreviewId(null);
+      setExplorerOpen(false);
+    });
+  }
 
   // Что показано на сетке года. Живёт здесь, а не в самой сетке, потому
   // что от этого зависят заголовок и подпись раздела вокруг неё.
@@ -207,11 +399,21 @@ export function Workspace({ profile, onChange, onForget }: WorkspaceProps) {
     requestAnimationFrame(() => scrollMonthUnderBar(anchor));
   }
 
-  // День, по которому нажали в сетке. Правка идёт от дня, а не от формы
-  // со списком: человек уже нашёл в календаре те сутки, из-за которых
-  // спорит, и переносить их дату в отдельную форму глазами — лишний шаг,
-  // в котором и ошибаются.
-  const [pickedDay, setPickedDay] = useState<IsoDate | null>(null);
+  /**
+   * Сутки, вокруг которых стоит кольцо видов (`day-ring.tsx`).
+   *
+   * Единственное состояние дня на этом экране. Прежде их было два: кольцо
+   * и полное окно суток за ним — список из двенадцати видов, время смены,
+   * часы. Кольцо забрало у окна всё, ради чего его открывали, и окно
+   * ушло вместе со своим состоянием.
+   *
+   * Кольцо стоит на обеих сетках. Спрашивают они о разном — график о
+   * сменах и отсутствиях, производственный календарь о виде дня по
+   * закону, — но СПОСОБ правки у них один: нажал по дню, вокруг него
+   * распустились ответы. Разойдись эти два способа, человек, переключив
+   * вид сетки, учил бы правку заново.
+   */
+  const [ringDay, setRingDay] = useState<IsoDate | null>(null);
 
   return (
     <>
@@ -220,19 +422,27 @@ export function Workspace({ profile, onChange, onForget }: WorkspaceProps) {
           выбранным периодом — он живёт здесь. Тянуть его наверх значило бы
           поднять туда и выбор периода, то есть половину этого экрана. */}
       <SiteHeader
+        // Знак называет «Настройки» вместо «График 1|3», пока показаны
+        // они, а не сам расчёт: страница та же, читает она о себе другое.
+        brandLabel={
+          explorerOpen ? (
+            // Ниже 360 точек название уходит с глаз, но не из разметки:
+            // кнопок в этом состоянии четыре, и в строку со словом
+            // «ПРОФИЛИ» они на таком экране не встают. Само состояние при
+            // этом видно и без слова — страница занята списком графиков.
+            <span className="max-[359px]:sr-only">Профили</span>
+          ) : showSettings ? (
+            "Настройки"
+          ) : undefined
+        }
         tools={
           <HeaderTools
             profile={profile}
-            onChange={onChange}
-            onForget={onForget}
-            // Перечень изменений в настройках ведёт в сутки, а сутки
-            // открывает тот же самый выбор, что и нажатие по клетке.
-            // Сетку он тоже называет: правка вида дня живёт на
-            // производственном календаре, остальное — на графике.
-            onOpenDay={(day, grid) => {
-              setYearView(grid === "calendar" ? "calendar" : "shifts");
-              setPickedDay(day);
-            }}
+            settingsOpen={settingsOpen}
+            onToggleSettings={toggleSettings}
+            explorerOpen={explorerOpen}
+            onToggleExplorer={toggleExplorer}
+            explorerTools={explorerTools}
           />
         }
       />
@@ -241,76 +451,227 @@ export function Workspace({ profile, onChange, onForget }: WorkspaceProps) {
           закреплена у кромки окна и места в потоке не занимает, поэтому
           подвал уезжал бы под неё, и последняя строка страницы была бы
           нечитаемой. С `md` панели нет, и поля тоже. */}
-      <main className={cn("mx-auto w-full px-6 pt-26 2xl:max-w-[2000px]", WORKSPACE_PAD)}>
+      {/* Страница — колонка во весь экран, и подвал в ней прижат книзу
+          (`mt-auto` ниже). Без этого на мониторе с коротким содержимым —
+          пустой проводник, папка на две плитки — подвал вставал сразу под
+          ним, посреди экрана, а под ним оставалась треть высоты голой
+          бумаги: страница выглядела оборванной, а не законченной.
+
+          Высота считается за вычетом безопасных зон: их поля лежат на
+          `body`, и ровные `100dvh` дали бы полосу прокрутки на пустом
+          месте. */}
+      <main
+        className={cn(
+          "mx-auto flex w-full flex-col px-6 pt-26 2xl:max-w-[2000px]",
+          "min-h-[calc(100dvh-var(--safe-top)-var(--safe-bottom))]",
+          WORKSPACE_PAD,
+        )}
+      >
       {/* Поле под именем — не про воздух: полоса с числами закрывает над
           собой двенадцать точек бумаги (щиток в `PeriodSummary`, он гасит
           просвет под шапкой), и без этого зазора щиток лёг бы прямо на
           имя. */}
       <header className="pb-12">
-        <h1 className="text-3xl font-hand sm:text-5xl opacity-10 leading-tight text-center">{profile.displayName}</h1>
+        {/* Пока наверху показан ЧУЖОЙ профиль, имя не правится: нажатие по
+            нему правило бы открытый, а человек читает не его. */}
+        <ProfileName
+          profile={headProfile}
+          onChange={onChange}
+          editable={preview === null}
+        />
       </header>
 
       {/* Итог — закреплённой полосой, календарь — во всю ширину под ней.
           Числа и сетка нужны одновременно: человек отмечает день и тут же
           смотрит, что стало с нормой. Колонкой слева это стоило календарю
           четырёхсот точек ширины, а лентой сверху — прокрутки назад через
-          двенадцать сеток. */}
+          двенадцать сеток.
+
+          На телефоне та же полоса умеет становиться закладками настроек
+          (`settings`, ниже) — тем же способом, каким шапка выше умеет
+          называть себя «Настройки»: одно место экрана, разное содержимое. */}
       <PeriodSummary
-        calculation={calculation}
-        accountingYear={profile.accountingYear}
-        overtimeInDays={profile.overtimeInDays}
-        shiftDurationHours={profile.shiftDurationHours}
+        calculation={previewCalculation ?? calculation}
+        accountingYear={headProfile.accountingYear}
+        overtimeInShifts={headProfile.overtimeInDays}
+        shiftDurationHours={headProfile.shiftDurationHours}
+        settings={{ open: showSettings, tab: settingsTab, onTab: setSettingsTab }}
       />
 
-      <div className="space-y-10">
-      {/* Календарь не сворачивается. Крышка над ним была наследством от
-          времён, когда на странице стояло пять разделов и двенадцать сеток
-          отодвигали всё остальное вниз. Теперь ниже только подвал, а сетка
-          — то, ради чего экран открыт: закрывать её значит закрывать
-          страницу. */}
-      <section aria-labelledby="calendar-heading" className="space-y-4 -translate-y-2">
-        <h2 id="calendar-heading" className="flex items-center gap-2 text-xl sr-only">
-          Календарь
-          {yearView === "calendar" ? (
-            <Hint label="Про производственный календарь">
-              <CalendarNote profile={profile} />
-            </Hint>
-          ) : null}
-        </h2>
-        <YearView
-          profile={profile}
-          calculation={shown ?? calculation}
-          upcoming={upcoming}
-          view={yearView}
-          onViewChange={changeYearView}
-          onChange={onChange}
-          statutory={statutory}
-          onStatutory={setStatutory}
-          month={month}
-          onMonth={setMonth}
-          onPickDay={setPickedDay}
-          // Перенос смены — одно событие, и в профиль он попадает одной
-          // правкой: снять здесь, назначить там (`withShiftMoved`).
-          onMoveShift={(from, to) =>
-            onChange((previous) => withShiftMoved(previous, from, to))
-          }
-        />
-      </section>
+      {/* Колонка, а не `space-y`: подвалу нужно `mt-auto`, а оно работает
+          только во флексе. */}
+      <div className="flex flex-1 flex-col gap-10">
+      {explorerOpen ? (
+        <FadeIn key="explorer" instant={!switched}>
+          <section aria-labelledby="explorer-heading" className="space-y-4">
+            <h2 id="explorer-heading" className="sr-only">
+              Профили
+            </h2>
+            <ProfileExplorer
+              tools={explorerTools}
+              previewId={previewId}
+              onPreview={setPreviewId}
+              onChange={onChange}
+              onOpenEntry={askOpenEntry}
+            />
+          </section>
+        </FadeIn>
+      ) : showSettings ? (
+        // Настройки на месте графика — не поверх страницы, а вместо той
+        // его части, что сейчас не нужна: панель управления сеткой
+        // (`GridDeck`, ниже) при этом тоже скрыта — управлять ей больше
+        // нечем.
+        // Ключ не зависит от закладки нарочно: проявление здесь — про
+        // ОТКРЫТИЕ настроек, за которым гаснут цифры наверху. Переход с
+        // одной закладки на другую — не открытие, и заново проигранное
+        // проявление превращало бы нажатие по соседней закладке в четверть
+        // секунды пустоты, а потом всплытие из размытия.
+        <FadeIn key="settings" delayMs={REVEAL_DELAY_MS} instant={!switched}>
+          {/* Анкета не растягивается во всю ширину монитора: строка
+              «Норма в неделю» с полем у правого края в двух тысячах точек
+              читалась бы как две разные строки. Предел тот же, что был у
+              окна настроек (44 рем), — ширина, к которой человек привык, и
+              она же ширина, на которой вопрос и ответ видны одним
+              взглядом. Проводнику такой предел не нужен: он раскладывает
+              плитки, и чем шире экран, тем больше их видно разом. */}
+          <section
+            aria-labelledby="settings-heading"
+            className="mx-auto w-full max-w-[44rem] space-y-4"
+          >
+            <h2 id="settings-heading" className="sr-only">
+              {SETTINGS_TAB_LABEL[settingsTab]}
+            </h2>
+            {/* Обе закладки стоят в одной клетке сетки, одна поверх другой.
+                -----------------------------------------------------------------
+                Показана всегда одна, но высоту клетка берёт по большей из
+                них — и страница от переключения не меняет роста. Иначе
+                выходило так: анкета длиннее экрана, перечень правок
+                короче, — и, нажав соседнюю закладку, человек видел, как
+                подвал прыгает снизу вверх, на середину экрана. Он не
+                трогал подвал; он просто посмотрел, что наотмечал.
+
+                Скрытая закладка не `display: none`: он убрал бы её из
+                раскладки вместе с высотой, ради которой всё и затеяно.
+
+                Прячется она СРАЗУ ТРЕМЯ способами, и это не
+                перестраховка ради красоты. `visibility: hidden` одного
+                оказалось мало: у человека на странице оставались висеть
+                поля анкеты — дата, часы и минуты начала смены,
+                длительность, — без плашек и подписей, посреди пустого
+                места под перечнем. Воспроизвести это в Chromium не
+                удалось, значит дело в движке, который в этой раскладке
+                перерисовывает не всё; спорить с ним бесполезно, а
+                способов спрятать у CSS больше одного:
+
+                * `opacity-0` — прозрачность накладывается на слой
+                  целиком, и родные поля браузера ею тоже гасятся;
+                * `clip-path: inset(50%)` — обрезка до нулевого
+                  прямоугольника: рисовать становится негде, а место в
+                  раскладке остаётся;
+                * `invisible` — та самая `visibility: hidden`, которая
+                  вдобавок исключает из поиска по странице.
+
+                `pointer-events` и `select-none` снимают с неё нажатия и
+                выделение — невидимый текст не должен выделяться протяжкой
+                по пустому месту. `inert` и `aria-hidden` убирают её из
+                обхода табуляцией и от программы чтения: невидимое не
+                должно отвечать ни на фокус, ни на вопрос «что на
+                странице». */}
+            <div className="grid">
+              <div
+                className={cn(
+                  "col-start-1 row-start-1 space-y-4",
+                  settingsTab !== "profile" && HIDDEN_TAB,
+                )}
+                inert={settingsTab !== "profile"}
+                aria-hidden={settingsTab !== "profile" || undefined}
+              >
+                <SettingsPanel profile={profile} onChange={onChange} />
+                <DangerActions onForget={onForget} onChange={onChange} showReset={false} />
+              </div>
+              <div
+                className={cn(
+                  "col-start-1 row-start-1",
+                  settingsTab !== "changes" && HIDDEN_TAB,
+                )}
+                inert={settingsTab !== "changes"}
+                aria-hidden={settingsTab !== "changes" || undefined}
+              >
+                {/* Правка строки перечня со страницы никуда не уводит: окно
+                    события открывается прямо там, поверх перечня
+                    (`changes-list.tsx`). Уводило — на сетку, к тем суткам, и
+                    человек, поправив часы вызова, оказывался в другом месте
+                    приложения, откуда сам не уходил. */}
+                <ChangesList
+                  profile={profile}
+                  onChange={onChange}
+                  onOpenProfile={() => setSettingsTab("profile")}
+                />
+              </div>
+            </div>
+          </section>
+        </FadeIn>
+      ) : (
+        // Календарь не сворачивается. Крышка над ним была наследством от
+        // времён, когда на странице стояло пять разделов и двенадцать
+        // сеток отодвигали всё остальное вниз. Теперь ниже только подвал,
+        // а сетка — то, ради чего экран открыт: закрывать её значит
+        // закрывать страницу.
+        <FadeIn key="calendar" instant={!switched}>
+          <section aria-labelledby="calendar-heading" className="space-y-4 -translate-y-2">
+            <h2 id="calendar-heading" className="flex items-center gap-2 text-xl sr-only">
+              Календарь
+              {yearView === "calendar" ? (
+                <Hint label="Про производственный календарь">
+                  <CalendarNote profile={profile} />
+                </Hint>
+              ) : null}
+            </h2>
+            <YearView
+              profile={profile}
+              calculation={shown ?? calculation}
+              upcoming={upcoming}
+              view={yearView}
+              onViewChange={changeYearView}
+              onChange={onChange}
+              statutory={statutory}
+              onStatutory={setStatutory}
+              month={month}
+              onMonth={setMonth}
+              // Нажатие по дню раскрывает кольцо видов вокруг клетки, и
+              // этим дело кончается: закрывает его нажатие по тому же дню,
+              // по любому погасшему месту или Esc — всё это кольцо делает
+              // само.
+              onPickDay={(day) => setRingDay(day)}
+              // Перенос смены — одно событие, и в профиль он попадает одной
+              // правкой: снять здесь, назначить там (`withShiftMoved`).
+              onMoveShift={(from, to) =>
+                onChange((previous) => withShiftMoved(previous, from, to))
+              }
+            />
+          </section>
+        </FadeIn>
+      )}
 
       <ProfileFooter profile={profile} />
       </div>
 
-      {/* О чём спросить в открытых сутках, решает сетка, с которой по ним
-          нажали: на производственном календаре — вид дня, на графике смен
-          — отпуск, больничный или вызов. Состояние это уже есть здесь
-          (`yearView`), и второго источника правды заводить не нужно. */}
-      <DayEditor
-        day={pickedDay}
+      {/* Кольцо видов вокруг клетки — весь разговор о сутках целиком.
+          О чём оно спрашивает, решает сетка, с которой по дню нажали: на
+          производственном календаре — вид дня, на графике смен — отпуск,
+          больничный или вызов. Состояние это уже есть здесь (`yearView`),
+          и второго источника правды заводить не нужно. */}
+      <DayRing
+        day={ringDay}
         kind={yearView === "calendar" ? "calendar" : "shifts"}
         profile={profile}
         onChange={onChange}
-        onClose={() => setPickedDay(null)}
+        onClose={() => setRingDay(null)}
       />
+
+      {/* Вопрос «сначала сохранить нынешний в файл?» — он один на все пути
+          смены профиля, поэтому и стоит здесь, а не в проводнике. */}
+      {switchProfile.dialogs}
 
       {/* Нижняя панель телефона — здесь, а не внутри `YearView`, где
           стоят те же органы управления строкой над сеткой.
@@ -326,18 +687,107 @@ export function Workspace({ profile, onChange, onForget }: WorkspaceProps) {
 
           Здесь, в самом низу разметки, панель ещё и встречается последней —
           и обходу клавишей, и чтению вслух. Управление, названное до
-          двенадцати сеток, человек с клавиатурой встречал бы дважды. */}
-      <GridDeck
-        profile={profile}
-        onChange={onChange}
-        view={yearView}
-        onViewChange={changeYearView}
-        statutory={statutory}
-        onStatutory={setStatutory}
-        month={month}
-        onMonth={setMonth}
-      />
+          двенадцати сеток, человек с клавиатурой встречал бы дважды.
+
+          Пока показаны настройки, панели тоже нет: управлять ей нечем —
+          сетки на экране в этот момент нет вовсе. */}
+      {showSettings || explorerOpen ? null : (
+        <GridDeck
+          profile={profile}
+          onChange={onChange}
+          view={yearView}
+          onViewChange={changeYearView}
+          statutory={statutory}
+          onStatutory={setStatutory}
+          month={month}
+          onMonth={setMonth}
+        />
+      )}
       </main>
     </>
+  );
+}
+
+/**
+ * Закладка настроек, которая сейчас не показана.
+ *
+ * Своё место в раскладке она держит (иначе подвал прыгал бы при каждом
+ * переключении), а рисоваться не должна ничем и нигде. Доводы, почему
+ * способов сразу три, — там, где это стоит в разметке.
+ */
+const HIDDEN_TAB =
+  "invisible opacity-0 [clip-path:inset(50%)] pointer-events-none select-none";
+
+/**
+ * Появление содержимого — плавным проступанием, а не рывком.
+ *
+ * Настройки и календарь занимают одно и то же место на экране по очереди,
+ * а не разом: у них слишком разная высота, чтобы стоять друг под другом
+ * слоем, — свободного места под коротким перечнем правок было бы на весь
+ * рост несостоявшегося календаря. Поэтому смена — не перекрёстное
+ * растворение одного в другое, а простое появление того, что встало на
+ * освободившееся место.
+ *
+ * `key` снаружи (`workspace.tsx`) заставляет пересоздать обёртку при
+ * каждой смене раздела — календарь, анкета профиля, перечень правок, — и
+ * проступание играет заново.
+ *
+ * `delayMs` — не украшение, а синхронизация: анкета обязана тронуться в
+ * тот же миг, что и закладки над ней (`REVEAL_DELAY_MS` в
+ * `period-summary.tsx`), иначе цифры гаснут, и дальше два соседних места
+ * экрана оживают порознь, каждое в своё время, — а должны одним движением.
+ */
+function FadeIn({
+  children,
+  delayMs = 0,
+  instant = false,
+}: {
+  children: ReactNode;
+  delayMs?: number;
+  /**
+   * Показать сразу, без проступания.
+   *
+   * Первый раздел после заглушки ни на чьё место не встаёт: кости стояли
+   * ровно там же и ровно такого же роста. Проявляться ему не из чего —
+   * между костями и содержимым получилась бы пустая страница на треть
+   * секунды, то есть мигание.
+   */
+  instant?: boolean;
+}) {
+  // Отключённая анимация — не рывок, а готовый вид сразу: читается тем же
+  // умолчанием, что и у самой настройки (`window.matchMedia`), а не вторым
+  // прогоном отрисовки следом за первым.
+  const [shown, setShown] = useState(
+    () => instant || window.matchMedia("(prefers-reduced-motion: reduce)").matches,
+  );
+
+  useEffect(() => {
+    if (shown) return;
+    // Без паузы — кадром: он обязан прийти с уже нулевой прозрачностью, а
+    // не мелькнуть готовым видом на один кадр раньше, чем должен. С паузой
+    // мелькать нечему — она сама и есть ожидание, поэтому там довольно
+    // обычного таймера.
+    if (delayMs > 0) {
+      const timer = window.setTimeout(() => setShown(true), delayMs);
+      return () => window.clearTimeout(timer);
+    }
+    const frame = requestAnimationFrame(() => setShown(true));
+    return () => cancelAnimationFrame(frame);
+  }, [shown, delayMs]);
+
+  return (
+    <div
+      className={cn(
+        // Расфокусировка, оседающая в резкость вместе с прозрачностью, —
+        // тот же приём, что у слова рядом со знаком сайта и у имён закладок
+        // (`Materialize`). Здесь не сам компонент: тот рассчитан на строку
+        // текста (`inline-block`), а тут — блок в колонку страницы, и
+        // сжимать его в строчный элемент значило бы сломать его ширину.
+        "transition-[opacity,filter] duration-300 ease-out",
+        shown ? "opacity-100 blur-none" : "opacity-0 blur-[6px]",
+      )}
+    >
+      {children}
+    </div>
   );
 }

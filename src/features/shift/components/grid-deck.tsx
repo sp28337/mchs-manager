@@ -69,7 +69,7 @@ import type { YearViewKind } from "./year-view";
 export const DECK_CELL = cn(
   "inline-flex h-12 min-w-0 flex-1 cursor-pointer select-none flex-col",
   "items-center justify-center gap-1 rounded-xl px-1 transition-colors",
-  "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-trace",
+  "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ink",
   "[&_svg]:size-5.5 [&_svg]:shrink-0",
 );
 

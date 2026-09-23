@@ -367,7 +367,8 @@ export function ShiftStrip({
  */
 export function ShiftLegend({ skeleton }: { skeleton?: boolean }) {
   return (
-    <div className="lit space-y-4 border-t border-rule xl:border-none translate-y-1 xl:translate-y-3
+    <div
+      className="lit space-y-4 border-t border-rule xl:border-none translate-y-1 xl:translate-y-3
                       xl:max-w-70 xl:w-full xl:flex xl:flex-col xl:gap-6 xl:sticky
                       xl:top-[calc(8rem+var(--safe-top))] xl:self-start bg-paper-raised/70 p-4 rounded-xl lg:min-w-92.5">
         <LegendGroup title="Смены по графику" skeleton={skeleton}>
@@ -389,7 +390,7 @@ export function ShiftLegend({ skeleton }: { skeleton?: boolean }) {
           />
         </LegendGroup>
 
-        <LegendGroup title="Отсутствие по уважительной причине" skeleton={skeleton}>
+        <LegendGroup title="Периоды отсутствия" skeleton={skeleton}>
           {(Object.keys(ABSENCE_MARK) as AbsenceKind[]).map((kind) => (
             <Legend
               key={kind}
@@ -402,38 +403,40 @@ export function ShiftLegend({ skeleton }: { skeleton?: boolean }) {
         </LegendGroup>
 
         <LegendGroup title="Работа помимо графика" skeleton={skeleton}>
-          {(Object.keys(CALLOUT_MARK) as CalloutKind[]).map((kind) => (
-            <Legend
-              key={kind}
-              skeleton={skeleton}
-              className={CALLOUT_TONE}
-              mark={CALLOUT_MARK[kind]}
-              label={CALLOUT_LABELS[kind]}
-            />
-          ))}
-          {/* Строки «Несколько выходов в сутки» здесь больше нет. Она
-              объясняла не вид клетки, а её крайний случай: два кода рядом
-              вместо одного. Случай этот виден и без объяснения — коды в
-              клетке те же самые и стоят под теми же подписями выше, — а в
-              списке видов она занимала место наравне с ними, и человек
-              искал среди них шестой вид работы, которого нет. */}
+          {/* Одна строка на все выходы сверх графика.
+              -----------------------------------------------------------------
+              Их было шесть: вызов, соревнования, сбор, резерв, праздник,
+              выборы — с шестью кодами в клетках и шестью строками здесь.
+              Половина легенды уходила на различия, которых нет: считаются
+              все шесть одинаково, и человек, отмечая выход, выбирал из
+              шести слов там, где ответ на вопрос «что это было» один —
+              работа не по графику.
+
+              Старые профили от этого не пострадали: записанный в них вид
+              сохраняется как был, а называет его подпись клетки и перечень
+              внесённых изменений, где для названия есть целая строка. */}
+          <Legend
+            skeleton={skeleton}
+            className={CALLOUT_TONE}
+            mark={CALLOUT_MARK}
+            label={CALLOUT_LABELS.callout}
+          />
         </LegendGroup>
       </div>
   );
 }
 
 /**
- * Коды вызовов, ужатые до ширины клетки.
+ * Код вызова в клетке, а при нескольких — со счётчиком.
  *
- * Один вызов — свой код целиком. Два — оба, потому что «СР РЗ» человек
- * прочитает и в сорока пикселях. Три и больше в клетку не влезут, и вместо
- * каши там стоит «СОР+2»: счётчик честно говорит, что вызовов больше, а
- * какие именно — скажет подпись при наведении.
+ * Код на все выходы сверх графика один (`CALLOUT_MARK`), и повторять его
+ * дважды бессмысленно: «Р Р» — это не два вида работы, а два выхода.
+ * Поэтому второй и следующие считаются числом: «Р+1». Сколько их было и
+ * какие именно — скажет подпись клетки при наведении.
  */
 function calloutMarks(kinds: readonly CalloutKind[]): string {
-  const marks = kinds.map((kind) => CALLOUT_MARK[kind]);
-  if (marks.length <= 2) return marks.join(" ");
-  return `${marks[0]}+${marks.length - 1}`;
+  if (kinds.length <= 1) return CALLOUT_MARK;
+  return `${CALLOUT_MARK}+${kinds.length - 1}`;
 }
 
 function DayCell({
@@ -619,9 +622,9 @@ function DayCell({
           "flex flex-col",
           "relative flex aspect-square w-full min-w-0 cursor-pointer flex-col",
           "items-center justify-center leading-tight rounded-md",
-          "hover:outline-2 hover:-outline-offset-2 hover:outline-ink/40",
+
           "focus-visible:outline-2 focus-visible:-outline-offset-2",
-          "focus-visible:outline-trace",
+          "focus-visible:outline-ink",
           records.length === 0 && !quiet && "bg-paper-raised text-ink-faint rounded-md",
           worked && shift.isShiftStart && "bg-verify/30 text-verify rounded-md border border-verify/25",
           worked && !shift.isShiftStart && "bg-verify/5 text-verify rounded-md border border-verify/15",

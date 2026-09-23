@@ -34,7 +34,10 @@ export interface ProfileFooterProps {
 
 export function ProfileFooter({ profile }: ProfileFooterProps) {
   return (
-    <footer className="space-y-4 border-t border-rule py-6 text-sm">
+    // `mt-auto` — от колонки страницы (`workspace.tsx`): на коротком
+    // содержимом подвал уходит к нижней кромке окна, а не висит под
+    // последним блоком посреди экрана.
+    <footer className="mt-auto space-y-4 border-t border-rule py-6 text-sm">
       <div className="flex flex-col md:flex-row-reverse justify-between items-center">
         <div className="flex justify-center pt-8 pb-12 md:ml-auto md:pb-8 ">
           <ThemeToggle/>

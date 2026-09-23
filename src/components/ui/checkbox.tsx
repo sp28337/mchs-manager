@@ -62,7 +62,7 @@ export function Checkbox({
       className={cn(
         "group inline-flex w-full cursor-pointer items-center justify-between gap-2 rounded-xl",
         "text-sm text-ink transition-colors",
-        "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-trace",
+        "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink",
         className,
       )}
     >

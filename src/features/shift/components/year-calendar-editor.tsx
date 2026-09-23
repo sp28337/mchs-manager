@@ -408,8 +408,8 @@ export function CalendarNote({ profile }: { profile: StoredProfile }) {
         </>
       )}{" "}
       Если ваш производственный календарь всё-таки отличается, поправьте здесь:
-      ошибка в одном дне — это 8 часов нормы. Нажмите по числу — в окне этих
-      суток выбирается вид дня.
+      ошибка в одном дне — это 8 часов нормы. Нажмите по числу — вокруг него
+      появятся виды дня.
     </>
   );
 }
@@ -449,6 +449,9 @@ function DayButton({
     <button
       type="button"
       title={label}
+      // Примета дня: по ней клетку находит кольцо видов (`day-ring.tsx`) —
+      // так же, как на графике смен, где её ставит перенос смены.
+      data-day={item.day}
       aria-label={label}
       aria-current={today ? "date" : undefined}
       onClick={onPick}
@@ -467,8 +470,8 @@ function DayButton({
           "items-center justify-center leading-tight",
           // Обводкой внутрь, а не рамкой: клетки стоят вплотную, и рамка
           // сдвинула бы соседей.
-          "hover:outline-2 hover:-outline-offset-2 hover:outline-ink/40 rounded-md",
-          "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-trace",
+          "rounded-md",
+          "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ink",
 
           // Рамки нет ни у одного дня: тип дня различается подложкой и
           // буквой. Триста шестьдесят пять контуров на год — это решётка,

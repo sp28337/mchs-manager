@@ -451,9 +451,19 @@ export function YearView({
               рода. */}
           {zoomable ? (
             <div className="ml-auto flex items-center gap-1">
-              <span className="mr-1 font-display text-[11px] font-bold uppercase tracking-wide text-ink-muted">
-                Масштаб
-              </span>
+              {/* Подписи «Масштаб» перед кнопками больше нет.
+                  ---------------------------------------------------------
+                  Две лупы — со знаком плюс и со знаком минус — объясняют
+                  себя сами: это один из немногих значков, которые знает
+                  каждый, кто видел карту или фотографию. Слово перед ними
+                  ничего не добавляло, зато занимало место в строке,
+                  которая на средних экранах и без того тесная, и тянуло
+                  на себя внимание наравне с названиями сеток — хотя
+                  масштаб выбирают раз и забывают.
+
+                  Для программы чтения подписи остались при самих кнопках
+                  («Крупнее: меньше месяцев в ряду»), а итог нажатия
+                  по-прежнему объявляется вслух. */}
               <ZoomButton
                 label="Крупнее: меньше месяцев в ряду"
                 disabled={months <= MONTHS_MIN}
@@ -589,7 +599,7 @@ function ZoomButton({
         // соседнюю под самым пальцем, а человеку нужно видеть, что
         // мельче уже некуда.
         "disabled:pointer-events-none disabled:opacity-40",
-        "cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-trace",
+        "cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink",
         "[&_svg]:size-4.5 [&_svg]:shrink-0",
       )}
     >

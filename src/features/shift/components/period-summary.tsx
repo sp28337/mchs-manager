@@ -4,18 +4,19 @@ import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
 
 import { BalanceCaption, BALANCE_SWAP_MS } from "@/components/ui/balance-caption";
 import { CountedNumber } from "@/components/ui/counted-number";
+import { Segmented, SegmentedItem } from "@/components/ui/segmented";
 import { cn } from "@/lib/utils/cn";
 
 import {
-  daysWord,
   formatHoursTrim as hoursTrim,
   shiftsWord,
-  splitIntoDays,
+  splitIntoShifts,
   type Decimal,
 } from "../domain/decimal";
 import { shiftMinutes } from "../domain/shift-hours";
 import { pendingTransfers } from "../domain/production-calendar";
 import type { PeriodCalculation } from "../domain/calculation";
+import { SETTINGS_TABS, type SettingsTab } from "./settings-tabs";
 
 /**
  * Итог периода.
@@ -59,37 +60,171 @@ import type { PeriodCalculation } from "../domain/calculation";
 export function PeriodSummary({
   calculation,
   accountingYear,
-  overtimeInDays,
+  overtimeInShifts,
   shiftDurationHours,
+  settings,
 }: {
   calculation: PeriodCalculation;
   accountingYear: number;
   /** В чём показывать переработку: в часах или сменами и часами. */
-  overtimeInDays: boolean;
+  overtimeInShifts: boolean;
   /**
    * Продолжительность смены, часами.
    *
    * Переработка «сменами» делится именно на неё: у графика «два через
-   * два» смена двенадцатичасовая, и делить её переработку на сутки значило
-   * бы назвать вдвое меньше смен, чем человек отработал сверх нормы.
+   * два» смена двенадцатичасовая, и делить её переработку на двадцать
+   * четыре часа значило бы назвать вдвое меньше смен, чем человек
+   * отработал сверх нормы.
    */
   shiftDurationHours: string;
+  /**
+   * Настройки вместо итога — только на телефоне (`workspace.tsx`): там
+   * блок цифр не закрывается окном, а сам превращается в закладки.
+   */
+  settings?: {
+    open: boolean;
+    tab: SettingsTab;
+    onTab: (tab: SettingsTab) => void;
+  };
 }) {
+  const settingsOpen = settings?.open ?? false;
   return (
     <>
       {/* `data-summary` — примета для дымки под закреплёнными полосами
           (`globals.css`): по ней она узнаёт, что под шапкой стоит ещё и
           полоса с числами, и растворение нужно длиннее — до её дна. */}
       <div data-summary className="sticky top-[calc(6rem+var(--safe-top))] z-40 -mx-6 -translate-y-8">
-        <FiguresRow
-          calculation={calculation}
-          inDays={overtimeInDays}
-          shiftHours={shiftDurationHours}
-        />
+        {/* Цифры и закладки лежат в одной ячейке грида и гаснут друг в
+            друга: блок занимает на экране одно и то же место, отмечает ли
+            человек день в календаре или открыл настройки, — меняется
+            только то, что внутри него. */}
+        <div className="relative grid">
+          <div
+            aria-hidden={settingsOpen}
+            inert={settingsOpen || undefined}
+            className={cn(
+              // `min-w-0` — не про эту половину, а про общую ячейку грида.
+              // Ячейка `auto` шириной не меньше самого широкого содержимого
+              // ОБЕИХ половин, а у закладок настроек имена длинные и
+              // неразрывные. На 320 точках колонка раздувалась ими до 386, и
+              // цифры, растянутые на ту же ширину, уезжали за правый край —
+              // на экране, где закладок в этот момент нет вовсе.
+              "col-start-1 row-start-1 min-w-0 transition-opacity duration-200",
+              settingsOpen ? "pointer-events-none opacity-0" : "opacity-100",
+            )}
+          >
+            <FiguresRow
+              calculation={calculation}
+              inShifts={overtimeInShifts}
+              shiftHours={shiftDurationHours}
+            />
+          </div>
+
+          {settings ? (
+            <div
+              aria-hidden={!settingsOpen}
+              inert={!settingsOpen || undefined}
+              className={cn(
+                "col-start-1 row-start-1 min-w-0 px-6 pb-3 transition-opacity ease-out",
+                // Дорожка не шире анкеты под ней. Цифр восемь, и им
+                // монитор впору; закладок две, и растянутые на две тысячи
+                // точек они стояли бы двумя плашками поперёк экрана над
+                // формой втрое уже — двумя разными вещами, а не
+                // оглавлением к ней. Предел тот же, что у анкеты
+                // (`workspace.tsx`, 44 рем), плюс поля этой ячейки по
+                // шесть единиц с каждой стороны.
+                "mx-auto w-full max-w-[47rem]",
+                // Дорожка закладок ждёт своей паузы (`REVEAL_DELAY_MS` в
+                // `SettingsSwitch`) — иначе она проступала бы одновременно
+                // с гаснущими цифрами, а не после них.
+                settingsOpen
+                  ? "opacity-100 duration-200 delay-[220ms]"
+                  : "pointer-events-none opacity-0",
+              )}
+            >
+              <SettingsSwitch tab={settings.tab} onTab={settings.onTab} />
+            </div>
+          ) : null}
+        </div>
       </div>
 
-      <PendingNotice accountingYear={accountingYear} />
+      {settingsOpen ? null : <PendingNotice accountingYear={accountingYear} />}
     </>
+  );
+}
+
+/**
+ * Пауза после того, как цифры погасли и до того, как проступает первая
+ * закладка. Число здесь то же, что в задержке появления самой дорожки
+ * (`delay-[220ms]` у обёртки в `PeriodSummary`) и что в задержке появления
+ * анкеты под ней (`workspace.tsx`, `FadeIn`) — все три обязаны трогаться
+ * ОДНИМ моментом, а не по очереди: иначе цифры гаснут, секунду ничего не
+ * происходит, потом порознь оживают то закладки, то анкета под ними, и всё
+ * вместе читается не одним превращением, а вознёй из нескольких.
+ */
+export const REVEAL_DELAY_MS = 220;
+
+/**
+ * Кегль и поля закладок на самом узком телефоне.
+ *
+ * Имена закладок длинные и неразрывные: «Настройки профиля» и «Внесённые
+ * изменения» в обычном кегле требуют 323 точки, а на 320-точечном экране
+ * дорожке достаётся 272 — второе имя уезжало за правый край. Уменьшенный
+ * кегль и поля укладывают обе в 269.
+ *
+ * Обрезка многоточием (`truncate` у самих закладок) при этом остаётся
+ * страховкой, а не расчётом: на другом наборе шрифтов имя обрежется, но за
+ * край не уедет.
+ */
+const NARROW_TAB = "px-2 text-xs min-[360px]:px-3 min-[360px]:text-sm";
+
+/**
+ * Переключатель закладок настроек — на месте итоговых цифр.
+ *
+ * --- Почему обе закладки появляются разом -----------------------------------
+ *
+ * Здесь была лестница из трёх стадий: после паузы проступала одна широкая
+ * плашка «Настройки профиля», стояла так, чтобы её успели прочитать, потом
+ * съезжала влево, открывая дорожку соседу, и только тогда проявлялось имя
+ * «Внесённые изменения». Замысел был показать, что раздела два, но на деле
+ * от нажатия до второй закладки проходило больше секунды: человек, нажавший
+ * «Настройки», видел сперва одну кнопку во всю строку, а вторую — когда уже
+ * смотрел на анкету под ней. Появление читалось не превращением, а
+ * задержкой и вознёй.
+ *
+ * Теперь дорожка встаёт готовой. Единственное, что её отделяет от нажатия,
+ * — время, за которое гаснут цифры на её месте (`REVEAL_DELAY_MS` в
+ * задержке прозрачности у обёртки снаружи): подменять одно другим внахлёст
+ * значило бы показать на миг и то и другое сразу.
+ */
+function SettingsSwitch({
+  tab,
+  onTab,
+}: {
+  tab: SettingsTab;
+  onTab: (tab: SettingsTab) => void;
+}) {
+  return (
+    <Segmented label="Разделы настроек" className="relative flex h-14 w-full">
+      {SETTINGS_TABS.map(({ id, label }) => (
+        <SegmentedItem
+          key={id}
+          active={tab === id}
+          onClick={() => onTab(id)}
+          className={cn(
+            // Скругление — как у главной плашки цифр (`MainPlate`,
+            // `rounded-xl`): своё, крупнее обычного у закладок
+            // (`rounded-lg`), и важное — иначе более узкое правило
+            // `SegmentedItem` побеждало бы по порядку в таблице стилей, а
+            // не по месту в разметке.
+            "h-14 min-w-0 shrink grow truncate rounded-xl!",
+            NARROW_TAB,
+          )}
+        >
+          {label}
+        </SegmentedItem>
+      ))}
+    </Segmented>
   );
 }
 
@@ -117,7 +252,7 @@ export function PeriodSummary({
  * --- Почему по замеру, а не по ширине экрана ------------------------------
  *
  * Строка главных чисел не одной ширины: разница бывает и «212,0 ч», и
- * «8 суток 20 ч», а норма — и «160», и «1972,5». Любой порог вроде
+ * «8 смен 20 ч», а норма — и «160», и «1972,5». Любой порог вроде
  * «показывать с 1280» на одном профиле оставил бы пустоту, а на другом
  * полез бы за край.
  *
@@ -128,11 +263,11 @@ export function PeriodSummary({
  */
 function FiguresRow({
   calculation,
-  inDays,
+  inShifts,
   shiftHours,
 }: {
   calculation: PeriodCalculation;
-  inDays: boolean;
+  inShifts: boolean;
   shiftHours: string;
 }) {
   const row = useRef<HTMLDivElement>(null);
@@ -181,7 +316,7 @@ function FiguresRow({
     <div ref={row} className="relative flex items-stretch gap-2  px-6 pb-3">
       <MainPlate
         calculation={calculation}
-        inDays={inDays}
+        inShifts={inShifts}
         shiftHours={shiftHours}
         grow={!fits}
       />
@@ -205,7 +340,7 @@ function FiguresRow({
       >
         <MainPlate
           calculation={calculation}
-          inDays={inDays}
+          inShifts={inShifts}
           shiftHours={shiftHours}
           tight
         />
@@ -291,14 +426,14 @@ function MinorPlate({
  */
 function MainPlate({
   calculation,
-  inDays,
+  inShifts,
   shiftHours,
   grow,
   tight,
 }: {
   calculation: PeriodCalculation;
   /** Переработку — сменами и часами, а не часами. */
-  inDays: boolean;
+  inShifts: boolean;
   /** Продолжительность смены: на неё делится переработка. */
   shiftHours: string;
   /** Мелких итогов рядом нет — занять всю строку и развести числа. */
@@ -312,7 +447,10 @@ function MainPlate({
   return (
     <dl
       className={cn(
-        "flex h-14 items-center rounded-xl bg-paper-raised px-4 py-2 lg:min-w-92.5 justify-around",
+        // Поля и просветы ужаты на самом узком телефоне: три числа с
+        // подписями требуют 267 точек, а на 320-точечном экране полосе
+        // достаётся 272 — впритык, и «Переработка» упиралась в край.
+        "flex h-14 items-center rounded-xl bg-paper-raised px-2 min-[360px]:px-4 py-2 lg:min-w-92.5 justify-around",
         // Свет лампы — на видимой плашке, но не на эталоне: тот невидим и
         // служит линейкой, а лишняя тень сбила бы замер ширины.
         !tight && "lit",
@@ -320,7 +458,7 @@ function MainPlate({
         // расходятся по ней: три числа, сжатые в левый угол полосы во всю
         // ширину экрана, читаются как незаконченная вёрстка.
         grow && !tight
-          ? "min-w-0 flex-1 justify-around gap-x-3"
+          ? "min-w-0 flex-1 justify-around gap-x-1.5 min-[360px]:gap-x-3"
           : "shrink-0 gap-x-5 sm:gap-x-6",
       )}
     >
@@ -336,7 +474,7 @@ function MainPlate({
         still={tight}
       />
       <Figure
-        parts={overtimeParts(balance, inDays, shiftHours)}
+        parts={overtimeParts(balance, inShifts, shiftHours)}
         caption={<BalanceCaption under={under} />}
         // Ноль — это попадание в норму, и цвета у него нет: ни зелёного,
         // ни красного. Сигнальным становится только то, что требует
@@ -353,14 +491,23 @@ function MainPlate({
  *
  * --- Почему выбор, а не оба сразу ----------------------------------------
  *
- * Оба и стояли: «212,0 ч Переработка ≈ 8,8 суток В сутках» — четыре числа
+ * Оба и стояли: «212,0 ч Переработка ≈ 8,8 смены В сменах» — четыре числа
  * и знак приблизительности ради одной величины, и половина строки на то,
- * чтобы сказать её дважды. При этом «8,8 суток» само требовало пересчёта:
- * десятая доля суток это два часа с четвертью, а отгул берут сменами и
- * часами.
+ * чтобы сказать её дважды. При этом «8,8 смены» само требовало пересчёта:
+ * десятая доля суточной смены это два часа с четвертью, а отгул берут
+ * сменами и часами.
  *
  * Теперь величина одна, и мера у неё та, в которой человек привык считать:
- * либо «212,0 ч», либо «8 суток 20 ч».
+ * либо «212,0 ч», либо «8 смен 20 ч».
+ *
+ * --- Почему «смены», а не «сутки» ----------------------------------------
+ *
+ * У суточного графика тут стояло «8 суток» — по привычке речи. Но
+ * названо этим числом не время, а количество отработанного сверх нормы,
+ * и у графика «два через два» то же самое число пришлось бы называть
+ * сменами. Одна величина не может зваться двумя словами в зависимости от
+ * графика: человек, сменивший график, читал бы разные меры на одном и
+ * том же месте экрана.
  *
  * --- Почему недоработка в той же мере ------------------------------------
  *
@@ -369,25 +516,21 @@ function MainPlate({
  */
 function overtimeParts(
   value: Decimal,
-  inDays: boolean,
+  inShifts: boolean,
   shiftHours: string,
 ): FigurePart[] {
-  if (!inDays) return [{ value: hoursTrim(value), unit: "ч" }];
+  if (!inShifts) return [{ value: hoursTrim(value), unit: "ч" }];
 
-  // Мера — своя смена, а не астрономические сутки. У суточной смены слово
-  // остаётся прежним, «сутки»: так на этом графике и говорят. У всех
-  // остальных оно превратилось бы в неправду, поэтому там — «смены».
+  // Мера — своя смена: у графика «два через два» она двенадцатичасовая, и
+  // делить её переработку на двадцать четыре значило бы назвать вдвое
+  // меньше смен, чем человек отработал.
   const perShift = shiftMinutes(shiftHours) / 60;
-  const whole24 = perShift === 24;
-  const { days: whole, hours: rest } = splitIntoDays(value, perShift);
+  const { shifts: whole, hours: rest } = splitIntoShifts(value, perShift);
   const parts: FigurePart[] = [];
   if (whole > 0) {
-    parts.push({
-      value: String(whole),
-      unit: whole24 ? daysWord(whole) : shiftsWord(whole),
-    });
+    parts.push({ value: String(whole), unit: shiftsWord(whole) });
   }
-  // Ровные сутки не тянут за собой «0 ч», но и пустой строки не бывает:
+  // Ровные смены не тянут за собой «0 ч», но и пустой строки не бывает:
   // меньше смены — значит просто часы.
   if (!rest.isZero() || whole === 0) {
     parts.push({ value: hoursTrim(rest), unit: "ч" });
@@ -421,8 +564,8 @@ function PendingNotice({ accountingYear }: { accountingYear: number }) {
 /**
  * Величина числом с единицей — и, если нужно, не одним.
  *
- * Пар бывает две: переработка в сутках это «8 суток 20 ч», и остаток от
- * смены такое же число, как сами сутки. Оформлять его иначе значило бы
+ * Пар бывает две: переработка сменами это «8 смен 20 ч», и остаток от
+ * смены такое же число, как сами смены. Оформлять его иначе значило бы
  * сказать, что он менее настоящий.
  *
  * --- Почему число доходит до нового значения, а не подменяется -----------
@@ -481,7 +624,9 @@ function Figure({
           </span>
         ))}
       </dd>
-      <dt className="flex h-3.5 items-center justify-center gap-1 whitespace-nowrap text-[11px] leading-tight text-ink-muted">
+      {/* Подписи шире самих чисел — «Норма периода» занимает больше, чем
+          «1972 ч», — и на 320 точках место экономится именно на них. */}
+      <dt className="flex h-3.5 items-center justify-center gap-1 whitespace-nowrap text-[10px] min-[360px]:text-[11px] leading-tight text-ink-muted">
         {/* Двоеточие принадлежит строчной записи «Норма периода: 1972 ч»,
             которая стоит на средних экранах. Там, где подпись снова
             уходит под число, двоеточию не к чему прицепиться — и оно

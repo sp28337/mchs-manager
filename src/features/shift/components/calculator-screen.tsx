@@ -55,7 +55,7 @@ import { useProfile } from "../storage/use-profile";
  * двух других состояний, где в них ничего, кроме знака, и нет.
  */
 export function CalculatorScreen() {
-  const { state, save, update, forget } = useProfile();
+  const { state, save, update, forget, touched } = useProfile();
   const router = useRouter();
 
   // Уход на главную — в эффекте, а не по ходу отрисовки: переход меняет
@@ -66,7 +66,15 @@ export function CalculatorScreen() {
   }, [empty, router]);
 
   if (state.status === "ok") {
-    return <Workspace profile={state.profile} onChange={update} onForget={forget} />;
+    return (
+      <Workspace
+        profile={state.profile}
+        onChange={update}
+        onReplace={save}
+        touched={touched}
+        onForget={forget}
+      />
+    );
   }
 
   return (

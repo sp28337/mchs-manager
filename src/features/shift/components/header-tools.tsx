@@ -1,16 +1,23 @@
 "use client";
 
-import { FolderOpen, Save, Settings, type LucideIcon } from "lucide-react";
-import { useRef, useState, type CSSProperties } from "react";
+import {
+  FolderOpen,
+  FolderPlus,
+  Plus,
+  Save,
+  Settings,
+  Upload,
+  X,
+  type LucideIcon,
+} from "lucide-react";
+import { type ReactNode } from "react";
 
-import { Modal } from "@/components/ui/modal";
+import { Materialize } from "@/components/ui/materialize";
 import { cn } from "@/lib/utils/cn";
 
 import type { StoredProfile } from "../storage/profile";
-import { useOpenProfile } from "./open-profile";
+import type { ExplorerTools } from "./profile-explorer";
 import { useSaveToFile } from "./save-to-file";
-import type { IsoDate } from "../domain/plain-date";
-import { SettingsTabs } from "./settings-tabs";
 
 /**
  * Настройки и выгрузка — из шапки.
@@ -34,16 +41,16 @@ import { SettingsTabs } from "./settings-tabs";
  * всякой причины, кроме той, что когда-то оно завелось в окне создания
  * профиля и осталось жить рядом.
  *
+ * «Открыть» с тех пор перестало означать «выбрать файл»: оно показывает
+ * проводник по сохранённым графикам (`profile-explorer.tsx`), а файл стал
+ * одним из способов пополнить его — наравне с новым профилем. Кнопка от
+ * этого не изменилась ни местом, ни значком: действие то же самое, просто
+ * выбирать теперь есть из чего.
+ *
  * Теперь они в ряд и в том порядке, в каком читается история профиля:
  * настроить, открыть, сохранить. Открыть стоит посередине намеренно —
  * это единственное действие, уносящее нынешний профиль, и соседство с
  * «Сохранить» справа тут кстати.
- *
- * --- Почему в окне, а не выпадающим списком ------------------------------
- *
- * В настройках форма из десятка полей. Выпадающая панель такого размера —
- * то же модальное окно, только без перехвата фокуса и без Esc. Родной
- * `dialog` даёт и то и другое.
  *
  * --- Почему на узком экране остаются значки ------------------------------
  *
@@ -52,26 +59,32 @@ import { SettingsTabs } from "./settings-tabs";
  * к списку из двух пунктов. Подписи появляются, как только для них
  * хватает ширины, — порог назначен замером и стоит в `LABELS_FROM`.
  *
- * --- Настройки на телефоне: лист, а не окно ------------------------------
+ * --- Кнопка, которая не открывает окно ------------------------------------
  *
- * Ниже `sm` окно настроек занимает экран целиком, и открывается оно не
- * появлением поверх страницы, а ПЕРЕХОДОМ из шапки: значок настроек
- * уезжает на место знака сайта, знак и кнопки к этому времени гаснут,
- * рядом со значком проступает слово «Настройки», страница под ним
- * заливается бумагой, и на ней поднимаются поля.
+ * «Открыть» показывает проводник ПРЯМО НА СТРАНИЦЕ, на месте календаря, и
+ * на любой ширине: человек выбирает из своих графиков тот, который станет
+ * открытым, и показывать этот выбор окном поверх одного из них значило бы
+ * назвать его мимолётным. Кнопка при этом становится кнопкой закрытия —
+ * той же самой, которой открыли.
  *
- * Так человек видит, ЧТО открылось и откуда: полноэкранное окно, возникшее
- * рывком, на телефоне неотличимо от перехода на другую страницу, и кнопка
- * «назад» браузера кажется правильным способом его закрыть (а она уводит с
- * сайта).
+ * --- Настройки: не окно вовсе ---------------------------------------------
  *
- * Шапку листа рисует сам лист, а не страница: `dialog` живёт в верхнем
- * слое, и шапка страницы под ним недосягаема. Поэтому шапка листа встаёт
- * ровно на её место — та же высота, те же поля, — а настоящая гасится
- * меткой `data-sheet` на корне документа. Отсюда же и замер: путь значка
- * это расстояние от него до знака сайта, и знать его заранее нельзя —
- * ширина экрана и наличие подписей на кнопках меняют его на десятки точек.
- * Замер делается в момент нажатия и уезжает в CSS переменной.
+ * Кнопка «Настройки» ничего не открывает поверх страницы: она переключает
+ * то, что на этой странице показано (`workspace.tsx` решает, что́ именно,
+ * — знак сайта рядом читает «Настройки» вместо «График 1 3», полоса цифр
+ * становится закладками, календарь — анкетой). Экран не сменился ни на
+ * миг, и открывать его окном означало бы утверждать обратное.
+ *
+ * Плавающее окно на столе тут было до тех пор, пока довод звучал так:
+ * колонки и панели по бокам никуда не прячутся, окно лишь дополняет их.
+ * Но настройки — ответы про ТОТ САМЫЙ график, что лежит под ними, и окно
+ * закрывало собой ровно то, ради чего его открыли. Теперь порядок один на
+ * всех ширинах, и он же у проводника: содержимое страницы подменяется на
+ * месте.
+ *
+ * Значок кнопки при этом меняется сам, шестерня на крестик: та же кнопка,
+ * которой открыли, и закрывает. Отдельного крестика в углу листа, как у
+ * прежнего окна, тут нет и не может быть — самого листа больше нет.
  */
 
 type ToolId = "settings" | "open" | "save";
@@ -85,11 +98,14 @@ type ToolId = "settings" | "open" | "save";
  */
 const TOOL_META: Record<ToolId, { label: string; title: string; Icon: LucideIcon }> = {
   settings: { label: "Настройки", title: "Настройки", Icon: Settings },
-  open: { label: "Открыть", title: "Открыть профиль из файла", Icon: FolderOpen },
+  open: { label: "Открыть", title: "Открыть профиль", Icon: FolderOpen },
   save: { label: "Сохранить", title: "Сохранить в файл", Icon: Save },
 };
 
 export const TOOL_ORDER: readonly ToolId[] = ["settings", "open", "save"];
+
+/** Чем кнопка настроек называет себя, пока настройки открыты. */
+const CLOSE_LABEL = "Закрыть";
 
 /**
  * С какой ширины у кнопок появляются подписи.
@@ -109,58 +125,127 @@ export const TOOL_ORDER: readonly ToolId[] = ["settings", "open", "save"];
  */
 export const LABELS_FROM = "hidden sm:inline";
 
+/**
+ * Общий вид кнопки шапки.
+ *
+ * Рядов у неё два — обычный («Настройки», «Открыть», «Сохранить») и ряд
+ * проводника, встающий на то же место, — и разойтись им нельзя: это одна
+ * и та же строка экрана, просто с разными действиями.
+ *
+ * Поля ужаты ниже 360 точек: там ряд проводника из четырёх кнопок в строку
+ * со знаком сайта иначе не встаёт.
+ */
+const TOOL_BUTTON = cn(
+  // `lit` — кнопка ловит свет лампы. Стоит она у правого края, дальше
+  // конца трубки, и блик ложится не сверху, а по верхней и левой кромке:
+  // сторону считает сама лампа замером (`shared/lamp.tsx`).
+  //
+  // Им же объяснено и наведение: кромка загорается по всему периметру, а
+  // под курсором на ней встаёт блик (`globals.css`, `.lit`). Прежде
+  // наведение меняло заливку — приём из интерфейсов без источника света, и
+  // здесь он спорил с тем, чем объяснён весь остальной вид кнопки.
+  "lit",
+  "inline-flex h-9 shrink-0 cursor-pointer items-center gap-2 rounded-xl",
+  "bg-paper-raised px-2 min-[360px]:px-3 text-sm font-medium",
+  "text-ink",
+  "focus-visible:outline-2 focus-visible:outline-offset-2",
+  "focus-visible:outline-ink",
+);
+
+function ToolButton({
+  icon,
+  label,
+  title,
+  expanded,
+  onClick,
+}: {
+  icon: ReactNode;
+  label: string;
+  /** Имя для программы чтения: называет действие целиком. */
+  title: string;
+  /** Кнопка закрывает то, что сейчас показано вместо страницы. */
+  expanded?: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      // Имя кнопки не зависит от того, видна подпись или нет: на узком
+      // экране от кнопки остаётся значок, и без имени она стала бы для
+      // программы чтения безымянной.
+      aria-label={title}
+      aria-expanded={expanded}
+      title={title}
+      className={TOOL_BUTTON}
+    >
+      {icon}
+      <span className={LABELS_FROM}>{label}</span>
+    </button>
+  );
+}
+
 export function HeaderTools({
   profile,
-  onChange,
-  onForget,
-  onOpenDay,
   className,
+  settingsOpen,
+  onToggleSettings,
+  explorerOpen,
+  onToggleExplorer,
+  explorerTools,
 }: {
+  /** Нужен выгрузке в файл: она здесь и остаётся. */
   profile: StoredProfile;
-  onChange: (change: (previous: StoredProfile) => StoredProfile) => void;
-  /** Удалить профиль с устройства — из настроек, рядом со сбросом. */
-  onForget?: () => void;
-  /**
-   * Открыть сутки на сетке.
-   *
-   * Нужно перечню внесённых изменений: строка перечня ведёт в те самые
-   * сутки, а открывает их рабочий экран — там же, где и всё остальное.
-   * Заводить второе окно дня внутри настроек значило бы повторить его
-   * целиком и разойтись с ним при первой же правке.
-   */
-  onOpenDay: (day: IsoDate, grid: "shifts" | "calendar") => void;
   className?: string;
+  /** Показаны ли сейчас настройки вместо графика. */
+  settingsOpen: boolean;
+  onToggleSettings: () => void;
+  /** Показан ли сейчас проводник по профилям вместо календаря. */
+  explorerOpen: boolean;
+  onToggleExplorer: () => void;
+  /** Действия проводника: пока он открыт, они стоят на месте обычных трёх. */
+  explorerTools: ExplorerTools;
 }) {
-  const [open, setOpen] = useState(false);
   const save = useSaveToFile(profile);
-  // Открытый файл ЗАМЕЩАЕТ профиль целиком, а не правит его по полю:
-  // прежнего в нём не остаётся ничего.
-  const file = useOpenProfile(profile, (next) => onChange(() => next));
 
-  // Путь значка: замеряется в момент нажатия, потому что до нажатия он
-  // неизвестен — подписи на кнопках появляются с 640 точек и сдвигают
-  // значок вправо на всю ширину слова. Остальную мерку (откуда растёт
-  // заливка шапки) снимает сам лист по кнопке.
-  const icon = useRef<SVGSVGElement>(null);
-  const word = useRef<HTMLSpanElement>(null);
-  const [button, setButton] = useState<HTMLButtonElement | null>(null);
-  const [travel, setTravel] = useState<number | null>(null);
-  // Видна ли на кнопке подпись. От этого зависит, что именно уезжает в
-  // шапку листа: подробности у самой шапки листа, ниже.
-  const [labelled, setLabelled] = useState(false);
-
-  function openSettings(pressed: HTMLButtonElement) {
-    const from = icon.current?.getBoundingClientRect();
-    const to = document.querySelector("[data-brand]")?.getBoundingClientRect();
-    // Не замерилось — не беда: без переменной значок просто проступит на
-    // своём месте, остальной переход не зависит от неё.
-    setTravel(from && to ? Math.round(from.left - to.left) : null);
-    // Спрашивается разметка, а не ширина экрана: порог подписи назначен
-    // классом (`LABELS_FROM`), и второе его написание здесь рано или поздно
-    // разошлось бы с первым.
-    setLabelled((word.current?.getBoundingClientRect().width ?? 0) > 0);
-    setButton(pressed);
-    setOpen(true);
+  // Пока открыт проводник, страница занята другим — и кнопки у неё другие:
+  // не «настроить, открыть, сохранить», а «папка, профиль, из файла».
+  // Закрытие при этом уезжает в конец ряда: открывали проводник кнопкой из
+  // середины, но закрывают его после того, как всё остальное сделано.
+  if (explorerOpen) {
+    return (
+      <div
+        role="group"
+        aria-label="Проводник: папка, профиль, из файла, закрыть"
+        className={cn("flex items-center gap-2", className)}
+      >
+        <ToolButton
+          icon={<FolderPlus aria-hidden className="size-4.5 shrink-0 text-ink-muted" />}
+          label="Папка"
+          title="Создать папку"
+          onClick={explorerTools.newFolder}
+        />
+        <ToolButton
+          icon={<Plus aria-hidden className="size-4.5 shrink-0 text-ink-muted" />}
+          label="Профиль"
+          title="Создать профиль"
+          onClick={explorerTools.newProfile}
+        />
+        <ToolButton
+          icon={<Upload aria-hidden className="size-4.5 shrink-0 text-ink-muted" />}
+          label="Из файла"
+          title="Загрузить профиль из файла"
+          onClick={explorerTools.importFile}
+        />
+        <ToolButton
+          icon={<X aria-hidden className="size-4.5 shrink-0 text-ink-muted" />}
+          label="Закрыть"
+          title="Закрыть проводник"
+          expanded
+          onClick={onToggleExplorer}
+        />
+      </div>
+    );
   }
 
   return (
@@ -172,116 +257,84 @@ export function HeaderTools({
       >
         {TOOL_ORDER.map((id) => {
           const { label, title, Icon } = TOOL_META[id];
+          // Кнопка настроек не открывает окно, а переключает то, что
+          // показано на самой странице, и сама превращается в кнопку
+          // закрытия. Имя и подсказка называют то действие, которое
+          // нажатие СЕЙЧАС совершит.
+          const toggling = id === "settings";
+          const pressed = toggling && settingsOpen;
+          const label_ = pressed ? CLOSE_LABEL : label;
+          const title_ = pressed ? "Закрыть настройки" : title;
           return (
             <button
               key={id}
               type="button"
-              onClick={(event) => {
+              onClick={() => {
                 if (id === "save") save.ask();
-                else if (id === "open") file.ask();
-                else openSettings(event.currentTarget);
+                else if (id === "open") onToggleExplorer();
+                else onToggleSettings();
               }}
               // Имя кнопки не зависит от того, видна подпись или нет:
               // на узком экране от кнопки остаётся значок, и без имени она
               // стала бы для программы чтения безымянной.
-              aria-label={title}
-              title={title}
-              className={cn(
-                // `lit` — кнопка ловит свет лампы. Стоит она у правого
-                // края, дальше конца трубки, и блик ложится не сверху, а
-                // по верхней и левой кромке: сторону считает сама лампа
-                // замером (`shared/lamp.tsx`).
-                "lit",
-                "inline-flex h-9 shrink-0 cursor-pointer items-center gap-2 rounded-xl",
-                "bg-paper-raised px-3 text-sm font-medium",
-                "text-ink transition-colors hover:bg-paper-sunken",
-                "focus-visible:outline-2 focus-visible:outline-offset-2",
-                "focus-visible:outline-trace",
-              )}
+              aria-label={title_}
+              aria-expanded={toggling ? pressed : undefined}
+              title={title_}
+                      className={TOOL_BUTTON}
             >
-              <Icon
-                ref={id === "settings" ? icon : undefined}
-                aria-hidden
-                className="size-4.5 shrink-0 text-ink-muted"
-              />
-              <span ref={id === "settings" ? word : undefined} className={LABELS_FROM}>
-                {label}
-              </span>
+              {toggling ? (
+                // Шестерня и крестик стоят в одной ячейке грида и проступают
+                // друг в друга — тот же приём, что у слова рядом со знаком
+                // сайта (`site-header.tsx`): один толкует то же самое
+                // действие («настройки»/«закрыть»), не сдвигая соседей.
+                <span className="grid">
+                  <Materialize
+                    show={!pressed}
+                    durationClassName="duration-200"
+                    className="col-start-1 row-start-1"
+                  >
+                    <Icon aria-hidden className="size-4.5 shrink-0 text-ink-muted" />
+                  </Materialize>
+                  <Materialize
+                    show={pressed}
+                    durationClassName="duration-200"
+                    className="col-start-1 row-start-1"
+                  >
+                    <X aria-hidden className="size-4.5 shrink-0 text-ink-muted" />
+                  </Materialize>
+                </span>
+              ) : (
+                <Icon aria-hidden className="size-4.5 shrink-0 text-ink-muted" />
+              )}
+              {toggling ? (
+                // Оба слова стоят в одной ячейке грида, и ширину кнопки
+                // держит то, что длиннее. Подменой текста кнопка на слове
+                // «Закрыть» ужималась на два десятка точек, и весь ряд —
+                // «Открыть», «Сохранить» — сдвигался вправо в тот самый
+                // миг, когда человек в него целился. Спрятанное слово
+                // (`invisible`) занимает место, но не читается ни глазом,
+                // ни программой чтения.
+                <span className="hidden sm:grid">
+                  <span
+                    className={cn("col-start-1 row-start-1", pressed && "invisible")}
+                  >
+                    {label}
+                  </span>
+                  <span
+                    className={cn("col-start-1 row-start-1", !pressed && "invisible")}
+                  >
+                    {CLOSE_LABEL}
+                  </span>
+                </span>
+              ) : (
+                <span className={LABELS_FROM}>{label_}</span>
+              )}
             </button>
           );
         })}
       </div>
 
-      <Modal
-        open={open}
-        onClose={() => setOpen(false)}
-        sheet
-        from={button}
-        style={
-          travel === null
-            ? undefined
-            : ({ "--sheet-mark-travel": `${travel}px` } as CSSProperties)
-        }
-        // Что уезжает в шапку листа, решает сама кнопка.
-        //
-        // Когда от неё остался один значок, в шапке появляются две вещи:
-        // значок приезжает на место знака сайта, а слово «Настройки»
-        // проступает справа от него — там, где на кнопке его и не было.
-        //
-        // Когда подпись на кнопке видна, слову появляться неоткуда: оно уже
-        // едет вместе со значком, и второе его появление на том же месте
-        // читалось бы как мигание. Поэтому в этом случае метка перехода
-        // стоит на паре целиком, а отдельного проявления слова нет.
-        title={
-          <span
-            // Блочный `flex` с шириной по содержимому — и то и другое
-            // обязательно.
-            //
-            // Ширина по содержимому: метка перехода едет целиком, и
-            // растянутая на всю ширину заголовка коробка возила бы за собой
-            // пустоту — вместе с точкой, от которой считается масштаб.
-            //
-            // Блочный, а не `inline-flex`: строчный бокс встаёт в строке ПО
-            // БАЗОВОЙ ЛИНИИ, а базовая линия у `inline-flex` — это нижний
-            // край первого элемента, то есть значка. Значок выше строчной
-            // высоты заголовка, и всю пару выносило на 2,7 точки вверх
-            // (замерено) — на кнопке слово стояло на 32, а в шапке листа
-            // оказывалось на 29,3, и в момент нажатия оно подпрыгивало.
-            // `leading-5` ровно по высоте значка: пока строчная высота
-            // заголовка (24,75) была выше значка (20), она и задавала
-            // середину пары, и та не совпадала с серединой шапки на пол-точки.
-            className={cn(
-              "flex w-fit items-center gap-2 leading-5",
-              labelled && "sheet__mark",
-            )}
-          >
-            <Settings
-              aria-hidden
-              className={cn(
-                "size-5 shrink-0 text-ink-muted",
-                !labelled && "sheet__mark",
-              )}
-            />
-            <span className={labelled ? undefined : "sheet__word"}>Настройки</span>
-          </span>
-        }
-      >
-        <SettingsTabs
-          profile={profile}
-          onChange={onChange}
-          onForget={onForget}
-          // Открыть сутки — значит закрыть настройки: окно дня встаёт
-          // поверх, и оставить под ним второе окно значило бы вернуть
-          // человека в настройки, как только он закончит с днём.
-          onOpenDay={(day, grid) => {
-            setOpen(false);
-            onOpenDay(day, grid);
-          }}
-        />
-      </Modal>
-
       {save.dialog}
-      {file.dialogs}
     </>
   );
 }

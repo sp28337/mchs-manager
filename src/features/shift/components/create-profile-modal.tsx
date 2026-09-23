@@ -4,7 +4,6 @@ import { useState, type ReactNode } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
-import { Card, Field } from "@/components/ui/panel";
 
 import {
   DEFAULT_SCHEDULE_PATTERN,
@@ -13,12 +12,12 @@ import {
 import { DEFAULT_SHIFT_START } from "../domain/shift-hours";
 import { todayIso } from "../domain/plain-date";
 import { weeklyNormGroundFacts } from "../model/derive";
+import { nameTaken } from "../storage/library";
 import {
   createProfile,
   DEFAULT_PROFILE_NAME,
   type StoredProfile,
 } from "../storage/profile";
-import { ImportProfileBlock } from "./import-profile";
 import { SettingsPanel } from "./settings-panel";
 
 /**
@@ -48,12 +47,14 @@ import { SettingsPanel } from "./settings-panel";
  * человек попадает, когда профиль создан, — то есть когда там есть что
  * показывать.
  *
- * --- Почему возврат из файла тоже в окне -----------------------------------
+ * --- Почему возврата из файла здесь больше нет -----------------------------
  *
- * Он отвечает на тот же вопрос — «откуда взять профиль», — только другим
- * способом: не заполнять заново, а вернуть сохранённый. Оставить его на
- * странице значило бы спрятать за окном единственный выход для того, кто
- * уже всё это однажды заполнял.
+ * Внизу окна стоял блок «Уже заполняли раньше» — заголовок, две строки
+ * пояснения и выбор файла. Человеку, который заводит профиль впервые (а
+ * это почти все, кто сюда попадает), он отвечал на вопрос, которого тот
+ * не задавал, и отодвигал кнопку «Построить мой график» на полэкрана
+ * вниз. Возврат из файла остаётся там, где за ним идут осознанно: кнопка
+ * «Из файла» в проводнике профилей.
  *
  * --- Почему черновик, а не поля по одному ----------------------------------
  *
@@ -106,13 +107,21 @@ export function CreateProfileModal({
 
   function submit() {
     setError(null);
+    // Пустое имя — не ошибка: обращение нужно человеку, а не расчёту, и
+    // отказывать в графике из-за незаполненной строки было бы придиркой.
+    const displayName = draft.displayName.trim() || DEFAULT_PROFILE_NAME;
+    // Занятое — ошибка, и здесь единственное место, где её можно назвать
+    // до того, как профиль заведён: в проводнике два одинаковых имени
+    // означают выбор наугад, а удаление — лотерею с данными за год.
+    if (nameTaken(displayName)) {
+      setError(
+        `Профиль «${displayName}» уже есть. Дайте новому другое имя — в проводнике ` +
+          `они различаются только им.`,
+      );
+      return;
+    }
     try {
-      // Пустое имя — не ошибка: обращение нужно человеку, а не расчёту, и
-      // отказывать в графике из-за незаполненной строки было бы придиркой.
-      onCreated({
-        ...draft,
-        displayName: draft.displayName.trim() || DEFAULT_PROFILE_NAME,
-      });
+      onCreated({ ...draft, displayName });
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Не удалось сохранить профиль.");
     }
@@ -134,19 +143,10 @@ export function CreateProfileModal({
 
         <SettingsPanel profile={draft} onChange={setDraft} purpose="create" />
 
-        <div className="space-y-4 pt-1">
+        <div className="pt-1">
           <Button type="button" className="w-full" onClick={submit}>
             Построить мой график
           </Button>
-
-          <Card>
-            <Field label="" stack>
-              <ImportProfileBlock title="Уже заполняли раньше" onImported={onCreated}>
-              Если вы сохраняли профиль в файл, загрузите его — график,
-              отсутствия и правки календаря вернутся как были.
-            </ImportProfileBlock>
-            </Field>
-          </Card>
         </div>
       </div>
     </Modal>

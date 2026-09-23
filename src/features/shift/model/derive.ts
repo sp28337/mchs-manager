@@ -27,7 +27,9 @@ import {
   onShiftCycle,
   weeklyNormGroundOf,
   weeklyNormGroundToFacts,
+  type AbsenceKind,
   type AccountingPeriodKind,
+  type CalloutKind,
   type WeeklyNorm,
   type WeeklyNormGround,
   type WeeklyNormInput,
@@ -488,4 +490,214 @@ export function withShiftMoved(
   const carried = profile.shiftTimes[from] ?? null;
   const moved = withShiftAt(withShiftAt(profile, from, false), to, true);
   return carried === null ? moved : withShiftTimeAt(moved, to, carried);
+}
+
+/**
+ * Отметить или снять вид суток одним нажатием.
+ *
+ * --- Зачем отдельно от срока -----------------------------------------------
+ *
+ * Кольцо вокруг клетки (`day-ring.tsx`) отвечает на «что было в этот день»
+ * одним движением, и день у него ровно один. Срок — отдельный разговор, и
+ * заходит он следом, своим окном: до какого числа отпуск, сколько часов
+ * вызов (`withAbsenceUntil`, `withCalloutUntil`).
+ *
+ * Поэтому здесь самый простой случай: включить на эти сутки и выключить.
+ * Правит он ту же запись, которой распоряжается и окно срока, — ту, что
+ * накрывает эти сутки; снятие уносит её целиком. Отпуск с первого по
+ * четырнадцатое, снятый шестого, исчезает весь: человек сказал, что отпуска
+ * в этот день не было, а резать чужой период надвое за него приложение не
+ * вправе — для этого есть окно с датой окончания.
+ */
+export function withAbsenceToggled(
+  profile: StoredProfile,
+  day: IsoDate,
+  kind: AbsenceKind,
+): StoredProfile {
+  const covering = profile.absences.find(
+    (item) => item.kind === kind && item.startsOn <= day && day <= item.endsOn,
+  );
+  if (covering !== undefined) {
+    return {
+      ...profile,
+      absences: profile.absences.filter((item) => item.id !== covering.id),
+    };
+  }
+  return {
+    ...profile,
+    absences: [
+      ...profile.absences,
+      { id: crypto.randomUUID(), kind, startsOn: day, endsOn: day },
+    ],
+  };
+}
+
+/** То же для работы помимо графика. Часы — обычная смена, правятся в окне. */
+export function withCalloutToggled(
+  profile: StoredProfile,
+  day: IsoDate,
+  kind: CalloutKind,
+  hoursPerDay: string,
+): StoredProfile {
+  // Снимается ЛЮБОЙ выход сверх графика в этих сутках, а не только того же
+  // вида.
+  // ---------------------------------------------------------------------
+  // Видов вызова в данных шесть, но отмечают теперь один: остальные пять
+  // остались от прежней разметки и встречаются только в старых профилях.
+  // Ищи мы по виду — человек, нажав «Вызов» на дне со старыми
+  // «Соревнованиями», не снял бы их, а поставил бы рядом второй выход: в
+  // сутках стало бы два вызова вместо одного, и часы сложились бы дважды.
+  //
+  // Поэтому нажатие снимает то, что в сутках есть, каким бы видом оно ни
+  // было записано. Сам вид при этом не переписывается: пока запись стоит,
+  // она остаётся собой — и в подписи клетки, и в перечне изменений.
+  const covering = profile.callouts.find(
+    (item) => item.startsOn <= day && day <= item.endsOn,
+  );
+  if (covering !== undefined) {
+    return {
+      ...profile,
+      callouts: profile.callouts.filter((item) => item.id !== covering.id),
+    };
+  }
+  return {
+    ...profile,
+    callouts: [
+      ...profile.callouts,
+      { id: crypto.randomUUID(), kind, startsOn: day, endsOn: day, hoursPerDay },
+    ],
+  };
+}
+
+/**
+ * Заметка к суткам.
+ *
+ * Пустая не хранится: иначе профиль обрастал бы пустыми строками на каждом
+ * дне, который человек когда-либо открывал.
+ */
+export function withNoteAt(
+  profile: StoredProfile,
+  day: IsoDate,
+  text: string,
+): StoredProfile {
+  const dayNotes = { ...profile.dayNotes };
+  if (text.trim() === "") delete dayNotes[day];
+  else dayNotes[day] = text.trim();
+  return { ...profile, dayNotes };
+}
+
+/**
+ * Докуда длится отметка: срок у записи, накрывающей эти сутки.
+ *
+ * Отметка в кольце (`day-ring.tsx`) ложится на один день, а спрошенный
+ * следом срок её продлевает — ту же самую запись, а не вторую рядом.
+ * Открыв середину отпуска с первого по четырнадцатое и назвав двадцатое,
+ * человек меняет ЭТОТ отпуск: у него остаются и опознаватель, и дата
+ * начала, которая может быть раньше открытых суток. Вторая запись удвоила
+ * бы отпуск.
+ */
+export function withAbsenceUntil(
+  profile: StoredProfile,
+  day: IsoDate,
+  kind: AbsenceKind,
+  endsOn: IsoDate,
+): StoredProfile {
+  return {
+    ...profile,
+    absences: profile.absences.map((item) =>
+      item.kind === kind && item.startsOn <= day && day <= item.endsOn
+        ? { ...item, endsOn }
+        : item,
+    ),
+  };
+}
+
+/** То же для работы помимо графика — вместе с часами в сутки. */
+export function withCalloutUntil(
+  profile: StoredProfile,
+  day: IsoDate,
+  kind: CalloutKind,
+  endsOn: IsoDate,
+  hoursPerDay: string,
+): StoredProfile {
+  return {
+    ...profile,
+    callouts: profile.callouts.map((item) =>
+      item.kind === kind && item.startsOn <= day && day <= item.endsOn
+        ? { ...item, endsOn, hoursPerDay }
+        : item,
+    ),
+  };
+}
+
+/**
+ * Подвинуть границу уже записанного события — по его номеру.
+ *
+ * --- Зачем номер, если есть день -------------------------------------------
+ *
+ * `withAbsenceUntil` ищет запись по суткам и виду: так её находит кольцо,
+ * которому известен день под курсором и больше ничего. Перечень внесённых
+ * изменений (`changes-list.tsx`) знает другое — саму запись, — и искать её
+ * заново по дню было бы не просто лишним, а неверным: двух отпусков подряд
+ * с одной датой начала приложение не запрещает, и поиск по дню поправил бы
+ * не тот.
+ *
+ * Дата раньше начала не принимается: событие, кончающееся прежде, чем
+ * началось, — это не срок, а опечатка. Вместо неё остаётся начало, то есть
+ * «одни сутки»; так же поступает и поле даты, которому назначен `min`.
+ */
+export function withAbsenceEnd(
+  profile: StoredProfile,
+  id: string,
+  endsOn: IsoDate,
+): StoredProfile {
+  return {
+    ...profile,
+    absences: profile.absences.map((item) =>
+      item.id === id
+        ? { ...item, endsOn: endsOn < item.startsOn ? item.startsOn : endsOn }
+        : item,
+    ),
+  };
+}
+
+/** То же для работы сверх графика — со своими часами в сутки. */
+export function withCalloutEnd(
+  profile: StoredProfile,
+  id: string,
+  endsOn: IsoDate,
+  hoursPerDay: string,
+): StoredProfile {
+  return {
+    ...profile,
+    callouts: profile.callouts.map((item) =>
+      item.id === id
+        ? {
+            ...item,
+            endsOn: endsOn < item.startsOn ? item.startsOn : endsOn,
+            hoursPerDay,
+          }
+        : item,
+    ),
+  };
+}
+
+/**
+ * Вид дня в производственном календаре — одним нажатием.
+ *
+ * Совпал с законом — правка снимается: в профиле лежит только то, что
+ * человек утверждает ВОПРЕКИ ст. 112 и 95 ТК РФ, и «ваших правок» должно
+ * быть ровно столько, сколько он готов отстаивать. Тот же довод, что у
+ * правок графика (`withShiftAt`) и у окна дня.
+ */
+export function withDayTypeAt(
+  profile: StoredProfile,
+  day: IsoDate,
+  type: DayType,
+): StoredProfile {
+  const lawful = statutoryCalendar(profile.accountingYear).get(day) ?? "working";
+  const calendarOverrides = { ...profile.calendarOverrides };
+  if (type === lawful) delete calendarOverrides[day];
+  else calendarOverrides[day] = type;
+  return { ...profile, calendarOverrides };
 }

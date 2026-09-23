@@ -91,7 +91,13 @@ export function WorkspaceSkeleton() {
   return (
     <main
       aria-hidden
-      className={cn("mx-auto w-full px-6 pt-26 2xl:max-w-[2000px]", WORKSPACE_PAD)}
+      className={cn(
+        "mx-auto w-full px-6 pt-26 2xl:max-w-[2000px]",
+        // Та же высота, что у рабочего экрана: иначе страница дёрнулась бы
+        // ровно в тот миг, ради которого заглушка и существует.
+        "min-h-[calc(100dvh-var(--safe-top)-var(--safe-bottom))]",
+        WORKSPACE_PAD,
+      )}
     >
       {/* Имя человека — водяным знаком: по центру и почти прозрачное.
           Кость под ним такая же бледная, иначе плотный прямоугольник

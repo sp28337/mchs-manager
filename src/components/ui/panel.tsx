@@ -1,8 +1,9 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useContext, type ReactNode } from "react";
 
 import { Hint } from "./hint";
+import { InsideModal } from "./modal";
 import { Label } from "./label";
 import { cn } from "@/lib/utils/cn";
 
@@ -26,11 +27,30 @@ import { cn } from "@/lib/utils/cn";
  * ответ у каждой стоит на своём месте, справа.
  */
 export function Card({ children }: { children: ReactNode }) {
+  const inside = useContext(InsideModal);
+
   return (
     // `lit` — карточка ловит свет лампы: блик по верхней кромке, мягкая
     // тень вниз. Без него плашка лежит на бумаге как наклейка, вырезанная
     // ножницами; с ним у неё появляется толщина.
-    <div className="lit divide-y divide-rule rounded-xl bg-paper-raised px-4 w-full">
+    <div
+      className={cn(
+        "w-full divide-y divide-rule",
+        // Внутри окна от плашки остаётся одна линовка.
+        // ---------------------------------------------------------------
+        // На странице плашка отделяет вопросы от бумаги вокруг: она
+        // поднята, у неё своя заливка, свет по кромке и тень. В окне
+        // отделять не от чего — окно и ЕСТЬ та самая поднятая бумага, — и
+        // плашка внутри читалась коробкой в коробке: две кромки, два фона
+        // и полоска между ними.
+        //
+        // Свет с неё снимается не для красоты: кайму и блик по курсору
+        // забирает ближайшая поверхность, и плашка, оставь ей `lit`,
+        // перехватывала бы их у самого окна — у окна кайма гасла бы всякий
+        // раз, когда курсор заходит на вопросы.
+        !inside && "lit rounded-xl bg-paper-raised px-4",
+      )}
+    >
       {children}
     </div>
   );

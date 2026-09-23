@@ -285,8 +285,7 @@ export default function LandingPage() {
                     // лежала на бумаге наклейкой, вырезанной ножницами,
                     // рядом с блоками, у которых толщина есть.
                     "lit group relative flex h-full flex-col gap-1.5 rounded-xl bg-paper-raised p-5 pr-12",
-                    "transition-colors hover:bg-paper-sunken",
-                    "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-trace",
+                    "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink",
                   )}
                 >
                   <ExternalMark />
@@ -318,8 +317,9 @@ export default function LandingPage() {
                 key={item.question}
                 // Тот же свет, что у карточек выше и у всего остального
                 // на странице: лампа в комнате одна, и блоков, до которых
-                // она не достаёт, быть не должно.
-                className="lit group rounded-xl bg-paper-raised px-5 hover:bg-paper-sunken"
+                // она не достаёт, быть не должно. Наведение он же и
+                // показывает — загоревшейся кромкой, а не другой заливкой.
+                className="lit group rounded-xl bg-paper-raised px-5"
               >
                 <summary className="flex cursor-pointer list-none items-center justify-between gap-6 py-4 text-sm font-medium marker:hidden md:text-md">
                   <span>{item.question}</span>

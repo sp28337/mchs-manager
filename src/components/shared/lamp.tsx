@@ -342,6 +342,62 @@ function useLitTilt(ready: boolean): void {
   }, [ready]);
 }
 
+/**
+ * Откуда светит кайма: точка курсора внутри блока.
+ *
+ * --- Почему один слушатель на всю страницу ----------------------------------
+ *
+ * Кайму на наведении получает КАЖДАЯ поднятая поверхность (`.lit` и
+ * `.lit-tile` в `globals.css`), а их на рабочем экране не десятки, а
+ * сотни: плашки итога, кнопки шапки, карточки проводника, легенды — и
+ * каждая клетка года, а их больше трёхсот. Вешать обработчик на каждую
+ * значило бы заводить их по числу клеток и помнить про это в любом новом
+ * месте — а забытый обработчик выглядел бы как поломка: блок светится, но
+ * блик стоит в середине и не двигается.
+ *
+ * Слушатель поэтому один и живёт при самой лампе: свет — её забота.
+ * Величина пишется прямо в стиль ближнего к курсору блока, минуя
+ * состояние React: её читает только градиент каймы, в отрисовке она не
+ * участвует, и перерисовывать из-за движения мыши было бы дорого ровно
+ * настолько, насколько это заметно.
+ *
+ * Раз в кадр, а не на каждое событие: указатель шлёт их сотнями в секунду,
+ * а показать чаще кадра всё равно нечего.
+ */
+function useCursorGlow(ready: boolean): void {
+  useEffect(() => {
+    if (!ready) return;
+
+    let frame = 0;
+    let latest: PointerEvent | null = null;
+
+    const paint = () => {
+      frame = 0;
+      const event = latest;
+      if (event === null) return;
+      const target =
+        event.target instanceof Element
+          ? event.target.closest<HTMLElement>(".lit, .lit-edge, .lit-tile")
+          : null;
+      if (target === null) return;
+      const box = target.getBoundingClientRect();
+      target.style.setProperty("--glow-x", `${event.clientX - box.left}px`);
+      target.style.setProperty("--glow-y", `${event.clientY - box.top}px`);
+    };
+
+    const follow = (event: PointerEvent) => {
+      latest = event;
+      if (frame === 0) frame = window.requestAnimationFrame(paint);
+    };
+
+    window.addEventListener("pointermove", follow, { passive: true });
+    return () => {
+      window.removeEventListener("pointermove", follow);
+      if (frame !== 0) window.cancelAnimationFrame(frame);
+    };
+  }, [ready]);
+}
+
 export function Lamp() {
   const chosen = useSyncExternalStore(subscribe, readColour, noColour);
   // Тема нужна лампе ради умолчания, и только ради него. `null` до
@@ -390,6 +446,7 @@ export function Lamp() {
   );
 
   useLitTilt(colour !== null);
+  useCursorGlow(colour !== null);
   useWaver(colour !== null);
 
   function switchColour() {

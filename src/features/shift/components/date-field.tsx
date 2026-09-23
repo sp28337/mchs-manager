@@ -258,7 +258,7 @@ function CalendarPopover({
         }}
         className={cn(
           "flex size-9 items-center justify-center rounded-lg cursor-pointer bg-paper transition-all duration-200",
-          "hover:border-ink hover:border focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-trace",
+          "hover:border-ink hover:border focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ink",
           open && "border-ink",
         )}
       >
@@ -306,7 +306,7 @@ function CalendarPopover({
                   onClick={() => onPick(day)}
                   className={cn(
                     "flex aspect-square w-full items-center justify-center rounded-xs border font-mono text-xs",
-                    "focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-trace",
+                    "focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ink",
                     blocked && "cursor-not-allowed border-transparent text-ink-faint opacity-40",
                     !blocked && "border-transparent hover:border-ink",
                     day === today && !blocked && "border-rule-strong",
@@ -338,7 +338,7 @@ function Arrow({
       type="button"
       aria-label={label}
       onClick={onClick}
-      className="flex size-7 items-center justify-center rounded-xl text-ink-muted hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-trace"
+      className="flex size-7 items-center justify-center rounded-xl text-ink-muted hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ink"
     >
       {children}
     </button>

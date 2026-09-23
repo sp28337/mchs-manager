@@ -176,21 +176,10 @@ export function SettingsPanel({
             <LiveModeSwitch profile={profile} onChange={onChange} />
           </Field>
 
-          <Field
-            label="Переработка в сутках"
-            hint={
-              <>
-                <p>
-                  Отображать переработку сменами.
-                </p>
-                {/* <p>
-                  «212,0 ч» — число верное, но чтобы понять, много это или
-                  мало, его приходится делить на свою смену в уме. Смена
-                  берётся та, что указана ниже.
-                </p> */}
-              </>
-            }
-          >
+          {/* Подсказки у этой строки нет: «Переработка в сменах» говорит
+              ровно то, что делает тумблер, и пояснение под вопросительным
+              знаком повторяло бы подпись другими словами. */}
+          <Field label="Переработка в сменах">
             <Switch
               checked={profile.overtimeInDays}
               onChange={(overtimeInDays) =>
@@ -199,7 +188,7 @@ export function SettingsPanel({
               // Подпись у тумблера обязательна и остаётся обязательной:
               // видно её теперь в подписи строки, а произносится она
               // по-прежнему вместе с состоянием.
-              label={<span className="sr-only">Переработка в сутках</span>}
+              label={<span className="sr-only">Переработка в сменах</span>}
             />
           </Field>
         </Card>
@@ -210,20 +199,28 @@ export function SettingsPanel({
           продолжительность смены, норма и дата от него не зависят, но
           читаются рядом. */}
       <Card>
-      <Field id={nameId} label="Имя профиля" stack>
-        <Input
-          id={nameId}
-          maxLength={200}
-          // Подсказка в поле нужна не настройкам, а окну «Создать профиль»:
-          // там оно пустое, и человек видит, чего от него хотят.
-          placeholder="Например: Основной график"
-          value={profile.displayName}
-          onChange={(event) => {
-            const displayName = event.target.value;
-            onChange((previous) => ({ ...previous, displayName }));
-          }}
-        />
-      </Field>
+      {/* Имя спрашивается здесь только при первом заполнении.
+          -------------------------------------------------------------
+          У живого профиля имя правится не полем среди прочих, а прямо в
+          самом имени — водяным знаком над цифрами рабочего экрана
+          (`ProfileName`): человек и так смотрит на него первым. Поле
+          дублировало бы ту же правку в другом месте страницы. Здесь, в
+          «Создать профиль», того водяного знака ещё нет — профиль пока не
+          существует, и спрашивать имя больше неоткуда. */}
+      {purpose === "create" ? (
+        <Field id={nameId} label="Имя профиля" stack>
+          <Input
+            id={nameId}
+            maxLength={200}
+            placeholder="Например: Основной график"
+            value={profile.displayName}
+            onChange={(event) => {
+              const displayName = event.target.value;
+              onChange((previous) => ({ ...previous, displayName }));
+            }}
+          />
+        </Field>
+      ) : null}
 
       {/* График стоит раньше нормы и даты: от него зависит и то, как
           строится календарь, и обычная продолжительность смены. Ответив на
@@ -471,8 +468,9 @@ type TuneKind = "pattern" | "norm";
  * Нужен потому, что список из этого положения второй раз не выйдет:
  * выбранный пункт при повторном выборе события не даёт, и окно, открытое
  * один раз выбором «Настроить», больше не открылось бы никак. Карандаш —
- * тот же знак и то же слово в имени, что у правки часов смены в окне суток
- * (`day-editor.tsx`): одно действие приложения выглядит одинаково везде.
+ * тот же знак и то же слово в имени, что у правки в перечне внесённых
+ * изменений и у заметки в кольце видов: одно действие приложения выглядит
+ * одинаково везде.
  */
 function TuneButton({ label, onClick }: { label: string; onClick: () => void }) {
   return (
@@ -482,7 +480,7 @@ function TuneButton({ label, onClick }: { label: string; onClick: () => void }) 
       aria-label={`Настроить: ${label}`}
       className="inline-flex size-7 shrink-0 cursor-pointer items-center justify-center
                  rounded-sm text-ink-faint transition-colors hover:text-ink
-                 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-trace"
+                 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
     >
       <Pencil aria-hidden className="size-3.5" />
     </button>

@@ -206,9 +206,9 @@ export function PeriodPicker({
             // строке и обязана ловить свет так же, иначе из строки выпадает.
             "lit inline-flex h-9 shrink-0 cursor-pointer items-center gap-2 rounded-xl",
             "bg-paper-raised px-3 text-sm font-medium",
-            "text-ink transition-colors hover:bg-paper-sunken",
+            "text-ink",
             "focus-visible:outline-2 focus-visible:outline-offset-2",
-            "focus-visible:outline-trace",
+            "focus-visible:outline-ink",
           )}
         >
           <PeriodIcon className="text-ink-muted" />
