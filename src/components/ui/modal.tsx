@@ -1,7 +1,7 @@
 "use client";
 
 import { X } from "lucide-react";
-import { useEffect, useId, useRef, type ReactNode } from "react";
+import { createContext, useEffect, useId, useRef, type ReactNode } from "react";
 
 import { cn } from "@/lib/utils/cn";
 
@@ -218,6 +218,17 @@ function unlockScroll(): void {
   }, EXIT_MS);
 }
 
+/**
+ * Признак «мы внутри окна» — для плашек, которые в нём лежат.
+ *
+ * Окно само сделано из поднятой бумаги и само ловит свет: у него своя
+ * кайма, свой блик и своя тень. Плашке внутри него всё это ни к чему —
+ * она получилась бы коробкой в коробке, — и узнать, что она внутри окна,
+ * она может только отсюда: разметкой это не видно, а по CSS у неё не
+ * отнять класс.
+ */
+export const InsideModal = createContext(false);
+
 export function Modal({
   open,
   onClose,
@@ -398,6 +409,7 @@ export function Modal({
         className,
       )}
     >
+      <InsideModal value={true}>
       <header
         className={cn(
           // Линии под шапкой нет. Линовка в этом приложении живёт ВНУТРИ
@@ -470,6 +482,7 @@ export function Modal({
       >
         {children}
       </div>
+      </InsideModal>
     </dialog>
   );
 }
