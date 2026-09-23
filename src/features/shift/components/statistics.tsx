@@ -81,7 +81,7 @@ export function Statistics({ profile }: { profile: StoredProfile }) {
 
   if (!stats.any) {
     return (
-      <p className="rounded-xl bg-paper-raised px-4 py-3 text-sm text-ink-muted">
+      <p className="text-sm text-ink-muted">
         За {stats.year} год считать нечего: выбранный год ещё не начался или
         целиком раньше начала отсчёта.
       </p>
@@ -113,8 +113,21 @@ function Headline({ stats }: { stats: Statistics }) {
   const balance = positive ? over : under;
 
   return (
-    <section className="space-y-3">
-      <div className="lit rounded-xl bg-paper-raised px-5 py-4">
+    <section className="space-y-4">
+      {/* Без плашки и без света.
+          -------------------------------------------------------------------
+          Плашка здесь была — поднятая бумага со светом по кромке, как у
+          карточек на странице. В окне она стала лишней дважды. Во-первых,
+          бумага у окна теперь та же самая (`ui/modal.tsx`), и плашка
+          вышла коробкой в коробке. Во-вторых, свет: кайму и блик по
+          курсору забирает ближайшая к указателю поверхность с `lit`, и
+          плашка отнимала их у самого окна — стоило подвести курсор к
+          числу, как кромка окна гасла.
+
+          Числу плашка и не нужна: оно набрано вчетверо крупнее всего
+          вокруг и цветом итога. Отделяет его от мелких величин линовка —
+          та же, что разделяет строки в списках приложения. */}
+      <div className="border-b border-rule pb-4">
         <p className="text-xs uppercase tracking-wide text-ink-muted">
           {positive ? "Переработка за год" : under.greaterThan(0) ? "Недоработка за год" : "Баланс за год"}
         </p>
@@ -137,9 +150,9 @@ function Headline({ stats }: { stats: Statistics }) {
         </p>
       </div>
 
-      {/* Пять величин в ряд плашками, а не рисунком: это разные величины,
+      {/* Шесть величин в ряд числами, а не рисунком: это разные величины,
           а не одна в разрезе, и сравнивать их между собой не нужно. */}
-      <dl className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+      <dl className="grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-3">
         <Tile label="Норма года" value={hours(total.normHours.toNumber())} />
         <Tile label="Отработано" value={hours(total.actualHours.toNumber())} />
         <Tile
@@ -181,7 +194,9 @@ function Tile({
   note?: string;
 }) {
   return (
-    <div className="rounded-xl bg-paper-raised px-3 py-2.5">
+    // Плашки нет: бумага у окна и так поднятая, и второй такой же внутри
+    // быть не должно. Держит величины сетка и подпись под ними.
+    <div>
       <dt className="text-[11px] uppercase tracking-wide text-ink-faint">{label}</dt>
       {/* Крупное число набирается обычными цифрами, а не табличными:
           табличные дают каждой цифре ширину нуля, и «121» на таком кегле
@@ -304,13 +319,17 @@ function Absences({ stats }: { stats: Statistics }) {
         </p>
       </div>
 
-      <ul className="divide-y divide-rule rounded-xl bg-paper-raised px-4">
+      {/* От плашки остаётся линовка между строками — ровно так же, как у
+          карточки настроек, попавшей в окно (`ui/panel.tsx`). */}
+      <ul className="divide-y divide-rule">
         {absences.map((it) => (
           <li key={it.kind} className="flex items-center gap-3 py-2.5">
             <span
               aria-hidden
+              // Тот же значок, что в перечне внесённых изменений: клетка в
+              // семь единиц, рамка, полужирный кегль.
               className={cn(
-                "inline-flex size-6 shrink-0 items-center justify-center border font-mono text-[11px]",
+                "grid size-7 shrink-0 place-items-center rounded-md border text-xs font-bold",
                 ABSENCE_TONE[it.kind],
               )}
             >
@@ -358,7 +377,9 @@ function MonthTable({ stats }: { stats: Statistics }) {
       <h3 className="font-display text-sm font-bold uppercase tracking-wide">
         По месяцам
       </h3>
-      <div className="overflow-x-auto rounded-xl bg-paper-raised">
+      {/* Прокручивается вбок сама, внутри своей коробки, но плашки под ней
+          нет: она стоит на бумаге окна, как и всё остальное. */}
+      <div className="overflow-x-auto">
         <table className="w-full min-w-[34rem] border-collapse text-sm">
           <caption className="sr-only">
             Норма, отработанные, ночные и праздничные часы по месяцам {stats.year}{" "}
@@ -366,7 +387,7 @@ function MonthTable({ stats }: { stats: Statistics }) {
           </caption>
           <thead>
             <tr className="text-[11px] uppercase tracking-wide text-ink-faint">
-              <th scope="col" className="px-4 py-2 text-left font-medium">
+              <th scope="col" className="py-2 pr-3 text-left font-medium">
                 Месяц
               </th>
               <Head>Норма</Head>
@@ -384,7 +405,7 @@ function MonthTable({ stats }: { stats: Statistics }) {
           </tbody>
           <tfoot>
             <tr className="border-t border-rule-strong font-medium">
-              <th scope="row" className="px-4 py-2 text-left">
+              <th scope="row" className="py-2 pr-3 text-left">
                 За год
               </th>
               <Cell>{hoursTrim(stats.total.normHours)}</Cell>
@@ -421,7 +442,7 @@ function MonthTable({ stats }: { stats: Statistics }) {
 
 function Head({ children }: { children: React.ReactNode }) {
   return (
-    <th scope="col" className="px-3 py-2 text-right font-medium">
+    <th scope="col" className="px-3 py-2 text-right font-medium last:pr-0">
       {children}
     </th>
   );
@@ -437,7 +458,7 @@ function Cell({
   return (
     <td
       className={cn(
-        "px-3 py-2 text-right font-mono tabular-nums",
+        "px-3 py-2 text-right font-mono tabular-nums last:pr-0",
         tone === "over" && "text-verify",
         tone === "under" && "text-signal",
       )}
@@ -458,7 +479,7 @@ function Row({ month }: { month: MonthStat }) {
   const balance = month.balance.toNumber();
   return (
     <tr>
-      <th scope="row" className="px-4 py-2 text-left font-normal">
+      <th scope="row" className="py-2 pr-3 text-left font-normal">
         {MONTH_NAMES[month.month]}
       </th>
       <Cell>{hoursTrim(month.normHours)}</Cell>
