@@ -739,12 +739,18 @@ function Ring({
           затемнения не зажигает вовсе (`modal-over-ring` в `globals.css`),
           а стоит на том же погасшем фоне, из которого его и вызвали. */}
       <Scrim
-        hole={{
-          left: cellBox.left - 2,
-          top: cellBox.top - 2,
-          width: cellBox.width + 4,
-          height: cellBox.height + 4,
-        }}
+        // Окошко — только пока выбирают в кольце. Встало окно события — и
+        // день гаснет вместе со всей страницей: речь теперь в окне.
+        hole={
+          picking
+            ? {
+                left: cellBox.left - 2,
+                top: cellBox.top - 2,
+                width: cellBox.width + 4,
+                height: cellBox.height + 4,
+              }
+            : null
+        }
         onDismiss={onClose}
       />
 
@@ -962,7 +968,22 @@ function Ring({
  * Тем же слоем закрыт и день в окошке — но у него сверху своя прозрачная
  * накладка, за которой полное окно суток.
  */
-function Scrim({ hole, onDismiss }: { hole: Box; onDismiss: () => void }) {
+function Scrim({
+  hole,
+  onDismiss,
+}: {
+  /**
+   * Окошко для выбранного дня — или `null`, когда окошка быть не должно.
+   *
+   * Пока человек выбирает в кольце, день обязан оставаться на виду: он и
+   * есть предмет разговора. А когда поверх кольца встало окно — срок,
+   * часы, заметка, — разговор переехал в него, и незатемнённый, резкий
+   * квадратик посреди погасшей страницы читается дыркой: непонятно, что
+   * это и почему оно светится, когда спрашивают о другом.
+   */
+  hole: Box | null;
+  onDismiss: () => void;
+}) {
   // Окошко за краем экрана вырезается НЕ ТАМ, где просят.
   // ---------------------------------------------------------------------
   // Замечено на телефоне ещё когда окошек было два: второе, для легенды,
@@ -975,22 +996,28 @@ function Scrim({ hole, onDismiss }: { hole: Box; onDismiss: () => void }) {
   // уйти за кромку), но обрезка осталась: у самого края окна клетка видна
   // наполовину, и просить вырезать её целиком значит просить о том же
   // самом.
-  const shown = {
-    left: Math.max(0, hole.left),
-    top: Math.max(0, hole.top),
-    right: Math.min(window.innerWidth, hole.left + hole.width),
-    bottom: Math.min(window.innerHeight, hole.top + hole.height),
-  };
-  const open = shown.right > shown.left && shown.bottom > shown.top;
+  const shown =
+    hole === null
+      ? null
+      : {
+          left: Math.max(0, hole.left),
+          top: Math.max(0, hole.top),
+          right: Math.min(window.innerWidth, hole.left + hole.width),
+          bottom: Math.min(window.innerHeight, hole.top + hole.height),
+        };
+  const open =
+    shown !== null && shown.right > shown.left && shown.bottom > shown.top;
 
   const layer = "linear-gradient(#000 0 0)";
   const image = open ? `${layer}, ${layer}` : layer;
-  const size = open
-    ? `${Math.ceil(shown.right - shown.left)}px ${Math.ceil(shown.bottom - shown.top)}px, 100% 100%`
-    : "100% 100%";
-  const position = open
-    ? `${Math.floor(shown.left)}px ${Math.floor(shown.top)}px, 0 0`
-    : "0 0";
+  const size =
+    open && shown !== null
+      ? `${Math.ceil(shown.right - shown.left)}px ${Math.ceil(shown.bottom - shown.top)}px, 100% 100%`
+      : "100% 100%";
+  const position =
+    open && shown !== null
+      ? `${Math.floor(shown.left)}px ${Math.floor(shown.top)}px, 0 0`
+      : "0 0";
 
   return (
     <div
@@ -998,10 +1025,19 @@ function Scrim({ hole, onDismiss }: { hole: Box; onDismiss: () => void }) {
       data-day-ring-scrim
       // На погружении и с отменой родного поведения: нажатие не должно ни
       // уйти под слой, ни увести фокус со страницы.
-      onPointerDown={(event) => {
-        event.preventDefault();
-        onDismiss();
-      }}
+      // Закрывается по НАЖАТИЮ (`click`), а не по касанию пальца.
+      // ---------------------------------------------------------------------
+      // Было по `pointerdown` — и на телефоне это открывало день заново.
+      // Порядок событий там такой: палец коснулся, слой закрыл кольцо и
+      // исчез вместе с ним, палец поднялся — и браузер шлёт `click` по тем
+      // же точкам, но попадает уже в клетку под бывшим слоем: вокруг неё
+      // распускалось новое кольцо. Отмена родного действия у `pointerdown`
+      // от этого не спасает: на касании `click` родится не из него, а из
+      // `touchend`.
+      //
+      // По `click` слой доживает до конца жеста и получает нажатие сам —
+      // клетке под ним не достаётся ничего.
+      onClick={onDismiss}
       // Размытие вдобавок к темноте: одной темноты мало. Под ней сетка
       // года остаётся сеткой — те же триста шестьдесят пять квадратов, тот
       // же ритм столбцов, — и глаз продолжает её читать. Размытая, она
@@ -1105,10 +1141,8 @@ function RingLegend({
     >
       <div
         data-day-ring
-        onPointerDown={(event) => {
-          event.preventDefault();
-          onDismiss();
-        }}
+        // По нажатию, а не по касанию: довод — у затемнения (`Scrim`).
+        onClick={onDismiss}
         className="pointer-events-auto min-h-0 overflow-y-auto"
       >
         <ul
@@ -1198,10 +1232,8 @@ function RingNote({
     >
       <div
         data-day-ring
-        onPointerDown={(event) => {
-          event.preventDefault();
-          onDismiss();
-        }}
+        // По нажатию, а не по касанию: довод — у затемнения (`Scrim`).
+        onClick={onDismiss}
         className="pointer-events-auto flex min-h-0 gap-2 overflow-y-auto py-1 opacity-70"
       >
         <Pencil aria-hidden className="mt-0.5 size-3.5 shrink-0 text-ink-faint" />
