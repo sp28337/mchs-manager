@@ -390,7 +390,7 @@ export function ShiftLegend({ skeleton }: { skeleton?: boolean }) {
           />
         </LegendGroup>
 
-        <LegendGroup title="Отсутствие по уважительной причине" skeleton={skeleton}>
+        <LegendGroup title="Периоды отсутствия" skeleton={skeleton}>
           {(Object.keys(ABSENCE_MARK) as AbsenceKind[]).map((kind) => (
             <Legend
               key={kind}

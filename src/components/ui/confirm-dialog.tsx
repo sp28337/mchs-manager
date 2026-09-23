@@ -100,10 +100,14 @@ export function ConfirmDialog({
       className="modal-over-modal w-[min(26rem,calc(100vw-2rem))]"
     >
       <div className="space-y-4">
-        {/* Тот же вид, что у карточки настроек: вопрос стоит на поднятой
-            бумаге, кнопки — на самой странице окна. Строк «вопрос — ответ»
-            здесь нет, поэтому и карточка взята без них — одной заливкой. */}
-        <div className="space-y-2 rounded-xl bg-paper-raised px-4 py-3 text-sm lit">
+        {/* Та же примета, что у карточки настроек (`data-card`): внутри
+            окна заливка и кромка с неё снимаются, и вопрос стоит прямо на
+            бумаге окна — она и есть поднятая. Строк «вопрос — ответ» здесь
+            нет, поэтому и карточка взята без них. */}
+        <div
+          data-card
+          className="space-y-2 rounded-xl bg-paper-raised px-4 py-3 text-sm lit"
+        >
           {children}
         </div>
 

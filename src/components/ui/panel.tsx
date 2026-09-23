@@ -30,7 +30,14 @@ export function Card({ children }: { children: ReactNode }) {
     // `lit` — карточка ловит свет лампы: блик по верхней кромке, мягкая
     // тень вниз. Без него плашка лежит на бумаге как наклейка, вырезанная
     // ножницами; с ним у неё появляется толщина.
-    <div className="lit divide-y divide-rule rounded-xl bg-paper-raised px-4 w-full">
+    // Примета плашки: по ней её узнаёт окно. Внутри окна у плашки нет ни
+    // заливки, ни кромки, ни полей — только линовка между строками: окно
+    // и есть поднятая бумага, и второй такой же внутри быть не должно
+    // (`.modal [data-card]` в `globals.css`).
+    <div
+      data-card
+      className="lit divide-y divide-rule rounded-xl bg-paper-raised px-4 w-full"
+    >
       {children}
     </div>
   );
