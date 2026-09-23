@@ -21,6 +21,7 @@ import { ChangesList } from "./changes-list";
 import { DayRing } from "./day-ring";
 import { GridDeck, WORKSPACE_PAD } from "./grid-deck";
 import { HeaderTools } from "./header-tools";
+import { scrollMonthUnderBar, topmostVisibleMonth } from "./month-anchor";
 import { useConfirmSwitch } from "./open-profile";
 import { PeriodSummary, REVEAL_DELAY_MS } from "./period-summary";
 import { ProfileExplorer, useExplorerTools } from "./profile-explorer";
@@ -365,6 +366,40 @@ export function Workspace({
   const [yearView, setYearView] = useState<YearViewKind>("shifts");
 
   /**
+   * Переключить график/календарь, не сдвинув то, что уже на экране.
+   *
+   * --- Почему это вообще нужно ---------------------------------------------
+   *
+   * У графика и календаря разная высота — те же двенадцать месяцев, но с
+   * разным содержимым в сутках, и разница набегает до пары сотен точек.
+   * Переключение меняет рост страницы, и браузер сам поджимает прокрутку,
+   * если новый вид короче прежнего, — но поджимает не до той точки, где
+   * человек смотрел, а до случайного предела: страница откатывалась почти
+   * к началу, будто читателя вернуло на январь.
+   *
+   * --- Как это чинится -------------------------------------------------------
+   *
+   * Тем же способом, что открытие страницы на нынешнем месяце
+   * (`month-anchor.ts`): месяц, чьи сутки видны под полосой цифр СЕЙЧАС,
+   * запоминается ДО переключения, а после того, как новая сетка встала на
+   * место, он же подводится обратно под полосу.
+   *
+   * --- Почему только на телефоне ---------------------------------------------
+   *
+   * Тот же порог и тот же довод, что у самого открытия на нынешнем месяце:
+   * там год — двенадцать экранов подряд, и любая прокрутка стоит дорого. На
+   * широком экране сетка не в один длинный столбец, и подводить месяц под
+   * полосу там нечем и незачем.
+   */
+  function changeYearView(next: YearViewKind) {
+    const mobile = window.matchMedia("(max-width: 767px)").matches;
+    const anchor = mobile ? topmostVisibleMonth() : null;
+    setYearView(next);
+    if (anchor === null) return;
+    requestAnimationFrame(() => scrollMonthUnderBar(anchor));
+  }
+
+  /**
    * Сутки, вокруг которых стоит кольцо видов (`day-ring.tsx`).
    *
    * Единственное состояние дня на этом экране. Прежде их было два: кольцо
@@ -597,7 +632,7 @@ export function Workspace({
               calculation={shown ?? calculation}
               upcoming={upcoming}
               view={yearView}
-              onViewChange={setYearView}
+              onViewChange={changeYearView}
               onChange={onChange}
               statutory={statutory}
               onStatutory={setStatutory}
@@ -661,7 +696,7 @@ export function Workspace({
           profile={profile}
           onChange={onChange}
           view={yearView}
-          onViewChange={setYearView}
+          onViewChange={changeYearView}
           statutory={statutory}
           onStatutory={setStatutory}
           month={month}
