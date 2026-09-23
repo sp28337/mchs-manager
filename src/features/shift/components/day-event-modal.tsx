@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Modal } from "@/components/ui/modal";
+import { cn } from "@/lib/utils/cn";
 import { Card, Field } from "@/components/ui/panel";
 
 import { parseHours } from "../domain/decimal";
@@ -65,6 +66,7 @@ export function SpanModal({
   hours,
   onCommit,
   onClose,
+  className,
 }: {
   open: boolean;
   /** Название события — оно же заголовок окна. */
@@ -77,6 +79,15 @@ export function SpanModal({
   hours: string | null;
   onCommit: (endsOn: IsoDate, hours: string | null) => void;
   onClose: () => void;
+  /**
+   * Приметы окна от того, кто его открыл.
+   *
+   * Нужны одному случаю: окно, открытое из кольца видов, встаёт поверх
+   * УЖЕ погашенной страницы, и гасить её второй раз ему не нужно
+   * (`modal-over-ring` в `globals.css`). Из перечня изменений то же окно
+   * открывается на обычной странице и гасит её, как все.
+   */
+  className?: string;
 }) {
   const [until, setUntil] = useState<IsoDate>(endsOn);
   const [perDay, setPerDay] = useState(hours ?? DEFAULT_CALLOUT_HOURS);
@@ -99,7 +110,7 @@ export function SpanModal({
       open={open}
       onClose={onClose}
       title={title}
-      className="w-[min(30rem,calc(100vw-2rem))]"
+      className={cn("w-[min(30rem,calc(100vw-2rem))]", className)}
     >
       <div className="flex flex-col items-center space-y-4">
         <Card>
@@ -146,6 +157,7 @@ export function NoteModal({
   text,
   onCommit,
   onClose,
+  className,
 }: {
   open: boolean;
   day: IsoDate;
@@ -153,6 +165,8 @@ export function NoteModal({
   text: string;
   onCommit: (text: string) => void;
   onClose: () => void;
+  /** Те же приметы, что у окна срока: см. `SpanModal`. */
+  className?: string;
 }) {
   const [draft, setDraft] = useState(text);
 
@@ -180,7 +194,7 @@ export function NoteModal({
       // заголовок «Заметка · 3 марта» и поле под ним читаются одним
       // блоком. Поле при этом остаётся видно: оно темнее (`bg-paper` у
       // `Input`) и обведено.
-      className="w-[min(30rem,calc(100vw-2rem))]"
+      className={cn("w-[min(30rem,calc(100vw-2rem))]", className)}
     >
       <div className="space-y-4">
         {/* Подписи над полем нет. Она повторяла заголовок окна другими
@@ -191,7 +205,7 @@ export function NoteModal({
           id="day-event-note"
           value={draft}
           maxLength={500}
-          placeholder="Например: обещали отгул"
+          placeholder="Оставьте заметку"
           aria-label={`Заметка к ${formatDayMonthRu(day)}`}
           onChange={(event) => setDraft(event.target.value)}
           onKeyDown={(event) => {
