@@ -29,6 +29,7 @@ import { ProfileFooter } from "./profile-footer";
 import { ProfileName } from "./profile-name";
 import { DangerActions, SettingsPanel } from "./settings-panel";
 import { SETTINGS_TAB_LABEL, type SettingsTab } from "./settings-tabs";
+import { Statistics } from "./statistics";
 import { CalendarNote } from "./year-calendar-editor";
 import {
   YearView,
@@ -265,6 +266,41 @@ export function Workspace({
       return next;
     });
     setExplorerOpen(false);
+    setStatsOpen(false);
+  }
+
+  /**
+   * Статистика за год — на месте календаря, как настройки и проводник.
+   *
+   * --- Почему не окном ------------------------------------------------------
+   *
+   * Окном она и была: широкий лист поверх страницы, двенадцать столбцов на
+   * трёх рисунках и таблица в семь колонок. Читают её долго — не «сколько
+   * сейчас», а «как шёл год», — и всё это время под листом лежало ровно
+   * то, о чём в нём написано: тот самый график, с теми самыми сменами.
+   * Окно закрывало собой источник собственных чисел.
+   *
+   * И способ показа получался третьим. Настройки и проводник подменяют
+   * содержимое страницы на месте, кнопкой, которая их же и закрывает, —
+   * статистика окном заставляла бы человека держать в голове, что одни
+   * кнопки шапки меняют страницу, а одна открывает лист поверх неё.
+   *
+   * Откат прокрутки — тот же и по той же причине, что у настроек: без него
+   * браузер, поджав страницу до новой высоты, показал бы статистику с
+   * середины.
+   */
+  const [statsOpen, setStatsOpen] = useState(false);
+
+  function toggleStats() {
+    setSwitched(true);
+    setStatsOpen((open) => {
+      const next = !open;
+      if (next) window.scrollTo(0, 0);
+      return next;
+    });
+    setSettingsOpen(false);
+    setExplorerOpen(false);
+    setPreviewId(null);
   }
 
   /**
@@ -293,6 +329,7 @@ export function Workspace({
       return next;
     });
     setSettingsOpen(false);
+    setStatsOpen(false);
     setPreviewId(null);
   }
 
@@ -433,6 +470,8 @@ export function Workspace({
             <span className="max-[359px]:sr-only">Профили</span>
           ) : showSettings ? (
             "Настройки"
+          ) : statsOpen ? (
+            "Статистика"
           ) : undefined
         }
         tools={
@@ -440,6 +479,8 @@ export function Workspace({
             profile={profile}
             settingsOpen={settingsOpen}
             onToggleSettings={toggleSettings}
+            statsOpen={statsOpen}
+            onToggleStats={toggleStats}
             explorerOpen={explorerOpen}
             onToggleExplorer={toggleExplorer}
             explorerTools={explorerTools}
@@ -611,6 +652,31 @@ export function Workspace({
             </div>
           </section>
         </FadeIn>
+      ) : statsOpen ? (
+        // Статистика на месте графика — тем же порядком, что настройки и
+        // проводник: страница подменяется, панель управления сеткой
+        // (`GridDeck`, ниже) при этом скрыта — управлять ей нечем.
+        <FadeIn key="stats" instant={!switched}>
+          {/* Ширина ограничена, но шире анкеты: внутри двенадцать столбцов
+              на трёх рисунках и таблица в семь колонок, и на двух тысячах
+              точек они растянулись бы в ленту, которую не охватить одним
+              взглядом. Предел тот же, что был у окна статистики (64 рем),
+              — ширина, на которой всё это читается. На телефоне он ни во
+              что не упирается: рисунки заданы долями, а не точками. */}
+          <section
+            aria-labelledby="stats-heading"
+            className="mx-auto w-full max-w-[64rem]"
+          >
+            {/* Заголовок только для программы чтения: что открыто, на
+                экране уже сказано знаком сайта («Статистика») и нажатой
+                кнопкой в шапке, а строка под полосой цифр повторяла бы это
+                третий раз. */}
+            <h2 id="stats-heading" className="sr-only">
+              Статистика за {profile.accountingYear} год
+            </h2>
+            <Statistics profile={profile} />
+          </section>
+        </FadeIn>
       ) : (
         // Календарь не сворачивается. Крышка над ним была наследством от
         // времён, когда на странице стояло пять разделов и двенадцать
@@ -691,7 +757,7 @@ export function Workspace({
 
           Пока показаны настройки, панели тоже нет: управлять ей нечем —
           сетки на экране в этот момент нет вовсе. */}
-      {showSettings || explorerOpen ? null : (
+      {showSettings || explorerOpen || statsOpen ? null : (
         <GridDeck
           profile={profile}
           onChange={onChange}
