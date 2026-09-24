@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 
-import { Segmented, SegmentedItem } from "@/components/ui/segmented";
+import { Select } from "@/components/ui/select";
 import { cn } from "@/lib/utils/cn";
 
 import {
@@ -22,7 +22,13 @@ import {
   type ProfileTotals,
   type Statistics,
 } from "../model/statistics";
-import { readEntryProfile } from "../storage/library";
+import {
+  folderPath,
+  ROOT_FOLDER_ID,
+  readEntryProfile,
+  type Library,
+  type LibraryFolder,
+} from "../storage/library";
 import type { StoredProfile } from "../storage/profile";
 import { BalanceChart, ColumnChart, ShareBar, type Column } from "./charts";
 import { useLibrary } from "./profile-explorer";
@@ -130,6 +136,8 @@ function axis(value: number): string {
 interface Sheet {
   id: string;
   name: string;
+  /** Папка проводника, в которой профиль лежит. */
+  folderId: string;
   profile: StoredProfile;
   /** Тот самый профиль, что сейчас открыт на странице. */
   open: boolean;
@@ -138,11 +146,11 @@ interface Sheet {
 /** Запись открытого профиля, если её в проводнике почему-то нет. */
 const LOOSE = "\u0000open";
 
-function useSheets(open: StoredProfile): Sheet[] {
+function useSheets(open: StoredProfile): { sheets: Sheet[]; library: Library } {
   const { library, activeId } = useLibrary();
 
-  return useMemo(() => {
-    const sheets: Sheet[] = [];
+  const sheets = useMemo(() => {
+    const list: Sheet[] = [];
     for (const entry of library.entries) {
       const mine = entry.id === activeId;
       // Запись, которая не читается (битый снимок, отнятое хранилище), —
@@ -150,41 +158,100 @@ function useSheets(open: StoredProfile): Sheet[] {
       // норму значило бы соврать о нём, а не промолчать.
       const it = mine ? open : readEntryProfile(entry.id);
       if (it === null) continue;
-      sheets.push({
+      list.push({
         id: entry.id,
         // Имя берётся из самого снимка, а не из записи: запись помнит имя
         // на миг последней правки, а переименование живёт в профиле.
         name: it.displayName.trim() === "" ? entry.name : it.displayName,
+        folderId: entry.folderId,
         profile: it,
         open: mine,
       });
     }
 
-    // Порядок по имени, а не по времени правки: переключатель читают
-    // глазами, ища своё, и список, перестраивающийся от каждой правки,
-    // заставлял бы искать заново.
-    sheets.sort((a, b) => a.name.localeCompare(b.name, "ru"));
+    // Порядок по имени, а не по времени правки: список читают глазами,
+    // ища своё, и перечень, перестраивающийся от каждой правки, заставлял
+    // бы искать заново.
+    list.sort((a, b) => a.name.localeCompare(b.name, "ru"));
 
-    // Открытый профиль обязан быть в переключателе всегда — даже если в
+    // Открытый профиль обязан быть в выборе всегда — даже если в
     // проводнике его записи ещё нет: он и есть то, на что человек смотрит.
-    if (!sheets.some((it) => it.open)) {
-      sheets.unshift({
+    if (!list.some((it) => it.open)) {
+      list.unshift({
         id: LOOSE,
         name: open.displayName.trim() === "" ? "Открытый профиль" : open.displayName,
+        folderId: ROOT_FOLDER_ID,
         profile: open,
         open: true,
       });
     }
 
-    return sheets;
+    return list;
   }, [library, activeId, open]);
+
+  return { sheets, library };
 }
 
-/** Что показано: свод по всем профилям или один из них. */
-type Scope = { kind: "all" } | { kind: "one"; id: string };
+/**
+ * Что показано: свод по всем, свод по папке или один профиль.
+ *
+ * Папка здесь — не украшение выбора. Профили в проводнике раскладывают по
+ * папкам не по прихоти: «4-й караул» — это и есть та единица, о которой
+ * спрашивают «сколько у нас вышло», а не «все графики, какие есть в
+ * браузере». Свод по всем на такой вопрос отвечает суммой по чужим людям.
+ */
+type Scope =
+  | { kind: "all" }
+  | { kind: "folder"; id: string }
+  | { kind: "one"; id: string };
 
-export function Statistics({ profile }: { profile: StoredProfile }) {
-  const sheets = useSheets(profile);
+/**
+ * Выбор — строкой, потому что его хранит родной `select`.
+ *
+ * Разделитель — двоеточие: опознания папок и записей выдаёт `crypto.randomUUID`
+ * или связка из времени и случайного хвоста (`library.ts`), и двоеточия в
+ * них нет ни в одном из двух видов.
+ */
+function encode(scope: Scope): string {
+  return scope.kind === "all" ? "all" : `${scope.kind}:${scope.id}`;
+}
+
+function decode(value: string): Scope {
+  const at = value.indexOf(":");
+  if (at < 0) return { kind: "all" };
+  const kind = value.slice(0, at);
+  const id = value.slice(at + 1);
+  return kind === "folder" ? { kind: "folder", id } : { kind: "one", id };
+}
+
+/** Папки от корня к этой — «grafik13 / 4-й караул». */
+function folderLabel(library: Library, folder: LibraryFolder): string {
+  const path = folderPath(library, folder.id);
+  return path.length === 0 ? folder.name : path.map((it) => it.name).join(" / ");
+}
+
+/** Лежит ли папка внутри другой — она сама или любой её потомок. */
+function within(library: Library, folderId: string, rootId: string): boolean {
+  return folderPath(library, folderId).some((it) => it.id === rootId);
+}
+
+export function Statistics({
+  profile,
+  onShow,
+}: {
+  profile: StoredProfile;
+  /**
+   * Чей профиль показан сейчас — чтобы полоса цифр и имя наверху
+   * перестроились под него.
+   *
+   * `null` — показан свод (по всем или по папке) либо сам открытый
+   * профиль: и в том и в другом случае наверху остаётся то, что было.
+   * Зовётся из обработчика выбора, а не из отрисовки: страница наверху —
+   * чужое состояние, и менять его во время своей отрисовки нельзя.
+   */
+  onShow: (shown: StoredProfile | null) => void;
+}) {
+  const { sheets, library } = useSheets(profile);
   /**
    * Выбор человека — или его отсутствие.
    *
@@ -196,36 +263,77 @@ export function Statistics({ profile }: { profile: StoredProfile }) {
   const [scope, setScope] = useState<Scope | null>(null);
 
   const mine = sheets.find((it) => it.open) ?? sheets[0]!;
-  const all = scope?.kind === "all";
-  // Выбранный профиль мог исчезнуть, пока статистика открыта (его удалили
-  // в проводнике) — тогда показывается открытый, а не пустое место.
-  const shown =
-    scope?.kind === "one"
-      ? (sheets.find((it) => it.id === scope.id) ?? mine)
-      : mine;
+  // Выбранное могло исчезнуть, пока статистика открыта (профиль удалили в
+  // проводнике, папку переименовали) — тогда показывается открытый
+  // профиль, а не пустое место.
+  const one =
+    scope === null
+      ? mine
+      : scope.kind === "one"
+        ? (sheets.find((it) => it.id === scope.id) ?? mine)
+        : null;
+  const folder =
+    scope?.kind === "folder"
+      ? (library.folders.find((it) => it.id === scope.id) ?? null)
+      : null;
+  const group =
+    scope?.kind === "folder" && folder !== null
+      ? sheets.filter((it) => within(library, it.folderId, folder.id))
+      : null;
+
+  function choose(next: Scope) {
+    setScope(next);
+    // Наверху страницы показывают ОДИН профиль, и только когда он не тот,
+    // что открыт: у свода единственного профиля нет, а открытый там стоит
+    // и без нашей просьбы.
+    const shown =
+      next.kind === "one" ? (sheets.find((it) => it.id === next.id) ?? null) : null;
+    onShow(shown === null || shown.open ? null : shown.profile);
+  }
 
   return (
     // Просвет между плашками — тот же, что между карточками настроек и
     // рядами проводника: разделы тут одного рода, и разводить их вдвое
     // шире значило бы сказать, что они с разных страниц.
     <div className="space-y-4">
-      {/* Переключатель — только когда переключать есть на что. При одном
-          профиле ряд из «Все» и его же имени предлагал бы выбор из одного
-          и обещал бы свод, которого нет. */}
+      {/* Выбор — только когда выбирать есть из чего. При одном профиле
+          список из «Все профили» и его же имени предлагал бы выбор из
+          одного и обещал бы свод, которого нет. */}
       {sheets.length > 1 ? (
-        <ScopeBar
+        <ScopePicker
           sheets={sheets}
-          all={all}
-          shownId={shown.id}
-          onAll={() => setScope({ kind: "all" })}
-          onOne={(id) => setScope({ kind: "one", id })}
+          library={library}
+          // Не `scope`, а то, что ПОКАЗАНО: выбора могло не быть вовсе
+          // (тогда стоит открытый профиль), а выбранное могло исчезнуть
+          // (тогда стоит то, чем его заменили). Список обязан показывать
+          // строку, которая сейчас на экране, а не намерение человека.
+          value={
+            one !== null
+              ? { kind: "one", id: one.id }
+              : folder !== null
+                ? { kind: "folder", id: folder.id }
+                : { kind: "all" }
+          }
+          onChange={choose}
         />
       ) : null}
 
-      {all ? (
-        <AllProfiles sheets={sheets} onPick={(id) => setScope({ kind: "one", id })} />
+      {group !== null && folder !== null ? (
+        <Summary
+          title={folder.name}
+          what={`папке «${folderLabel(library, folder)}»`}
+          sheets={group}
+          onPick={(id) => choose({ kind: "one", id })}
+        />
+      ) : one === null ? (
+        <Summary
+          title="Все профили"
+          what="всем профилям"
+          sheets={sheets}
+          onPick={(id) => choose({ kind: "one", id })}
+        />
       ) : (
-        <OneProfile profile={shown.profile} />
+        <OneProfile profile={one.profile} />
       )}
     </div>
   );
@@ -234,54 +342,89 @@ export function Statistics({ profile }: { profile: StoredProfile }) {
 /**
  * Чья статистика показана.
  *
- * Переключателем, а не списком и не выпадающим полем: положений немного,
- * они взаимоисключающие, и занятое из них видно, не открывая ничего, —
- * тот же строй, что у выбора вида сетки и учётного периода
- * (`ui/segmented.tsx`). Переносится по строкам: профилей может быть
- * сколько угодно, и уехать за край они не должны.
+ * --- Почему выпадающий список, а не ряд плашек ------------------------------
+ *
+ * Ряд плашек тут и стоял, и при трёх профилях читался прекрасно. Но
+ * профилей бывает не три: в карауле их два десятка, и ряд из двадцати имён
+ * — это три строки поперёк экрана над статистикой, ради которой сюда и
+ * пришли. Вдобавок плашки не умеют главного, что здесь нужно: показать,
+ * что профили сложены в ПАПКИ, и дать выбрать папку целиком.
+ *
+ * Список это умеет родными средствами — `optgroup`, — и на телефоне
+ * открывает системный барабан вместо трёх строк мелких плашек
+ * (`ui/select.tsx`, там же остальные доводы за родной `select`).
+ *
+ * --- Что в нём стоит --------------------------------------------------------
+ *
+ * Сперва «Все профили», потом папки по порядку, у каждой — «вся папка» и
+ * её профили. «Вся папка» не предлагается там, где она ничего не добавляет:
+ * у корневой папки (это те же «все») и у папки с единственным профилем.
+ * Папки без профилей не показаны вовсе — выбрать в них нечего.
  */
-function ScopeBar({
+function ScopePicker({
   sheets,
-  all,
-  shownId,
-  onAll,
-  onOne,
+  library,
+  value,
+  onChange,
 }: {
   sheets: readonly Sheet[];
-  all: boolean;
-  shownId: string;
-  onAll: () => void;
-  onOne: (id: string) => void;
+  library: Library;
+  value: Scope;
+  onChange: (scope: Scope) => void;
 }) {
+  // Папка идёт в список, если в ней самой или внутри неё есть профили:
+  // выбрать «4-й караул» человек хочет вместе с тем, что в нём вложено.
+  const groups = library.folders
+    .map((folder) => ({
+      folder,
+      label: folderLabel(library, folder),
+      own: sheets.filter((it) => it.folderId === folder.id),
+      inside: sheets.filter((it) => within(library, it.folderId, folder.id)),
+    }))
+    .filter((it) => it.own.length > 0 || it.inside.length > 0)
+    .sort((a, b) => a.label.localeCompare(b.label, "ru"));
+
   return (
-    <Segmented
-      label="Чья статистика"
-      className="h-auto max-w-full flex-wrap justify-start gap-1 p-1 lg:flex-none lg:justify-start"
-    >
-      <SegmentedItem active={all} onClick={onAll} className="h-8 lg:flex-none">
-        Все
-        <span className="font-mono text-[11px] tabular-nums text-ink-faint">
-          {sheets.length}
-        </span>
-      </SegmentedItem>
-      {sheets.map((sheet) => (
-        <SegmentedItem
-          key={sheet.id}
-          active={!all && sheet.id === shownId}
-          onClick={() => onOne(sheet.id)}
-          className="h-8 lg:flex-none"
-        >
-          {/* Точка у открытого профиля, а не слово «открыт»: слово стоило
-              бы половины ширины плашки на каждом имени, а сказать нужно
-              одно — который из них лежит сейчас на странице. */}
-          {sheet.open ? (
-            <span aria-hidden className="size-1.5 shrink-0 rounded-full bg-verify" />
-          ) : null}
-          <span className="min-w-0 max-w-40 truncate">{sheet.name}</span>
-          {sheet.open ? <span className="sr-only"> (открыт)</span> : null}
-        </SegmentedItem>
-      ))}
-    </Segmented>
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+      <label
+        htmlFor="stats-scope"
+        className="font-display text-[11px] font-bold uppercase tracking-wide text-ink-muted"
+      >
+        Показать
+      </label>
+      <Select
+        id="stats-scope"
+        className="w-auto min-w-56 max-w-full"
+        value={encode(value)}
+        onChange={(event) => onChange(decode(event.target.value))}
+      >
+        <option value="all">Все профили ({sheets.length})</option>
+        {groups.map(({ folder, label, own, inside }) => (
+          <optgroup key={folder.id} label={label}>
+            {folder.id !== ROOT_FOLDER_ID && inside.length > 1 ? (
+              // Имя папки повторяется в строке, хотя оно уже написано над
+              // ней заголовком группы: закрытый список показывает ОДНУ
+              // строку и больше ничего, и «вся папка» в нём не сказало бы,
+              // какая именно. «Целиком» вместо «вся» — чтобы строка
+              // читалась при любом имени: и «4-й караул целиком», и «2025
+              // год целиком».
+              <option value={encode({ kind: "folder", id: folder.id })}>
+                {folder.name} целиком ({inside.length})
+              </option>
+            ) : null}
+            {own.map((sheet) => (
+              <option key={sheet.id} value={encode({ kind: "one", id: sheet.id })}>
+                {/* «открыт» словом, а не точкой: раскрытый список рисует
+                    операционная система, и ни цвета, ни значка в нём не
+                    поставить — остаётся сам текст строки. */}
+                {sheet.name}
+                {sheet.open ? " — открыт" : ""}
+              </option>
+            ))}
+          </optgroup>
+        ))}
+      </Select>
+    </div>
   );
 }
 
@@ -309,6 +452,15 @@ function OneProfile({ profile }: { profile: StoredProfile }) {
       <Callouts stats={stats} />
       <Absences stats={stats} />
       <MonthTable stats={stats} />
+      {/* Ночные — последними, ниже таблицы.
+          -----------------------------------------------------------------
+          Порядок разделов идёт от вопроса к вопросу: чем кончился год, как
+          он шёл, из чего это вышло, и точные числа в таблице. Ночные часы
+          ни на один из них не отвечают: это отдельная величина, нужная при
+          разговоре о доплате, а не при счёте переработки. Стоя третьим
+          рисунком, они разрывали ход — между «как копится баланс» и «из
+          чего он вышел» вставал вопрос из другого разговора. */}
+      <NightTrend stats={stats} />
     </div>
   );
 }
@@ -437,20 +589,6 @@ function Trends({ stats }: { stats: Statistics }) {
     ],
   }));
 
-  const night: Column[] = stats.months.map((it) => ({
-    label: SHORT[it.month]!,
-    title: MONTH_NAMES[it.month]!,
-    value: it.empty ? null : it.nightHours.toNumber(),
-    readout: it.empty
-      ? [{ what: "ещё не наступил", value: "—" }]
-      : [
-          { what: "ночные", value: hours(it.nightHours.toNumber()) },
-          { what: "праздничные", value: hours(it.holidayHours.toNumber()) },
-        ],
-  }));
-
-  const anyNight = stats.months.some((it) => it.nightHours.greaterThan(0));
-
   // Плашка на каждый рисунок, а не одна на три: вопросы у них разные —
   // «где недобрал», «когда вышел в плюс», «сколько ночных», — и общая
   // рамка вокруг троих читалась бы как один ответ в трёх частях. Класс
@@ -479,18 +617,45 @@ function Trends({ stats }: { stats: Statistics }) {
           under={TONE.under}
         />
       </div>
+    </div>
+  );
+}
 
-      {anyNight ? (
-        <div className={PLATE}>
-          <ColumnChart
-            title="Ночные часы по месяцам"
-            note="Часы смен, пришедшиеся на время с 22 до 6 (ст. 96 ТК РФ). Праздничные часы — в подписи при наведении и в таблице ниже."
-            columns={night}
-            bar={{ name: "Ночные", colour: TONE.night, shape: "bar" }}
-            format={axis}
-          />
-        </div>
-      ) : null}
+/**
+ * Ночные часы по месяцам — отдельным рисунком и в самом низу.
+ *
+ * Отдельным — потому что величина другая: подсадить их к норме второй осью
+ * значило бы выдумать связь, которой в данных нет. В самом низу — потому
+ * что и вопрос другой: остальное на странице про переработку, а ночные про
+ * доплату, и читают их, когда с переработкой уже разобрались.
+ *
+ * Рисунка нет вовсе, если ночных нет: пустое поле с осью от нуля до
+ * единицы — это не «ночных не было», это «что-то сломалось».
+ */
+function NightTrend({ stats }: { stats: Statistics }) {
+  const night: Column[] = stats.months.map((it) => ({
+    label: SHORT[it.month]!,
+    title: MONTH_NAMES[it.month]!,
+    value: it.empty ? null : it.nightHours.toNumber(),
+    readout: it.empty
+      ? [{ what: "ещё не наступил", value: "—" }]
+      : [
+          { what: "ночные", value: hours(it.nightHours.toNumber()) },
+          { what: "праздничные", value: hours(it.holidayHours.toNumber()) },
+        ],
+  }));
+
+  if (!stats.months.some((it) => it.nightHours.greaterThan(0))) return null;
+
+  return (
+    <div className={PLATE}>
+      <ColumnChart
+        title="Ночные часы по месяцам"
+        note="Часы смен, пришедшиеся на время с 22 до 6 (ст. 96 ТК РФ). Праздничные часы — в подписи при наведении и в таблице выше."
+        columns={night}
+        bar={{ name: "Ночные", colour: TONE.night, shape: "bar" }}
+        format={axis}
+      />
     </div>
   );
 }
@@ -834,11 +999,26 @@ function Row({ month }: { month: MonthStat }) {
  * Столбцов с подписями-именами тоже нет: подпись под столбцом — это
  * несколько точек ширины, а имя профиля в них не влезает ни при каком
  * сокращении.
+ *
+ * --- Почему тот же свод показывает и папку ----------------------------------
+ *
+ * Папка в проводнике — это не «место, куда сложили файлы», а единица, о
+ * которой спрашивают: «4-й караул», «2025 год», «уволившиеся». Вопрос к
+ * папке ровно тот же, что ко всем профилям, — сколько у нас вышло, — и
+ * отвечать на него вторым, отдельно устроенным разделом значило бы
+ * заставить выучить второй способ читать одни и те же числа. Меняются
+ * только заголовок и то, из каких профилей сложена сумма.
  */
-function AllProfiles({
+function Summary({
+  title,
+  what,
   sheets,
   onPick,
 }: {
+  /** Заголовок свода: «Все профили» или имя папки. */
+  title: string;
+  /** Чем он назван в пояснении: «всем профилям», «папке «4-й караул»». */
+  what: string;
   sheets: readonly Sheet[];
   onPick: (id: string) => void;
 }) {
@@ -869,10 +1049,10 @@ function AllProfiles({
       <section className={cn(PLATE, "space-y-2")}>
         <div className="space-y-0.5">
           <h3 className="font-display text-sm font-bold uppercase tracking-wide">
-            Все профили
+            {title}
           </h3>
           <p className="text-xs text-ink-muted">
-            {counted.length} из {lines.length}{" "}
+            Свод по {what}: {counted.length} из {lines.length}{" "}
             {numberWord(lines.length, "профиля", "профилей", "профилей")} за{" "}
             {yearsOf(counted.map((line) => line.totals.year))}
             {counted.length < lines.length
