@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { createProfile, type StoredProfile } from "../storage/profile";
 import { calculateFor, statutoryBounds } from "./derive";
-import { statisticsOf } from "./statistics";
+import { statisticsOf, totalsOf } from "./statistics";
 
 /**
  * Статистика года.
@@ -144,6 +144,81 @@ describe("статистика года", () => {
     // нисколько часов», то есть как случайность, а не как правило.
     expect(off?.hours).toBeNull();
     expect(stats.total.excludedHours.isZero()).toBe(true);
+  });
+
+  it("вызовы складываются по видам и сортируются по часам", () => {
+    const stats = statisticsOf(
+      profile({
+        callouts: [
+          // Трое суток по шесть — восемнадцать часов.
+          { id: "c1", kind: "competition", startsOn: "2026-02-10", endsOn: "2026-02-12", hoursPerDay: "6" },
+          // Одни сутки по двадцать четыре: суток меньше, а часов больше.
+          { id: "c2", kind: "callout", startsOn: "2026-03-02", endsOn: "2026-03-02", hoursPerDay: "24" },
+        ],
+      }),
+      TODAY,
+    );
+
+    expect(stats.callouts.map((it) => it.kind)).toEqual(["callout", "competition"]);
+    expect(stats.callouts[0]!.days).toBe(1);
+    expect(stats.callouts[0]!.hours.toString()).toBe("24");
+    expect(stats.callouts[1]!.days).toBe(3);
+    expect(stats.callouts[1]!.hours.toString()).toBe("18");
+    expect(stats.calloutHours.toString()).toBe("42");
+  });
+
+  it("часы вызова за краем года в счёт не идут", () => {
+    // Запись с 30 декабря по 2 января: году принадлежат двое суток.
+    const stats = statisticsOf(
+      profile({
+        callouts: [
+          { id: "c", kind: "callout", startsOn: "2026-12-30", endsOn: "2027-01-02", hoursPerDay: "8" },
+        ],
+      }),
+      TODAY,
+    );
+    expect(stats.callouts[0]!.days).toBe(2);
+    expect(stats.calloutHours.toString()).toBe("16");
+  });
+
+  it("вызовы идут в отработанное, а норму не трогают", () => {
+    const without = totalsOf(profile(), TODAY);
+    const with_ = totalsOf(
+      profile({
+        callouts: [
+          { id: "c", kind: "callout", startsOn: "2026-05-05", endsOn: "2026-05-05", hoursPerDay: "12" },
+        ],
+      }),
+      TODAY,
+    );
+
+    expect(with_.total.normHours.toString()).toBe(without.total.normHours.toString());
+    expect(with_.total.actualHours.minus(without.total.actualHours).toString()).toBe("12");
+    expect(with_.balance.minus(without.balance).toString()).toBe("12");
+  });
+
+  it("итог профиля — то же, что итог его полной статистики", () => {
+    const it = profile({
+      absences: [
+        { id: "a", kind: "annual_leave", startsOn: "2026-06-01", endsOn: "2026-06-28" },
+      ],
+      callouts: [
+        { id: "c", kind: "reserve", startsOn: "2026-04-01", endsOn: "2026-04-03", hoursPerDay: "8" },
+      ],
+    });
+    const short = totalsOf(it, TODAY);
+    const full = statisticsOf(it, TODAY);
+
+    expect(short.year).toBe(full.year);
+    expect(short.any).toBe(full.any);
+    expect(short.total.normHours.toString()).toBe(full.total.normHours.toString());
+    expect(short.calloutHours.toString()).toBe(full.calloutHours.toString());
+    expect(short.balance.toString()).toBe(full.balance.toString());
+    // Баланс года — не сумма месячных: норма считается по отрезку, и
+    // последняя точка хода накопления вправе с ним разойтись на час-другой.
+    expect(short.balance.toString()).toBe(
+      full.total.actualHours.minus(full.total.normHours).toString(),
+    );
   });
 
   it("год целиком в будущем показывать нечего", () => {

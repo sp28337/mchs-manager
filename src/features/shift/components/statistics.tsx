@@ -1,16 +1,31 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 
+import { Segmented, SegmentedItem } from "@/components/ui/segmented";
 import { cn } from "@/lib/utils/cn";
 
-import { formatHoursTrim as hoursTrim, numberWord, shiftsWord } from "../domain/decimal";
+import {
+  ZERO,
+  formatHoursTrim as hoursTrim,
+  numberWord,
+  shiftsWord,
+  type Decimal,
+} from "../domain/decimal";
 import { MONTH_NAMES } from "./month-names";
-import { ABSENCE_MARK, ABSENCE_TONE } from "./day-marks";
-import { ABSENCE_LABELS } from "../schemas";
-import { statisticsOf, type MonthStat, type Statistics } from "../model/statistics";
+import { ABSENCE_MARK, ABSENCE_TONE, CALLOUT_MARK, CALLOUT_TONE } from "./day-marks";
+import { ABSENCE_LABELS, CALLOUT_LABELS } from "../schemas";
+import {
+  statisticsOf,
+  totalsOf,
+  type MonthStat,
+  type ProfileTotals,
+  type Statistics,
+} from "../model/statistics";
+import { readEntryProfile } from "../storage/library";
 import type { StoredProfile } from "../storage/profile";
 import { BalanceChart, ColumnChart, ShareBar, type Column } from "./charts";
+import { useLibrary } from "./profile-explorer";
 
 /**
  * Статистика года — разделом страницы, на месте графика.
@@ -102,7 +117,176 @@ function axis(value: number): string {
   return String(Math.round(value));
 }
 
+/**
+ * Один профиль в переключателе: кого показывать и чем он назван.
+ *
+ * Снимок, а не ссылка на запись: профиль читается из хранилища один раз на
+ * перечень, и дальше с ним работают как с данными. У ОТКРЫТОГО профиля
+ * берётся не снимок, а то, что сейчас на странице: правка попадает в
+ * запись сразу (`syncActiveIntoLibrary`), но взять живой объект и дешевле,
+ * и честнее — числа в статистике обязаны совпадать с полосой наверху в ту
+ * же секунду.
+ */
+interface Sheet {
+  id: string;
+  name: string;
+  profile: StoredProfile;
+  /** Тот самый профиль, что сейчас открыт на странице. */
+  open: boolean;
+}
+
+/** Запись открытого профиля, если её в проводнике почему-то нет. */
+const LOOSE = "\u0000open";
+
+function useSheets(open: StoredProfile): Sheet[] {
+  const { library, activeId } = useLibrary();
+
+  return useMemo(() => {
+    const sheets: Sheet[] = [];
+    for (const entry of library.entries) {
+      const mine = entry.id === activeId;
+      // Запись, которая не читается (битый снимок, отнятое хранилище), —
+      // не ноль в своде, а отсутствие строки: приписать человеку нулевую
+      // норму значило бы соврать о нём, а не промолчать.
+      const it = mine ? open : readEntryProfile(entry.id);
+      if (it === null) continue;
+      sheets.push({
+        id: entry.id,
+        // Имя берётся из самого снимка, а не из записи: запись помнит имя
+        // на миг последней правки, а переименование живёт в профиле.
+        name: it.displayName.trim() === "" ? entry.name : it.displayName,
+        profile: it,
+        open: mine,
+      });
+    }
+
+    // Порядок по имени, а не по времени правки: переключатель читают
+    // глазами, ища своё, и список, перестраивающийся от каждой правки,
+    // заставлял бы искать заново.
+    sheets.sort((a, b) => a.name.localeCompare(b.name, "ru"));
+
+    // Открытый профиль обязан быть в переключателе всегда — даже если в
+    // проводнике его записи ещё нет: он и есть то, на что человек смотрит.
+    if (!sheets.some((it) => it.open)) {
+      sheets.unshift({
+        id: LOOSE,
+        name: open.displayName.trim() === "" ? "Открытый профиль" : open.displayName,
+        profile: open,
+        open: true,
+      });
+    }
+
+    return sheets;
+  }, [library, activeId, open]);
+}
+
+/** Что показано: свод по всем профилям или один из них. */
+type Scope = { kind: "all" } | { kind: "one"; id: string };
+
 export function Statistics({ profile }: { profile: StoredProfile }) {
+  const sheets = useSheets(profile);
+  /**
+   * Выбор человека — или его отсутствие.
+   *
+   * `null` значит «не выбирали», и это не то же самое, что выбранный
+   * открытый профиль: открытый может смениться (его открыли из
+   * проводника), и запомненный его идентификатор оставил бы человека на
+   * чужой статистике. Пока выбора нет, показан тот, что открыт.
+   */
+  const [scope, setScope] = useState<Scope | null>(null);
+
+  const mine = sheets.find((it) => it.open) ?? sheets[0]!;
+  const all = scope?.kind === "all";
+  // Выбранный профиль мог исчезнуть, пока статистика открыта (его удалили
+  // в проводнике) — тогда показывается открытый, а не пустое место.
+  const shown =
+    scope?.kind === "one"
+      ? (sheets.find((it) => it.id === scope.id) ?? mine)
+      : mine;
+
+  return (
+    // Просвет между плашками — тот же, что между карточками настроек и
+    // рядами проводника: разделы тут одного рода, и разводить их вдвое
+    // шире значило бы сказать, что они с разных страниц.
+    <div className="space-y-4">
+      {/* Переключатель — только когда переключать есть на что. При одном
+          профиле ряд из «Все» и его же имени предлагал бы выбор из одного
+          и обещал бы свод, которого нет. */}
+      {sheets.length > 1 ? (
+        <ScopeBar
+          sheets={sheets}
+          all={all}
+          shownId={shown.id}
+          onAll={() => setScope({ kind: "all" })}
+          onOne={(id) => setScope({ kind: "one", id })}
+        />
+      ) : null}
+
+      {all ? (
+        <AllProfiles sheets={sheets} onPick={(id) => setScope({ kind: "one", id })} />
+      ) : (
+        <OneProfile profile={shown.profile} />
+      )}
+    </div>
+  );
+}
+
+/**
+ * Чья статистика показана.
+ *
+ * Переключателем, а не списком и не выпадающим полем: положений немного,
+ * они взаимоисключающие, и занятое из них видно, не открывая ничего, —
+ * тот же строй, что у выбора вида сетки и учётного периода
+ * (`ui/segmented.tsx`). Переносится по строкам: профилей может быть
+ * сколько угодно, и уехать за край они не должны.
+ */
+function ScopeBar({
+  sheets,
+  all,
+  shownId,
+  onAll,
+  onOne,
+}: {
+  sheets: readonly Sheet[];
+  all: boolean;
+  shownId: string;
+  onAll: () => void;
+  onOne: (id: string) => void;
+}) {
+  return (
+    <Segmented
+      label="Чья статистика"
+      className="h-auto max-w-full flex-wrap justify-start gap-1 p-1 lg:flex-none lg:justify-start"
+    >
+      <SegmentedItem active={all} onClick={onAll} className="h-8 lg:flex-none">
+        Все
+        <span className="font-mono text-[11px] tabular-nums text-ink-faint">
+          {sheets.length}
+        </span>
+      </SegmentedItem>
+      {sheets.map((sheet) => (
+        <SegmentedItem
+          key={sheet.id}
+          active={!all && sheet.id === shownId}
+          onClick={() => onOne(sheet.id)}
+          className="h-8 lg:flex-none"
+        >
+          {/* Точка у открытого профиля, а не слово «открыт»: слово стоило
+              бы половины ширины плашки на каждом имени, а сказать нужно
+              одно — который из них лежит сейчас на странице. */}
+          {sheet.open ? (
+            <span aria-hidden className="size-1.5 shrink-0 rounded-full bg-verify" />
+          ) : null}
+          <span className="min-w-0 max-w-40 truncate">{sheet.name}</span>
+          {sheet.open ? <span className="sr-only"> (открыт)</span> : null}
+        </SegmentedItem>
+      ))}
+    </Segmented>
+  );
+}
+
+/** Статистика одного профиля: год, разложенный на вопросы. */
+function OneProfile({ profile }: { profile: StoredProfile }) {
   // Расчётов тринадцать — год и двенадцать месяцев, — и делать их заново
   // на каждую отрисовку незачем: пока профиль тот же, и числа те же.
   const stats = useMemo(() => statisticsOf(profile), [profile]);
@@ -119,12 +303,10 @@ export function Statistics({ profile }: { profile: StoredProfile }) {
   }
 
   return (
-    // Просвет между плашками — тот же, что между карточками настроек и
-    // рядами проводника: разделы тут одного рода, и разводить их вдвое
-    // шире значило бы сказать, что они с разных страниц.
     <div className="space-y-4">
-      <Headline stats={stats} />
+      <Figures stats={stats} />
       <Trends stats={stats} />
+      <Callouts stats={stats} />
       <Absences stats={stats} />
       <MonthTable stats={stats} />
     </div>
@@ -132,48 +314,35 @@ export function Statistics({ profile }: { profile: StoredProfile }) {
 }
 
 /**
- * Чем кончился год: одно крупное число и пять при нём.
+ * Год в числах — там, где их больше взять негде.
  *
- * Крупное ровно одно на весь раздел. Два крупных числа рядом — это уже
- * не ответ, а выбор, который читатель должен сделать сам, не зная, какое
- * из них главное.
+ * --- Почему крупного числа здесь нет ---------------------------------------
+ *
+ * Было: крупная переработка за год, а при ней норма и факт. Ровно это, теми
+ * же словами, стоит на полосе наверху страницы — она никуда не девается,
+ * пока открыта статистика, и висит закреплённой над ней. Два ответа на один
+ * вопрос в пределах одного экрана — это не «подчеркнули важное», это
+ * заставили сверять, не разошлись ли они.
+ *
+ * --- Почему остальное показано только на узком экране ----------------------
+ *
+ * Полоса наверху показывает три главных числа всегда, а пять мелких —
+ * смены, пропуски, ночные, праздничные — только с `lg`: ниже для них нет
+ * ширины, и полоса их прячет (`period-summary.tsx`). Вот ровно там эта
+ * плашка и нужна, и ровно там она и стоит.
+ *
+ * Спрятанное с `lg` при этом не пропадает: годовые числа целиком лежат в
+ * строке «За год» таблицы по месяцам внизу — той самой, что существует,
+ * чтобы всё нарисованное читалось и без цвета.
  */
-function Headline({ stats }: { stats: Statistics }) {
+function Figures({ stats }: { stats: Statistics }) {
   const { total } = stats;
-  const over = total.overtimeHours;
-  const under = total.undertimeHours;
-  const positive = over.greaterThan(0);
-  const balance = positive ? over : under;
 
   return (
-    <section className={cn(PLATE, "space-y-4")}>
-      {/* Крупное число и шесть мелких величин — на одной плашке, через
-          линовку. Своей плашки числу не нужно: оно набрано вчетверо
-          крупнее всего вокруг и цветом итога, и вторая рамка вокруг него
-          сказала бы, что это отдельный раздел, — а это тот же ответ, что
-          и величины под ним, только главный. */}
-      <div className="border-b border-rule pb-4">
-        <p className="text-xs uppercase tracking-wide text-ink-muted">
-          {positive ? "Переработка за год" : under.greaterThan(0) ? "Недоработка за год" : "Баланс за год"}
-        </p>
-        <p
-          className={cn(
-            "font-mono text-4xl font-semibold leading-tight sm:text-5xl",
-            positive && "text-verify",
-            under.greaterThan(0) && "text-signal",
-          )}
-        >
-          {hours(balance.toNumber())}
-        </p>
-        <p className="mt-1 text-xs text-ink-muted">
-          Отработано {hours(total.actualHours.toNumber())} при норме{" "}
-          {hours(total.normHours.toNumber())}
-          {total.excludedHours.greaterThan(0)
-            ? `; из нормы года исключено ${hours(total.excludedHours.toNumber())}`
-            : ""}
-          .
-        </p>
-      </div>
+    <section className={cn(PLATE, "space-y-2 lg:hidden")}>
+      <h3 className="font-display text-sm font-bold uppercase tracking-wide">
+        За {stats.year} год
+      </h3>
 
       {/* Шесть величин в ряд числами, а не рисунком: это разные величины,
           а не одна в разрезе, и сравнивать их между собой не нужно. */}
@@ -213,10 +382,13 @@ function Tile({
   label,
   value,
   note,
+  tone,
 }: {
   label: string;
   value: string;
   note?: string;
+  /** Цвет итога — только у баланса: плюс зелёный, минус сигнальный. */
+  tone?: "over" | "under";
 }) {
   return (
     // Своей плашки у величины нет: она стоит на общей, вместе с крупным
@@ -226,7 +398,15 @@ function Tile({
       {/* Крупное число набирается обычными цифрами, а не табличными:
           табличные дают каждой цифре ширину нуля, и «121» на таком кегле
           рассыпается. Табличные — ниже, в таблице, где столбцы. */}
-      <dd className="font-mono text-lg font-medium leading-tight">{value}</dd>
+      <dd
+        className={cn(
+          "font-mono text-lg font-medium leading-tight",
+          tone === "over" && "text-verify",
+          tone === "under" && "text-signal",
+        )}
+      >
+        {value}
+      </dd>
       {note ? <p className="text-[11px] text-ink-faint">{note}</p> : null}
     </div>
   );
@@ -312,6 +492,99 @@ function Trends({ stats }: { stats: Statistics }) {
         </div>
       ) : null}
     </div>
+  );
+}
+
+/**
+ * Откуда взялись часы сверх своего графика: вызовы по видам.
+ *
+ * --- Зачем отдельным разделом ----------------------------------------------
+ *
+ * Вопросов о переработке два, и они разные. «Почему норма меньше» —
+ * освобождения, они ниже. «Откуда часы сверх неё» — вот это: смены свои и
+ * вызовы помимо них. До сих пор вызовы были видны только россыпью клеток
+ * на сетке да строками в перечне правок, и человек, которого вызывали
+ * четырежды за год, складывал часы сам — по распоряжениям, если они у
+ * него сохранились.
+ *
+ * --- Почему виды здесь названы, а в клетке нет ------------------------------
+ *
+ * В клетке у всех вызовов один код, «Р» (`day-marks.ts`): места на слово
+ * там нет, а расчёту все шесть видов одинаковы. Здесь место есть целой
+ * строкой — и «Соревнования» отличить от «Резерва» человеку нужно: он
+ * спорит не о сумме, а о том, за что именно ему не заплатили.
+ *
+ * Полоски у всех видов одинаковые, и по той же причине, что у
+ * освобождений: цвет несёт клетка при названии, а семь цветных серий
+ * пришлось бы различать на глаз.
+ */
+function Callouts({ stats }: { stats: Statistics }) {
+  const { callouts, calloutHours, total } = stats;
+
+  if (callouts.length === 0) {
+    return (
+      <section className={cn(PLATE, "space-y-2")}>
+        <h3 className="font-display text-sm font-bold uppercase tracking-wide">
+          Сверх графика
+        </h3>
+        <p className="text-xs text-ink-muted">
+          За год не отмечено ни одного выхода помимо своих смен.
+        </p>
+      </section>
+    );
+  }
+
+  const most = Math.max(...callouts.map((it) => it.hours.toNumber()));
+  // Доля от отработанного — не украшение: «42 часа» ничего не говорят, пока
+  // не сказано, много это или мало на фоне года. Ноль в делители не идёт:
+  // часы вызовов есть, а отработанных нет — состояние невозможное, и всё же
+  // проверка дешевле, чем `Infinity` в разметке.
+  const share = total.actualHours.greaterThan(0)
+    ? calloutHours.dividedBy(total.actualHours).times(100)
+    : null;
+
+  return (
+    <section className={cn(PLATE, "space-y-2")}>
+      <div className="space-y-0.5">
+        <h3 className="font-display text-sm font-bold uppercase tracking-wide">
+          Сверх графика
+        </h3>
+        <p className="text-xs text-ink-muted">
+          Вызов — исполнение трудовых обязанностей, то есть рабочее время
+          (ст. 91 ТК РФ): часы идут в отработанное, а норму не уменьшают.
+          Всего за год — {hours(calloutHours.toNumber())}
+          {share === null ? "" : ` (${share.toFixed(share.lessThan(10) ? 1 : 0)} % отработанного)`}.
+        </p>
+      </div>
+
+      <ul className="divide-y divide-rule">
+        {callouts.map((it) => (
+          <li key={it.kind} className="flex items-center gap-3 py-2.5">
+            <span
+              aria-hidden
+              // Тот же значок, что стоит у этих суток на сетке: клетка в
+              // семь единиц, рамка, полужирный кегль.
+              className={cn(
+                "grid size-7 shrink-0 place-items-center rounded-md border text-xs font-bold",
+                CALLOUT_TONE,
+              )}
+            >
+              {CALLOUT_MARK}
+            </span>
+            <span className="min-w-0 flex-1 space-y-1">
+              <span className="flex flex-wrap items-baseline justify-between gap-x-3">
+                <span className="truncate text-sm">{CALLOUT_LABELS[it.kind]}</span>
+                <span className="font-mono text-xs tabular-nums text-ink-muted">
+                  {it.days} {numberWord(it.days, "день", "дня", "дней")} ·{" "}
+                  {hours(it.hours.toNumber())}
+                </span>
+              </span>
+              <ShareBar share={it.hours.toNumber() / most} />
+            </span>
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }
 
@@ -531,3 +804,346 @@ function Row({ month }: { month: MonthStat }) {
     </tr>
   );
 }
+
+/**
+ * Свод по всем профилям.
+ *
+ * --- Зачем он есть ----------------------------------------------------------
+ *
+ * Профилей в проводнике бывает не один. Это либо разные годы одного
+ * человека, либо — в карауле — разные люди: начальник держит график на
+ * каждого, и вопрос «сколько у кого вышло» задают не о ком-то одном, а обо
+ * всех сразу. Отвечать на него, открывая профили по очереди и переписывая
+ * числа на бумажку, — ровно тот труд, ради отмены которого приложение и
+ * написано.
+ *
+ * --- Почему год у каждого свой ----------------------------------------------
+ *
+ * Учётный год — свойство профиля, и у шести профилей он может быть шести
+ * разный. Считать их все по году открытого значило бы показать чужие числа
+ * под правильной с виду шапкой, поэтому год стоит столбцом в таблице, а в
+ * заголовке названы те, что в своде встретились.
+ *
+ * --- Чего здесь нет ---------------------------------------------------------
+ *
+ * Рисунков по месяцам. Месяц у каждого профиля свой, и двенадцать столбцов,
+ * сложенных по шести людям, отвечают на вопрос, которого никто не задавал.
+ * Сравнивают профили между собой — а для этого годится полоска доли при
+ * имени и таблица, где числа стоят точно.
+ *
+ * Столбцов с подписями-именами тоже нет: подпись под столбцом — это
+ * несколько точек ширины, а имя профиля в них не влезает ни при каком
+ * сокращении.
+ */
+function AllProfiles({
+  sheets,
+  onPick,
+}: {
+  sheets: readonly Sheet[];
+  onPick: (id: string) => void;
+}) {
+  // По расчёту на профиль, а не по тринадцать: месяцы в своде не показаны,
+  // и считать их значило бы потратить дюжину вызовов на каждого ради
+  // чисел, которых на экране нет (`totalsOf`).
+  const lines = useMemo(
+    () => sheets.map((sheet) => ({ sheet, totals: totalsOf(sheet.profile) })),
+    [sheets],
+  );
+
+  // В сумму идут только те, чей год начался: у остальных отрезок пуст, и
+  // их ноль — это «ещё нечего считать», а не «наработал нисколько».
+  const counted = lines.filter((line) => line.totals.any);
+  const sum = (pick: (totals: ProfileTotals) => Decimal): Decimal =>
+    counted.reduce((total, line) => total.plus(pick(line.totals)), ZERO);
+
+  const norm = sum((it) => it.total.normHours);
+  const actual = sum((it) => it.total.actualHours);
+  const balance = sum((it) => it.balance);
+  const night = sum((it) => it.total.nightHours);
+  const holiday = sum((it) => it.total.holidayHours);
+  const callout = sum((it) => it.calloutHours);
+  const shifts = counted.reduce((total, line) => total + line.totals.total.workedShifts, 0);
+
+  return (
+    <div className="space-y-4">
+      <section className={cn(PLATE, "space-y-2")}>
+        <div className="space-y-0.5">
+          <h3 className="font-display text-sm font-bold uppercase tracking-wide">
+            Все профили
+          </h3>
+          <p className="text-xs text-ink-muted">
+            {counted.length} из {lines.length}{" "}
+            {numberWord(lines.length, "профиля", "профилей", "профилей")} за{" "}
+            {yearsOf(counted.map((line) => line.totals.year))}
+            {counted.length < lines.length
+              ? "; у остальных учётный год ещё не начался"
+              : ""}
+            . Часы сложены как есть: у каждого профиля своя норма, и складывать
+            их можно только затем, чтобы увидеть общий объём.
+          </p>
+        </div>
+
+        <dl className="grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-3 lg:grid-cols-4">
+          <Tile label="Норма" value={hours(norm.toNumber())} />
+          <Tile label="Отработано" value={hours(actual.toNumber())} />
+          <Tile
+            label="Баланс"
+            value={`${signed(balance.toNumber())} ч`}
+            tone={
+              balance.greaterThan(0) ? "over" : balance.lessThan(0) ? "under" : undefined
+            }
+            note={
+              balance.greaterThan(0)
+                ? "переработка"
+                : balance.lessThan(0)
+                  ? "недоработка"
+                  : "ровно в норму"
+            }
+          />
+          <Tile label="Сверх графика" value={hours(callout.toNumber())} note="вызовы помимо смен" />
+          <Tile label="Ночные" value={hours(night.toNumber())} note="с 22 до 6 часов" />
+          <Tile
+            label="Праздничные"
+            value={hours(holiday.toNumber())}
+            note="в нерабочие праздничные дни"
+          />
+          <Tile label="Смены" value={`${shifts} ${shiftsWord(shifts)}`} note="отработано всего" />
+        </dl>
+      </section>
+
+      <CalloutShares lines={counted} />
+
+      <ProfileTable lines={lines} onPick={onPick} />
+    </div>
+  );
+}
+
+/** Одна строка свода: профиль и его год в числах. */
+interface Line {
+  readonly sheet: Sheet;
+  readonly totals: ProfileTotals;
+}
+
+/**
+ * Годы, встретившиеся в своде, — строкой.
+ *
+ * «2026 год», «2025 и 2026 годы», «2023—2026 годы»: подряд идущие годы
+ * сворачиваются в отрезок, потому что перечислять их по одному — это
+ * строка длиннее самого свода.
+ */
+function yearsOf(years: readonly number[]): string {
+  const list = [...new Set(years)].sort((a, b) => a - b);
+  if (list.length === 0) return "учётный год";
+  if (list.length === 1) return `${list[0]} год`;
+  if (list.length === 2) return `${list[0]} и ${list[1]} годы`;
+  const solid = list.at(-1)! - list[0]! === list.length - 1;
+  return solid ? `${list[0]}—${list.at(-1)} годы` : `${list.join(", ")} годы`;
+}
+
+/**
+ * Сколько кого вызывали помимо графика — полосками.
+ *
+ * Это тот вопрос, ради которого свод чаще всего и открывают: часы сверх
+ * своих смен распределены между людьми неравномерно, и увидеть это надо
+ * не в столбце цифр, а глазом. Полоска здесь — доля от наибольшего, а не
+ * от суммы: сравнивают людей друг с другом, а не с общим котлом.
+ */
+function CalloutShares({ lines }: { lines: readonly Line[] }) {
+  const called = lines
+    .filter((line) => line.totals.calloutHours.greaterThan(0))
+    .sort((a, b) => b.totals.calloutHours.comparedTo(a.totals.calloutHours));
+
+  if (called.length === 0) return null;
+
+  const most = called[0]!.totals.calloutHours.toNumber();
+
+  return (
+    <section className={cn(PLATE, "space-y-2")}>
+      <div className="space-y-0.5">
+        <h3 className="font-display text-sm font-bold uppercase tracking-wide">
+          Сверх графика — по профилям
+        </h3>
+        <p className="text-xs text-ink-muted">
+          Часы вызовов помимо своих смен. Полоска — доля от наибольшего в
+          своде, а не от суммы.
+        </p>
+      </div>
+
+      <ul className="divide-y divide-rule">
+        {called.map((line) => (
+          <li key={line.sheet.id} className="flex items-center gap-3 py-2.5">
+            <span
+              aria-hidden
+              className={cn(
+                "grid size-7 shrink-0 place-items-center rounded-md border text-xs font-bold",
+                CALLOUT_TONE,
+              )}
+            >
+              {CALLOUT_MARK}
+            </span>
+            <span className="min-w-0 flex-1 space-y-1">
+              <span className="flex flex-wrap items-baseline justify-between gap-x-3">
+                <span className="truncate text-sm">{line.sheet.name}</span>
+                <span className="font-mono text-xs tabular-nums text-ink-muted">
+                  {hours(line.totals.calloutHours.toNumber())}
+                </span>
+              </span>
+              <ShareBar share={line.totals.calloutHours.toNumber() / most} />
+            </span>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+/**
+ * Таблица по профилям.
+ *
+ * Она здесь тем же, чем таблица по месяцам у одного профиля: точные числа,
+ * читаемые без цвета. И заодно — способ уйти в подробности: имя профиля
+ * нажимается и открывает его статистику целиком, с рисунками и месяцами.
+ * Это и есть «переключиться» в самом частом случае: человек нашёл в своде
+ * того, у кого число необычное, и хочет посмотреть, из чего оно вышло.
+ */
+function ProfileTable({
+  lines,
+  onPick,
+}: {
+  lines: readonly Line[];
+  onPick: (id: string) => void;
+}) {
+  const counted = lines.filter((line) => line.totals.any);
+  const sum = (pick: (totals: ProfileTotals) => Decimal): Decimal =>
+    counted.reduce((total, line) => total.plus(pick(line.totals)), ZERO);
+
+  return (
+    <section className={cn(PLATE, "space-y-2")}>
+      <h3 className="font-display text-sm font-bold uppercase tracking-wide">
+        По профилям
+      </h3>
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[42rem] border-collapse text-sm">
+          <caption className="sr-only">
+            Норма, отработанные, ночные и праздничные часы по профилям
+          </caption>
+          <thead>
+            <tr className="text-[11px] uppercase tracking-wide text-ink-faint">
+              <th scope="col" className="py-2 pr-3 text-left font-medium">
+                Профиль
+              </th>
+              <th scope="col" className="px-3 py-2 text-right font-medium">
+                Год
+              </th>
+              <Head>Норма</Head>
+              <Head>Факт</Head>
+              <Head>Баланс</Head>
+              <Head>Ночные</Head>
+              <Head>Сверх</Head>
+              <Head>Смены</Head>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-rule">
+            {lines.map((line) => (
+              <ProfileRow key={line.sheet.id} line={line} onPick={onPick} />
+            ))}
+          </tbody>
+          <tfoot>
+            <tr className="border-t border-rule-strong font-medium">
+              <th scope="row" className="py-2 pr-3 text-left">
+                Всего
+              </th>
+              <td className="px-3 py-2 text-right font-mono tabular-nums text-ink-faint">
+                —
+              </td>
+              <Cell>{hoursTrim(sum((it) => it.total.normHours))}</Cell>
+              <Cell>{hoursTrim(sum((it) => it.total.actualHours))}</Cell>
+              <BalanceCell value={sum((it) => it.balance)} />
+              <Cell>{hoursTrim(sum((it) => it.total.nightHours))}</Cell>
+              <Cell>{hoursTrim(sum((it) => it.calloutHours))}</Cell>
+              <Cell>
+                {counted.reduce((total, line) => total + line.totals.total.workedShifts, 0)}
+              </Cell>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </section>
+  );
+}
+
+function ProfileRow({ line, onPick }: { line: Line; onPick: (id: string) => void }) {
+  const { sheet, totals } = line;
+
+  // Год, которого ещё не было, — прочерки, а не нули: ноль в колонке
+  // «Норма» читается как «норма нулевая», и это неправда.
+  if (!totals.any) {
+    return (
+      <tr className="text-ink-faint">
+        <ProfileName sheet={sheet} onPick={onPick} />
+        <td className="px-3 py-2 text-right font-mono tabular-nums">{totals.year}</td>
+        {Array.from({ length: 6 }, (_, index) => (
+          <td key={index} className="px-3 py-2 text-right font-mono tabular-nums last:pr-0">
+            —
+          </td>
+        ))}
+      </tr>
+    );
+  }
+
+  return (
+    <tr>
+      <ProfileName sheet={sheet} onPick={onPick} />
+      <td className="px-3 py-2 text-right font-mono tabular-nums text-ink-muted">
+        {totals.year}
+      </td>
+      <Cell>{hoursTrim(totals.total.normHours)}</Cell>
+      <Cell>{hoursTrim(totals.total.actualHours)}</Cell>
+      <BalanceCell value={totals.balance} />
+      <Cell>{hoursTrim(totals.total.nightHours)}</Cell>
+      <Cell>{hoursTrim(totals.calloutHours)}</Cell>
+      <Cell>{totals.total.workedShifts}</Cell>
+    </tr>
+  );
+}
+
+function ProfileName({
+  sheet,
+  onPick,
+}: {
+  sheet: Sheet;
+  onPick: (id: string) => void;
+}) {
+  return (
+    <th scope="row" className="py-2 pr-3 text-left font-normal">
+      <button
+        type="button"
+        onClick={() => onPick(sheet.id)}
+        title={`Статистика профиля «${sheet.name}»`}
+        className={cn(
+          "inline-flex max-w-full cursor-pointer items-center gap-1.5 rounded-md",
+          "text-left underline decoration-rule-strong underline-offset-4",
+          "hover:decoration-ink focus-visible:outline-2 focus-visible:outline-offset-2",
+          "focus-visible:outline-ink",
+        )}
+      >
+        {sheet.open ? (
+          <span aria-hidden className="size-1.5 shrink-0 rounded-full bg-verify" />
+        ) : null}
+        <span className="truncate">{sheet.name}</span>
+        {sheet.open ? <span className="sr-only"> (открыт)</span> : null}
+      </button>
+    </th>
+  );
+}
+
+/** Баланс в таблице: со знаком и цветом итога — как у месяцев. */
+function BalanceCell({ value }: { value: Decimal }) {
+  const balance = value.toNumber();
+  return (
+    <Cell tone={balance > 0 ? "over" : balance < 0 ? "under" : undefined}>
+      {signed(balance)}
+    </Cell>
+  );
+}
+

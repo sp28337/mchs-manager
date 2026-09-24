@@ -1,5 +1,5 @@
 import { Dec, ZERO, type Decimal } from "../domain/decimal";
-import type { AbsenceKind } from "../domain/value-objects";
+import type { AbsenceKind, CalloutKind } from "../domain/value-objects";
 import type { PeriodCalculation } from "../domain/calculation";
 import { todayIso, type IsoDate } from "../domain/plain-date";
 import type { StoredProfile } from "../storage/profile";
@@ -83,12 +83,54 @@ export interface AbsenceStat {
   readonly hours: Decimal | null;
 }
 
-export interface Statistics {
+/**
+ * Один вид работы помимо графика за год.
+ *
+ * Парой к `AbsenceStat` и по той же причине: освобождения отвечают на
+ * вопрос «почему норма меньше», вызовы — «откуда взялись часы сверх неё».
+ * Человек, спорящий о переработке, спрашивает и то и другое, а до сих пор
+ * вызовы были видны только россыпью клеток на сетке да строками в перечне
+ * правок — сложить их в число приходилось самому.
+ */
+export interface CalloutStat {
+  readonly kind: CalloutKind;
+  /** Сколько суток года он накрыл. */
+  readonly days: number;
+  /** Сколько часов принёс в отработанное. */
+  readonly hours: Decimal;
+}
+
+/**
+ * Год одного профиля в числах — без разбивки по месяцам.
+ *
+ * Отдельно от `Statistics` затем, что перечень профилей считает ровно это
+ * и по одному расчёту на профиль. Полная статистика стоит тринадцати
+ * вызовов, и на десятке профилей вышло бы сто тридцать — ради колонки
+ * «Норма» в таблице, где месяцы не показаны вовсе.
+ */
+export interface ProfileTotals {
   readonly year: number;
-  readonly months: readonly MonthStat[];
   /** Год целиком — тем же расчётом, а не суммой месяцев. */
   readonly total: PeriodCalculation;
   readonly absences: readonly AbsenceStat[];
+  readonly callouts: readonly CalloutStat[];
+  /** Сумма часов всех вызовов: то, что отработано помимо своего графика. */
+  readonly calloutHours: Decimal;
+  /** Факт минус норма, со знаком: плюс — переработка, минус — недоработка. */
+  readonly balance: Decimal;
+  /**
+   * Есть ли вообще что показывать.
+   *
+   * Отрезок года непуст — то есть год начался, а начало отсчёта его не
+   * съело. Проверка одна на итог и на месяцы нарочно: месяц лежит внутри
+   * года, и «год пуст, а месяц в нём нет» — состояние, которого быть не
+   * может.
+   */
+  readonly any: boolean;
+}
+
+export interface Statistics extends ProfileTotals {
+  readonly months: readonly MonthStat[];
   /**
    * Накопленный баланс на конец каждого месяца.
    *
@@ -98,8 +140,6 @@ export interface Statistics {
    * Пустые месяцы линию не двигают.
    */
   readonly running: readonly Decimal[];
-  /** Есть ли вообще что показывать: хоть один непустой месяц. */
-  readonly any: boolean;
 }
 
 /**
@@ -141,6 +181,36 @@ function absencesOf(total: PeriodCalculation): AbsenceStat[] {
     .sort((a, b) => b.days - a.days || a.kind.localeCompare(b.kind));
 }
 
+/**
+ * Вызовы — по видам: сколько суток и сколько часов.
+ *
+ * Считается по `days`, а не по записям профиля, и это не лишний труд:
+ * запись вызова — это отрезок дат с часами НА СУТКИ, и её часть может
+ * лежать за границей года. Расчёт уже разложил её по суткам отрезка и
+ * обрезал по его краям; пересчитывать то же самое здесь значило бы завести
+ * второе правило обрезки, которое однажды разойдётся с первым.
+ *
+ * Виды при этом сохранены все шесть, хотя в клетке у них давно один код
+ * («Р», см. `day-marks.ts`): в клетке места на слово нет, а здесь есть
+ * целая строка — и «Соревнования» человеку сказать можно.
+ */
+function calloutsOf(total: PeriodCalculation): CalloutStat[] {
+  const byKind = new Map<CalloutKind, { days: number; hours: Decimal }>();
+  for (const day of total.days) {
+    const kind = day.calloutKind;
+    if (!kind) continue;
+    const at = byKind.get(kind) ?? { days: 0, hours: ZERO };
+    byKind.set(kind, { days: at.days + 1, hours: at.hours.plus(day.hours) });
+  }
+
+  return [...byKind.entries()]
+    .map(([kind, it]) => ({ kind, days: it.days, hours: it.hours }))
+    // От крупного к мелкому — по ЧАСАМ, а не по суткам: у вызовов сутки
+    // разной цены (шесть часов и двадцать четыре), и перечень читают,
+    // чтобы увидеть, что принесло часы.
+    .sort((a, b) => b.hours.comparedTo(a.hours) || a.kind.localeCompare(b.kind));
+}
+
 const EMPTY_MONTH = {
   empty: true,
   normHours: ZERO,
@@ -165,10 +235,36 @@ function bounds(
   return profile.liveMode ? liveBounds(counted, today) : counted;
 }
 
-export function statisticsOf(profile: StoredProfile, today = todayIso()): Statistics {
+/**
+ * Итог года одного профиля — одним расчётом.
+ *
+ * Год берётся у самого профиля (`accountingYear`), а не задаётся снаружи:
+ * у каждого профиля он свой, и перечень, посчитавший их все по году
+ * открытого, показал бы шесть чужих лет под одной шапкой.
+ */
+export function totalsOf(
+  profile: StoredProfile,
+  today = todayIso(),
+): ProfileTotals {
   const year = profile.accountingYear;
   const whole = bounds(profile, statutoryBounds(year, "year", 0), today);
   const total = calculateFor(profile, whole.periodStart, whole.periodEnd);
+  const callouts = calloutsOf(total);
+
+  return {
+    year,
+    total,
+    absences: absencesOf(total),
+    callouts,
+    calloutHours: callouts.reduce((sum, it) => sum.plus(it.hours), ZERO),
+    balance: total.actualHours.minus(total.normHours),
+    any: whole.periodStart < whole.periodEnd,
+  };
+}
+
+export function statisticsOf(profile: StoredProfile, today = todayIso()): Statistics {
+  const year = profile.accountingYear;
+  const totals = totalsOf(profile, today);
 
   const months: MonthStat[] = [];
   const running: Decimal[] = [];
@@ -202,14 +298,7 @@ export function statisticsOf(profile: StoredProfile, today = todayIso()): Statis
     running.push(carried);
   }
 
-  return {
-    year,
-    months,
-    total,
-    absences: absencesOf(total),
-    running,
-    any: months.some((it) => !it.empty),
-  };
+  return { ...totals, months, running };
 }
 
 /** Наибольшее из чисел — мерка высоты для столбцов. Ноль не годится в делители. */

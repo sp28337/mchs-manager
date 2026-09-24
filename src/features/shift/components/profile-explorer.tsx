@@ -584,8 +584,13 @@ interface Removal {
  *
  * Читаются они вместе и обновляются вместе: указатель без перечня
  * пометил бы открытым профиль, которого в списке уже нет.
+ *
+ * Вынесен наружу: тем же перечнем пользуется статистика — она считает по
+ * нему свод по всем профилям (`statistics.tsx`). Второй такой же подписки
+ * заводить нельзя: разойдись они хоть на одну правку, и свод показал бы
+ * профиль, которого в проводнике уже нет.
  */
-function useLibrary(): { library: Library; activeId: string | null } {
+export function useLibrary(): { library: Library; activeId: string | null } {
   const [snapshot, setSnapshot] = useState(() => ({
     library: loadLibrary(),
     activeId: activeEntryId(),
