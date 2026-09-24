@@ -2,14 +2,13 @@
 
 import { useMemo, useState } from "react";
 
+import { Segmented, SegmentedItem } from "@/components/ui/segmented";
 import { Select } from "@/components/ui/select";
 import { cn } from "@/lib/utils/cn";
 
 import {
-  ZERO,
   formatHoursTrim as hoursTrim,
   numberWord,
-  shiftsWord,
   type Decimal,
 } from "../domain/decimal";
 import { MONTH_NAMES } from "./month-names";
@@ -224,10 +223,51 @@ function decode(value: string): Scope {
   return kind === "folder" ? { kind: "folder", id } : { kind: "one", id };
 }
 
-/** Папки от корня к этой — «grafik13 / 4-й караул». */
-function folderLabel(library: Library, folder: LibraryFolder): string {
-  const path = folderPath(library, folder.id);
-  return path.length === 0 ? folder.name : path.map((it) => it.name).join(" / ");
+/**
+ * Папки деревом: корень, за ним вложенные — каждая сразу за своей.
+ *
+ * Порядок и глубина, а не путь строкой. Путь («grafik13 / 4-й караул»)
+ * пробовали, и он врал дважды: повторял имя корня в каждой строке — а корень
+ * у всех один и тот же, — и на вложенности в два колена превращал заголовок
+ * группы в строку длиннее самих имён. Вложенность показывает отступ, как в
+ * любом дереве, а корень назван один раз и косой чертой: имя `grafik13` —
+ * внутреннее, человек его себе не давал.
+ */
+function foldersInOrder(
+  library: Library,
+): { folder: LibraryFolder; depth: number }[] {
+  const out: { folder: LibraryFolder; depth: number }[] = [];
+
+  const walk = (folder: LibraryFolder, depth: number) => {
+    out.push({ folder, depth });
+    library.folders
+      .filter((it) => it.id !== folder.id && it.parentId === folder.id)
+      .sort((a, b) => a.name.localeCompare(b.name, "ru"))
+      .forEach((child) => walk(child, depth + 1));
+  };
+
+  const root = library.folders.find((it) => it.id === ROOT_FOLDER_ID);
+  if (root !== undefined) walk(root, 0);
+
+  // Папка, до которой обход не добрался, всё равно не пропадает из выбора:
+  // `loadLibrary` поднимает потерявших родителя в корень, и оказаться здесь
+  // она может разве что из-за кольца в ссылках — но в ней лежит чей-то год.
+  for (const folder of library.folders) {
+    if (!out.some((it) => it.folder.id === folder.id)) out.push({ folder, depth: 1 });
+  }
+
+  return out;
+}
+
+/**
+ * Имя группы в списке: корень — косой чертой, вложенные — с отступом.
+ *
+ * Отступ неразрывными пробелами, а не обычными: родной `select` рисует
+ * операционная система, и обычные пробелы в начале подписи она вправе
+ * убрать — а неразрывный пробел для неё такой же знак, как буква.
+ */
+function groupLabel(folder: LibraryFolder, depth: number): string {
+  return depth === 0 ? "/" : `${"\u00a0".repeat(depth * 3)}${folder.name}`;
 }
 
 /** Лежит ли папка внутри другой — она сама или любой её потомок. */
@@ -318,20 +358,10 @@ export function Statistics({
         />
       ) : null}
 
-      {group !== null && folder !== null ? (
-        <Summary
-          title={folder.name}
-          what={`папке «${folderLabel(library, folder)}»`}
-          sheets={group}
-          onPick={(id) => choose({ kind: "one", id })}
-        />
+      {group !== null ? (
+        <Summary sheets={group} onPick={(id) => choose({ kind: "one", id })} />
       ) : one === null ? (
-        <Summary
-          title="Все профили"
-          what="всем профилям"
-          sheets={sheets}
-          onPick={(id) => choose({ kind: "one", id })}
-        />
+        <Summary sheets={sheets} onPick={(id) => choose({ kind: "one", id })} />
       ) : (
         <OneProfile profile={one.profile} />
       )}
@@ -361,6 +391,15 @@ export function Statistics({
  * у корневой папки (это те же «все») и у папки с единственным профилем.
  * Папки без профилей не показаны вовсе — выбрать в них нечего.
  */
+/**
+ * Сколько всего может стоять в горячем ряду.
+ *
+ * Ряд — это сокращение пути, а не второй список: в нём столько, сколько
+ * помещается в строку рядом с выбором, не переносясь второй раз. Остальное
+ * никуда не девается — оно в списке, из которого ряд и собран.
+ */
+const QUICK_MAX = 8;
+
 function ScopePicker({
   sheets,
   library,
@@ -374,34 +413,78 @@ function ScopePicker({
 }) {
   // Папка идёт в список, если в ней самой или внутри неё есть профили:
   // выбрать «4-й караул» человек хочет вместе с тем, что в нём вложено.
-  const groups = library.folders
-    .map((folder) => ({
+  const groups = foldersInOrder(library)
+    .map(({ folder, depth }) => ({
       folder,
-      label: folderLabel(library, folder),
+      depth,
       own: sheets.filter((it) => it.folderId === folder.id),
       inside: sheets.filter((it) => within(library, it.folderId, folder.id)),
     }))
-    .filter((it) => it.own.length > 0 || it.inside.length > 0)
-    .sort((a, b) => a.label.localeCompare(b.label, "ru"));
+    .filter((it) => it.own.length > 0 || it.inside.length > 0);
+
+  /**
+   * Горячий ряд: то же, что в списке, но в одно нажатие.
+   *
+   * Сперва «Все», потом папки — они и есть то, о чём спрашивают чаще
+   * всего («сколько вышло у четвёртого караула»), — и только потом
+   * профили, сколько влезет. Открытый профиль среди них первый: к нему
+   * возвращаются чаще, чем к любому другому.
+   */
+  const quick: { key: string; label: string; scope: Scope }[] = [
+    { key: "all", label: "Все", scope: { kind: "all" } },
+  ];
+  for (const { folder, inside } of groups) {
+    if (folder.id === ROOT_FOLDER_ID || inside.length < 2) continue;
+    quick.push({
+      key: `folder:${folder.id}`,
+      label: folder.name,
+      scope: { kind: "folder", id: folder.id },
+    });
+  }
+  const byNearness = [...sheets].sort(
+    (a, b) => Number(b.open) - Number(a.open) || a.name.localeCompare(b.name, "ru"),
+  );
+  for (const sheet of byNearness) {
+    if (quick.length >= QUICK_MAX) break;
+    quick.push({
+      key: `one:${sheet.id}`,
+      label: sheet.name,
+      scope: { kind: "one", id: sheet.id },
+    });
+  }
+
+  const now = encode(value);
 
   return (
-    <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-      <label
-        htmlFor="stats-scope"
-        className="font-display text-[11px] font-bold uppercase tracking-wide text-ink-muted"
-      >
-        Показать
-      </label>
+    // Плашка поднятой бумаги, как у всех разделов ниже: выбор — такая же
+    // часть страницы, как то, что он показывает, и лежать голым посреди
+    // плашек ему не с чего. Поля меньше, чем у разделов (`PLATE`): внутри
+    // не текст, а органы управления в одну строку.
+    <div className={cn("lit flex flex-wrap items-center gap-2 rounded-xl bg-paper-raised p-2")}>
+      {/* На узком экране поле занимает плашку целиком: рядом с ним там
+          ничего не стоит, и короткое поле оставляло бы половину плашки
+          пустой. С `lg` оно ужимается по самой длинной строке списка —
+          так родной `select` считает свою ширину, — но не шире двадцати
+          рем: длинное имя профиля иначе съело бы весь горячий ряд.
+          Обёртка нужна потому, что ширину флексового ряда задаёт она, а
+          не само поле внутри неё (`ui/select.tsx`). */}
+      <div className="w-full min-w-56 lg:w-auto lg:max-w-80">
       <Select
         id="stats-scope"
-        className="w-auto min-w-56 max-w-full"
-        value={encode(value)}
+        aria-label="Чья статистика"
+        value={now}
         onChange={(event) => onChange(decode(event.target.value))}
       >
         <option value="all">Все профили ({sheets.length})</option>
-        {groups.map(({ folder, label, own, inside }) => (
-          <optgroup key={folder.id} label={label}>
-            {folder.id !== ROOT_FOLDER_ID && inside.length > 1 ? (
+        {groups.map(({ folder, depth, own, inside }) => (
+          <optgroup key={folder.id} label={groupLabel(folder, depth)}>
+            {folder.id !== ROOT_FOLDER_ID && inside.length > 0 ? (
+              // Выбирается ЛЮБАЯ папка, в которой есть хоть один профиль:
+              // папка, которую видно, но нельзя выбрать, — обещание,
+              // которое список не держит. Горячий ряд ниже строже (там
+              // нужны папки с двумя и больше), но он и не перечень, а
+              // сокращение пути.
+              //
               // Имя папки повторяется в строке, хотя оно уже написано над
               // ней заголовком группы: закрытый список показывает ОДНУ
               // строку и больше ничего, и «вся папка» в нём не сказало бы,
@@ -424,6 +507,27 @@ function ScopePicker({
           </optgroup>
         ))}
       </Select>
+      </div>
+
+      {/* Горячий ряд — с того порога, где рядом с выбором остаётся пустое
+          место до правого края. Ниже его нет: там и сам список занимает
+          строку целиком, а второй ряд плашек под ним был бы не
+          сокращением пути, а лишним экраном перед статистикой. */}
+      <Segmented
+        label="Быстрый выбор"
+        className="hidden h-auto min-w-0 flex-1 flex-wrap justify-start gap-1 p-1 lg:inline-flex lg:justify-start"
+      >
+        {quick.map((it) => (
+          <SegmentedItem
+            key={it.key}
+            active={encode(it.scope) === now}
+            onClick={() => onChange(it.scope)}
+            className="h-7 lg:flex-none"
+          >
+            <span className="min-w-0 max-w-40 truncate">{it.label}</span>
+          </SegmentedItem>
+        ))}
+      </Segmented>
     </div>
   );
 }
@@ -466,26 +570,32 @@ function OneProfile({ profile }: { profile: StoredProfile }) {
 }
 
 /**
- * Год в числах — там, где их больше взять негде.
+ * То, что полоса наверху прячет на узком экране, — и ровно это.
  *
- * --- Почему крупного числа здесь нет ---------------------------------------
+ * --- Чего здесь нет и почему ------------------------------------------------
  *
- * Было: крупная переработка за год, а при ней норма и факт. Ровно это, теми
- * же словами, стоит на полосе наверху страницы — она никуда не девается,
- * пока открыта статистика, и висит закреплённой над ней. Два ответа на один
- * вопрос в пределах одного экрана — это не «подчеркнули важное», это
- * заставили сверять, не разошлись ли они.
+ * Ничего, что на экране УЖЕ есть. Полоса наверху закреплена и видна всё
+ * время, пока открыта статистика; три её главных числа — норма, фактически,
+ * переработка — стоят на любой ширине, и повторять их значило заставить
+ * сверять, не разошлись ли два ответа на один вопрос. Отсюда ушли и крупное
+ * число переработки, и «Норма года» с «Отработано».
  *
- * --- Почему остальное показано только на узком экране ----------------------
+ * Не осталось и того, чего в полосе нет вовсе («рабочих дней в году»):
+ * плашка отвечает на один вопрос — «что пропало, когда экран стал узким», —
+ * и всё лишнее в ней снова превращает её в свод, которым она была.
  *
- * Полоса наверху показывает три главных числа всегда, а пять мелких —
- * смены, пропуски, ночные, праздничные — только с `lg`: ниже для них нет
- * ширины, и полоса их прячет (`period-summary.tsx`). Вот ровно там эта
- * плашка и нужна, и ровно там она и стоит.
+ * --- Что остаётся -----------------------------------------------------------
  *
- * Спрятанное с `lg` при этом не пропадает: годовые числа целиком лежат в
- * строке «За год» таблицы по месяцам внизу — той самой, что существует,
- * чтобы всё нарисованное читалось и без цвета.
+ * Пять величин, которые полоса прячет ниже `lg`, потому что для них нет
+ * ширины: смены по графику, отработанные, пропущенные, ночные и
+ * праздничные часы (`minorItems` в `period-summary.tsx`). Те же слова и в
+ * том же порядке — это одни и те же числа, просто показанные там, где для
+ * них нашлось место.
+ *
+ * Разница одна, и она в отрезке: полоса считает ВЫБРАННЫЙ период, а
+ * статистика — год целиком. По умолчанию это одно и то же, а если человек
+ * сузил период до месяца, годовые числа стоят в строке «За год» таблицы по
+ * месяцам.
  */
 function Figures({ stats }: { stats: Statistics }) {
   const { total } = stats;
@@ -496,34 +606,19 @@ function Figures({ stats }: { stats: Statistics }) {
         За {stats.year} год
       </h3>
 
-      {/* Шесть величин в ряд числами, а не рисунком: это разные величины,
-          а не одна в разрезе, и сравнивать их между собой не нужно. */}
       <dl className="grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-3">
-        <Tile label="Норма года" value={hours(total.normHours.toNumber())} />
-        <Tile label="Отработано" value={hours(total.actualHours.toNumber())} />
+        <Tile label="Смен по графику" value={String(total.scheduledShifts)} />
+        <Tile label="Отработано смен" value={String(total.workedShifts)} />
+        <Tile label="Пропущено" value={String(total.absentShifts)} />
         <Tile
-          label="Ночные"
+          label="Ночные часы"
           value={hours(total.nightHours.toNumber())}
           note="с 22 до 6 часов"
         />
         <Tile
-          label="Праздничные"
+          label="Праздничные часы"
           value={hours(total.holidayHours.toNumber())}
           note="в нерабочие праздничные дни"
-        />
-        <Tile
-          label="Смены"
-          value={`${total.workedShifts} ${shiftsWord(total.workedShifts)}`}
-          note={
-            total.absentShifts > 0
-              ? `${total.absentShifts} ${numberWord(total.absentShifts, "пропущена", "пропущено", "пропущено")} по графику`
-              : `по графику ${total.scheduledShifts}`
-          }
-        />
-        <Tile
-          label="Рабочих дней в году"
-          value={String(total.calendar.workingDays)}
-          note={`предпраздничных ${total.calendar.preHolidayDays}`}
         />
       </dl>
     </section>
@@ -991,6 +1086,14 @@ function Row({ month }: { month: MonthStat }) {
  *
  * --- Чего здесь нет ---------------------------------------------------------
  *
+ * ОБЩЕЙ СУММЫ. Плашка с итогом по всем — норма, отработано, баланс — тут
+ * стояла первой и обещала то, чего в ней нет: сложенная переработка шести
+ * человек не переработка, а число, которое некому предъявить. Норма
+ * считается каждому своя, по его отрезку и его освобождениям, и сумма
+ * двенадцати норм — не норма отдела. Свод отвечает на вопрос «у КОГО
+ * сколько», и отвечают на него строки, а не итог под ними: потому убрана
+ * и строка «Всего» в таблице.
+ *
  * Рисунков по месяцам. Месяц у каждого профиля свой, и двенадцать столбцов,
  * сложенных по шести людям, отвечают на вопрос, которого никто не задавал.
  * Сравнивают профили между собой — а для этого годится полоска доли при
@@ -1009,19 +1112,7 @@ function Row({ month }: { month: MonthStat }) {
  * заставить выучить второй способ читать одни и те же числа. Меняются
  * только заголовок и то, из каких профилей сложена сумма.
  */
-function Summary({
-  title,
-  what,
-  sheets,
-  onPick,
-}: {
-  /** Заголовок свода: «Все профили» или имя папки. */
-  title: string;
-  /** Чем он назван в пояснении: «всем профилям», «папке «4-й караул»». */
-  what: string;
-  sheets: readonly Sheet[];
-  onPick: (id: string) => void;
-}) {
+function Summary({ sheets, onPick }: { sheets: readonly Sheet[]; onPick: (id: string) => void }) {
   // По расчёту на профиль, а не по тринадцать: месяцы в своде не показаны,
   // и считать их значило бы потратить дюжину вызовов на каждого ради
   // чисел, которых на экране нет (`totalsOf`).
@@ -1030,69 +1121,9 @@ function Summary({
     [sheets],
   );
 
-  // В сумму идут только те, чей год начался: у остальных отрезок пуст, и
-  // их ноль — это «ещё нечего считать», а не «наработал нисколько».
-  const counted = lines.filter((line) => line.totals.any);
-  const sum = (pick: (totals: ProfileTotals) => Decimal): Decimal =>
-    counted.reduce((total, line) => total.plus(pick(line.totals)), ZERO);
-
-  const norm = sum((it) => it.total.normHours);
-  const actual = sum((it) => it.total.actualHours);
-  const balance = sum((it) => it.balance);
-  const night = sum((it) => it.total.nightHours);
-  const holiday = sum((it) => it.total.holidayHours);
-  const callout = sum((it) => it.calloutHours);
-  const shifts = counted.reduce((total, line) => total + line.totals.total.workedShifts, 0);
-
   return (
     <div className="space-y-4">
-      <section className={cn(PLATE, "space-y-2")}>
-        <div className="space-y-0.5">
-          <h3 className="font-display text-sm font-bold uppercase tracking-wide">
-            {title}
-          </h3>
-          <p className="text-xs text-ink-muted">
-            Свод по {what}: {counted.length} из {lines.length}{" "}
-            {numberWord(lines.length, "профиля", "профилей", "профилей")} за{" "}
-            {yearsOf(counted.map((line) => line.totals.year))}
-            {counted.length < lines.length
-              ? "; у остальных учётный год ещё не начался"
-              : ""}
-            . Часы сложены как есть: у каждого профиля своя норма, и складывать
-            их можно только затем, чтобы увидеть общий объём.
-          </p>
-        </div>
-
-        <dl className="grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-3 lg:grid-cols-4">
-          <Tile label="Норма" value={hours(norm.toNumber())} />
-          <Tile label="Отработано" value={hours(actual.toNumber())} />
-          <Tile
-            label="Баланс"
-            value={`${signed(balance.toNumber())} ч`}
-            tone={
-              balance.greaterThan(0) ? "over" : balance.lessThan(0) ? "under" : undefined
-            }
-            note={
-              balance.greaterThan(0)
-                ? "переработка"
-                : balance.lessThan(0)
-                  ? "недоработка"
-                  : "ровно в норму"
-            }
-          />
-          <Tile label="Сверх графика" value={hours(callout.toNumber())} note="вызовы помимо смен" />
-          <Tile label="Ночные" value={hours(night.toNumber())} note="с 22 до 6 часов" />
-          <Tile
-            label="Праздничные"
-            value={hours(holiday.toNumber())}
-            note="в нерабочие праздничные дни"
-          />
-          <Tile label="Смены" value={`${shifts} ${shiftsWord(shifts)}`} note="отработано всего" />
-        </dl>
-      </section>
-
-      <CalloutShares lines={counted} />
-
+      <CalloutShares lines={lines.filter((line) => line.totals.any)} />
       <ProfileTable lines={lines} onPick={onPick} />
     </div>
   );
@@ -1105,28 +1136,16 @@ interface Line {
 }
 
 /**
- * Годы, встретившиеся в своде, — строкой.
- *
- * «2026 год», «2025 и 2026 годы», «2023—2026 годы»: подряд идущие годы
- * сворачиваются в отрезок, потому что перечислять их по одному — это
- * строка длиннее самого свода.
- */
-function yearsOf(years: readonly number[]): string {
-  const list = [...new Set(years)].sort((a, b) => a - b);
-  if (list.length === 0) return "учётный год";
-  if (list.length === 1) return `${list[0]} год`;
-  if (list.length === 2) return `${list[0]} и ${list[1]} годы`;
-  const solid = list.at(-1)! - list[0]! === list.length - 1;
-  return solid ? `${list[0]}—${list.at(-1)} годы` : `${list.join(", ")} годы`;
-}
-
-/**
  * Сколько кого вызывали помимо графика — полосками.
  *
  * Это тот вопрос, ради которого свод чаще всего и открывают: часы сверх
  * своих смен распределены между людьми неравномерно, и увидеть это надо
  * не в столбце цифр, а глазом. Полоска здесь — доля от наибольшего, а не
  * от суммы: сравнивают людей друг с другом, а не с общим котлом.
+ *
+ * Пояснения под заголовком нет. Оно объясняло ровно то, что видно: что
+ * полоски мерятся от самой длинной. Строка, пересказывающая рисунок,
+ * отодвигает сам рисунок на строку вниз и больше ничего не делает.
  */
 function CalloutShares({ lines }: { lines: readonly Line[] }) {
   const called = lines
@@ -1139,15 +1158,9 @@ function CalloutShares({ lines }: { lines: readonly Line[] }) {
 
   return (
     <section className={cn(PLATE, "space-y-2")}>
-      <div className="space-y-0.5">
-        <h3 className="font-display text-sm font-bold uppercase tracking-wide">
-          Сверх графика — по профилям
-        </h3>
-        <p className="text-xs text-ink-muted">
-          Часы вызовов помимо своих смен. Полоска — доля от наибольшего в
-          своде, а не от суммы.
-        </p>
-      </div>
+      <h3 className="font-display text-sm font-bold uppercase tracking-wide">
+        Вызовы
+      </h3>
 
       <ul className="divide-y divide-rule">
         {called.map((line) => (
@@ -1193,10 +1206,6 @@ function ProfileTable({
   lines: readonly Line[];
   onPick: (id: string) => void;
 }) {
-  const counted = lines.filter((line) => line.totals.any);
-  const sum = (pick: (totals: ProfileTotals) => Decimal): Decimal =>
-    counted.reduce((total, line) => total.plus(pick(line.totals)), ZERO);
-
   return (
     <section className={cn(PLATE, "space-y-2")}>
       <h3 className="font-display text-sm font-bold uppercase tracking-wide">
@@ -1228,24 +1237,6 @@ function ProfileTable({
               <ProfileRow key={line.sheet.id} line={line} onPick={onPick} />
             ))}
           </tbody>
-          <tfoot>
-            <tr className="border-t border-rule-strong font-medium">
-              <th scope="row" className="py-2 pr-3 text-left">
-                Всего
-              </th>
-              <td className="px-3 py-2 text-right font-mono tabular-nums text-ink-faint">
-                —
-              </td>
-              <Cell>{hoursTrim(sum((it) => it.total.normHours))}</Cell>
-              <Cell>{hoursTrim(sum((it) => it.total.actualHours))}</Cell>
-              <BalanceCell value={sum((it) => it.balance)} />
-              <Cell>{hoursTrim(sum((it) => it.total.nightHours))}</Cell>
-              <Cell>{hoursTrim(sum((it) => it.calloutHours))}</Cell>
-              <Cell>
-                {counted.reduce((total, line) => total + line.totals.total.workedShifts, 0)}
-              </Cell>
-            </tr>
-          </tfoot>
         </table>
       </div>
     </section>
