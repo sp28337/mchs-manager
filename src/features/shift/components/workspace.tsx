@@ -1,9 +1,10 @@
 "use client";
 
+import { ChartColumn, FolderOpen, Settings } from "lucide-react";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 
 import { Hint } from "@/components/ui/hint";
-import { SiteHeader } from "@/components/shared/site-header";
+import { BrandLabel, SiteHeader } from "@/components/shared/site-header";
 import { cn } from "@/lib/utils/cn";
 import { todayIso, type IsoDate } from "../domain/plain-date";
 import {
@@ -500,17 +501,16 @@ export function Workspace({
       <SiteHeader
         // Знак называет «Настройки» вместо «График 1|3», пока показаны
         // они, а не сам расчёт: страница та же, читает она о себе другое.
+        // Значок у каждого — тот же, что на кнопке, которой раздел открыли
+        // (`header-tools.tsx`): на узком экране слово не влезает и уступает
+        // ему место (`BrandLabel`).
         brandLabel={
           explorerOpen ? (
-            // Ниже 360 точек название уходит с глаз, но не из разметки:
-            // кнопок в этом состоянии четыре, и в строку со словом
-            // «ПРОФИЛИ» они на таком экране не встают. Само состояние при
-            // этом видно и без слова — страница занята списком графиков.
-            <span className="max-[359px]:sr-only">Профили</span>
+            <BrandLabel icon={FolderOpen}>Профили</BrandLabel>
           ) : showSettings ? (
-            "Настройки"
+            <BrandLabel icon={Settings}>Настройки</BrandLabel>
           ) : statsOpen ? (
-            "Статистика"
+            <BrandLabel icon={ChartColumn}>Статистика</BrandLabel>
           ) : undefined
         }
         tools={

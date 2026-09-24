@@ -336,20 +336,12 @@ export function HeaderToolsBones() {
         <span
           key={id}
           className={cn(
-            "lit lit-wide inline-flex h-9 shrink-0 items-center gap-2 rounded-xl",
-            "px-2 min-[360px]:px-3 text-sm font-medium",
-            // Ниже порога подписей у настоящей кнопки нет ни плашки, ни
-            // света — только значок (`header-tools.tsx`). Кость повторяет и
-            // это: плашка, исчезающая в миг подстановки, — такой же рывок,
-            // как плашка, в этот миг возникающая. Вместо неё там стоит сам
-            // значок, притушенный и дышащий тем же счётом.
-            "md:skeleton-bone md:bg-paper-raised text-transparent",
+            "lit inline-flex h-9 shrink-0 items-center gap-2 rounded-xl",
+            "px-3 text-sm font-medium",
+            "skeleton-bone bg-paper-raised text-transparent",
           )}
         >
-          <Icon
-            aria-hidden
-            className="size-4.5 shrink-0 skeleton-bone opacity-25 md:animate-none md:opacity-0"
-          />
+          <Icon aria-hidden className="size-4.5 shrink-0 opacity-0" />
           {/* Слово и вся его стопка — те же, что у настоящей кнопки: ширину
               места держит самое длинное из них, и кость, знай она только
               своё слово, оказалась бы уже той кнопки, которая её сменит. */}
