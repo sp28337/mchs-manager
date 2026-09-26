@@ -221,6 +221,57 @@ describe("статистика года", () => {
     );
   });
 
+  it("учётные периоды — четыре квартала и два полугодия по ходу года", () => {
+    const stats = statisticsOf(profile(), TODAY);
+
+    expect(stats.parts.map((it) => `${it.kind}:${it.index}`)).toEqual([
+      "quarter:0",
+      "quarter:1",
+      "quarter:2",
+      "quarter:3",
+      "half_year:0",
+      "half_year:1",
+    ]);
+    expect(stats.parts.every((it) => !it.empty)).toBe(true);
+  });
+
+  it("период считается своим расчётом, а не суммой месяцев", () => {
+    const it = profile();
+    const stats = statisticsOf(it, TODAY);
+    const { periodStart, periodEnd } = statutoryBounds(2026, "quarter", 1);
+    const same = calculateFor(it, periodStart, periodEnd);
+    const second = stats.parts.find(
+      (part) => part.kind === "quarter" && part.index === 1,
+    )!;
+
+    // Нормой период обязан сойтись с полосой наверху при выбранном
+    // квартале — иначе приложение назвало бы два разных числа на один
+    // вопрос. Сумма трёх месячных норм при этом с ней совпадать НЕ
+    // обязана: норма считается по отрезку (ст. 104 ТК РФ).
+    expect(second.normHours.toString()).toBe(same.normHours.toString());
+    expect(second.actualHours.toString()).toBe(same.actualHours.toString());
+    expect(second.balance.toString()).toBe(
+      same.actualHours.minus(same.normHours).toString(),
+    );
+  });
+
+  it("полугодие сходится с расчётом своего отрезка, а «Онлайн» его обрезает", () => {
+    const live = statisticsOf(profile({ liveMode: true }), TODAY);
+    const whole = statisticsOf(profile(), TODAY);
+    const second = (stats: typeof live) =>
+      stats.parts.find((it) => it.kind === "half_year" && it.index === 1)!;
+
+    // Второе полугодие началось, но не кончилось: оно есть и короче полного.
+    expect(second(live).empty).toBe(false);
+    expect(
+      second(live).actualHours.lessThan(second(whole).actualHours),
+    ).toBe(true);
+    // Четвёртый квартал целиком впереди — он пуст, а не нулевой.
+    expect(
+      live.parts.find((it) => it.kind === "quarter" && it.index === 3)!.empty,
+    ).toBe(true);
+  });
+
   it("год целиком в будущем показывать нечего", () => {
     const stats = statisticsOf(
       profile({ accountingYear: 2030, liveMode: true }),
@@ -228,5 +279,6 @@ describe("статистика года", () => {
     );
     expect(stats.any).toBe(false);
     expect(stats.months.every((it) => it.empty)).toBe(true);
+    expect(stats.parts.every((it) => it.empty)).toBe(true);
   });
 });

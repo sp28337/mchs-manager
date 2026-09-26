@@ -1,12 +1,9 @@
 import type { CSSProperties, ReactNode } from "react";
 import {
   ChartColumn,
-  ChevronDown,
-  Folder,
   FolderOpen,
   Save,
   Settings,
-  User,
   X,
 } from "lucide-react";
 
@@ -860,10 +857,6 @@ export function DemoStorage() {
                 <span className="demo-typed font-mono text-[0.85em]">Мой график</span>
                 <span className="demo-caret ml-px h-[1.1em] w-px bg-ink" />
               </span>
-              <p className="text-[0.7em] leading-snug text-ink-muted">
-                Расширение «.json» допишется само. Запрещённые в именах файлов
-                знаки заменятся на дефис.
-              </p>
             </div>
 
             {/* Две кнопки во всю ширину поровну — как в окне: согласие
@@ -949,135 +942,6 @@ function HeaderButton({
     >
       <Icon aria-hidden className="size-4.5 shrink-0 text-ink-muted" />
       <span className="sr-only">{label}</span>
-    </span>
-  );
-}
-
-/* ========================================================================
-   5. СТАТИСТИКА ЗА ГОД, И НЕ ТОЛЬКО СВОЯ.
-
-   Четыре показа выше отвечают на вопрос «как внести», а этот — на вопрос
-   «что из этого видно». Год разложен по месяцам: столбец — отработано,
-   черта поперёк — норма месяца. Тот же рисунок, те же цвета и та же
-   черта, что в самой статистике (`statistics.tsx`, `charts.tsx`).
-
-   Нажатие здесь одно и оно главное: человек переводит выбор с себя на
-   папку караула, и рисунок пересобирается под весь караул. Это и есть то,
-   чего нет ни в одном из четырёх предыдущих показов, — счёт не по одному
-   графику, а по всем сразу.
-   ======================================================================== */
-
-/**
- * Месяцы рисунка: сколько отработано и какая норма — двумя наборами.
- *
- * Первый — один человек, второй — караул из трёх. Числа долями высоты
- * поля, а не часами: рисунок в показе мелкий, и подписей у оси нет —
- * сравнивают на нём столбец с чертой, а не с числом.
- */
-const STAT_MONTHS: { fact: number; norm: number; factTwo: number; normTwo: number }[] = [
-  { fact: 78, norm: 52, factTwo: 62, normTwo: 58 },
-  { fact: 70, norm: 63, factTwo: 74, normTwo: 66 },
-  { fact: 46, norm: 40, factTwo: 88, normTwo: 70 },
-  { fact: 72, norm: 71, factTwo: 66, normTwo: 72 },
-  { fact: 88, norm: 62, factTwo: 80, normTwo: 64 },
-  { fact: 68, norm: 68, factTwo: 92, normTwo: 70 },
-  { fact: 30, norm: 27, factTwo: 58, normTwo: 44 },
-  { fact: 78, norm: 69, factTwo: 70, normTwo: 68 },
-  { fact: 93, norm: 72, factTwo: 84, normTwo: 73 },
-  { fact: 78, norm: 72, factTwo: 76, normTwo: 71 },
-  { fact: 75, norm: 65, factTwo: 88, normTwo: 67 },
-  { fact: 72, norm: 72, factTwo: 60, normTwo: 72 },
-];
-
-export function DemoStats() {
-  return (
-    <Panel className="demo-stats">
-      <div className="w-full max-w-104 space-y-3">
-        {/* Строка выбора — та же, что стоит над статистикой: поднятое поле
-            со знаком того, что выбрано, и горячий ряд рядом с ним. */}
-        <div className="relative flex items-center gap-2">
-          <span className="lit relative flex h-9 min-w-0 flex-1 items-center gap-2 rounded-xl bg-paper-raised px-3 text-[0.8em] font-medium">
-            {/* Знак меняется вместе с выбором: человек — у профиля, папка —
-                у свода по караулу. Оба лежат в одной ячейке, и смена не
-                двигает соседей. */}
-            <span className="grid shrink-0 text-ink-muted">
-              <User aria-hidden className="demo-stat-was col-start-1 row-start-1 size-4.5" />
-              <Folder aria-hidden className="demo-stat-became col-start-1 row-start-1 size-4.5" />
-            </span>
-            <span className="grid min-w-0 flex-1">
-              <span className="demo-stat-was col-start-1 row-start-1 truncate">Петров И. С.</span>
-              <span className="demo-stat-became col-start-1 row-start-1 truncate">4-й караул (3)</span>
-            </span>
-            <ChevronDown aria-hidden className="size-4 shrink-0 text-ink-muted" />
-          </span>
-
-          <span className="inline-flex h-9 shrink-0 items-center gap-0.5 rounded-xl bg-paper-sunken">
-            <StatChip>Все</StatChip>
-            <StatChip picked>4-й караул</StatChip>
-          </span>
-
-          <Pointer className="demo-tap-stats right-6 top-7" />
-        </div>
-
-        {/* Рисунок. Плашка поднятой бумаги — как у всех разделов
-            статистики; сам рисунок без осей и подписей: в показе величиной
-            с ладонь они читались бы рябью, а сказать нужно одно — где
-            столбец выше своей черты, а где ниже. */}
-        <div className="lit rounded-xl bg-paper-raised p-3">
-          <p className="font-display text-[0.7em] font-bold uppercase tracking-wide">
-            Норма и факт по месяцам
-          </p>
-
-          <div className="mt-2 flex h-20 items-end gap-[0.35em] sm:h-24">
-            {STAT_MONTHS.map((month, index) => (
-              <span
-                key={index}
-                className="relative flex h-full min-w-0 flex-1 items-end"
-                style={vars({
-                  "--bar": index,
-                  "--h": `${month.fact}%`,
-                  "--h2": `${month.factTwo}%`,
-                  "--n": `${month.norm}%`,
-                  "--n2": `${month.normTwo}%`,
-                })}
-              >
-                <span className="demo-bar block w-full rounded-t-[0.2em] bg-verify" />
-                {/* Черта нормы — шире столбца, как в самом рисунке: вровень
-                    с ним она сливалась бы с вершиной, когда факт равен
-                    норме. */}
-                <span className="demo-tick absolute -left-px -right-px h-[0.12em] rounded-full bg-ink-faint" />
-              </span>
-            ))}
-          </div>
-        </div>
-
-        {/* Итог — тем же словом и тем же цветом, что в полосе наверху. */}
-        <div className="flex items-baseline justify-between gap-3">
-          <span className="font-display text-[0.7em] font-bold uppercase tracking-wide text-ink-muted">
-            Переработка за год
-          </span>
-          <span className="grid text-right font-mono text-[1.1em] font-medium text-verify">
-            <span className="demo-stat-was col-start-1 row-start-1">+302 ч</span>
-            <span className="demo-stat-became col-start-1 row-start-1">+752 ч</span>
-          </span>
-        </div>
-      </div>
-    </Panel>
-  );
-}
-
-/** Кнопка горячего ряда: занятая поднята, свободная утоплена вместе с дорожкой. */
-function StatChip({ children, picked }: { children: ReactNode; picked?: boolean }) {
-  return (
-    <span
-      className={cn(
-        "inline-flex h-9 items-center rounded-xl px-2.5 text-[0.7em] font-medium",
-        picked
-          ? "demo-stat-chip lit bg-paper-raised text-ink"
-          : "text-ink-muted",
-      )}
-    >
-      {children}
     </span>
   );
 }

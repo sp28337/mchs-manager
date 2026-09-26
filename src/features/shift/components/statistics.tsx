@@ -1,11 +1,12 @@
 "use client";
 
 import { Folder, User, type LucideIcon } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 import { Segmented, SegmentedItem } from "@/components/ui/segmented";
 import { Select } from "@/components/ui/select";
+import { useDragScroll } from "@/lib/hooks/use-drag-scroll";
 import { cn } from "@/lib/utils/cn";
 
 import {
@@ -14,12 +15,14 @@ import {
   type Decimal,
 } from "../domain/decimal";
 import { MONTH_NAMES } from "./month-names";
+import { monthsIn, partLabel } from "./period-picker";
 import { ABSENCE_MARK, ABSENCE_TONE, CALLOUT_MARK, CALLOUT_TONE } from "./day-marks";
 import { ABSENCE_LABELS, CALLOUT_LABELS } from "../schemas";
 import {
   statisticsOf,
   totalsOf,
   type MonthStat,
+  type PartStat,
   type ProfileTotals,
   type Statistics,
 } from "../model/statistics";
@@ -64,12 +67,14 @@ import { useLibrary } from "./profile-explorer";
  *  1. «Чем кончился год» — одно крупное число баланса и шесть величин
  *     при нём. Рисунка здесь нет и быть не должно: одно значение — это
  *     число, а не столбик.
- *  2. «Как шло» — два рисунка. Норма и факт по месяцам отвечают на вопрос
- *     «где недобрал», накопленный баланс — на вопрос «когда вышел в плюс».
- *     Третий рисунок, ночные часы, стоит отдельно, потому что величина у
- *     них другая: подсадить их к норме второй осью значило бы выдумать
- *     связь, которой в данных нет.
- *  3. «Из чего это вышло» — перечень освобождений и таблица по месяцам.
+ *  2. «Из чего это вышло» — вызовы сверх графика, перечень освобождений и
+ *     точные числа таблицами: по месяцам и по учётным периодам.
+ *  3. «Как шло» — рисунки, и они замыкают раздел. Ночные часы отдельным
+ *     рисунком, потому что величина у них другая: подсадить их к норме
+ *     второй осью значило бы выдумать связь, которой в данных нет. Норма и
+ *     факт по месяцам с накопленным балансом — последними: они отвечают на
+ *     тот же вопрос, что полоса наверху, и закрывают год, которым раздел
+ *     начался.
  *
  * Таблица внизу — не запасной путь для читалки, а обязательство: числа,
  * показанные цветом, обязаны быть доступны и без цвета. Зелёный на светлой
@@ -104,8 +109,8 @@ const TONE = {
  * Статистика стоит НА СТРАНИЦЕ, на месте графика (`workspace.tsx`), а не
  * окном поверх неё, и строй у неё тот же, что у проводника и настроек:
  * разделы — плашки на бумаге, а не куски сплошной ленты. Плашек ровно
- * столько, сколько вопросов: чем кончился год, как шло (по рисунку на
- * каждый), из чего вышло, и таблица.
+ * столько, сколько вопросов: чем кончился год, из чего вышло, точные числа
+ * таблицами — и рисунки, которыми всё это показано ещё раз.
  *
  * `lit` — плашка ловит свет лампы: блик по верхней кромке, мягкая тень
  * вниз и кайма под курсором. Забирает их ближайшая к указателю
@@ -582,6 +587,14 @@ function ScopePicker({
   value: Scope;
   onChange: (scope: Scope) => void;
 }) {
+  // Горячий ряд не вмещает своих кнопок, как только графиков становится
+  // много, и пальцем он листается сам, а мышью — нечем: колесо крутит
+  // страницу, а полоса прокрутки у дорожки убрана намеренно. Протягивание
+  // мышью возвращает эту возможность, ничего не добавляя на экран
+  // (`use-drag-scroll.ts`).
+  const track = useRef<HTMLDivElement>(null);
+  const onTrackPointerDown = useDragScroll(track);
+
   /**
    * Горячий ряд: то же, что в списке, но в одно нажатие.
    *
@@ -653,11 +666,22 @@ function ScopePicker({
           внутри дорожки, а не переносятся строкой. */}
       <Segmented
         label="Быстрый выбор"
+        ref={track}
+        onPointerDown={onTrackPointerDown}
         // Тот же переключатель, что выбирает вид сетки над календарём, и с
         // теми же мерами: ячейки во всю высоту дорожки, просвет в пол-единицы,
-        // никаких своих полей. Разница одна — этот переносится по строкам:
-        // видов сетки два, а профилей бывает сколько угодно.
-        className="hidden h-auto min-w-0 flex-1 justify-start overflow-x-scroll scroll-hidden scrollbar-none md:inline-flex md:justify-start"
+        // никаких своих полей. Разница одна — этот листается вбок: видов
+        // сетки два, а профилей бывает сколько угодно.
+        //
+        // `justify-start` на всех ширинах, включая `lg`, где переключатель
+        // сам по себе растягивает ячейки по краям (`segmented.tsx`). Здесь
+        // это неверно: у выбора вида сетки положений ровно два и оба видны
+        // всегда, а тут ячеек столько, сколько папок и графиков, и часть их
+        // за кромкой. Разгонять по краям ряд, который не вмещается, нечем —
+        // раздвигать пришлось бы просветы, которых нет, — зато у ряда,
+        // который вмещается, кнопки разъезжались бы тем шире, чем меньше их
+        // в наборе: два графика давали бы две кнопки по концам строки.
+        className="hidden h-auto min-w-0 flex-1 justify-start overflow-x-scroll scroll-hidden scrollbar-none md:inline-flex md:justify-start lg:justify-start"
       >
         {quick.map((it) => (
           <SegmentedItem
@@ -755,19 +779,24 @@ function OneProfile({ profile }: { profile: StoredProfile }) {
   return (
     <div className="space-y-4">
       <Figures stats={stats} />
-      <Trends stats={stats} />
       <Callouts stats={stats} />
       <Absences stats={stats} />
       <MonthTable stats={stats} />
-      {/* Ночные — последними, ниже таблицы.
+      <PartTable stats={stats} />
+      {/* Рисунки — после чисел, и «норма и факт» последним.
           -----------------------------------------------------------------
-          Порядок разделов идёт от вопроса к вопросу: чем кончился год, как
-          он шёл, из чего это вышло, и точные числа в таблице. Ночные часы
-          ни на один из них не отвечают: это отдельная величина, нужная при
-          разговоре о доплате, а не при счёте переработки. Стоя третьим
-          рисунком, они разрывали ход — между «как копится баланс» и «из
-          чего он вышел» вставал вопрос из другого разговора. */}
+          Порядок разделов идёт от вопроса к вопросу: чем кончился год, из
+          чего это вышло, и точные числа — по месяцам и по учётным периодам.
+          Рисунки замыкают: они не отвечают на новый вопрос, а показывают
+          уже сказанное — тем же счётом, только рукой, а не цифрой.
+
+          Внутри пары ночные стоят выше. Так вышло из просьбы, но так и
+          вернее: ночные часы — отдельная величина из разговора о доплате,
+          и ставить её В СЕРЕДИНУ хода нельзя, а «норма и факт» с
+          накопленным балансом — тот же вопрос, что у полосы наверху, и
+          последним рисунком он закрывает год, которым раздел начался. */}
       <NightTrend stats={stats} />
+      <Trends stats={stats} />
     </div>
   );
 }
@@ -918,10 +947,10 @@ function Trends({ stats }: { stats: Statistics }) {
 }
 
 /**
- * Ночные часы по месяцам — отдельным рисунком и в самом низу.
+ * Ночные часы по месяцам — отдельным рисунком и ниже таблиц.
  *
  * Отдельным — потому что величина другая: подсадить их к норме второй осью
- * значило бы выдумать связь, которой в данных нет. В самом низу — потому
+ * значило бы выдумать связь, которой в данных нет. Ниже таблиц — потому
  * что и вопрос другой: остальное на странице про переработку, а ночные про
  * доплату, и читают их, когда с переработкой уже разобрались.
  *
@@ -979,7 +1008,7 @@ function NightTrend({ stats }: { stats: Statistics }) {
  * пришлось бы различать на глаз.
  */
 function Callouts({ stats }: { stats: Statistics }) {
-  const { callouts, calloutHours, total } = stats;
+  const { callouts } = stats;
 
   if (callouts.length === 0) {
     return (
@@ -995,27 +1024,12 @@ function Callouts({ stats }: { stats: Statistics }) {
   }
 
   const most = Math.max(...callouts.map((it) => it.hours.toNumber()));
-  // Доля от отработанного — не украшение: «42 часа» ничего не говорят, пока
-  // не сказано, много это или мало на фоне года. Ноль в делители не идёт:
-  // часы вызовов есть, а отработанных нет — состояние невозможное, и всё же
-  // проверка дешевле, чем `Infinity` в разметке.
-  const share = total.actualHours.greaterThan(0)
-    ? calloutHours.dividedBy(total.actualHours).times(100)
-    : null;
 
   return (
     <section className={cn(PLATE, "space-y-2")}>
-      <div className="space-y-0.5">
-        <h3 className="font-display text-sm font-bold uppercase tracking-wide">
-          Сверх графика
-        </h3>
-        <p className="text-xs text-ink-muted">
-          Вызов — исполнение трудовых обязанностей, то есть рабочее время
-          (ст. 91 ТК РФ): часы идут в отработанное, а норму не уменьшают.
-          Всего за год — {hours(calloutHours.toNumber())}
-          {share === null ? "" : ` (${share.toFixed(share.lessThan(10) ? 1 : 0)} % отработанного)`}.
-        </p>
-      </div>
+      <h3 className="font-display text-sm font-bold uppercase tracking-wide">
+        Сверх графика
+      </h3>
 
       <ul className="divide-y divide-rule">
         {callouts.map((it) => (
@@ -1248,6 +1262,110 @@ function Row({ month }: { month: MonthStat }) {
       <Cell>{hoursTrim(month.nightHours)}</Cell>
       <Cell>{hoursTrim(month.holidayHours)}</Cell>
       <Cell>{month.workedShifts}</Cell>
+    </tr>
+  );
+}
+
+/**
+ * Таблица по учётным периодам: кварталы и полугодия.
+ *
+ * --- Зачем она рядом с месячной ---------------------------------------------
+ *
+ * Месяцами человек живёт — табель, зарплата, график сменности, — а спорит он
+ * не о месяце. Переработку считают ЗА УЧЁТНЫЙ ПЕРИОД (ст. 104 ТК РФ), и у
+ * пожарной охраны это квартал, полугодие или год: тот самый выбор, что стоит
+ * над сеткой. Внутри периода мартовская недоработка и майская переработка
+ * гасят друг друга, и предъявляют только остаток на его конце — число,
+ * которого в таблице месяцев не было ни в одной строке.
+ *
+ * Сложить месяцы глазом вместо этой таблицы нельзя, и не из-за арифметики:
+ * норма считается по отрезку, и норма квартала не равна сумме норм его
+ * месяцев. Расхождение мелкое, но приложение существует ради того, чтобы
+ * числа сходились с приказом, — поэтому каждый период посчитан сам по себе
+ * (`partsOf` в `model/statistics.ts`).
+ *
+ * --- Почему кварталы и полугодия вместе, а года нет -------------------------
+ *
+ * Какой период учётный — решает приказ по части, и человек, открывший
+ * статистику, своего выбора здесь не делает: он смотрит на тот ряд, который
+ * его касается. Показывать по одному ряду за раз значило бы завести ещё один
+ * переключатель ради двух строк разницы.
+ *
+ * Полугодия стоят под своими кварталами, потому что из них и складываются:
+ * читая сверху вниз, видно, как два остатка сошлись в один. Года в таблице
+ * нет — он уже стоит итогом в таблице месяцев и в полосе наверху.
+ */
+function PartTable({ stats }: { stats: Statistics }) {
+  const shown = stats.parts.filter((it) => !it.empty);
+  if (shown.length === 0) return null;
+
+  return (
+    <section className={cn(PLATE, "space-y-2")}>
+      <h3 className="font-display text-sm font-bold uppercase tracking-wide">
+        По учётным периодам
+      </h3>
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[34rem] border-collapse text-sm">
+          <caption className="sr-only">
+            Норма, отработанные, ночные и праздничные часы по кварталам и
+            полугодиям {stats.year} года
+          </caption>
+          <thead>
+            <tr className="text-[11px] uppercase tracking-wide text-ink-faint">
+              <th scope="col" className="py-2 pr-3 text-left font-medium">
+                Период
+              </th>
+              <Head>Норма</Head>
+              <Head>Факт</Head>
+              <Head>Баланс</Head>
+              <Head>Ночные</Head>
+              <Head>Празд.</Head>
+              <Head>Смены</Head>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-rule">
+            {shown.map((it) => (
+              <PartRow key={`${it.kind}:${it.index}`} part={it} />
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
+
+function PartRow({ part }: { part: PartStat }) {
+  const balance = part.balance.toNumber();
+  const from = part.index * monthsIn(part.kind);
+  return (
+    <tr
+      className={
+        // Полугодия отделены от кварталов чертой потолще — той же, какой
+        // таблица месяцев отбивает итог: ниже неё те же месяцы, сложенные
+        // крупнее, и без черты шесть строк читались бы одним рядом из шести
+        // разных периодов.
+        part.kind === "half_year" && part.index === 0
+          ? "border-t border-rule-strong"
+          : undefined
+      }
+    >
+      <th scope="row" className="py-2 pr-3 text-left font-normal">
+        {partLabel(part.kind, part.index, 0)}
+        {/* Какие это месяцы — тут же, мелко. «3-й квартал» человек считает в
+            уме не всегда, а ошибка в этом счёте стоит целого разговора не о
+            том отрезке. */}
+        <span className="ml-1.5 text-xs text-ink-faint">
+          {SHORT[from]} — {SHORT[from + monthsIn(part.kind) - 1]}
+        </span>
+      </th>
+      <Cell>{hoursTrim(part.normHours)}</Cell>
+      <Cell>{hoursTrim(part.actualHours)}</Cell>
+      <Cell tone={balance > 0 ? "over" : balance < 0 ? "under" : undefined}>
+        {signed(balance)}
+      </Cell>
+      <Cell>{hoursTrim(part.nightHours)}</Cell>
+      <Cell>{hoursTrim(part.holidayHours)}</Cell>
+      <Cell>{part.workedShifts}</Cell>
     </tr>
   );
 }

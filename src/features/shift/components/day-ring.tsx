@@ -849,7 +849,7 @@ function Ring({
                   // Кольцо стоит выше затемнения (110) и ниже лампы: гасится
                   // всё, кроме лампы — так же, как это делают окна
                   // (`.scrim` в `globals.css`).
-                  "day-ring-cell fixed z-[115] flex cursor-pointer items-center justify-center",
+                  "day-ring-cell day-ring-face fixed z-[115] flex cursor-pointer items-center justify-center",
                   "rounded-md border font-mono text-[13px] leading-none shadow-lg",
                   // Цвет, рамка и цвет буквы — из общего словаря сетки: в
                   // кольце вид суток выглядит ровно так, как он будет
@@ -1170,7 +1170,11 @@ function RingLegend({
             >
               <span
                 className={cn(
-                  "relative flex size-5 shrink-0 items-center justify-center",
+                  // Тот же знак, что в кольце, и тем же цветом — включая
+                  // сгущение светлой темы (`day-ring-face` в `globals.css`):
+                  // словарь стоит на том же затемнении, что и квадраты, и
+                  // бледнел бы вместе с ними.
+                  "day-ring-face relative flex size-5 shrink-0 items-center justify-center",
                   "rounded-md border font-mono text-[10px] leading-none",
                   face.tone,
                 )}

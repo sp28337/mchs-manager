@@ -1,5 +1,9 @@
 import { Dec, ZERO, type Decimal } from "../domain/decimal";
-import type { AbsenceKind, CalloutKind } from "../domain/value-objects";
+import type {
+  AbsenceKind,
+  AccountingPeriodKind,
+  CalloutKind,
+} from "../domain/value-objects";
 import type { PeriodCalculation } from "../domain/calculation";
 import { todayIso, type IsoDate } from "../domain/plain-date";
 import type { StoredProfile } from "../storage/profile";
@@ -71,6 +75,43 @@ export interface MonthStat {
   readonly balance: Decimal;
 }
 
+/**
+ * Один учётный период года: квартал или полугодие.
+ *
+ * --- Зачем он рядом с месяцем ------------------------------------------------
+ *
+ * Месяц в таблице стоит потому, что человек живёт месяцами: зарплата, табель,
+ * график. Но спорят-то не о месяце. Переработка по закону считается ЗА УЧЁТНЫЙ
+ * ПЕРИОД (ст. 104 ТК РФ), и у пожарной охраны это квартал, полугодие или год —
+ * тот самый выбор, что стоит над сеткой. Месячный баланс отвечает «как шло», а
+ * на вопрос «сколько мне должны» отвечает период: внутри него недоработка
+ * марта и переработка мая гасят друг друга, и только остаток на конце — то,
+ * что предъявляют.
+ *
+ * Сложить месяцы ради этого нельзя — ни числом, ни в уме. Норма считается по
+ * ОТРЕЗКУ, и норма квартала не равна сумме норм его месяцев ровно по той же
+ * причине, по какой год не равен сумме двенадцати. Поэтому здесь свой расчёт
+ * на каждый период, тот же самый, каким считает полоса наверху при выбранном
+ * квартале.
+ *
+ * Год в этот перечень не входит: он уже стоит итоговой строкой и в таблице
+ * месяцев, и в полосе наверху, и третья его копия ничего не прибавит.
+ */
+export interface PartStat {
+  readonly kind: Exclude<AccountingPeriodKind, "year">;
+  /** Ноль — первый квартал или первое полугодие. */
+  readonly index: number;
+  /** Отрезок пуст: период раньше начала отсчёта или ещё не наступил. */
+  readonly empty: boolean;
+  readonly normHours: Decimal;
+  readonly actualHours: Decimal;
+  readonly nightHours: Decimal;
+  readonly holidayHours: Decimal;
+  readonly workedShifts: number;
+  /** Факт минус норма, со знаком: плюс — переработка, минус — недоработка. */
+  readonly balance: Decimal;
+}
+
 /** Один вид освобождения за год. */
 export interface AbsenceStat {
   readonly kind: AbsenceKind;
@@ -131,6 +172,8 @@ export interface ProfileTotals {
 
 export interface Statistics extends ProfileTotals {
   readonly months: readonly MonthStat[];
+  /** Кварталы, а за ними полугодия — в том порядке, в каком идут по году. */
+  readonly parts: readonly PartStat[];
   /**
    * Накопленный баланс на конец каждого месяца.
    *
@@ -225,6 +268,16 @@ const EMPTY_MONTH = {
   balance: ZERO,
 } as const;
 
+const EMPTY_PART = {
+  empty: true,
+  normHours: ZERO,
+  actualHours: ZERO,
+  nightHours: ZERO,
+  holidayHours: ZERO,
+  workedShifts: 0,
+  balance: ZERO,
+} as const;
+
 /** Границы отрезка, обрезанные и началом отсчёта, и сегодняшним днём. */
 function bounds(
   profile: StoredProfile,
@@ -298,7 +351,57 @@ export function statisticsOf(profile: StoredProfile, today = todayIso()): Statis
     running.push(carried);
   }
 
-  return { ...totals, months, running };
+  return { ...totals, months, parts: partsOf(profile, year, today), running };
+}
+
+/**
+ * Кварталы и полугодия — каждый своим расчётом.
+ *
+ * Шесть вызовов сверх тринадцати месячных, и они окупаются: сложить месяцы
+ * вместо этого нельзя (норма считается по отрезку — см. `PartStat`), а
+ * спорят как раз об этих числах.
+ *
+ * Порядок — по ходу года и от мелкого к крупному: четыре квартала, потом два
+ * полугодия. Полугодие стоит ПОСЛЕ своих кварталов, потому что оно из них и
+ * складывается: человек читает сверху вниз и видит, как два остатка сошлись
+ * в один.
+ *
+ * Пустой период — не ноль, а «ещё не наступил»: то же правило, что у месяца.
+ */
+function partsOf(
+  profile: StoredProfile,
+  year: number,
+  today: IsoDate,
+): PartStat[] {
+  const parts: PartStat[] = [];
+
+  for (const [kind, count] of [
+    ["quarter", 4],
+    ["half_year", 2],
+  ] as const) {
+    for (let index = 0; index < count; index += 1) {
+      const span = bounds(profile, statutoryBounds(year, kind, index), today);
+      if (span.periodStart >= span.periodEnd) {
+        parts.push({ kind, index, ...EMPTY_PART });
+        continue;
+      }
+
+      const it = calculateFor(profile, span.periodStart, span.periodEnd);
+      parts.push({
+        kind,
+        index,
+        empty: false,
+        normHours: it.normHours,
+        actualHours: it.actualHours,
+        nightHours: it.nightHours,
+        holidayHours: it.holidayHours,
+        workedShifts: it.workedShifts,
+        balance: it.actualHours.minus(it.normHours),
+      });
+    }
+  }
+
+  return parts;
 }
 
 /** Наибольшее из чисел — мерка высоты для столбцов. Ноль не годится в делители. */

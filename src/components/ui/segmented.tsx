@@ -1,6 +1,6 @@
 "use client";
 
-import type { ReactNode } from "react";
+import type { PointerEvent as ReactPointerEvent, ReactNode, Ref } from "react";
 
 import { cn } from "@/lib/utils/cn";
 
@@ -26,16 +26,27 @@ export function Segmented({
   label,
   className,
   children,
+  ref,
+  onPointerDown,
 }: {
   /** Имя группы для программы чтения: без него это просто кнопки подряд. */
   label: string;
   className?: string;
   children: ReactNode;
+  /**
+   * Сама дорожка — наружу. Нужна тем переключателям, что не вмещают своих
+   * ячеек и листаются вбок: прокрутка живёт на этом узле, и добраться до неё
+   * иначе нечем (`use-drag-scroll.ts`).
+   */
+  ref?: Ref<HTMLDivElement>;
+  onPointerDown?: (event: ReactPointerEvent<HTMLDivElement>) => void;
 }) {
   return (
     <div
+      ref={ref}
       role="group"
       aria-label={label}
+      onPointerDown={onPointerDown}
       className={cn(
         "inline-flex h-9 items-center gap-0.5 rounded-xl lg:flex-1 lg:justify-between",
         "bg-paper-sunken",
