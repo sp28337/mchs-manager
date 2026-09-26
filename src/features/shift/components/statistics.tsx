@@ -225,22 +225,70 @@ function decode(value: string): Scope {
 }
 
 /**
- * Папки деревом: корень, за ним вложенные — каждая сразу за своей.
+ * Строка списка: один выбор и его глубина в дереве папок.
  *
- * Порядок и глубина, а не путь строкой. Путь («grafik13 / 4-й караул»)
- * пробовали, и он врал дважды: повторял имя корня в каждой строке — а корень
- * у всех один и тот же, — и на вложенности в два колена превращал заголовок
- * группы в строку длиннее самих имён. Вложенность показывает отступ, как в
- * любом дереве, а корень назван один раз и косой чертой: имя `grafik13` —
- * внутреннее, человек его себе не давал.
+ * Глубина нужна только отступу. Отступ неразрывными пробелами, а не
+ * обычными: раскрытый список рисует операционная система, и обычные
+ * пробелы в начале строки она вправе убрать — а неразрывный для неё такой
+ * же знак, как буква.
  */
-function foldersInOrder(
-  library: Library,
-): { folder: LibraryFolder; depth: number }[] {
-  const out: { folder: LibraryFolder; depth: number }[] = [];
+interface Choice {
+  value: string;
+  label: string;
+  depth: number;
+}
+
+/**
+ * Весь выбор — плоским списком строк, а не группами.
+ *
+ * --- Почему не `optgroup` ---------------------------------------------------
+ *
+ * Папки сперва стояли заголовками групп, а под каждым — её профили и особая
+ * строка «⟨имя⟩ целиком». Это было неправдой дважды. Во-первых, заголовок
+ * группы в родном списке НЕ ВЫБИРАЕТСЯ: человек видел «4-й караул», нажимал
+ * — и ничего не происходило, а нужное лежало строкой ниже, теми же словами
+ * плюс «целиком». Во-вторых, корень стоял заголовком «/», а свод по всем
+ * профилям — отдельной строкой наверху: два имени у одного и того же.
+ *
+ * Теперь строка папки И ЕСТЬ выбор этой папки, а корень — это и есть «Все
+ * профили». Лишних строк не осталось: сколько в дереве папок, столько и
+ * строк выбора, плюс по строке на профиль.
+ *
+ * --- Порядок ----------------------------------------------------------------
+ *
+ * Как в проводнике: папка, сразу под ней её собственные профили, потом
+ * вложенные папки — каждая со своими. Счёт при папке — сколько профилей
+ * внутри неё ВСЕГО, вместе с вложенными: столько же их попадёт в свод.
+ * Папка, в которой не лежит ни одного профиля, в списке не показана — в ней
+ * нечего считать.
+ */
+function choicesOf(library: Library, sheets: readonly Sheet[]): Choice[] {
+  const out: Choice[] = [];
 
   const walk = (folder: LibraryFolder, depth: number) => {
-    out.push({ folder, depth });
+    const inside = sheets.filter((it) => within(library, it.folderId, folder.id));
+    if (inside.length === 0) return;
+
+    const root = folder.id === ROOT_FOLDER_ID;
+    out.push({
+      // Корень — это и есть «все»: свод по нему и свод по всем профилям —
+      // одно и то же, и двух значений у одного выбора быть не должно.
+      value: root ? "all" : encode({ kind: "folder", id: folder.id }),
+      label: `${root ? "Все профили" : folder.name} (${inside.length})`,
+      depth,
+    });
+
+    for (const sheet of inside.filter((it) => it.folderId === folder.id)) {
+      out.push({
+        value: encode({ kind: "one", id: sheet.id }),
+        // «открыт» словом, а не точкой: раскрытый список рисует
+        // операционная система, и ни цвета, ни значка в нём не поставить —
+        // остаётся сам текст строки.
+        label: `${sheet.name}${sheet.open ? " — открыт" : ""}`,
+        depth: depth + 1,
+      });
+    }
+
     library.folders
       .filter((it) => it.id !== folder.id && it.parentId === folder.id)
       .sort((a, b) => a.name.localeCompare(b.name, "ru"))
@@ -250,25 +298,22 @@ function foldersInOrder(
   const root = library.folders.find((it) => it.id === ROOT_FOLDER_ID);
   if (root !== undefined) walk(root, 0);
 
-  // Папка, до которой обход не добрался, всё равно не пропадает из выбора:
-  // `loadLibrary` поднимает потерявших родителя в корень, и оказаться здесь
-  // она может разве что из-за кольца в ссылках — но в ней лежит чей-то год.
-  for (const folder of library.folders) {
-    if (!out.some((it) => it.folder.id === folder.id)) out.push({ folder, depth: 1 });
+  // Профиль, до которого обход не добрался, всё равно не пропадает из
+  // выбора: `loadLibrary` поднимает потерявших папку в корень, и оказаться
+  // здесь он может разве что из-за кольца в ссылках — но это чей-то год.
+  for (const sheet of sheets) {
+    const value = encode({ kind: "one", id: sheet.id });
+    if (!out.some((it) => it.value === value)) {
+      out.push({ value, label: sheet.name, depth: 1 });
+    }
   }
 
   return out;
 }
 
-/**
- * Имя группы в списке: корень — косой чертой, вложенные — с отступом.
- *
- * Отступ неразрывными пробелами, а не обычными: родной `select` рисует
- * операционная система, и обычные пробелы в начале подписи она вправе
- * убрать — а неразрывный пробел для неё такой же знак, как буква.
- */
-function groupLabel(folder: LibraryFolder, depth: number): string {
-  return depth === 0 ? "/" : `${"\u00a0".repeat(depth * 3)}${folder.name}`;
+/** Отступ строки — её глубиной в дереве. */
+function indent(depth: number): string {
+  return "\u00a0".repeat(depth * 3);
 }
 
 /** Лежит ли папка внутри другой — она сама или любой её потомок. */
@@ -412,16 +457,7 @@ function ScopePicker({
   value: Scope;
   onChange: (scope: Scope) => void;
 }) {
-  // Папка идёт в список, если в ней самой или внутри неё есть профили:
-  // выбрать «4-й караул» человек хочет вместе с тем, что в нём вложено.
-  const groups = foldersInOrder(library)
-    .map(({ folder, depth }) => ({
-      folder,
-      depth,
-      own: sheets.filter((it) => it.folderId === folder.id),
-      inside: sheets.filter((it) => within(library, it.folderId, folder.id)),
-    }))
-    .filter((it) => it.own.length > 0 || it.inside.length > 0);
+  const choices = choicesOf(library, sheets);
 
   /**
    * Горячий ряд: то же, что в списке, но в одно нажатие.
@@ -434,8 +470,13 @@ function ScopePicker({
   const quick: { key: string; label: string; scope: Scope }[] = [
     { key: "all", label: "Все", scope: { kind: "all" } },
   ];
-  for (const { folder, inside } of groups) {
-    if (folder.id === ROOT_FOLDER_ID || inside.length < 2) continue;
+  for (const folder of library.folders) {
+    if (folder.id === ROOT_FOLDER_ID) continue;
+    const inside = sheets.filter((it) => within(library, it.folderId, folder.id));
+    // Папка с единственным профилем в ряд не идёт: её свод — тот же один
+    // профиль, и кнопка рядом с его именем говорила бы то же самое дважды.
+    // В списке она есть: там строки не за что экономить.
+    if (inside.length < 2) continue;
     quick.push({
       key: `folder:${folder.id}`,
       label: folder.name,
@@ -503,36 +544,11 @@ function ScopePicker({
         value={now}
         onChange={(event) => onChange(decode(event.target.value))}
       >
-        <option value="all">Все профили ({sheets.length})</option>
-        {groups.map(({ folder, depth, own, inside }) => (
-          <optgroup key={folder.id} label={groupLabel(folder, depth)}>
-            {folder.id !== ROOT_FOLDER_ID && inside.length > 0 ? (
-              // Выбирается ЛЮБАЯ папка, в которой есть хоть один профиль:
-              // папка, которую видно, но нельзя выбрать, — обещание,
-              // которое список не держит. Горячий ряд ниже строже (там
-              // нужны папки с двумя и больше), но он и не перечень, а
-              // сокращение пути.
-              //
-              // Имя папки повторяется в строке, хотя оно уже написано над
-              // ней заголовком группы: закрытый список показывает ОДНУ
-              // строку и больше ничего, и «вся папка» в нём не сказало бы,
-              // какая именно. «Целиком» вместо «вся» — чтобы строка
-              // читалась при любом имени: и «4-й караул целиком», и «2025
-              // год целиком».
-              <option value={encode({ kind: "folder", id: folder.id })}>
-                {folder.name} целиком ({inside.length})
-              </option>
-            ) : null}
-            {own.map((sheet) => (
-              <option key={sheet.id} value={encode({ kind: "one", id: sheet.id })}>
-                {/* «открыт» словом, а не точкой: раскрытый список рисует
-                    операционная система, и ни цвета, ни значка в нём не
-                    поставить — остаётся сам текст строки. */}
-                {sheet.name}
-                {sheet.open ? " — открыт" : ""}
-              </option>
-            ))}
-          </optgroup>
+        {choices.map((it) => (
+          <option key={it.value} value={it.value}>
+            {indent(it.depth)}
+            {it.label}
+          </option>
         ))}
       </Select>
       </div>
@@ -726,7 +742,6 @@ function Trends({ stats }: { stats: Statistics }) {
       <div className={PLATE}>
         <ColumnChart
           title="Норма и факт по месяцам"
-          note="Норма считается по производственному календарю и от графика смен не зависит. Столбец ниже своей черты — месяц, в котором недобрано."
           columns={normFact}
           bar={{ name: "Отработано", colour: TONE.fact, shape: "bar" }}
           target={{ name: "Норма месяца", colour: TONE.norm, shape: "tick" }}
@@ -737,7 +752,6 @@ function Trends({ stats }: { stats: Statistics }) {
       <div className={PLATE}>
         <BalanceChart
           title="Как копится баланс"
-          note="Разница между фактом и нормой, сложенная от января. Выше черты — переработка, ниже — недоработка; итог года — правая точка."
           columns={running}
           format={axis}
           over={TONE.over}
@@ -778,7 +792,6 @@ function NightTrend({ stats }: { stats: Statistics }) {
     <div className={PLATE}>
       <ColumnChart
         title="Ночные часы по месяцам"
-        note="Часы смен, пришедшиеся на время с 22 до 6 (ст. 96 ТК РФ). Праздничные часы — в подписи при наведении и в таблице выше."
         columns={night}
         bar={{ name: "Ночные", colour: TONE.night, shape: "bar" }}
         format={axis}
@@ -891,7 +904,7 @@ function Callouts({ stats }: { stats: Statistics }) {
  * имя написано рядом.
  */
 function Absences({ stats }: { stats: Statistics }) {
-  const { absences, total } = stats;
+  const { absences } = stats;
   if (absences.length === 0) {
     return (
       <section className={cn(PLATE, "space-y-2")}>
@@ -909,16 +922,9 @@ function Absences({ stats }: { stats: Statistics }) {
 
   return (
     <section className={cn(PLATE, "space-y-2")}>
-      <div className="space-y-0.5">
-        <h3 className="font-display text-sm font-bold uppercase tracking-wide">
-          Освобождения
-        </h3>
-        <p className="text-xs text-ink-muted">
-          Часы смен, попавших в эти дни, из нормы исключаются (письмо Роструда
-          от 01.03.2010 № 550-6-1). Всего за год —{" "}
-          {hours(total.excludedHours.toNumber())}.
-        </p>
-      </div>
+      <h3 className="font-display text-sm font-bold uppercase tracking-wide">
+        Освобождения
+      </h3>
 
       {/* Строки разделяет линовка, а не вторая плашка у каждой: они стоят
           на общей, и это один список, а не семь ответов (`ui/panel.tsx`,
@@ -1033,12 +1039,6 @@ function MonthTable({ stats }: { stats: Statistics }) {
           </tfoot>
         </table>
       </div>
-      <p className="text-xs text-ink-muted">
-        Часы — за календарные сутки месяца, а не за смены, начавшиеся в нём:
-        смена с 31-го отдаёт свой хвост следующему месяцу, как и в табеле.
-        Сумма месячных норм может на час-другой разойтись с нормой года — она
-        считается по отрезку целиком (ст. 104 ТК РФ), а не сложением.
-      </p>
     </section>
   );
 }
