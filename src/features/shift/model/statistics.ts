@@ -5,7 +5,7 @@ import type {
   CalloutKind,
 } from "../domain/value-objects";
 import type { PeriodCalculation } from "../domain/calculation";
-import { todayIso, type IsoDate } from "../domain/plain-date";
+import { addDays, daysBetween, todayIso, type IsoDate } from "../domain/plain-date";
 import type { StoredProfile } from "../storage/profile";
 import {
   calculateFor,
@@ -142,6 +142,54 @@ export interface CalloutStat {
 }
 
 /**
+ * Заметка к событию: своя у записи или дневная.
+ *
+ * Их две породы, и различать их надо. У отпуска заметка лежит в самой
+ * записи (`note`) и относится ко всему отрезку — «за дежурство 3 января».
+ * Дневная (`dayNotes`) привязана к суткам и бывает нужна и там, где не
+ * отмечено ничего; попав внутрь отрезка, она объясняет уже не весь отрезок,
+ * а один его день. Поэтому у дневной стоит её дата, а у своей — `null`: в
+ * перечне на несколько суток день назвать придётся, иначе заметка повиснет
+ * непонятно к чему.
+ */
+export interface EventNote {
+  readonly day: IsoDate | null;
+  readonly text: string;
+}
+
+/**
+ * Одна запись сверх графика — как её внесли.
+ *
+ * --- Почему запись, а не вид -------------------------------------------------
+ *
+ * Сложенные по видам часы отвечают на вопрос «сколько всего», и он второй.
+ * Первый — «когда это было»: человек спорит не с числом, а с конкретным
+ * выходом, у которого есть дата, распоряжение и его собственная пометка о
+ * том, за что его вызвали. Строка «Вызов — 4 дня, 32 ч» на этот вопрос не
+ * отвечает вовсе, а четыре даты с заметками отвечают.
+ */
+export interface CalloutEntry {
+  readonly id: string;
+  readonly kind: CalloutKind;
+  /** Отрезок, уже обрезанный годом: запись вправе выходить за его край. */
+  readonly from: IsoDate;
+  readonly to: IsoDate;
+  readonly days: number;
+  readonly hours: Decimal;
+  readonly notes: readonly EventNote[];
+}
+
+/** Одна запись освобождения — как её внесли. Парой к `CalloutEntry`. */
+export interface AbsenceEntry {
+  readonly id: string;
+  readonly kind: AbsenceKind;
+  readonly from: IsoDate;
+  readonly to: IsoDate;
+  readonly days: number;
+  readonly notes: readonly EventNote[];
+}
+
+/**
  * Год одного профиля в числах — без разбивки по месяцам.
  *
  * Отдельно от `Statistics` затем, что перечень профилей считает ровно это
@@ -171,6 +219,10 @@ export interface ProfileTotals {
 }
 
 export interface Statistics extends ProfileTotals {
+  /** Вызовы поимённо, по дате: то, из чего сложен свод по видам. */
+  readonly calloutEntries: readonly CalloutEntry[];
+  /** Отгулы поимённо, по дате. Остальные освобождения — сводом (`absences`). */
+  readonly timeOffEntries: readonly AbsenceEntry[];
   readonly months: readonly MonthStat[];
   /** Кварталы, а за ними полугодия — в том порядке, в каком идут по году. */
   readonly parts: readonly PartStat[];
@@ -268,6 +320,108 @@ const EMPTY_MONTH = {
   balance: ZERO,
 } as const;
 
+/**
+ * Записи, попавшие в год, — с обрезкой по его краям.
+ *
+ * --- Почему обрезка здесь, а не «как внесли» ---------------------------------
+ *
+ * Запись живёт своей жизнью: сбор с 28 декабря по 4 января лежит в двух
+ * годах сразу, и расчёт берёт из него ровно те сутки, что попали в отрезок
+ * (`calculation.ts`). Перечень обязан говорить то же самое — иначе строка
+ * назовёт пять суток там, где в часы года вошло четверо, и человек пойдёт
+ * искать несуществующую ошибку. Запись, не попавшая в год ни одним днём, из
+ * перечня уходит совсем.
+ *
+ * --- Заметки -----------------------------------------------------------------
+ *
+ * Своя заметка записи идёт первой и без даты — она про весь отрезок.
+ * Дневные собираются по суткам отрезка, в их порядке, и каждая помнит свой
+ * день: на записи в неделю «подменял Петрова» без даты бесполезно.
+ */
+function clip(
+  record: { readonly startsOn: string; readonly endsOn: string },
+  span: { periodStart: IsoDate; periodEnd: IsoDate },
+): { from: IsoDate; to: IsoDate; days: number } | null {
+  const from = (record.startsOn > span.periodStart
+    ? record.startsOn
+    : span.periodStart) as IsoDate;
+  // Конец отрезка исключающий, а запись названа последним своим днём:
+  // сравнивать их напрямую нельзя.
+  const last = addDays(span.periodEnd, -1);
+  const to = (record.endsOn < last ? record.endsOn : last) as IsoDate;
+  if (from > to) return null;
+  return { from, to, days: daysBetween(from, to) + 1 };
+}
+
+function notesOf(
+  profile: StoredProfile,
+  own: string | null | undefined,
+  from: IsoDate,
+  to: IsoDate,
+): EventNote[] {
+  const notes: EventNote[] = [];
+  if (own !== null && own !== undefined && own.trim() !== "") {
+    notes.push({ day: null, text: own.trim() });
+  }
+  for (let day = from; day <= to; day = addDays(day, 1)) {
+    const text = profile.dayNotes[day];
+    if (text !== undefined && text.trim() !== "") {
+      notes.push({ day, text: text.trim() });
+    }
+  }
+  return notes;
+}
+
+function calloutEntriesOf(
+  profile: StoredProfile,
+  span: { periodStart: IsoDate; periodEnd: IsoDate },
+): CalloutEntry[] {
+  const entries: CalloutEntry[] = [];
+
+  for (const it of profile.callouts) {
+    const cut = clip(it, span);
+    if (cut === null) continue;
+    entries.push({
+      id: it.id,
+      kind: it.kind,
+      ...cut,
+      // Часы — те же, что взял расчёт: столько-то в сутки на каждые
+      // попавшие в год сутки (`calculation.ts`).
+      hours: new Dec(it.hoursPerDay).times(cut.days),
+      notes: notesOf(profile, null, cut.from, cut.to),
+    });
+  }
+
+  // По дате, а не по часам: перечень отвечает на вопрос «когда это было»,
+  // и год в нём читают по порядку. Одна дата на двоих разводится видом —
+  // чтобы порядок не менялся от перерисовки к перерисовке.
+  return entries.sort(
+    (a, b) => a.from.localeCompare(b.from) || a.kind.localeCompare(b.kind),
+  );
+}
+
+function absenceEntriesOf(
+  profile: StoredProfile,
+  span: { periodStart: IsoDate; periodEnd: IsoDate },
+  kind: AbsenceKind,
+): AbsenceEntry[] {
+  const entries: AbsenceEntry[] = [];
+
+  for (const it of profile.absences) {
+    if (it.kind !== kind) continue;
+    const cut = clip(it, span);
+    if (cut === null) continue;
+    entries.push({
+      id: it.id,
+      kind: it.kind,
+      ...cut,
+      notes: notesOf(profile, it.note, cut.from, cut.to),
+    });
+  }
+
+  return entries.sort((a, b) => a.from.localeCompare(b.from));
+}
+
 const EMPTY_PART = {
   empty: true,
   normHours: ZERO,
@@ -318,6 +472,11 @@ export function totalsOf(
 export function statisticsOf(profile: StoredProfile, today = todayIso()): Statistics {
   const year = profile.accountingYear;
   const totals = totalsOf(profile, today);
+  // Тот же отрезок года, каким считается итог, — и записи режутся по нему
+  // же: «Онлайн» обрезает год сегодняшним днём, и вызов, назначенный на
+  // следующую неделю, в перечень попасть не должен, раз его часов нет в
+  // отработанном.
+  const whole = bounds(profile, statutoryBounds(year, "year", 0), today);
 
   const months: MonthStat[] = [];
   const running: Decimal[] = [];
@@ -351,7 +510,14 @@ export function statisticsOf(profile: StoredProfile, today = todayIso()): Statis
     running.push(carried);
   }
 
-  return { ...totals, months, parts: partsOf(profile, year, today), running };
+  return {
+    ...totals,
+    calloutEntries: calloutEntriesOf(profile, whole),
+    timeOffEntries: absenceEntriesOf(profile, whole, "time_off_in_lieu"),
+    months,
+    parts: partsOf(profile, year, today),
+    running,
+  };
 }
 
 /**

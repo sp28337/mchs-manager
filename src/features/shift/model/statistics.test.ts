@@ -181,6 +181,69 @@ describe("статистика года", () => {
     expect(stats.calloutHours.toString()).toBe("16");
   });
 
+  it("вызовы перечислены по записям, по дате и с обрезкой по краю года", () => {
+    const stats = statisticsOf(
+      profile({
+        callouts: [
+          { id: "c2", kind: "callout", startsOn: "2026-03-02", endsOn: "2026-03-02", hoursPerDay: "24" },
+          { id: "c1", kind: "competition", startsOn: "2026-02-10", endsOn: "2026-02-12", hoursPerDay: "6" },
+          // С 30 декабря по 2 января: году принадлежат двое суток.
+          { id: "c3", kind: "reserve", startsOn: "2026-12-30", endsOn: "2027-01-02", hoursPerDay: "8" },
+          // Целиком в следующем году — в перечень не попадает вовсе.
+          { id: "c4", kind: "callout", startsOn: "2027-02-01", endsOn: "2027-02-01", hoursPerDay: "8" },
+        ],
+      }),
+      TODAY,
+    );
+
+    // Строк столько, сколько записей в году, и идут они по дате, а не по часам.
+    expect(stats.calloutEntries.map((it) => it.id)).toEqual(["c1", "c2", "c3"]);
+    expect(stats.calloutEntries[0]!.days).toBe(3);
+    expect(stats.calloutEntries[0]!.hours.toString()).toBe("18");
+    // Обрезанная запись названа своим отрезком внутри года, а не как внесена.
+    expect(stats.calloutEntries[2]!.from).toBe("2026-12-30");
+    expect(stats.calloutEntries[2]!.to).toBe("2026-12-31");
+    expect(stats.calloutEntries[2]!.hours.toString()).toBe("16");
+    // Перечень и свод говорят одно и то же число.
+    expect(
+      stats.calloutEntries
+        .reduce((sum, it) => sum.plus(it.hours), stats.calloutHours.times(0))
+        .toString(),
+    ).toBe(stats.calloutHours.toString());
+  });
+
+  it("отгулы — своим перечнем, с датой и заметками", () => {
+    const stats = statisticsOf(
+      profile({
+        absences: [
+          {
+            id: "o1",
+            kind: "time_off_in_lieu",
+            startsOn: "2026-03-05",
+            endsOn: "2026-03-05",
+            note: "за дежурство 23 февраля",
+          },
+          { id: "o2", kind: "time_off_in_lieu", startsOn: "2026-09-10", endsOn: "2026-09-11" },
+          { id: "a1", kind: "annual_leave", startsOn: "2026-07-06", endsOn: "2026-07-26" },
+        ],
+        dayNotes: { "2026-09-11": "подменял Петрова" },
+      }),
+      TODAY,
+    );
+
+    // Только отгулы и только по записям: отпуск сюда не попадает.
+    expect(stats.timeOffEntries.map((it) => it.id)).toEqual(["o1", "o2"]);
+    expect(stats.timeOffEntries[0]!.days).toBe(1);
+    expect(stats.timeOffEntries[0]!.notes).toEqual([
+      { day: null, text: "за дежурство 23 февраля" },
+    ]);
+    // Дневная заметка внутри отрезка помнит свой день, а своей у записи нет.
+    expect(stats.timeOffEntries[1]!.days).toBe(2);
+    expect(stats.timeOffEntries[1]!.notes).toEqual([
+      { day: "2026-09-11", text: "подменял Петрова" },
+    ]);
+  });
+
   it("вызовы идут в отработанное, а норму не трогают", () => {
     const without = totalsOf(profile(), TODAY);
     const with_ = totalsOf(

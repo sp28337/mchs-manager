@@ -14,6 +14,8 @@ import {
   numberWord,
   type Decimal,
 } from "../domain/decimal";
+import { formatDayMonthRu } from "../domain/format";
+import type { IsoDate } from "../domain/plain-date";
 import { MONTH_NAMES } from "./month-names";
 import { monthsIn, partLabel } from "./period-picker";
 import { ABSENCE_MARK, ABSENCE_TONE, CALLOUT_MARK, CALLOUT_TONE } from "./day-marks";
@@ -21,6 +23,7 @@ import { ABSENCE_LABELS, CALLOUT_LABELS } from "../schemas";
 import {
   statisticsOf,
   totalsOf,
+  type EventNote,
   type MonthStat,
   type PartStat,
   type ProfileTotals,
@@ -67,8 +70,11 @@ import { useLibrary } from "./profile-explorer";
  *  1. «Чем кончился год» — одно крупное число баланса и шесть величин
  *     при нём. Рисунка здесь нет и быть не должно: одно значение — это
  *     число, а не столбик.
- *  2. «Из чего это вышло» — вызовы сверх графика, перечень освобождений и
- *     точные числа таблицами: по месяцам и по учётным периодам.
+ *  2. «Из чего это вышло» — вызовы по одному, отпуска сводом, отгулы по
+ *     одному и точные числа таблицами: по месяцам и по учётным периодам.
+ *     Отпуска сведены по видам, потому что вопрос к ним один — на сколько
+ *     они уменьшили норму; вызовы и отгулы перечислены поимённо, потому
+ *     что к ним вопрос другой — когда это было и за что.
  *  3. «Как шло» — рисунки, и они замыкают раздел. Ночные часы отдельным
  *     рисунком, потому что величина у них другая: подсадить их к норме
  *     второй осью значило бы выдумать связь, которой в данных нет. Норма и
@@ -781,6 +787,7 @@ function OneProfile({ profile }: { profile: StoredProfile }) {
       <Figures stats={stats} />
       <Callouts stats={stats} />
       <Absences stats={stats} />
+      <TimeOff stats={stats} />
       <MonthTable stats={stats} />
       <PartTable stats={stats} />
       {/* Рисунки — после чисел, и «норма и факт» последним.
@@ -985,7 +992,7 @@ function NightTrend({ stats }: { stats: Statistics }) {
 }
 
 /**
- * Откуда взялись часы сверх своего графика: вызовы по видам.
+ * Откуда взялись часы сверх своего графика: вызовы по одному.
  *
  * --- Зачем отдельным разделом ----------------------------------------------
  *
@@ -996,21 +1003,30 @@ function NightTrend({ stats }: { stats: Statistics }) {
  * четырежды за год, складывал часы сам — по распоряжениям, если они у
  * него сохранились.
  *
+ * --- Почему по записям, а не сводом по видам --------------------------------
+ *
+ * Свод («Вызов — 4 дня, 32 ч») отвечает на вопрос «сколько всего», и он
+ * второй. Первый — «когда это было»: спорят не с суммой, а с конкретным
+ * выходом, у которого есть дата, распоряжение и своя пометка о том, за что
+ * вызывали. Четыре строки с датами отвечают и на первый вопрос, и на
+ * второй; одна сводная — только на второй.
+ *
+ * Полоски долей при этом ушли. У свода они сравнивали вид с видом, и это
+ * было о чём-то: сбор против вызова. У записей они сравнивали бы один
+ * выход с другим — утверждение, которого никто не делал, — и растили бы
+ * раздел вдвое там, где строк теперь столько, сколько было выходов.
+ *
  * --- Почему виды здесь названы, а в клетке нет ------------------------------
  *
  * В клетке у всех вызовов один код, «Р» (`day-marks.ts`): места на слово
  * там нет, а расчёту все шесть видов одинаковы. Здесь место есть целой
  * строкой — и «Соревнования» отличить от «Резерва» человеку нужно: он
  * спорит не о сумме, а о том, за что именно ему не заплатили.
- *
- * Полоски у всех видов одинаковые, и по той же причине, что у
- * освобождений: цвет несёт клетка при названии, а семь цветных серий
- * пришлось бы различать на глаз.
  */
 function Callouts({ stats }: { stats: Statistics }) {
-  const { callouts } = stats;
+  const { calloutEntries } = stats;
 
-  if (callouts.length === 0) {
+  if (calloutEntries.length === 0) {
     return (
       <section className={cn(PLATE, "space-y-2")}>
         <h3 className="font-display text-sm font-bold uppercase tracking-wide">
@@ -1023,8 +1039,6 @@ function Callouts({ stats }: { stats: Statistics }) {
     );
   }
 
-  const most = Math.max(...callouts.map((it) => it.hours.toNumber()));
-
   return (
     <section className={cn(PLATE, "space-y-2")}>
       <h3 className="font-display text-sm font-bold uppercase tracking-wide">
@@ -1032,30 +1046,17 @@ function Callouts({ stats }: { stats: Statistics }) {
       </h3>
 
       <ul className="divide-y divide-rule">
-        {callouts.map((it) => (
-          <li key={it.kind} className="flex items-center gap-3 py-2.5">
-            <span
-              aria-hidden
-              // Тот же значок, что стоит у этих суток на сетке: клетка в
-              // семь единиц, рамка, полужирный кегль.
-              className={cn(
-                "grid size-7 shrink-0 place-items-center rounded-md border text-xs font-bold",
-                CALLOUT_TONE,
-              )}
-            >
-              {CALLOUT_MARK}
-            </span>
-            <span className="min-w-0 flex-1 space-y-1">
-              <span className="flex flex-wrap items-baseline justify-between gap-x-3">
-                <span className="truncate text-sm">{CALLOUT_LABELS[it.kind]}</span>
-                <span className="font-mono text-xs tabular-nums text-ink-muted">
-                  {it.days} {numberWord(it.days, "день", "дня", "дней")} ·{" "}
-                  {hours(it.hours.toNumber())}
-                </span>
-              </span>
-              <ShareBar share={it.hours.toNumber() / most} />
-            </span>
-          </li>
+        {calloutEntries.map((it) => (
+          <EventRow
+            key={it.id}
+            mark={CALLOUT_MARK}
+            tone={CALLOUT_TONE}
+            title={CALLOUT_LABELS[it.kind]}
+            when={spanWords(it.from, it.to)}
+            count={`${it.days} ${numberWord(it.days, "день", "дня", "дней")} · ${hours(it.hours.toNumber())}`}
+            notes={it.notes}
+            dated={it.from !== it.to}
+          />
         ))}
       </ul>
     </section>
@@ -1063,7 +1064,145 @@ function Callouts({ stats }: { stats: Statistics }) {
 }
 
 /**
- * Из чего вышла норма: что и на сколько её уменьшило.
+ * Отгулы — своим разделом и по одному.
+ *
+ * --- Почему не вместе с отпусками -------------------------------------------
+ *
+ * Раздел выше отвечает на вопрос «почему норма меньше», и каждая его
+ * строка несёт снятые часы. У отгула таких часов нет вовсе: он не
+ * уменьшает норму, а расплачивается уже накопленной переработкой (ст. 152
+ * ТК РФ). Стоя в том же перечне, он выглядел строкой, у которой почему-то
+ * не напечатали число, — а верно сказать, что этой величины у него нет.
+ *
+ * --- Почему по записям ------------------------------------------------------
+ *
+ * По той же причине, что и вызовы: «2 дня» за год не говорят ничего, а
+ * «5 марта» и «12 сентября» с пометками — это и есть то, о чём спорят.
+ * Отгулы обычно по суткам, и сводить их по виду значило бы складывать
+ * события, у которых нет ничего общего, кроме названия.
+ *
+ * Пустой раздел не показывается совсем: отсутствие отгулов — не новость, а
+ * обычное положение дел, и плашка «ни одного» занимала бы место наравне с
+ * теми, где что-то есть.
+ */
+function TimeOff({ stats }: { stats: Statistics }) {
+  const { timeOffEntries } = stats;
+  if (timeOffEntries.length === 0) return null;
+
+  return (
+    <section className={cn(PLATE, "space-y-2")}>
+      <h3 className="font-display text-sm font-bold uppercase tracking-wide">
+        Отгулы
+      </h3>
+
+      <ul className="divide-y divide-rule">
+        {timeOffEntries.map((it) => (
+          <EventRow
+            key={it.id}
+            mark={ABSENCE_MARK[it.kind]}
+            tone={ABSENCE_TONE[it.kind]}
+            // Вид у всех строк один и назван заголовком раздела, поэтому
+            // слева стоит дата: она здесь и есть имя строки.
+            title={spanWords(it.from, it.to)}
+            count={`${it.days} ${numberWord(it.days, "день", "дня", "дней")}`}
+            notes={it.notes}
+            dated={it.from !== it.to}
+          />
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+/**
+ * Строка события: знак, название, числа и заметки под ними.
+ *
+ * Одна на вызовы и отгулы — они об одном и том же: что-то случилось в
+ * такие-то сутки. Разойдись строки, и два соседних раздела читались бы как
+ * два разных списка.
+ *
+ * Заметка стоит под строкой, а не в ней: она бывает в предложение длиной, и
+ * втиснутая в строку она либо обрезалась бы многоточием (то есть пропадала
+ * бы ровно тогда, когда её и читают), либо ломала бы столбец чисел справа.
+ * Нет заметки — нет и места под неё.
+ */
+function EventRow({
+  mark,
+  tone,
+  title,
+  when,
+  count,
+  notes,
+  dated,
+}: {
+  mark: string;
+  tone: string;
+  title: string;
+  /** Даты отрезка — или `undefined`, если они уже стоят названием строки. */
+  when?: string;
+  count: string;
+  notes: readonly EventNote[];
+  /** Отрезок длиннее суток: у дневной заметки придётся назвать её день. */
+  dated: boolean;
+}) {
+  return (
+    <li className="flex items-start gap-3 py-2.5">
+      <span
+        aria-hidden
+        // Тот же значок, что стоит у этих суток на сетке: клетка в семь
+        // единиц, рамка, полужирный кегль. `mt-px` — потому что строка
+        // теперь выравнена по верху, а не по середине: под ней бывают
+        // заметки, и знак при их появлении съезжал бы вниз.
+        className={cn(
+          "mt-px grid size-7 shrink-0 place-items-center rounded-md border text-xs font-bold",
+          tone,
+        )}
+      >
+        {mark}
+      </span>
+      <span className="min-w-0 flex-1 space-y-1">
+        <span className="flex flex-wrap items-baseline justify-between gap-x-3">
+          <span className="truncate text-sm">{title}</span>
+          {/* Дата и числа — двумя неразрывными кусками, а не одной строкой.
+              Строкой они на телефоне переносились где придётся: «60» на
+              одной строке, «ч» на следующей. Перенос теперь бывает только
+              между датой и числами — то есть там, где смысл и так
+              кончается. */}
+          <span className="flex flex-wrap items-baseline justify-end gap-x-1.5 font-mono text-xs tabular-nums text-ink-muted">
+            {when === undefined ? null : (
+              <span className="whitespace-nowrap">{when} ·</span>
+            )}
+            <span className="whitespace-nowrap">{count}</span>
+          </span>
+        </span>
+        {notes.map((note, index) => (
+          <span
+            key={index}
+            className="block text-xs leading-snug text-ink-muted"
+          >
+            {note.day !== null && dated ? (
+              // День назван только там, где отрезок длиннее суток: на
+              // однодневной записи дата уже стоит в строке, и повторять её
+              // значило бы сказать одно и то же дважды.
+              <span className="text-ink-faint">{formatDayMonthRu(note.day)}: </span>
+            ) : null}
+            {note.text}
+          </span>
+        ))}
+      </span>
+    </li>
+  );
+}
+
+/** Отрезок словами: одни сутки называются одной датой, а не дважды. */
+function spanWords(from: IsoDate, to: IsoDate): string {
+  return from === to
+    ? formatDayMonthRu(from)
+    : `${formatDayMonthRu(from)} — ${formatDayMonthRu(to)}`;
+}
+
+/**
+ * Из чего вышла норма: отпуска по видам и на сколько каждый её уменьшил.
  *
  * Цвет здесь несёт КЛЕТКА при названии — та самая, какой этот вид стоит на
  * сетке, — а полоски у всех видов одинаковые. Раскрасить полоски по видам
@@ -1073,12 +1212,17 @@ function Callouts({ stats }: { stats: Statistics }) {
  * имя написано рядом.
  */
 function Absences({ stats }: { stats: Statistics }) {
-  const { absences } = stats;
+  // Отгул отсюда убран и стоит своим разделом ниже: он единственный, кто
+  // норму не уменьшает, и в перечне снятых часов был строкой без числа.
+  // Свод по видам его при этом помнит (`absences` в `model/statistics.ts`) —
+  // убрано только место, где он читался неправдой.
+  const absences = stats.absences.filter((it) => it.kind !== "time_off_in_lieu");
+
   if (absences.length === 0) {
     return (
       <section className={cn(PLATE, "space-y-2")}>
         <h3 className="font-display text-sm font-bold uppercase tracking-wide">
-          Освобождения
+          Отпуска
         </h3>
         <p className="text-xs text-ink-muted">
           За год не отмечено ни одного: норма года не уменьшалась.
@@ -1092,7 +1236,7 @@ function Absences({ stats }: { stats: Statistics }) {
   return (
     <section className={cn(PLATE, "space-y-2")}>
       <h3 className="font-display text-sm font-bold uppercase tracking-wide">
-        Освобождения
+        Отпуска
       </h3>
 
       {/* Строки разделяет линовка, а не вторая плашка у каждой: они стоят
@@ -1117,9 +1261,6 @@ function Absences({ stats }: { stats: Statistics }) {
                 <span className="truncate text-sm">{ABSENCE_LABELS[it.kind]}</span>
                 <span className="font-mono text-xs tabular-nums text-ink-muted">
                   {it.days} {numberWord(it.days, "день", "дня", "дней")}
-                  {/* Отгул норму не уменьшает — он расплачивается уже
-                      накопленной переработкой, — и приписывать ему снятые
-                      часы нечем. Строка о нём просто короче. */}
                   {it.hours !== null && it.hours.greaterThan(0)
                     ? ` · −${hours(it.hours.toNumber())} из нормы`
                     : ""}
