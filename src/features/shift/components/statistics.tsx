@@ -1,6 +1,6 @@
 "use client";
 
-import { Folder, User, type LucideIcon } from "lucide-react";
+import { ChevronDown, Folder, User, type LucideIcon } from "lucide-react";
 import { useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
@@ -23,6 +23,8 @@ import { ABSENCE_LABELS, CALLOUT_LABELS } from "../schemas";
 import {
   statisticsOf,
   totalsOf,
+  type AbsenceEntry,
+  type CalloutEntry,
   type EventNote,
   type MonthStat,
   type PartStat,
@@ -1024,9 +1026,9 @@ function NightTrend({ stats }: { stats: Statistics }) {
  * спорит не о сумме, а о том, за что именно ему не заплатили.
  */
 function Callouts({ stats }: { stats: Statistics }) {
-  const { calloutEntries } = stats;
+  const lines = stats.calloutEntries.map(calloutLine);
 
-  if (calloutEntries.length === 0) {
+  if (lines.length === 0) {
     return (
       <section className={cn(PLATE, "space-y-2")}>
         <h3 className="font-display text-sm font-bold uppercase tracking-wide">
@@ -1046,17 +1048,8 @@ function Callouts({ stats }: { stats: Statistics }) {
       </h3>
 
       <ul className="divide-y divide-rule">
-        {calloutEntries.map((it) => (
-          <EventRow
-            key={it.id}
-            mark={CALLOUT_MARK}
-            tone={CALLOUT_TONE}
-            title={CALLOUT_LABELS[it.kind]}
-            when={spanWords(it.from, it.to)}
-            count={`${it.days} ${numberWord(it.days, "день", "дня", "дней")} · ${hours(it.hours.toNumber())}`}
-            notes={it.notes}
-            dated={it.from !== it.to}
-          />
+        {lines.map((line) => (
+          <EventRow key={line.key} line={line} />
         ))}
       </ul>
     </section>
@@ -1086,8 +1079,10 @@ function Callouts({ stats }: { stats: Statistics }) {
  * теми, где что-то есть.
  */
 function TimeOff({ stats }: { stats: Statistics }) {
-  const { timeOffEntries } = stats;
-  if (timeOffEntries.length === 0) return null;
+  // Вид у всех строк один и назван заголовком раздела, поэтому названия в
+  // строках нет: дата здесь и есть имя строки.
+  const lines = timeOffOf(stats.absenceEntries).map((it) => absenceLine(it, false));
+  if (lines.length === 0) return null;
 
   return (
     <section className={cn(PLATE, "space-y-2")}>
@@ -1096,18 +1091,8 @@ function TimeOff({ stats }: { stats: Statistics }) {
       </h3>
 
       <ul className="divide-y divide-rule">
-        {timeOffEntries.map((it) => (
-          <EventRow
-            key={it.id}
-            mark={ABSENCE_MARK[it.kind]}
-            tone={ABSENCE_TONE[it.kind]}
-            // Вид у всех строк один и назван заголовком раздела, поэтому
-            // слева стоит дата: она здесь и есть имя строки.
-            title={spanWords(it.from, it.to)}
-            count={`${it.days} ${numberWord(it.days, "день", "дня", "дней")}`}
-            notes={it.notes}
-            dated={it.from !== it.to}
-          />
+        {lines.map((line) => (
+          <EventRow key={line.key} line={line} />
         ))}
       </ul>
     </section>
@@ -1115,80 +1100,136 @@ function TimeOff({ stats }: { stats: Statistics }) {
 }
 
 /**
- * Строка события: знак, название, числа и заметки под ними.
+ * Одно событие так, как его показывают строкой.
  *
- * Одна на вызовы и отгулы — они об одном и том же: что-то случилось в
- * такие-то сутки. Разойдись строки, и два соседних раздела читались бы как
- * два разных списка.
- *
- * Заметка стоит под строкой, а не в ней: она бывает в предложение длиной, и
- * втиснутая в строку она либо обрезалась бы многоточием (то есть пропадала
- * бы ровно тогда, когда её и читают), либо ломала бы столбец чисел справа.
- * Нет заметки — нет и места под неё.
+ * Собирается из записи заранее (`calloutLine`, `absenceLine`), а не
+ * разбирается в разметке: одну и ту же строку рисуют и статистика профиля,
+ * и раскрытая строка свода по всем, и расходиться им нельзя.
  */
-function EventRow({
-  mark,
-  tone,
-  title,
-  when,
-  count,
-  notes,
-  dated,
-}: {
+interface EventLine {
+  key: string;
   mark: string;
   tone: string;
-  title: string;
-  /** Даты отрезка — или `undefined`, если они уже стоят названием строки. */
-  when?: string;
+  /** Даты отрезка словами: «10 февраля» или «18 мая — 20 мая». */
+  when: string;
+  /** Заметки одной строкой — или `null`, если их нет. */
+  note: string | null;
+  /** Вид события, если он в этом перечне не один. */
+  label?: string;
+  /** Сутки и часы. */
   count: string;
-  notes: readonly EventNote[];
-  /** Отрезок длиннее суток: у дневной заметки придётся назвать её день. */
-  dated: boolean;
-}) {
+}
+
+function calloutLine(it: CalloutEntry): EventLine {
+  return {
+    key: it.id,
+    mark: CALLOUT_MARK,
+    tone: CALLOUT_TONE,
+    when: spanWords(it.from, it.to),
+    note: noteWords(it.notes, it.from !== it.to),
+    label: CALLOUT_LABELS[it.kind],
+    count: `${days(it.days)} · ${hours(it.hours.toNumber())}`,
+  };
+}
+
+function absenceLine(it: AbsenceEntry, named: boolean): EventLine {
+  return {
+    key: it.id,
+    mark: ABSENCE_MARK[it.kind],
+    tone: ABSENCE_TONE[it.kind],
+    when: spanWords(it.from, it.to),
+    note: noteWords(it.notes, it.from !== it.to),
+    label: named ? ABSENCE_LABELS[it.kind] : undefined,
+    count: days(it.days),
+  };
+}
+
+/** Отгулы из общего перечня освобождений: у них свой раздел. */
+function timeOffOf(entries: readonly AbsenceEntry[]): readonly AbsenceEntry[] {
+  return entries.filter((it) => it.kind === "time_off_in_lieu");
+}
+
+/** Отпуска — всё остальное: то, что норму уменьшает. */
+function leaveOf(entries: readonly AbsenceEntry[]): readonly AbsenceEntry[] {
+  return entries.filter((it) => it.kind !== "time_off_in_lieu");
+}
+
+function days(count: number): string {
+  return `${count} ${numberWord(count, "день", "дня", "дней")}`;
+}
+
+/**
+ * Заметки записи — одной строкой.
+ *
+ * Их бывает несколько: своя у записи и дневные внутри её отрезка. Своя
+ * идёт первой и без даты (она про весь отрезок), у дневной на записи
+ * длиннее суток дата названа — иначе непонятно, к какому дню она.
+ */
+function noteWords(notes: readonly EventNote[], dated: boolean): string | null {
+  if (notes.length === 0) return null;
+  return notes
+    .map((note) =>
+      note.day !== null && dated ? `${formatDayMonthRu(note.day)}: ${note.text}` : note.text,
+    )
+    .join(" · ");
+}
+
+/**
+ * Строка события: знак, дата, заметка и числа.
+ *
+ * --- Почему слева дата, а вид справа ----------------------------------------
+ *
+ * Слева, сразу за знаком, стоит то, что у строки главное, — КОГДА это было.
+ * Раньше там стоял вид («Соревнования»), а дата уезжала в правый столбец, к
+ * числам, и два соседних раздела читались по-разному: у отгулов слева дата,
+ * у вызовов — слово. Теперь одинаково, а вид переехал вправо, к суткам и
+ * часам: он отвечает на вопрос «что это было», то есть на тот же, что и
+ * они.
+ *
+ * --- Почему заметка в строке, а не под ней ----------------------------------
+ *
+ * Строкой ниже она читалась вровень с датой и спорила с ней за внимание,
+ * хотя это приписка, а не событие. В строке, сразу за датой, и цветом
+ * тусклее — она стоит там, где её и ищут, и не бросается в глаза, пока не
+ * понадобится. Длинную заметку строка переносит: обрезать её многоточием
+ * значило бы прятать её ровно тогда, когда её читают.
+ */
+function EventRow({ line }: { line: EventLine }) {
   return (
     <li className="flex items-start gap-3 py-2.5">
       <span
         aria-hidden
         // Тот же значок, что стоит у этих суток на сетке: клетка в семь
         // единиц, рамка, полужирный кегль. `mt-px` — потому что строка
-        // теперь выравнена по верху, а не по середине: под ней бывают
-        // заметки, и знак при их появлении съезжал бы вниз.
+        // выравнена по верху, а не по середине: длинная заметка переносится,
+        // и знак при этом съезжал бы вниз.
         className={cn(
           "mt-px grid size-7 shrink-0 place-items-center rounded-md border text-xs font-bold",
-          tone,
+          line.tone,
         )}
       >
-        {mark}
+        {line.mark}
       </span>
-      <span className="min-w-0 flex-1 space-y-1">
-        <span className="flex flex-wrap items-baseline justify-between gap-x-3">
-          <span className="truncate text-sm">{title}</span>
-          {/* Дата и числа — двумя неразрывными кусками, а не одной строкой.
-              Строкой они на телефоне переносились где придётся: «60» на
-              одной строке, «ч» на следующей. Перенос теперь бывает только
-              между датой и числами — то есть там, где смысл и так
-              кончается. */}
-          <span className="flex flex-wrap items-baseline justify-end gap-x-1.5 font-mono text-xs tabular-nums text-ink-muted">
-            {when === undefined ? null : (
-              <span className="whitespace-nowrap">{when} ·</span>
-            )}
-            <span className="whitespace-nowrap">{count}</span>
-          </span>
+      <span className="flex min-w-0 flex-1 flex-wrap items-baseline justify-between gap-x-3">
+        <span className="min-w-0 text-sm">
+          {line.when}
+          {line.note === null ? null : (
+            // Цветом слабее самой тусклой подписи — как имя профиля над
+            // страницей: приписка не должна перебивать дату, рядом с
+            // которой стоит.
+            <span className="ml-2 text-xs text-ink-faint">{line.note}</span>
+          )}
         </span>
-        {notes.map((note, index) => (
-          <span
-            key={index}
-            className="block text-xs leading-snug text-ink-muted"
-          >
-            {note.day !== null && dated ? (
-              // День назван только там, где отрезок длиннее суток: на
-              // однодневной записи дата уже стоит в строке, и повторять её
-              // значило бы сказать одно и то же дважды.
-              <span className="text-ink-faint">{formatDayMonthRu(note.day)}: </span>
-            ) : null}
-            {note.text}
-          </span>
-        ))}
+        {/* Вид и числа — двумя неразрывными кусками, а не одной строкой.
+            Строкой они на телефоне переносились где придётся: «60» на одной
+            строке, «ч» на следующей. Перенос теперь бывает только между
+            видом и числами — то есть там, где смысл и так кончается. */}
+        <span className="flex flex-wrap items-baseline justify-end gap-x-1.5 font-mono text-xs tabular-nums text-ink-muted">
+          {line.label === undefined ? null : (
+            <span className="whitespace-nowrap">{line.label} ·</span>
+          )}
+          <span className="whitespace-nowrap">{line.count}</span>
+        </span>
       </span>
     </li>
   );
@@ -1567,9 +1608,65 @@ function Summary({ sheets, onPick }: { sheets: readonly Sheet[]; onPick: (id: st
     [sheets],
   );
 
+  const live = lines.filter((line) => line.totals.any);
+
   return (
     <div className="space-y-4">
-      <CalloutShares lines={lines.filter((line) => line.totals.any)} />
+      {/* Те же три раздела, что у одного профиля, и в том же порядке: свод
+          отвечает на те же вопросы, только про всех сразу, и вторым строем
+          для этого заставлял бы выучить два способа читать одно и то же. */}
+      <Shares
+        title="Сверх графика"
+        rows={live.map((line) => ({
+          id: line.sheet.id,
+          name: line.sheet.name,
+          value: line.totals.calloutHours.toNumber(),
+          count: hours(line.totals.calloutHours.toNumber()),
+          lines: line.totals.calloutEntries.map(calloutLine),
+        }))}
+      />
+      <Shares
+        title="Отпуска"
+        rows={live.map((line) => {
+          // Сутки — из свода по видам, а не сложением записей: свод считает
+          // их по КАЛЕНДАРЮ отрезка, и два наложившихся отпуска дадут в нём
+          // одни сутки, а не двое (`absencesOf` в модели).
+          const kinds = line.totals.absences.filter(
+            (it) => it.kind !== "time_off_in_lieu",
+          );
+          const excluded = kinds.reduce(
+            (sum, it) => sum + (it.hours?.toNumber() ?? 0),
+            0,
+          );
+          return {
+            id: line.sheet.id,
+            name: line.sheet.name,
+            value: kinds.reduce((sum, it) => sum + it.days, 0),
+            count:
+              excluded > 0
+                ? `${days(kinds.reduce((sum, it) => sum + it.days, 0))} · −${hours(excluded)} из нормы`
+                : days(kinds.reduce((sum, it) => sum + it.days, 0)),
+            lines: leaveOf(line.totals.absenceEntries).map((it) => absenceLine(it, true)),
+          };
+        })}
+      />
+      <Shares
+        title="Отгулы"
+        rows={live.map((line) => {
+          const off = line.totals.absences.find(
+            (it) => it.kind === "time_off_in_lieu",
+          );
+          return {
+            id: line.sheet.id,
+            name: line.sheet.name,
+            value: off?.days ?? 0,
+            count: days(off?.days ?? 0),
+            lines: timeOffOf(line.totals.absenceEntries).map((it) =>
+              absenceLine(it, false),
+            ),
+          };
+        })}
+      />
       <ProfileTable lines={lines} onPick={onPick} />
     </div>
   );
@@ -1582,57 +1679,155 @@ interface Line {
 }
 
 /**
- * Сколько кого вызывали помимо графика — полосками.
+ * Раздел свода: у кого сколько — полосками, и каждая строка раскрывается.
+ *
+ * --- Почему полоски ---------------------------------------------------------
  *
  * Это тот вопрос, ради которого свод чаще всего и открывают: часы сверх
- * своих смен распределены между людьми неравномерно, и увидеть это надо
- * не в столбце цифр, а глазом. Полоска здесь — доля от наибольшего, а не
- * от суммы: сравнивают людей друг с другом, а не с общим котлом.
+ * своих смен и дни отпусков распределены между людьми неравномерно, и
+ * увидеть это надо не в столбце цифр, а глазом. Полоска — доля от
+ * НАИБОЛЬШЕГО, а не от суммы: сравнивают людей друг с другом, а не с общим
+ * котлом.
  *
- * Пояснения под заголовком нет. Оно объясняло ровно то, что видно: что
- * полоски мерятся от самой длинной. Строка, пересказывающая рисунок,
- * отодвигает сам рисунок на строку вниз и больше ничего не делает.
+ * --- Почему строка раскрывается ---------------------------------------------
+ *
+ * «32 часа» отвечают на вопрос «сколько», а спорят о том, КОГДА и за что.
+ * До сих пор за этим приходилось уходить в статистику самого профиля и
+ * возвращаться обратно — по строке на каждого, кого хочешь проверить.
+ * Теперь строка раскрывается в те же самые события, какими их показывает
+ * статистика профиля: тот же знак, та же дата, та же заметка.
+ *
+ * Раскрывается только та, где событий БОЛЬШЕ ОДНОГО. Где оно одно,
+ * раскрывать нечего: дата и заметка стоят прямо в строке, рядом с именем,
+ * и кнопка с уголком обещала бы там подробности, которых нет.
+ *
+ * --- Чего здесь нет ---------------------------------------------------------
+ *
+ * Строк с нулём. Профиль, которого ни разу не вызывали, в перечне вызовов
+ * не нужен: он есть в таблице ниже, а здесь его пустая полоска сбивала бы
+ * меру у остальных.
  */
-function CalloutShares({ lines }: { lines: readonly Line[] }) {
-  const called = lines
-    .filter((line) => line.totals.calloutHours.greaterThan(0))
-    .sort((a, b) => b.totals.calloutHours.comparedTo(a.totals.calloutHours));
+function Shares({
+  title,
+  rows,
+}: {
+  title: string;
+  rows: readonly {
+    id: string;
+    name: string;
+    /** Величина полоски и порядок строк. */
+    value: number;
+    count: string;
+    lines: readonly EventLine[];
+  }[];
+}) {
+  const shown = rows.filter((row) => row.value > 0).sort((a, b) => b.value - a.value);
+  if (shown.length === 0) return null;
 
-  if (called.length === 0) return null;
-
-  const most = called[0]!.totals.calloutHours.toNumber();
+  const most = shown[0]!.value;
 
   return (
     <section className={cn(PLATE, "space-y-2")}>
       <h3 className="font-display text-sm font-bold uppercase tracking-wide">
-        Вызовы
+        {title}
       </h3>
 
       <ul className="divide-y divide-rule">
-        {called.map((line) => (
-          <li key={line.sheet.id} className="flex items-center gap-3 py-2.5">
-            <span
-              aria-hidden
-              className={cn(
-                "grid size-7 shrink-0 place-items-center rounded-md border text-xs font-bold",
-                CALLOUT_TONE,
-              )}
-            >
-              {CALLOUT_MARK}
-            </span>
-            <span className="min-w-0 flex-1 space-y-1">
-              <span className="flex flex-wrap items-baseline justify-between gap-x-3">
-                <span className="truncate text-sm">{line.sheet.name}</span>
-                <span className="font-mono text-xs tabular-nums text-ink-muted">
-                  {hours(line.totals.calloutHours.toNumber())}
-                </span>
-              </span>
-              <ShareBar share={line.totals.calloutHours.toNumber() / most} />
-            </span>
-          </li>
+        {shown.map((row) => (
+          <ShareRow key={row.id} row={row} share={row.value / most} />
         ))}
       </ul>
     </section>
+  );
+}
+
+function ShareRow({
+  row,
+  share,
+}: {
+  row: {
+    name: string;
+    count: string;
+    lines: readonly EventLine[];
+  };
+  share: number;
+}) {
+  const [open, setOpen] = useState(false);
+  // Одно событие — раскрывать нечего: оно целиком помещается в строку.
+  const many = row.lines.length > 1;
+  const only = many ? null : (row.lines[0] ?? null);
+
+  const head = (
+    <span className="flex flex-wrap items-baseline justify-between gap-x-3">
+      <span className="min-w-0 text-sm">
+        {row.name}
+        {only === null ? null : (
+          // Единственное событие названо тут же: дата, вид и заметка — тем
+          // же тусклым цветом, каким они стоят в раскрытом перечне. Вид
+          // здесь нужен ровно затем же, зачем в перечне: «28 дней» не
+          // говорят, отпуск это был или больничный.
+          <span className="ml-2 text-xs text-ink-faint">
+            {only.when}
+            {only.label === undefined ? "" : ` · ${only.label}`}
+            {only.note === null ? "" : ` · ${only.note}`}
+          </span>
+        )}
+      </span>
+      <span className="font-mono text-xs tabular-nums text-ink-muted">
+        {row.count}
+      </span>
+    </span>
+  );
+
+  return (
+    <li className="py-2.5">
+      {many ? (
+        <button
+          type="button"
+          onClick={() => setOpen((it) => !it)}
+          aria-expanded={open}
+          className={cn(
+            "flex w-full cursor-pointer items-start gap-2 text-left",
+            "rounded-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink",
+          )}
+        >
+          {/* Уголок — единственный признак того, что строка раскрывается.
+              Он же говорит, раскрыта ли она: вниз — закрыта, вверх —
+              открыта. */}
+          <ChevronDown
+            aria-hidden
+            className={cn(
+              "mt-1 size-3.5 shrink-0 text-ink-faint transition-transform",
+              open && "rotate-180",
+            )}
+          />
+          <span className="min-w-0 flex-1">{head}</span>
+        </button>
+      ) : (
+        // Без кнопки и без уголка, но с тем же отступом слева: строки
+        // раздела обязаны стоять в один столбец, раскрывается строка или
+        // нет.
+        <span className="flex items-start gap-2">
+          <span aria-hidden className="mt-1 size-3.5 shrink-0" />
+          <span className="min-w-0 flex-1">{head}</span>
+        </span>
+      )}
+
+      <span className="ml-[1.375rem] block">
+        <ShareBar share={share} />
+      </span>
+
+      {open ? (
+        // Перечень внутри строки — теми же строками, что в статистике
+        // профиля. Линовка между ними своя, и слева отступ: перечень
+        // принадлежит имени над ним, а не разделу.
+        <ul className="ml-[1.375rem] mt-1 divide-y divide-rule border-t border-rule">
+          {row.lines.map((line) => (
+            <EventRow key={line.key} line={line} />
+          ))}
+        </ul>
+      ) : null}
+    </li>
   );
 }
 

@@ -212,7 +212,7 @@ describe("статистика года", () => {
     ).toBe(stats.calloutHours.toString());
   });
 
-  it("отгулы — своим перечнем, с датой и заметками", () => {
+  it("освобождения перечислены по записям, с датой и заметками", () => {
     const stats = statisticsOf(
       profile({
         absences: [
@@ -231,17 +231,17 @@ describe("статистика года", () => {
       TODAY,
     );
 
-    // Только отгулы и только по записям: отпуск сюда не попадает.
-    expect(stats.timeOffEntries.map((it) => it.id)).toEqual(["o1", "o2"]);
-    expect(stats.timeOffEntries[0]!.days).toBe(1);
-    expect(stats.timeOffEntries[0]!.notes).toEqual([
-      { day: null, text: "за дежурство 23 февраля" },
-    ]);
+    // Перечень один на все освобождения, по дате; раздел отгулов берёт из
+    // него свои (`timeOffOf` в `statistics.tsx`).
+    expect(stats.absenceEntries.map((it) => it.id)).toEqual(["o1", "a1", "o2"]);
+
+    const off = stats.absenceEntries.filter((it) => it.kind === "time_off_in_lieu");
+    expect(off.map((it) => it.id)).toEqual(["o1", "o2"]);
+    expect(off[0]!.days).toBe(1);
+    expect(off[0]!.notes).toEqual([{ day: null, text: "за дежурство 23 февраля" }]);
     // Дневная заметка внутри отрезка помнит свой день, а своей у записи нет.
-    expect(stats.timeOffEntries[1]!.days).toBe(2);
-    expect(stats.timeOffEntries[1]!.notes).toEqual([
-      { day: "2026-09-11", text: "подменял Петрова" },
-    ]);
+    expect(off[1]!.days).toBe(2);
+    expect(off[1]!.notes).toEqual([{ day: "2026-09-11", text: "подменял Петрова" }]);
   });
 
   it("вызовы идут в отработанное, а норму не трогают", () => {

@@ -203,6 +203,17 @@ export interface ProfileTotals {
   readonly total: PeriodCalculation;
   readonly absences: readonly AbsenceStat[];
   readonly callouts: readonly CalloutStat[];
+  /**
+   * Те же события, но поимённо: каждая внесённая запись своей строкой.
+   *
+   * Лежат в итоге профиля, а не только в полной статистике, потому что их
+   * показывает и свод по всем: строка человека в нём раскрывается в его
+   * вызовы и отпуска по одному. Расчёта они не стоят — это перебор записей
+   * профиля с обрезкой по году, — и держать ради них второй, более
+   * дорогой вызов было бы незачем.
+   */
+  readonly calloutEntries: readonly CalloutEntry[];
+  readonly absenceEntries: readonly AbsenceEntry[];
   /** Сумма часов всех вызовов: то, что отработано помимо своего графика. */
   readonly calloutHours: Decimal;
   /** Факт минус норма, со знаком: плюс — переработка, минус — недоработка. */
@@ -219,10 +230,6 @@ export interface ProfileTotals {
 }
 
 export interface Statistics extends ProfileTotals {
-  /** Вызовы поимённо, по дате: то, из чего сложен свод по видам. */
-  readonly calloutEntries: readonly CalloutEntry[];
-  /** Отгулы поимённо, по дате. Остальные освобождения — сводом (`absences`). */
-  readonly timeOffEntries: readonly AbsenceEntry[];
   readonly months: readonly MonthStat[];
   /** Кварталы, а за ними полугодия — в том порядке, в каком идут по году. */
   readonly parts: readonly PartStat[];
@@ -403,12 +410,10 @@ function calloutEntriesOf(
 function absenceEntriesOf(
   profile: StoredProfile,
   span: { periodStart: IsoDate; periodEnd: IsoDate },
-  kind: AbsenceKind,
 ): AbsenceEntry[] {
   const entries: AbsenceEntry[] = [];
 
   for (const it of profile.absences) {
-    if (it.kind !== kind) continue;
     const cut = clip(it, span);
     if (cut === null) continue;
     entries.push({
@@ -463,6 +468,8 @@ export function totalsOf(
     total,
     absences: absencesOf(total),
     callouts,
+    calloutEntries: calloutEntriesOf(profile, whole),
+    absenceEntries: absenceEntriesOf(profile, whole),
     calloutHours: callouts.reduce((sum, it) => sum.plus(it.hours), ZERO),
     balance: total.actualHours.minus(total.normHours),
     any: whole.periodStart < whole.periodEnd,
@@ -472,11 +479,6 @@ export function totalsOf(
 export function statisticsOf(profile: StoredProfile, today = todayIso()): Statistics {
   const year = profile.accountingYear;
   const totals = totalsOf(profile, today);
-  // Тот же отрезок года, каким считается итог, — и записи режутся по нему
-  // же: «Онлайн» обрезает год сегодняшним днём, и вызов, назначенный на
-  // следующую неделю, в перечень попасть не должен, раз его часов нет в
-  // отработанном.
-  const whole = bounds(profile, statutoryBounds(year, "year", 0), today);
 
   const months: MonthStat[] = [];
   const running: Decimal[] = [];
@@ -510,14 +512,7 @@ export function statisticsOf(profile: StoredProfile, today = todayIso()): Statis
     running.push(carried);
   }
 
-  return {
-    ...totals,
-    calloutEntries: calloutEntriesOf(profile, whole),
-    timeOffEntries: absenceEntriesOf(profile, whole, "time_off_in_lieu"),
-    months,
-    parts: partsOf(profile, year, today),
-    running,
-  };
+  return { ...totals, months, parts: partsOf(profile, year, today), running };
 }
 
 /**
