@@ -540,7 +540,7 @@ function SegmentBone({
     <span
       className={cn(
         "inline-flex h-9 shrink-0 items-center justify-center gap-1.5",
-        "whitespace-nowrap rounded-lg px-3 text-xs font-medium",
+        "whitespace-nowrap rounded-xl px-3 text-xs font-medium",
         wide ? "[&_svg]:size-4.5" : "[&_svg]:size-4",
         "[&_svg]:shrink-0 [&_svg]:opacity-0",
         "skeleton-bone text-transparent lg:flex-1/2",

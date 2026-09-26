@@ -302,7 +302,7 @@ function choicesOf(library: Library, sheets: readonly Sheet[]): Choice[] {
         value: encode({ kind: "one", id: sheet.id }),
         // «открыт» словом, а не точкой: цвета в этом списке не поставить,
         // а слово читается и глазом, и диктором.
-        label: `${sheet.name}${sheet.open ? " — открыт" : ""}`,
+        label: `${sheet.name}`,
         depth: depth + 1,
         folder: false,
       });
@@ -649,7 +649,7 @@ function ScopePicker({
         // теми же мерами: ячейки во всю высоту дорожки, просвет в пол-единицы,
         // никаких своих полей. Разница одна — этот переносится по строкам:
         // видов сетки два, а профилей бывает сколько угодно.
-        className="hidden h-auto min-w-0 flex-1 flex-wrap justify-start lg:inline-flex lg:justify-start"
+        className="hidden h-auto min-w-0 flex-1 justify-start lg:inline-flex lg:justify-start overflow-x-scroll scroll-hidden scrollbar-none"
       >
         {quick.map((it) => (
           <SegmentedItem

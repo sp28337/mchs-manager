@@ -69,7 +69,7 @@ export function SegmentedItem({
       style={style}
       className={cn(
         "inline-flex h-9 shrink-0 cursor-pointer items-center justify-center gap-1.5",
-        "whitespace-nowrap rounded-lg px-3 text-xs font-medium transition-colors",
+        "whitespace-nowrap rounded-xl px-3 text-xs font-medium transition-colors",
         "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ink",
         "[&_svg]:size-4 [&_svg]:shrink-0 lg:flex-1/2",
         // Занятая ячейка ловит свет лампы кромкой и роняет тень, как все
