@@ -20,10 +20,12 @@ import { MONTH_NAMES } from "./month-names";
 import { monthsIn, partLabel } from "./period-picker";
 import { ABSENCE_MARK, ABSENCE_TONE, CALLOUT_MARK, CALLOUT_TONE } from "./day-marks";
 import { ABSENCE_LABELS, CALLOUT_LABELS } from "../schemas";
+import type { AbsenceKind } from "../domain/value-objects";
 import {
   statisticsOf,
   totalsOf,
   type AbsenceEntry,
+  type AbsenceStat,
   type CalloutEntry,
   type EventNote,
   type MonthStat,
@@ -543,8 +545,11 @@ function ScopeField({
         // не лишнее: раскрытый список браузер красит цветом самого поля, и
         // с прозрачным полем он выходил белым на тёмной теме. Цвет тот же,
         // что у обёртки, — видно их как одну поверхность.
+        // `lit-face` — блик лампы по верхней кромке САМОГО поля: своей
+        // заливкой оно закрывает блик обёртки, и в покое от света не
+        // оставалось ничего (`globals.css`).
         className={cn(
-          "rounded-xl border-0 bg-paper-raised font-medium",
+          "lit-face rounded-xl border-0 bg-paper-raised font-medium",
           "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ink",
           deck ? "h-12 pl-12" : "h-9 pl-[38px]",
         )}
@@ -789,6 +794,7 @@ function OneProfile({ profile }: { profile: StoredProfile }) {
       <Figures stats={stats} />
       <Callouts stats={stats} />
       <Absences stats={stats} />
+      <Sick stats={stats} />
       <TimeOff stats={stats} />
       <MonthTable stats={stats} />
       <PartTable stats={stats} />
@@ -1057,38 +1063,87 @@ function Callouts({ stats }: { stats: Statistics }) {
 }
 
 /**
- * Отгулы — своим разделом и по одному.
+ * Больничные и отгулы — своими разделами и по одному.
  *
  * --- Почему не вместе с отпусками -------------------------------------------
  *
- * Раздел выше отвечает на вопрос «почему норма меньше», и каждая его
- * строка несёт снятые часы. У отгула таких часов нет вовсе: он не
- * уменьшает норму, а расплачивается уже накопленной переработкой (ст. 152
- * ТК РФ). Стоя в том же перечне, он выглядел строкой, у которой почему-то
- * не напечатали число, — а верно сказать, что этой величины у него нет.
+ * Раздел отпусков отвечает на вопрос «сколько я отгулял», и виды в нём
+ * складываются в один ответ: отпуск, дополнительный, учебный — это всё
+ * отдых, за которым человек шёл сам и о котором знал заранее.
+ *
+ * Больничный ни в один из этих ответов не входит. Его не планируют, за него
+ * платят по другому правилу (ФЗ № 255), и спрашивают о нём иначе: не
+ * «сколько всего», а «когда и сколько раз». Строка «Больничный — 11 дней»
+ * на этот вопрос не отвечает: два больничных по пять дней и один на
+ * одиннадцать — разный разговор и с кадрами, и с врачом.
+ *
+ * Отгул не входит туда же по третьей причине: он единственный, кто норму
+ * НЕ УМЕНЬШАЕТ, а расплачивается уже накопленной переработкой (ст. 152 ТК
+ * РФ). В перечне снятых часов он был строкой, у которой почему-то не
+ * напечатали число.
  *
  * --- Почему по записям ------------------------------------------------------
  *
  * По той же причине, что и вызовы: «2 дня» за год не говорят ничего, а
  * «5 марта» и «12 сентября» с пометками — это и есть то, о чём спорят.
- * Отгулы обычно по суткам, и сводить их по виду значило бы складывать
- * события, у которых нет ничего общего, кроме названия.
  *
- * Пустой раздел не показывается совсем: отсутствие отгулов — не новость, а
- * обычное положение дел, и плашка «ни одного» занимала бы место наравне с
- * теми, где что-то есть.
+ * --- Что стоит в заголовке --------------------------------------------------
+ *
+ * Итог по виду: сутки и снятые ими часы нормы. Он был строкой в перечне
+ * отпусков, и, уехав оттуда, потерялся бы совсем — а это как раз то число,
+ * которым объясняют, почему норма года меньше календарной. Отгулу такой
+ * величины не положено, и у него в заголовке одни сутки.
+ *
+ * Пустой раздел не показывается совсем: отсутствие больничных и отгулов —
+ * не новость, а обычное положение дел, и плашка «ни одного» занимала бы
+ * место наравне с теми, где что-то есть.
  */
+function Sick({ stats }: { stats: Statistics }) {
+  return (
+    <Records
+      title="Больничные"
+      total={absenceTotal(stats.absences, "sick")}
+      // Вид у всех строк один и назван заголовком раздела, поэтому названия
+      // в строках нет: дата здесь и есть имя строки.
+      lines={groupOf(stats.absenceEntries, "sick").map((it) => absenceLine(it, false))}
+    />
+  );
+}
+
 function TimeOff({ stats }: { stats: Statistics }) {
-  // Вид у всех строк один и назван заголовком раздела, поэтому названия в
-  // строках нет: дата здесь и есть имя строки.
-  const lines = timeOffOf(stats.absenceEntries).map((it) => absenceLine(it, false));
+  return (
+    <Records
+      title="Отгулы"
+      total={absenceTotal(stats.absences, "off")}
+      lines={groupOf(stats.absenceEntries, "off").map((it) => absenceLine(it, false))}
+    />
+  );
+}
+
+/** Раздел из одних записей: заголовок с итогом и строки событий. */
+function Records({
+  title,
+  total,
+  lines,
+}: {
+  title: string;
+  total: string | null;
+  lines: readonly EventLine[];
+}) {
   if (lines.length === 0) return null;
 
   return (
     <section className={cn(PLATE, "space-y-2")}>
-      <h3 className="font-display text-sm font-bold uppercase tracking-wide">
-        Отгулы
-      </h3>
+      <div className="flex flex-wrap items-baseline justify-between gap-x-3">
+        <h3 className="font-display text-sm font-bold uppercase tracking-wide">
+          {title}
+        </h3>
+        {total === null ? null : (
+          <span className="font-mono text-xs tabular-nums text-ink-muted">
+            {total}
+          </span>
+        )}
+      </div>
 
       <ul className="divide-y divide-rule">
         {lines.map((line) => (
@@ -1144,14 +1199,62 @@ function absenceLine(it: AbsenceEntry, named: boolean): EventLine {
   };
 }
 
-/** Отгулы из общего перечня освобождений: у них свой раздел. */
-function timeOffOf(entries: readonly AbsenceEntry[]): readonly AbsenceEntry[] {
-  return entries.filter((it) => it.kind === "time_off_in_lieu");
+/**
+ * Три разговора об освобождениях, а не один.
+ *
+ * `leave` — отдых, за которым шли сами: отпуск, дополнительный, учебный.
+ * `sick` — больничный: не планируется, платится по своему правилу и
+ * спрашивается по датам. `off` — отгул: единственный, кто норму не
+ * уменьшает. Каждому свой раздел и в статистике профиля, и в своде по всем.
+ */
+type AbsenceGroup = "leave" | "sick" | "off";
+
+function groupNameOf(kind: AbsenceKind): AbsenceGroup {
+  if (kind === "time_off_in_lieu") return "off";
+  if (kind === "sick_leave") return "sick";
+  return "leave";
 }
 
-/** Отпуска — всё остальное: то, что норму уменьшает. */
-function leaveOf(entries: readonly AbsenceEntry[]): readonly AbsenceEntry[] {
-  return entries.filter((it) => it.kind !== "time_off_in_lieu");
+function groupOf(
+  entries: readonly AbsenceEntry[],
+  group: AbsenceGroup,
+): readonly AbsenceEntry[] {
+  return entries.filter((it) => groupNameOf(it.kind) === group);
+}
+
+/**
+ * Итог группы: сутки и снятые ими часы нормы.
+ *
+ * Сутки берутся из свода по видам, а не сложением записей: свод считает их
+ * по КАЛЕНДАРЮ отрезка, и два наложившихся отпуска дают в нём одни сутки, а
+ * не двое (`absencesOf` в модели). Часов у отгула нет вовсе — у него и в
+ * итоге одни сутки.
+ */
+function absenceTotal(
+  absences: readonly AbsenceStat[],
+  group: AbsenceGroup,
+): string | null {
+  const kinds = absences.filter((it) => groupNameOf(it.kind) === group);
+  if (kinds.length === 0) return null;
+
+  const dayCount = kinds.reduce((sum, it) => sum + it.days, 0);
+  const excluded = kinds.reduce((sum, it) => sum + (it.hours?.toNumber() ?? 0), 0);
+  return excluded > 0
+    ? `${days(dayCount)} · −${hours(excluded)} из нормы`
+    : days(dayCount);
+}
+
+/** Вид, которым группа представлена одним знаком: тот, что взял больше суток. */
+function faceOf(
+  absences: readonly AbsenceStat[],
+  group: AbsenceGroup,
+): AbsenceKind | null {
+  let top: AbsenceStat | null = null;
+  for (const it of absences) {
+    if (groupNameOf(it.kind) !== group) continue;
+    if (top === null || it.days > top.days) top = it;
+  }
+  return top?.kind ?? null;
 }
 
 function days(count: number): string {
@@ -1253,11 +1356,11 @@ function spanWords(from: IsoDate, to: IsoDate): string {
  * имя написано рядом.
  */
 function Absences({ stats }: { stats: Statistics }) {
-  // Отгул отсюда убран и стоит своим разделом ниже: он единственный, кто
-  // норму не уменьшает, и в перечне снятых часов был строкой без числа.
-  // Свод по видам его при этом помнит (`absences` в `model/statistics.ts`) —
-  // убрано только место, где он читался неправдой.
-  const absences = stats.absences.filter((it) => it.kind !== "time_off_in_lieu");
+  // Больничный и отгул отсюда убраны и стоят своими разделами ниже:
+  // вопросы к ним другие (`Sick`, `TimeOff`). Свод по видам их при этом
+  // помнит (`absences` в `model/statistics.ts`) — разошлись не числа, а
+  // только места, где о них спрашивают.
+  const absences = stats.absences.filter((it) => groupNameOf(it.kind) === "leave");
 
   if (absences.length === 0) {
     return (
@@ -1265,8 +1368,11 @@ function Absences({ stats }: { stats: Statistics }) {
         <h3 className="font-display text-sm font-bold uppercase tracking-wide">
           Отпуска
         </h3>
+        {/* Про норму здесь больше ни слова: уменьшить её мог больничный, о
+            котором говорит соседний раздел, и «норма не уменьшалась» было
+            бы прямой неправдой. */}
         <p className="text-xs text-ink-muted">
-          За год не отмечено ни одного: норма года не уменьшалась.
+          За год не отмечено ни одного отпуска.
         </p>
       </section>
     );
@@ -1612,7 +1718,7 @@ function Summary({ sheets, onPick }: { sheets: readonly Sheet[]; onPick: (id: st
 
   return (
     <div className="space-y-4">
-      {/* Те же три раздела, что у одного профиля, и в том же порядке: свод
+      {/* Те же разделы, что у одного профиля, и в том же порядке: свод
           отвечает на те же вопросы, только про всех сразу, и вторым строем
           для этого заставлял бы выучить два способа читать одно и то же. */}
       <Shares
@@ -1622,54 +1728,39 @@ function Summary({ sheets, onPick }: { sheets: readonly Sheet[]; onPick: (id: st
           name: line.sheet.name,
           value: line.totals.calloutHours.toNumber(),
           count: hours(line.totals.calloutHours.toNumber()),
+          mark: CALLOUT_MARK,
+          tone: CALLOUT_TONE,
           lines: line.totals.calloutEntries.map(calloutLine),
         }))}
       />
-      <Shares
-        title="Отпуска"
-        rows={live.map((line) => {
-          // Сутки — из свода по видам, а не сложением записей: свод считает
-          // их по КАЛЕНДАРЮ отрезка, и два наложившихся отпуска дадут в нём
-          // одни сутки, а не двое (`absencesOf` в модели).
-          const kinds = line.totals.absences.filter(
-            (it) => it.kind !== "time_off_in_lieu",
-          );
-          const excluded = kinds.reduce(
-            (sum, it) => sum + (it.hours?.toNumber() ?? 0),
-            0,
-          );
-          return {
-            id: line.sheet.id,
-            name: line.sheet.name,
-            value: kinds.reduce((sum, it) => sum + it.days, 0),
-            count:
-              excluded > 0
-                ? `${days(kinds.reduce((sum, it) => sum + it.days, 0))} · −${hours(excluded)} из нормы`
-                : days(kinds.reduce((sum, it) => sum + it.days, 0)),
-            lines: leaveOf(line.totals.absenceEntries).map((it) => absenceLine(it, true)),
-          };
-        })}
-      />
-      <Shares
-        title="Отгулы"
-        rows={live.map((line) => {
-          const off = line.totals.absences.find(
-            (it) => it.kind === "time_off_in_lieu",
-          );
-          return {
-            id: line.sheet.id,
-            name: line.sheet.name,
-            value: off?.days ?? 0,
-            count: days(off?.days ?? 0),
-            lines: timeOffOf(line.totals.absenceEntries).map((it) =>
-              absenceLine(it, false),
-            ),
-          };
-        })}
-      />
+      {/* Отпуска названы в строках по видам, больничные и отгулы — нет: там
+          вид один и он написан в заголовке раздела. */}
+      <Shares title="Отпуска" rows={live.map((line) => absenceRow(line, "leave", true))} />
+      <Shares title="Больничные" rows={live.map((line) => absenceRow(line, "sick", false))} />
+      <Shares title="Отгулы" rows={live.map((line) => absenceRow(line, "off", false))} />
       <ProfileTable lines={lines} onPick={onPick} />
     </div>
   );
+}
+
+/** Строка свода по одной группе освобождений: числа, знак и её события. */
+function absenceRow(line: Line, group: AbsenceGroup, named: boolean) {
+  const kinds = line.totals.absences.filter(
+    (it) => groupNameOf(it.kind) === group,
+  );
+  const kind = faceOf(line.totals.absences, group);
+
+  return {
+    id: line.sheet.id,
+    name: line.sheet.name,
+    value: kinds.reduce((sum, it) => sum + it.days, 0),
+    count: absenceTotal(line.totals.absences, group) ?? days(0),
+    mark: kind === null ? "" : ABSENCE_MARK[kind],
+    tone: kind === null ? "" : ABSENCE_TONE[kind],
+    lines: groupOf(line.totals.absenceEntries, group).map((it) =>
+      absenceLine(it, named),
+    ),
+  };
 }
 
 /** Одна строка свода: профиль и его год в числах. */
@@ -1718,6 +1809,9 @@ function Shares({
     /** Величина полоски и порядок строк. */
     value: number;
     count: string;
+    /** Знак вида — пока строка не раскрыта (`Face`). */
+    mark: string;
+    tone: string;
     lines: readonly EventLine[];
   }[];
 }) {
@@ -1748,6 +1842,8 @@ function ShareRow({
   row: {
     name: string;
     count: string;
+    mark: string;
+    tone: string;
     lines: readonly EventLine[];
   };
   share: number;
@@ -1801,6 +1897,7 @@ function ShareRow({
               open && "rotate-180",
             )}
           />
+          <Face mark={row.mark} tone={row.tone} shown={!open} />
           <span className="min-w-0 flex-1">{head}</span>
         </button>
       ) : (
@@ -1809,18 +1906,24 @@ function ShareRow({
         // нет.
         <span className="flex items-start gap-2">
           <span aria-hidden className="mt-1 size-3.5 shrink-0" />
+          <Face mark={row.mark} tone={row.tone} shown />
           <span className="min-w-0 flex-1">{head}</span>
         </span>
       )}
 
-      <span className="ml-[1.375rem] block">
+      {/* Полоска — вровень с именем, то есть за знаком: она про эту строку,
+          а не про весь раздел. Отступ считается по мерам слева: уголок
+          (14) и просвет (8) — это 1,375 рема, знак (28) и просвет (12)
+          добавляют к ним ещё 2,5. */}
+      <span className="ml-[3.875rem] block">
         <ShareBar share={share} />
       </span>
 
       {open ? (
         // Перечень внутри строки — теми же строками, что в статистике
-        // профиля. Линовка между ними своя, и слева отступ: перечень
-        // принадлежит имени над ним, а не разделу.
+        // профиля. Линовка между ними своя, а слева отступ ровно на уголок:
+        // знаки событий встают на место знака, который строка отдала,
+        // раскрывшись.
         <ul className="ml-[1.375rem] mt-1 divide-y divide-rule border-t border-rule">
           {row.lines.map((line) => (
             <EventRow key={line.key} line={line} />
@@ -1828,6 +1931,38 @@ function ShareRow({
         </ul>
       ) : null}
     </li>
+  );
+}
+
+/**
+ * Знак вида у строки свода — пока она не раскрыта.
+ *
+ * Строка свода говорит о нескольких событиях сразу, и знак у неё — знак
+ * того вида, который взял больше суток. Раскрывшись, она отдаёт своё место
+ * знакам самих событий: два столбца знаков подряд читались бы как два
+ * списка, а список тут один.
+ *
+ * Место за собой знак оставляет и раскрытым — пустым квадратом той же
+ * меры. Иначе имя при раскрытии прыгало бы влево, а полоска под ним — вслед
+ * за ним.
+ */
+function Face({ mark, tone, shown }: { mark: string; tone: string; shown: boolean }) {
+  if (!shown || mark === "") {
+    return <span aria-hidden className="size-7 shrink-0" />;
+  }
+
+  return (
+    <span
+      aria-hidden
+      // Тот же значок, что стоит у этих суток на сетке и в строке события:
+      // клетка в семь единиц, рамка, полужирный кегль.
+      className={cn(
+        "mt-px grid size-7 shrink-0 place-items-center rounded-md border text-xs font-bold",
+        tone,
+      )}
+    >
+      {mark}
+    </span>
   );
 }
 
