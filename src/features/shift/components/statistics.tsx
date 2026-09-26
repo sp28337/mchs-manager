@@ -1,6 +1,6 @@
 "use client";
 
-import { Users } from "lucide-react";
+import { Folder, User, type LucideIcon } from "lucide-react";
 import { useMemo, useState } from "react";
 
 import { Segmented, SegmentedItem } from "@/components/ui/segmented";
@@ -236,7 +236,23 @@ interface Choice {
   value: string;
   label: string;
   depth: number;
+  /** Папка или профиль — от этого знак в начале строки. */
+  folder: boolean;
 }
+
+/**
+ * Знак папки и знак человека — в строках раскрытого списка.
+ *
+ * Не `svg`, а буквы, и не от бедности: раскрытый `select` рисует
+ * ОПЕРАЦИОННАЯ СИСТЕМА, разметки внутри него нет вовсе, и единственная
+ * картинка, какую там можно показать, — знак из шрифта. Эти два есть во
+ * всех системах, куда приложение доходит, и читаются без подписи.
+ *
+ * В закрытом поле и в горячем ряду стоят настоящие значки (`lucide`) — там
+ * рисует страница, и подменять их буквами незачем.
+ */
+const FOLDER_MARK = "📁";
+const PROFILE_MARK = "👤";
 
 /**
  * Весь выбор — плоским списком строк, а не группами.
@@ -276,16 +292,17 @@ function choicesOf(library: Library, sheets: readonly Sheet[]): Choice[] {
       value: root ? "all" : encode({ kind: "folder", id: folder.id }),
       label: `${root ? "Все профили" : folder.name} (${inside.length})`,
       depth,
+      folder: true,
     });
 
     for (const sheet of inside.filter((it) => it.folderId === folder.id)) {
       out.push({
         value: encode({ kind: "one", id: sheet.id }),
-        // «открыт» словом, а не точкой: раскрытый список рисует
-        // операционная система, и ни цвета, ни значка в нём не поставить —
-        // остаётся сам текст строки.
+        // «открыт» словом, а не точкой: цвета в этом списке не поставить,
+        // а слово читается и глазом, и диктором.
         label: `${sheet.name}${sheet.open ? " — открыт" : ""}`,
         depth: depth + 1,
+        folder: false,
       });
     }
 
@@ -304,16 +321,26 @@ function choicesOf(library: Library, sheets: readonly Sheet[]): Choice[] {
   for (const sheet of sheets) {
     const value = encode({ kind: "one", id: sheet.id });
     if (!out.some((it) => it.value === value)) {
-      out.push({ value, label: sheet.name, depth: 1 });
+      out.push({ value, label: sheet.name, depth: 1, folder: false });
     }
   }
 
   return out;
 }
 
-/** Отступ строки — её глубиной в дереве. */
-function indent(depth: number): string {
-  return "\u00a0".repeat(depth * 3);
+/**
+ * Строка списка целиком: отступ по глубине, знак, имя.
+ *
+ * У ВЫБРАННОЙ строки ни отступа, ни знака нет, и это не мелочь: закрытое
+ * поле показывает текст выбранной строки как есть, и в нём отступ
+ * обернулся бы пустотой после знака, а знак — второй картинкой рядом с
+ * настоящим значком поля. В раскрытом списке выбранная строка и так
+ * помечена — подсветкой, которую рисует сама система.
+ */
+function optionText(choice: Choice, chosen: boolean): string {
+  if (chosen) return choice.label;
+  const pad = "\u00a0".repeat(choice.depth * 3);
+  return `${pad}${choice.folder ? FOLDER_MARK : PROFILE_MARK}\u00a0${choice.label}`;
 }
 
 /** Лежит ли папка внутри другой — она сама или любой её потомок. */
@@ -467,8 +494,9 @@ function ScopePicker({
    * профили, сколько влезет. Открытый профиль среди них первый: к нему
    * возвращаются чаще, чем к любому другому.
    */
-  const quick: { key: string; label: string; scope: Scope }[] = [
-    { key: "all", label: "Все", scope: { kind: "all" } },
+  const quick: { key: string; label: string; scope: Scope; Icon: LucideIcon }[] = [
+    // «Все» — это корневая папка, и знак у неё папки же.
+    { key: "all", label: "Все", scope: { kind: "all" }, Icon: Folder },
   ];
   for (const folder of library.folders) {
     if (folder.id === ROOT_FOLDER_ID) continue;
@@ -481,6 +509,7 @@ function ScopePicker({
       key: `folder:${folder.id}`,
       label: folder.name,
       scope: { kind: "folder", id: folder.id },
+      Icon: Folder,
     });
   }
   const byNearness = [...sheets].sort(
@@ -492,10 +521,12 @@ function ScopePicker({
       key: `one:${sheet.id}`,
       label: sheet.name,
       scope: { kind: "one", id: sheet.id },
+      Icon: User,
     });
   }
 
   const now = encode(value);
+  const Chosen = value.kind === "one" ? User : Folder;
 
   return (
     // Строка управления, а не плашка.
@@ -523,31 +554,39 @@ function ScopePicker({
           поле внутри неё, и знак слева держится тоже на ней
           (`ui/select.tsx`). */}
       <div className="relative w-full min-w-56 lg:w-auto lg:max-w-80">
-      {/* `z-10` — не прихоть: само поле лежит в разметке ПОСЛЕ знака и
+      {/* Знак говорит, ЧТО сейчас выбрано, а не «тут выбор»: папка у свода
+          по всем и по папке, человек у одного профиля. Та же пара знаков,
+          что в горячем ряду и (буквами) в раскрытом списке.
+
+          `z-10` — не прихоть: само поле лежит в разметке ПОСЛЕ знака и
           закрашивает его своей бумагой, как всякий позиционированный
           сосед, идущий следом. */}
-      <Users
+      <Chosen
         aria-hidden
         className="pointer-events-none absolute left-3 top-1/2 z-10 size-4.5 -translate-y-1/2 text-ink-muted"
       />
       <Select
         id="stats-scope"
         aria-label="Чья статистика"
-        // `lit` и поднятая бумага — как у кнопки периода: та же высота, то
-        // же скругление, тот же блик по кромке. Рамка остаётся прозрачной,
-        // а не снимается совсем: снятая, она сдвинула бы содержимое поля
-        // на точку в тот миг, когда на него наводят.
+        // Кнопка периода до последнего значения: та же высота (36), то же
+        // скругление (14), та же бумага, тот же блик по кромке — и рамки
+        // нет вовсе, как у неё. Прозрачная рамка в точку тут стояла, и
+        // из-за неё кайма лампы ложилась внутрь этой точки, а не по самому
+        // краю: замером две пилюли рядом расходились на волос.
+        //
+        // Левое поле — 38 точек: ровно столько же от края до слова у
+        // периода (12 поля + 18 знака + 8 просвета). Правое — 36 под
+        // стрелку, которой у периода нет: её рисует сам `select`.
         className={cn(
-          "lit rounded-xl border-transparent bg-paper-raised hover:border-transparent",
-          "pl-10 font-medium",
+          "lit rounded-xl border-0 bg-paper-raised",
+          "pl-[38px] font-medium",
         )}
         value={now}
         onChange={(event) => onChange(decode(event.target.value))}
       >
         {choices.map((it) => (
           <option key={it.value} value={it.value}>
-            {indent(it.depth)}
-            {it.label}
+            {optionText(it, it.value === now)}
           </option>
         ))}
       </Select>
@@ -570,8 +609,13 @@ function ScopePicker({
             key={it.key}
             active={encode(it.scope) === now}
             onClick={() => onChange(it.scope)}
-            className="lg:flex-none"
+            // Знак той же меры, что у соседей по строке и у кнопок шапки:
+            // девять десятых рема. Своя мера переключателя (четыре пятых)
+            // оставила бы в одной строке значки двух размеров — тот же
+            // довод, что у выбора вида сетки (`year-view.tsx`).
+            className="lg:flex-none [&_svg]:size-4.5"
           >
+            <it.Icon aria-hidden />
             <span className="min-w-0 max-w-40 truncate">{it.label}</span>
           </SegmentedItem>
         ))}
