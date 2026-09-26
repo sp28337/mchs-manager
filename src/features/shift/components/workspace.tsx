@@ -16,7 +16,7 @@ import {
   statutoryBounds,
   withShiftMoved,
 } from "../model/derive";
-import { openEntry, readEntryProfile, type LibraryEntry } from "../storage/library";
+import { openEntry, type LibraryEntry } from "../storage/library";
 import type { StoredProfile } from "../storage/profile";
 import { ChangesList } from "./changes-list";
 import { DayRing } from "./day-ring";
@@ -326,7 +326,6 @@ export function Workspace({
     });
     setSettingsOpen(false);
     setExplorerOpen(false);
-    setPreviewId(null);
     // И на входе, и на выходе: статистика всегда открывается на том
     // профиле, что открыт, и всегда оставляет после себя его же.
     setStatsShown(null);
@@ -360,41 +359,17 @@ export function Workspace({
     setSettingsOpen(false);
     setStatsOpen(false);
     setStatsShown(null);
-    setPreviewId(null);
   }
 
   /**
-   * Выбранный в проводнике профиль — наверху страницы, до открытия.
+   * Показанный, но не открытый профиль.
    *
-   * --- Зачем показывать то, что ещё не открыто --------------------------------
-   *
-   * Список говорит о профиле имя и время последней правки, а человек
-   * выбирает между графиками по ЧИСЛАМ: где сколько переработки. Открыть
-   * ради этого каждый профиль по очереди значит каждый раз менять то, что
-   * лежит в хранилище, — и возвращаться обратно.
-   *
-   * Поэтому имя и полоса цифр перестраиваются под тот профиль, на который
-   * человек навёл указатель. Сам профиль при этом не открыт: в хранилище
-   * по-прежнему лежит нынешний, и стоит увести указатель — числа вернутся.
-   *
-   * На экране без указателя наведения не существует, и показ достаётся
-   * первому нажатию, а открытие — второму (`profile-explorer.tsx`).
+   * Путь к нему теперь один — выбор в статистике. Второй был у проводника:
+   * наведение на строку показывало её числа наверху страницы. Вместе с
+   * полосой цифр и именем, которых в проводнике больше нет, ушёл и он —
+   * показывать стало негде и нечем.
    */
-  const [previewId, setPreviewId] = useState<string | null>(null);
-  /**
-   * Показанный, но не открытый профиль — один на два пути.
-   *
-   * Путей к нему два: наведение на строку проводника и выбор в статистике.
-   * Дальше они не различаются ничем — имя, числа, запрет правки имени, — и
-   * держать для них два состояния значило бы чинить каждую поломку дважды.
-   * Одновременно открытыми ни проводник со статистикой, ни их показы не
-   * бывают: обе кнопки гасят друг друга.
-   */
-  const preview = useMemo(
-    () =>
-      statsShown ?? (previewId === null ? null : readEntryProfile(previewId)),
-    [statsShown, previewId],
-  );
+  const preview = statsShown;
 
   /**
    * Расчёт для показанного профиля — свой, а не нынешний.
@@ -433,7 +408,6 @@ export function Workspace({
       const next = openEntry(entry.id);
       if (next === null) return;
       onReplace(next);
-      setPreviewId(null);
       setExplorerOpen(false);
     });
   }
@@ -547,50 +521,75 @@ export function Workspace({
           WORKSPACE_PAD,
         )}
       >
-      {/* Поле под именем — не про воздух: полоса с числами закрывает над
-          собой двенадцать точек бумаги (щиток в `PeriodSummary`, он гасит
-          просвет под шапкой), и без этого зазора щиток лёг бы прямо на
-          имя. */}
-      <header className="pb-12">
-        {/* Пока наверху показан ЧУЖОЙ профиль, имя не правится: нажатие по
-            нему правило бы открытый, а человек читает не его. */}
-        <ProfileName
-          profile={headProfile}
-          onChange={onChange}
-          editable={preview === null}
-        />
-      </header>
+      {/* Имя и числа — о профиле, который ОТКРЫТ. В проводнике открытого
+          профиля на экране нет: там список из всех, и один из них — этот.
+          -----------------------------------------------------------------
+          Раньше они стояли и здесь: имя сверху, под ним полоса цифр, а
+          наведение на строку списка подменяло в них числа на числа той
+          строки. Замысел был — сравнивать графики, не открывая их; на деле
+          выходило, что страница, на которой ВЫБИРАЮТ профиль, наполовину
+          занята одним конкретным, да ещё и меняющимся от движения мыши.
+          Человек, зашедший переименовать папку, читал чужую переработку.
 
-      {/* Итог — закреплённой полосой, календарь — во всю ширину под ней.
-          Числа и сетка нужны одновременно: человек отмечает день и тут же
-          смотрит, что стало с нормой. Колонкой слева это стоило календарю
-          четырёхсот точек ширины, а лентой сверху — прокрутки назад через
-          двенадцать сеток.
+          Поэтому в проводнике их нет вовсе, и место наверху достаётся
+          спискам. Настройки и статистика их сохраняют: там речь как раз об
+          открытом профиле, и числа при нём — ответ на вопрос «что я правлю»
+          (`Statistics` умеет подменять их выбранным профилем сама). */}
+      {explorerOpen ? null : (
+        <>
+          {/* Поле под именем — не про воздух: полоса с числами закрывает
+              над собой двенадцать точек бумаги (щиток в `PeriodSummary`, он
+              гасит просвет под шапкой), и без этого зазора щиток лёг бы
+              прямо на имя. */}
+          <header className="pb-12">
+            {/* Пока наверху показан ЧУЖОЙ профиль, имя не правится: нажатие
+                по нему правило бы открытый, а человек читает не его. */}
+            <ProfileName
+              profile={headProfile}
+              onChange={onChange}
+              editable={preview === null}
+            />
+          </header>
 
-          На телефоне та же полоса умеет становиться закладками настроек
-          (`settings`, ниже) — тем же способом, каким шапка выше умеет
-          называть себя «Настройки»: одно место экрана, разное содержимое. */}
-      <PeriodSummary
-        calculation={previewCalculation ?? calculation}
-        accountingYear={headProfile.accountingYear}
-        overtimeInShifts={headProfile.overtimeInDays}
-        shiftDurationHours={headProfile.shiftDurationHours}
-        settings={{ open: showSettings, tab: settingsTab, onTab: setSettingsTab }}
-      />
+          {/* Итог — закреплённой полосой, календарь — во всю ширину под ней.
+              Числа и сетка нужны одновременно: человек отмечает день и тут
+              же смотрит, что стало с нормой. Колонкой слева это стоило
+              календарю четырёхсот точек ширины, а лентой сверху — прокрутки
+              назад через двенадцать сеток.
+
+              На телефоне та же полоса умеет становиться закладками настроек
+              (`settings`, ниже) — тем же способом, каким шапка выше умеет
+              называть себя «Настройки»: одно место экрана, разное
+              содержимое. */}
+          <PeriodSummary
+            calculation={previewCalculation ?? calculation}
+            accountingYear={headProfile.accountingYear}
+            overtimeInShifts={headProfile.overtimeInDays}
+            shiftDurationHours={headProfile.shiftDurationHours}
+            settings={{ open: showSettings, tab: settingsTab, onTab: setSettingsTab }}
+          />
+        </>
+      )}
 
       {/* Колонка, а не `space-y`: подвалу нужно `mt-auto`, а оно работает
           только во флексе. */}
       <div className="flex flex-1 flex-col gap-10">
       {explorerOpen ? (
-        <FadeIn key="explorer" instant={!switched}>
-          <section aria-labelledby="explorer-heading" className="space-y-4">
+        // Проявляется тем же порядком, что настройки: сперва страница
+        // расчищается, потом проступает раздел. Пауза (`REVEAL_DELAY_MS`)
+        // та же — она отмеряна по тому, за сколько гаснут цифры наверху, а
+        // гаснут они теперь и здесь; без неё проводник наезжал бы на
+        // уходящую полосу, и два движения шли бы одно сквозь другое.
+        <FadeIn key="explorer" delayMs={REVEAL_DELAY_MS} instant={!switched}>
+          {/* Верхнего поля нет: имя и числа отсюда убраны, и список
+              начинается сразу под шапкой — так же, как под ней начинаются
+              закладки настроек. */}
+          <section aria-labelledby="explorer-heading" className="space-y-4 pt-2">
             <h2 id="explorer-heading" className="sr-only">
               Профили
             </h2>
             <ProfileExplorer
               tools={explorerTools}
-              previewId={previewId}
-              onPreview={setPreviewId}
               onChange={onChange}
               onOpenEntry={askOpenEntry}
             />
