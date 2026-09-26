@@ -1299,15 +1299,15 @@ function noteWords(notes: readonly EventNote[], dated: boolean): string | null {
  */
 function EventRow({ line }: { line: EventLine }) {
   return (
-    <li className="flex items-start gap-3 py-2.5">
+    <li className="flex items-center gap-3 py-2.5">
       <span
         aria-hidden
         // Тот же значок, что стоит у этих суток на сетке: клетка в семь
-        // единиц, рамка, полужирный кегль. `mt-px` — потому что строка
-        // выравнена по верху, а не по середине: длинная заметка переносится,
-        // и знак при этом съезжал бы вниз.
+        // единиц, рамка, полужирный кегль. По СЕРЕДИНЕ строки, а не по её
+        // верху: клетка выше строки текста вдвое, и выровненная по верху
+        // она оставляла текст висеть над своей серединой.
         className={cn(
-          "mt-px grid size-7 shrink-0 place-items-center rounded-md border text-xs font-bold",
+          "grid size-7 shrink-0 place-items-center rounded-md border text-xs font-bold",
           line.tone,
         )}
       >
@@ -1391,20 +1391,25 @@ function Absences({ stats }: { stats: Statistics }) {
           `Card`). */}
       <ul className="divide-y divide-rule">
         {absences.map((it) => (
-          <li key={it.kind} className="flex items-center gap-3 py-2.5">
-            <span
-              aria-hidden
-              // Тот же значок, что в перечне внесённых изменений: клетка в
-              // семь единиц, рамка, полужирный кегль.
-              className={cn(
-                "grid size-7 shrink-0 place-items-center rounded-md border text-xs font-bold",
-                ABSENCE_TONE[it.kind],
-              )}
-            >
-              {ABSENCE_MARK[it.kind]}
-            </span>
-            <span className="min-w-0 flex-1 space-y-1">
-              <span className="flex flex-wrap items-baseline justify-between gap-x-3">
+          <li key={it.kind} className="py-2.5">
+            {/* Знак — по середине СТРОКИ, а не всей ячейки: полоска доли
+                лежит под строкой, и знак, выровненный по ним обоим, уходил
+                ниже слова, при котором стоит. Поэтому строка со знаком —
+                своя, а полоска под ней, с отступом до начала текста (клетка
+                в 28 и просвет в 12 — это 2,5 рема). */}
+            <span className="flex items-center gap-3">
+              <span
+                aria-hidden
+                // Тот же значок, что в перечне внесённых изменений: клетка в
+                // семь единиц, рамка, полужирный кегль.
+                className={cn(
+                  "grid size-7 shrink-0 place-items-center rounded-md border text-xs font-bold",
+                  ABSENCE_TONE[it.kind],
+                )}
+              >
+                {ABSENCE_MARK[it.kind]}
+              </span>
+              <span className="flex min-w-0 flex-1 flex-wrap items-baseline justify-between gap-x-3">
                 <span className="truncate text-sm">{ABSENCE_LABELS[it.kind]}</span>
                 <span className="font-mono text-xs tabular-nums text-ink-muted">
                   {it.days} {numberWord(it.days, "день", "дня", "дней")}
@@ -1413,6 +1418,8 @@ function Absences({ stats }: { stats: Statistics }) {
                     : ""}
                 </span>
               </span>
+            </span>
+            <span className="ml-10 mt-1 block">
               <ShareBar share={it.days / most} />
             </span>
           </li>
@@ -1883,7 +1890,7 @@ function ShareRow({
           onClick={() => setOpen((it) => !it)}
           aria-expanded={open}
           className={cn(
-            "flex w-full cursor-pointer items-start gap-2 text-left",
+            "flex w-full cursor-pointer items-center gap-2 text-left",
             "rounded-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink",
           )}
         >
@@ -1893,7 +1900,7 @@ function ShareRow({
           <ChevronDown
             aria-hidden
             className={cn(
-              "mt-1 size-3.5 shrink-0 text-ink-faint transition-transform",
+              "size-3.5 shrink-0 text-ink-faint transition-transform",
               open && "rotate-180",
             )}
           />
@@ -1904,8 +1911,8 @@ function ShareRow({
         // Без кнопки и без уголка, но с тем же отступом слева: строки
         // раздела обязаны стоять в один столбец, раскрывается строка или
         // нет.
-        <span className="flex items-start gap-2">
-          <span aria-hidden className="mt-1 size-3.5 shrink-0" />
+        <span className="flex items-center gap-2">
+          <span aria-hidden className="size-3.5 shrink-0" />
           <Face mark={row.mark} tone={row.tone} shown />
           <span className="min-w-0 flex-1">{head}</span>
         </span>
@@ -1957,7 +1964,7 @@ function Face({ mark, tone, shown }: { mark: string; tone: string; shown: boolea
       // Тот же значок, что стоит у этих суток на сетке и в строке события:
       // клетка в семь единиц, рамка, полужирный кегль.
       className={cn(
-        "mt-px grid size-7 shrink-0 place-items-center rounded-md border text-xs font-bold",
+        "grid size-7 shrink-0 place-items-center rounded-md border text-xs font-bold",
         tone,
       )}
     >
