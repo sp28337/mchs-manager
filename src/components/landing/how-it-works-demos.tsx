@@ -1,5 +1,14 @@
 import type { CSSProperties, ReactNode } from "react";
-import { Save, Settings } from "lucide-react";
+import {
+  ChartColumn,
+  ChevronDown,
+  Folder,
+  FolderOpen,
+  Save,
+  Settings,
+  User,
+  X,
+} from "lucide-react";
 
 import { MonthGrid } from "@/features/shift/components/month-grid";
 import {
@@ -73,7 +82,27 @@ const TONE = {
   rest: "border-dashed border-rest/50 bg-rest-soft text-rest",
   /** Работа помимо графика. */
   callout: "border-trace bg-trace-soft text-trace",
+  /** Дополнительный отпуск. */
+  trip: "border-dashed border-trip/50 bg-trip-soft text-trip",
+  /** Учебный отпуск. */
+  study: "border-dashed border-study/50 bg-study-soft text-study",
 } as const;
+
+/**
+ * Те же освобождения вполголоса — на сутках, где смены не было.
+ *
+ * Ровно то же правило, что в расчёте (`ABSENCE_TONE_QUIET` в
+ * `shift-strip.tsx`): отпуск идёт подряд, и в свободные сутки внутри него
+ * человек всё равно ничего не пропустил. Полным цветом такие сутки кричали
+ * бы наравне с пропущенной сменой, и месяц читался бы как сплошная потеря.
+ */
+const TONE_QUIET: Partial<Record<Tone, string>> = {
+  leave: "border-dashed border-signal/20 bg-signal-soft/40 text-signal/70",
+  sick: "border-dashed border-sick/20 bg-sick-soft/40 text-sick/70",
+  rest: "border-dashed border-rest/20 bg-rest-soft/40 text-rest/70",
+  trip: "border-dashed border-trip/20 bg-trip-soft/40 text-trip/70",
+  study: "border-dashed border-study/20 bg-study-soft/40 text-study/70",
+};
 
 type Tone = keyof typeof TONE;
 
@@ -95,6 +124,8 @@ interface Becomes {
   step: number;
   /** Место внутри группы: период ложится днями подряд, а не разом. */
   order?: number;
+  /** Сутки без смены: отметка ложится вполголоса (`TONE_QUIET`). */
+  quiet?: boolean;
 }
 
 /**
@@ -123,12 +154,15 @@ function Day({
   corners,
   className,
   style,
+  children,
 }: {
   date: number;
   mark: string;
   tone: Tone;
   /** Во что эти сутки превращаются по ходу показа. */
   becomes?: Becomes;
+  /** Внутри клетки: кольцо видов и указатель, если нажимают по ней. */
+  children?: ReactNode;
   /** Скругления по контуру месяца: их знает сетка, а не клетка. */
   corners?: string;
   className?: string;
@@ -180,13 +214,17 @@ function Day({
           className={cn(
             "demo-became absolute inset-0 flex flex-col items-center justify-center",
             "rounded-md border leading-tight",
-            TONE[becomes.tone],
+            // Вполголоса — на свободных сутках: там смены не было, и
+            // терять человеку было нечего (`TONE_QUIET`).
+            (becomes.quiet ? TONE_QUIET[becomes.tone] : undefined) ?? TONE[becomes.tone],
           )}
         >
           <span className="font-mono text-[1em]">{date}</span>
           <span className="font-mono text-[0.7em]">{becomes.mark}</span>
         </span>
       ) : null}
+
+      {children}
     </div>
   );
 }
@@ -566,25 +604,140 @@ function isShiftStart(day: IsoDate): boolean {
 }
 
 /**
- * Что ложится на месяц и в каком порядке.
+ * Грани кольца — те же восемь, что в приложении, и в том же порядке.
  *
- * Числа — настоящие сутки июля: одно освобождение четырьмя днями, второе
- * неделей, вызов в резерв одними сутками. Порядок отметок и есть порядок в
- * череде: сперва человек видит одну запись, потом другую.
+ * Кольцо расчёта (`day-ring.tsx`) раскрывает вокруг суток восемь видов:
+ * три отпуска, больничный, работа сверх графика, смена, заметка, отгул.
+ * Здесь они той же клеткой, теми же буквами и теми же цветами — иначе
+ * человек, пришедший внутрь, не узнал бы того, что видел.
+ *
+ * Легенды при кольце нет: в приложении она объясняет восемь значков
+ * словами, а показу объяснять некогда — он длится три четверти секунды, и
+ * восемь подписей в нём читались бы мельтешением.
  */
-const MONTH_MARKS: { days: number[]; mark: string; tone: Tone; step: number }[] = [
-  { days: [6, 7, 8, 9], mark: "Б", tone: "sick", step: 0 },
-  { days: [15, 16, 17, 18, 19, 20, 21], mark: "О", tone: "leave", step: 1 },
+const RING_FACES: { mark: string; tone: Tone }[] = [
+  { mark: "О", tone: "leave" },
+  { mark: "Д", tone: "trip" },
+  { mark: "У", tone: "study" },
+  { mark: "Б", tone: "sick" },
+  { mark: "Р", tone: "callout" },
+  { mark: "24", tone: "shift" },
+  { mark: "В", tone: "rest" },
+  { mark: "\u270e", tone: "free" },
+];
+
+/**
+ * Место грани в кольце: восемь клеток вокруг девятой, пустой.
+ *
+ * Пустая середина — не украшение: сквозь неё видно ТЕ САМЫЕ сутки, вокруг
+ * которых кольцо и раскрылось. Закрой её — и человек потеряет из виду
+ * предмет разговора.
+ */
+const RING_PLACES: [col: number, row: number][] = [
+  [1, 1],
+  [2, 1],
+  [3, 1],
+  [1, 2],
+  [3, 2],
+  [1, 3],
+  [2, 3],
+  [3, 3],
+];
+
+/** Общая мера кольца: три клетки в поперечнике, середина — сами сутки. */
+const RING_BOX = cn(
+  "absolute left-1/2 top-1/2 z-30 aspect-square w-[300%]",
+  "-translate-x-1/2 -translate-y-1/2 grid grid-cols-3 grid-rows-3 gap-0.5",
+);
+
+/** Кольцо видов вокруг суток. */
+function DemoRing({ round }: { round: number }) {
+  return (
+    <span className={cn("demo-ring pointer-events-none", RING_BOX)} style={vars({ "--round": round })}>
+      {RING_PLACES.map(([col, row], index) => {
+        const face = RING_FACES[index]!;
+        return (
+          <span
+            key={face.mark}
+            style={{ gridColumn: col, gridRow: row }}
+            className={cn(
+              "flex flex-col items-center justify-center rounded-md border",
+              "bg-paper-raised leading-tight",
+              TONE[face.tone],
+            )}
+          >
+            <span className="font-mono text-[0.72em]">{face.mark}</span>
+          </span>
+        );
+      })}
+    </span>
+  );
+}
+
+/**
+ * Рука над кольцом: сперва у самих суток, потом у выбранной грани.
+ *
+ * Стоит она в той же сетке три на три, что и кольцо, и в той же ячейке,
+ * что выбранная грань. Отсюда и весь её путь: доехать до середины — это
+ * сдвинуться ровно на свою же ширину, сколько бы ни было кольцо ростом.
+ * Поэтому смещение задано долями самой руки (`--to-x`, `--to-y`), а не
+ * точками: показ растёт вместе с разделом, и точки пришлось бы пересчитывать.
+ */
+function DemoRingHand({ round, pick }: { round: number; pick: number }) {
+  const [col, row] = RING_PLACES[pick]!;
+  return (
+    <span className={cn("pointer-events-none", RING_BOX)}>
+      <span
+        className="demo-hand relative"
+        style={{
+          gridColumn: col,
+          gridRow: row,
+          ...vars({ "--round": round, "--to-x": `${(2 - col) * 100}%`, "--to-y": `${(2 - row) * 100}%` }),
+        }}
+      >
+        <Pointer className="demo-hand-ring left-1/2 top-1/2" />
+      </span>
+    </span>
+  );
+}
+
+/**
+ * Что ложится на месяц, в каком порядке и какой гранью кольца выбрано.
+ *
+ * Числа — настоящие сутки июля: больничный четырьмя днями, отпуск неделей,
+ * вызов одними сутками. `pick` — место грани в кольце: по ней и щёлкает
+ * рука, прежде чем отметка ляжет на сетку.
+ *
+ * Сутки, по которым нажимают (`from`), взяты из середины месяца нарочно:
+ * кольцо втрое шире клетки, и с краю сетки оно вылезало бы за показ — у
+ * верхнего ряда за подписи дней недели, у правого столбца за поле. В
+ * приложении такое кольцо просто сдвигается к краю окна, но там и места
+ * целый экран.
+ */
+const MONTH_MARKS: {
+  days: number[];
+  mark: string;
+  tone: Tone;
+  step: number;
+  /** Сутки, по которым нажимают: с них кольцо и раскрывается. */
+  from: number;
+  /** Грань кольца, которую выбирают (место в `RING_FACES`). */
+  pick: number;
+}[] = [
+  { days: [13, 14, 15, 16], mark: "Б", tone: "sick", step: 0, from: 14, pick: 3 },
+  { days: [19, 20, 21, 22, 23, 24, 25], mark: "О", tone: "leave", step: 1, from: 22, pick: 0 },
   // Тот же код, что и в самом приложении: в клетке любая работа сверх
   // графика помечается одной буквой (`CALLOUT_MARK`), а чем именно был
   // вызов — резервом, сбором, соревнованиями — говорит подпись.
-  { days: [26], mark: "Р", tone: "callout", step: 2 },
+  { days: [28], mark: "Р", tone: "callout", step: 2, from: 28, pick: 4 },
 ];
 
-function markFor(date: number): Becomes | undefined {
+function markFor(date: number, quiet: boolean): Becomes | undefined {
   for (const group of MONTH_MARKS) {
     const order = group.days.indexOf(date);
-    if (order >= 0) return { mark: group.mark, tone: group.tone, step: group.step, order };
+    if (order >= 0) {
+      return { mark: group.mark, tone: group.tone, step: group.step, order, quiet };
+    }
   }
   return undefined;
 }
@@ -593,8 +746,20 @@ export function DemoEvents() {
   const days = datesOfMonth(MONTH_YEAR, MONTH_NUMBER);
 
   return (
-    <Panel>
-      <div className="w-full max-w-88">
+    <Panel className="demo-events">
+      <div className="relative w-full max-w-88">
+        {/* Затемнение под кольцом — по одному на каждую запись: они
+            приходят по очереди, и общее на троих гасло бы и разгоралось
+            трижды за круг одной и той же дорожкой. */}
+        {MONTH_MARKS.map((group, index) => (
+          <span
+            key={group.mark}
+            aria-hidden
+            className="demo-ring-scrim pointer-events-none absolute -inset-1 z-20 rounded-xl bg-paper/70 backdrop-blur-[2px]"
+            style={vars({ "--round": index })}
+          />
+        ))}
+
         <MonthGrid
           joined
           days={days}
@@ -602,15 +767,26 @@ export function DemoEvents() {
             const date = dayOfMonth(day);
             const start = isShiftStart(day);
             const tail = isShiftStart(addDays(day, -1));
+            // Сутки без смены — те, где терять было нечего: отметка на них
+            // ложится вполголоса, как и в расчёте.
+            const becomes = markFor(date, !start && !tail);
+            const round = MONTH_MARKS.findIndex((group) => group.from === date);
 
             return (
               <Day
                 date={date}
                 mark={start ? SHIFT_START_HOURS : tail ? SHIFT_TAIL_HOURS : "В"}
                 tone={start ? "shift" : tail ? "tail" : "free"}
-                becomes={markFor(date)}
+                becomes={becomes}
                 corners={corners}
-              />
+              >
+                {round >= 0 ? (
+                  <>
+                    <DemoRing round={round} />
+                    <DemoRingHand round={round} pick={MONTH_MARKS[round]!.pick} />
+                  </>
+                ) : null}
+              </Day>
             );
           }}
         />
@@ -640,53 +816,66 @@ export function DemoStorage() {
   return (
     <Panel>
       <div className="w-full max-w-104">
-        {/* Шапка приложения: те же две кнопки, что стоят там на самом деле.
+        {/* Шапка приложения: те же четыре кнопки, что стоят там на самом
+            деле, и в том же порядке (`header-tools.tsx`). Подписей у них
+            нет — ровно как в приложении на телефоне, где ширины на слово
+            не хватает; показ здесь той же ширины.
 
-            Серой рамки у неё больше нет — вместо неё свет: блок ловит блик
-            лампы по кромке и кладёт тень, как все прочие блоки страницы.
-            Рамка на этом фоне читалась чертежом среди предметов. */}
-        <div className="lit relative flex items-center justify-end gap-2 rounded-t-xl bg-paper-raised px-3 py-2.5">
+            Полосы под кнопками нет: в приложении шапка прозрачна, а
+            поднята каждая кнопка сама по себе. Плашка под ними делала бы
+            из четырёх предметов один. */}
+        <div className="relative flex items-center justify-end gap-2 pb-4">
           <HeaderButton icon={Settings} label="Настройки" />
+          <HeaderButton icon={ChartColumn} label="Статистика" />
+          <HeaderButton icon={FolderOpen} label="Открыть" />
           <HeaderButton icon={Save} label="Сохранить" className="demo-save-button" />
-          <Pointer className="demo-tap-save right-8 top-7" />
+          <Pointer className="demo-tap-save right-2 top-6" />
         </div>
 
-        {/* Окно выгрузки — оно и открывается по этой кнопке. Тоже светом, а
-            не рамкой: настоящее окно в приложении стоит на бумаге и
-            освещено так же. */}
-        <div className="demo-dialog lit relative rounded-b-xl bg-paper p-4">
-          <p className="font-display text-[0.95em] font-bold">Сохранить профиль в файл</p>
-
-          {/* Строка вопроса стоит на карточке, а поле на ней — той же
-              лесенкой тонов, что и в настоящем окне выгрузки: окно на
-              бумаге, карточка на тон выше, поле на тон ниже карточки.
-              Раньше вопрос и поле лежали прямо на окне, и поле держалось
-              серым контуром — единственным на всей странице. */}
-          <div className="lit mt-3 space-y-1.5 rounded-xl bg-paper-raised p-3">
-            <span className="block text-[0.8em] font-medium text-ink-muted">Имя файла</span>
-            {/* Имя набирается: полоса ширины раскрывает знак за знаком, а
-                каретка стоит у её края. Ступенями по числу знаков — иначе
-                буквы выезжали бы наполовину. */}
-            {/* Поле — такое же, как в приложении: заливка и невидимая рамка,
-                которая проявляется только под курсором. Обведённое серым,
-                оно было единственным местом на странице, где поле держится
-                контуром. */}
-            <span className="flex h-9 w-full items-center rounded-lg border border-paper bg-paper px-3">
-              <span className="demo-typed font-mono text-[0.85em]">Мой график</span>
-              <span className="demo-caret ml-px h-[1.1em] w-px bg-ink" />
-            </span>
-            <p className="text-[0.7em] leading-snug text-ink-muted">
-              Расширение «.json» допишется само.
+        {/* Окно выгрузки — то самое, что открывается по этой кнопке, и
+            собрано оно как настоящее (`save-to-file.tsx`): поднятая бумага
+            со светом и тенью окна, заголовок прописными и крестик в углу,
+            под ними вопрос с полем, а внизу две кнопки. */}
+        <div className="demo-dialog lit modal-lift rounded-xl bg-paper-raised">
+          <div className="flex items-center gap-3 px-4 pt-3 pb-1">
+            <p className="min-w-0 flex-1 font-display text-[0.8em] font-bold uppercase leading-6 tracking-wide">
+              Сохранить профиль в файл
             </p>
+            <span className="grid size-7 shrink-0 place-items-center rounded-lg text-ink-muted">
+              <X aria-hidden className="size-4" />
+            </span>
           </div>
 
-          <div className="mt-3 flex items-center gap-2 border-t border-rule pt-3">
-            <span className="demo-confirm inline-flex h-8 items-center rounded-xl bg-ink px-3 text-[0.8em] font-medium text-paper">
-              Сохранить
-            </span>
-            <span className="inline-flex h-8 items-center rounded-xl border border-rule-strong px-3 text-[0.8em] font-medium text-ink-muted">
-              Отмена
-            </span>
+          <div className="px-4 pb-4">
+            {/* Карточка внутри окна — одна линовка, без второй плашки:
+                окно и ЕСТЬ поднятая бумага, и плашка в нём читалась бы
+                коробкой в коробке (`ui/panel.tsx`). */}
+            <div className="space-y-2 border-b border-rule py-3">
+              <span className="block text-[0.8em] font-medium">Имя файла</span>
+              {/* Имя набирается: полоса ширины раскрывает знак за знаком, а
+                  каретка стоит у её края. Поле такое же, как в приложении:
+                  заливка и невидимая рамка, которая проявляется только под
+                  курсором. */}
+              <span className="flex h-9 w-full items-center rounded-lg border border-paper bg-paper px-3">
+                <span className="demo-typed font-mono text-[0.85em]">Мой график</span>
+                <span className="demo-caret ml-px h-[1.1em] w-px bg-ink" />
+              </span>
+              <p className="text-[0.7em] leading-snug text-ink-muted">
+                Расширение «.json» допишется само. Запрещённые в именах файлов
+                знаки заменятся на дефис.
+              </p>
+            </div>
+
+            {/* Две кнопки во всю ширину поровну — как в окне: согласие
+                залито чернилами, отказ держится одним словом. */}
+            <div className="flex gap-2 pt-3">
+              <span className="demo-confirm inline-flex h-9 flex-1 items-center justify-center rounded-xl bg-ink px-4 text-[0.8em] font-medium text-paper">
+                Сохранить
+              </span>
+              <span className="inline-flex h-9 flex-1 items-center justify-center rounded-xl border border-transparent px-4 text-[0.8em] font-medium text-ink">
+                Отмена
+              </span>
+            </div>
           </div>
         </div>
 
@@ -749,14 +938,146 @@ function HeaderButton({
   className?: string;
 }) {
   return (
+    // Та же кнопка, что в шапке приложения: поднятая бумага, свет по
+    // кромке, скругление в четырнадцать точек (`TOOL_BUTTON`). Подпись
+    // остаётся программе чтения — на телефоне приложение прячет её так же.
     <span
       className={cn(
-        "inline-flex h-8 items-center gap-2 rounded-xl bg-paper-sunken px-3 text-[0.8em] font-medium",
+        "lit inline-flex size-9 shrink-0 items-center justify-center rounded-xl bg-paper-raised",
         className,
       )}
     >
-      <Icon aria-hidden className="size-4 shrink-0 text-ink-muted" />
-      {label}
+      <Icon aria-hidden className="size-4.5 shrink-0 text-ink-muted" />
+      <span className="sr-only">{label}</span>
+    </span>
+  );
+}
+
+/* ========================================================================
+   5. СТАТИСТИКА ЗА ГОД, И НЕ ТОЛЬКО СВОЯ.
+
+   Четыре показа выше отвечают на вопрос «как внести», а этот — на вопрос
+   «что из этого видно». Год разложен по месяцам: столбец — отработано,
+   черта поперёк — норма месяца. Тот же рисунок, те же цвета и та же
+   черта, что в самой статистике (`statistics.tsx`, `charts.tsx`).
+
+   Нажатие здесь одно и оно главное: человек переводит выбор с себя на
+   папку караула, и рисунок пересобирается под весь караул. Это и есть то,
+   чего нет ни в одном из четырёх предыдущих показов, — счёт не по одному
+   графику, а по всем сразу.
+   ======================================================================== */
+
+/**
+ * Месяцы рисунка: сколько отработано и какая норма — двумя наборами.
+ *
+ * Первый — один человек, второй — караул из трёх. Числа долями высоты
+ * поля, а не часами: рисунок в показе мелкий, и подписей у оси нет —
+ * сравнивают на нём столбец с чертой, а не с числом.
+ */
+const STAT_MONTHS: { fact: number; norm: number; factTwo: number; normTwo: number }[] = [
+  { fact: 78, norm: 52, factTwo: 62, normTwo: 58 },
+  { fact: 70, norm: 63, factTwo: 74, normTwo: 66 },
+  { fact: 46, norm: 40, factTwo: 88, normTwo: 70 },
+  { fact: 72, norm: 71, factTwo: 66, normTwo: 72 },
+  { fact: 88, norm: 62, factTwo: 80, normTwo: 64 },
+  { fact: 68, norm: 68, factTwo: 92, normTwo: 70 },
+  { fact: 30, norm: 27, factTwo: 58, normTwo: 44 },
+  { fact: 78, norm: 69, factTwo: 70, normTwo: 68 },
+  { fact: 93, norm: 72, factTwo: 84, normTwo: 73 },
+  { fact: 78, norm: 72, factTwo: 76, normTwo: 71 },
+  { fact: 75, norm: 65, factTwo: 88, normTwo: 67 },
+  { fact: 72, norm: 72, factTwo: 60, normTwo: 72 },
+];
+
+export function DemoStats() {
+  return (
+    <Panel className="demo-stats">
+      <div className="w-full max-w-104 space-y-3">
+        {/* Строка выбора — та же, что стоит над статистикой: поднятое поле
+            со знаком того, что выбрано, и горячий ряд рядом с ним. */}
+        <div className="relative flex items-center gap-2">
+          <span className="lit relative flex h-9 min-w-0 flex-1 items-center gap-2 rounded-xl bg-paper-raised px-3 text-[0.8em] font-medium">
+            {/* Знак меняется вместе с выбором: человек — у профиля, папка —
+                у свода по караулу. Оба лежат в одной ячейке, и смена не
+                двигает соседей. */}
+            <span className="grid shrink-0 text-ink-muted">
+              <User aria-hidden className="demo-stat-was col-start-1 row-start-1 size-4.5" />
+              <Folder aria-hidden className="demo-stat-became col-start-1 row-start-1 size-4.5" />
+            </span>
+            <span className="grid min-w-0 flex-1">
+              <span className="demo-stat-was col-start-1 row-start-1 truncate">Петров И. С.</span>
+              <span className="demo-stat-became col-start-1 row-start-1 truncate">4-й караул (3)</span>
+            </span>
+            <ChevronDown aria-hidden className="size-4 shrink-0 text-ink-muted" />
+          </span>
+
+          <span className="inline-flex h-9 shrink-0 items-center gap-0.5 rounded-xl bg-paper-sunken">
+            <StatChip>Все</StatChip>
+            <StatChip picked>4-й караул</StatChip>
+          </span>
+
+          <Pointer className="demo-tap-stats right-6 top-7" />
+        </div>
+
+        {/* Рисунок. Плашка поднятой бумаги — как у всех разделов
+            статистики; сам рисунок без осей и подписей: в показе величиной
+            с ладонь они читались бы рябью, а сказать нужно одно — где
+            столбец выше своей черты, а где ниже. */}
+        <div className="lit rounded-xl bg-paper-raised p-3">
+          <p className="font-display text-[0.7em] font-bold uppercase tracking-wide">
+            Норма и факт по месяцам
+          </p>
+
+          <div className="mt-2 flex h-20 items-end gap-[0.35em] sm:h-24">
+            {STAT_MONTHS.map((month, index) => (
+              <span
+                key={index}
+                className="relative flex h-full min-w-0 flex-1 items-end"
+                style={vars({
+                  "--bar": index,
+                  "--h": `${month.fact}%`,
+                  "--h2": `${month.factTwo}%`,
+                  "--n": `${month.norm}%`,
+                  "--n2": `${month.normTwo}%`,
+                })}
+              >
+                <span className="demo-bar block w-full rounded-t-[0.2em] bg-verify" />
+                {/* Черта нормы — шире столбца, как в самом рисунке: вровень
+                    с ним она сливалась бы с вершиной, когда факт равен
+                    норме. */}
+                <span className="demo-tick absolute -left-px -right-px h-[0.12em] rounded-full bg-ink-faint" />
+              </span>
+            ))}
+          </div>
+        </div>
+
+        {/* Итог — тем же словом и тем же цветом, что в полосе наверху. */}
+        <div className="flex items-baseline justify-between gap-3">
+          <span className="font-display text-[0.7em] font-bold uppercase tracking-wide text-ink-muted">
+            Переработка за год
+          </span>
+          <span className="grid text-right font-mono text-[1.1em] font-medium text-verify">
+            <span className="demo-stat-was col-start-1 row-start-1">+302 ч</span>
+            <span className="demo-stat-became col-start-1 row-start-1">+752 ч</span>
+          </span>
+        </div>
+      </div>
+    </Panel>
+  );
+}
+
+/** Кнопка горячего ряда: занятая поднята, свободная утоплена вместе с дорожкой. */
+function StatChip({ children, picked }: { children: ReactNode; picked?: boolean }) {
+  return (
+    <span
+      className={cn(
+        "inline-flex h-9 items-center rounded-xl px-2.5 text-[0.7em] font-medium",
+        picked
+          ? "demo-stat-chip lit bg-paper-raised text-ink"
+          : "text-ink-muted",
+      )}
+    >
+      {children}
     </span>
   );
 }

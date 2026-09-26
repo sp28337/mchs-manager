@@ -506,7 +506,7 @@ function ScopeField({
     <div
       className={cn(
         "lit relative rounded-xl bg-paper-raised",
-        deck ? "h-12 min-w-0 flex-1" : "h-9 w-full min-w-56 lg:w-auto lg:max-w-80",
+        deck ? "h-12 min-w-0 flex-1" : "h-9 w-full min-w-56 md:w-auto md:max-w-80",
       )}
     >
       {/* `z-10` — не прихоть: поле лежит в разметке ПОСЛЕ знака и закрыло бы
@@ -526,8 +526,12 @@ function ScopeField({
         // строкой — 38 точек: ровно столько же от края до слова у периода
         // (12 поля, 18 знака, 8 просвета). Правое остаётся под стрелку,
         // которой у периода нет: её рисует сам `select`.
+        // Заливка у поля СВОЯ, хотя точно такая же лежит на обёртке, и это
+        // не лишнее: раскрытый список браузер красит цветом самого поля, и
+        // с прозрачным полем он выходил белым на тёмной теме. Цвет тот же,
+        // что у обёртки, — видно их как одну поверхность.
         className={cn(
-          "rounded-xl border-0 bg-transparent font-medium",
+          "rounded-xl border-0 bg-paper-raised font-medium",
           "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ink",
           deck ? "h-12 pl-12" : "h-9 pl-[38px]",
         )}
@@ -639,17 +643,21 @@ function ScopePicker({
     <div className="hidden flex-wrap items-center gap-2 md:flex">
       <ScopeField id="stats-scope" choices={choices} value={value} onChange={onChange} />
 
-      {/* Горячий ряд — с того порога, где рядом с выбором остаётся пустое
-          место до правого края. Ниже его нет: там и сам список занимает
-          строку целиком, а второй ряд плашек под ним был бы не
-          сокращением пути, а лишним экраном перед статистикой. */}
+      {/* Горячий ряд появляется вместе со строкой, а не позже.
+          -----------------------------------------------------------------
+          Порог у него был свой (`lg`), и между 768 и 1024 точками строка
+          стояла с одним полем посередине пустоты: выбор уже переехал из
+          нижней панели наверх, а выглядел не так, как выглядит на широком
+          экране. Порог теперь один — тот же, на котором выбор вообще
+          меняет место. Не помещающиеся кнопки уезжают прокруткой вбок
+          внутри дорожки, а не переносятся строкой. */}
       <Segmented
         label="Быстрый выбор"
         // Тот же переключатель, что выбирает вид сетки над календарём, и с
         // теми же мерами: ячейки во всю высоту дорожки, просвет в пол-единицы,
         // никаких своих полей. Разница одна — этот переносится по строкам:
         // видов сетки два, а профилей бывает сколько угодно.
-        className="hidden h-auto min-w-0 flex-1 justify-start lg:inline-flex lg:justify-start overflow-x-scroll scroll-hidden scrollbar-none"
+        className="hidden h-auto min-w-0 flex-1 justify-start overflow-x-scroll scroll-hidden scrollbar-none md:inline-flex md:justify-start"
       >
         {quick.map((it) => (
           <SegmentedItem
@@ -660,7 +668,7 @@ function ScopePicker({
             // девять десятых рема. Своя мера переключателя (четыре пятых)
             // оставила бы в одной строке значки двух размеров — тот же
             // довод, что у выбора вида сетки (`year-view.tsx`).
-            className="lg:flex-none [&_svg]:size-4.5"
+            className="md:flex-none lg:flex-none [&_svg]:size-4.5"
           >
             <it.Icon aria-hidden />
             <span className="min-w-0 max-w-40 truncate">{it.label}</span>
@@ -1391,7 +1399,7 @@ function ProfileTable({
         По профилям
       </h3>
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[42rem] border-collapse text-sm">
+        <table className="w-full min-w-[38rem] border-collapse text-sm">
           <caption className="sr-only">
             Норма, отработанные, ночные и праздничные часы по профилям
           </caption>
@@ -1399,9 +1407,6 @@ function ProfileTable({
             <tr className="text-[11px] uppercase tracking-wide text-ink-faint">
               <th scope="col" className="py-2 pr-3 text-left font-medium">
                 Профиль
-              </th>
-              <th scope="col" className="px-3 py-2 text-right font-medium">
-                Год
               </th>
               <Head>Норма</Head>
               <Head>Факт</Head>
@@ -1431,7 +1436,6 @@ function ProfileRow({ line, onPick }: { line: Line; onPick: (id: string) => void
     return (
       <tr className="text-ink-faint">
         <ProfileName sheet={sheet} onPick={onPick} />
-        <td className="px-3 py-2 text-right font-mono tabular-nums">{totals.year}</td>
         {Array.from({ length: 6 }, (_, index) => (
           <td key={index} className="px-3 py-2 text-right font-mono tabular-nums last:pr-0">
             —
@@ -1444,9 +1448,6 @@ function ProfileRow({ line, onPick }: { line: Line; onPick: (id: string) => void
   return (
     <tr>
       <ProfileName sheet={sheet} onPick={onPick} />
-      <td className="px-3 py-2 text-right font-mono tabular-nums text-ink-muted">
-        {totals.year}
-      </td>
       <Cell>{hoursTrim(totals.total.normHours)}</Cell>
       <Cell>{hoursTrim(totals.total.actualHours)}</Cell>
       <BalanceCell value={totals.balance} />
