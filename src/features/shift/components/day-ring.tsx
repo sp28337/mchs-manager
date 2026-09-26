@@ -175,6 +175,22 @@ import {
  */
 const RING_NOTE_TONE = "border-rule bg-paper-raised text-ink-muted";
 
+/**
+ * Знак заметки — тот же, что в показе на главной: ✎ (U+270E).
+ *
+ * Был значок из набора `lucide` — карандаш, нарисованный линиями той же
+ * толщины, что значки шапки. В кольце он оказывался единственной
+ * КАРТИНКОЙ среди семи букв: у всех соседей знак нарисован шрифтом, и
+ * тонкие линии значка среди них читались как значок кнопки, а не как вид
+ * суток.
+ *
+ * Знак из шрифта берёт кегль, начертание и цвет у своей клетки сам —
+ * ровно как «О» или «Р», — и в показе на главной, где всё нарисовано
+ * буквами, стоит он же. Два места, где человек видит это кольцо, теперь
+ * показывают его одинаково.
+ */
+const NOTE_MARK = "\u270e";
+
 /** Не мельче этого квадрат не бывает: в цель меньше пальца не попадают. */
 const LEAST_CELL = 34;
 
@@ -849,7 +865,7 @@ function Ring({
                   // Кольцо стоит выше затемнения (110) и ниже лампы: гасится
                   // всё, кроме лампы — так же, как это делают окна
                   // (`.scrim` в `globals.css`).
-                  "day-ring-cell fixed z-[115] flex cursor-pointer items-center justify-center",
+                  "day-ring-cell day-ring-face fixed z-[115] flex cursor-pointer items-center justify-center",
                   "rounded-md border font-mono text-[13px] leading-none shadow-lg",
                   // Цвет, рамка и цвет буквы — из общего словаря сетки: в
                   // кольце вид суток выглядит ровно так, как он будет
@@ -1170,7 +1186,11 @@ function RingLegend({
             >
               <span
                 className={cn(
-                  "relative flex size-5 shrink-0 items-center justify-center",
+                  // Тот же знак, что в кольце, и тем же цветом — включая
+                  // сгущение светлой темы (`day-ring-face` в `globals.css`):
+                  // словарь стоит на том же затемнении, что и квадраты, и
+                  // бледнел бы вместе с ними.
+                  "day-ring-face relative flex size-5 shrink-0 items-center justify-center",
                   "rounded-md border font-mono text-[10px] leading-none",
                   face.tone,
                 )}
@@ -1277,7 +1297,7 @@ function faceOf(slot: Slot, shift: boolean): Face {
         { mark: "С", tone: SHIFT_TONE, label: "Поставить смену" };
   }
   return {
-    mark: <Pencil aria-hidden className="size-4" />,
+    mark: NOTE_MARK,
     tone: RING_NOTE_TONE,
     label: "Заметка к этому дню",
     short: "Заметка",

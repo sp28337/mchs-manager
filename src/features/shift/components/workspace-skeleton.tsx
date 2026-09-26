@@ -1,4 +1,4 @@
-import { FolderOpen, Save, Settings, ZoomIn, ZoomOut } from "lucide-react";
+import { ZoomIn, ZoomOut } from "lucide-react";
 
 import type { ReactNode } from "react";
 
@@ -19,7 +19,7 @@ import {
   WORKSPACE_PAD,
 } from "./grid-deck";
 import { CalendarIcon, PeriodIcon, ShiftsIcon } from "./grid-icons";
-import { LABELS_FROM } from "./header-tools";
+import { ToolLabel, TOOL_ROW } from "./header-tools";
 import { LiveSignal, LIVE_ROW_CAPTION, LIVE_ROW_CELL } from "./live-mode";
 import { MetaSep, MonthGrid, YEAR_BOX, YEAR_GRID } from "./month-grid";
 import { MONTH_NAMES } from "./month-names";
@@ -315,28 +315,26 @@ function DeckCellBone({
 }
 
 /**
- * Кнопки шапки: настройки, открытие и выгрузка.
+ * Кнопки шапки: настройки, статистика, открытие и выгрузка.
  *
  * Живут они в рабочем экране, а тот появляется только с профилем, — и
  * пока профиль читается, шапка стояла пустой, а потом в ней разом
  * возникали кнопки. Заглушка обещает КАЖДУЮ кнопку расчёта: они на виду с
  * первого кадра.
  *
- * Разметка повторяет `HeaderTools` целиком, вместе с порогом подписей —
- * и порог берётся оттуда же переменной, а не переписывается сюда: без
- * него на телефоне кость была бы шире кнопки, которая её сменит, а с
- * переписанным он рано или поздно разошёлся бы с настоящим.
+ * Разметка повторяет `HeaderTools` целиком: и сам ряд, и подписи берутся
+ * оттуда же (`TOOL_ROW`, `ToolLabel`), а не переписываются сюда. Порог, с
+ * которого подписи появляются, и ширина каждого места ряда тогда у кости
+ * и у кнопки одни; переписанные, они рано или поздно разошлись бы — и в
+ * миг подстановки шапка дёрнулась бы ровно там, где заглушка и
+ * существует, чтобы этого не случилось.
  */
 export function HeaderToolsBones() {
   return (
     <div className="flex items-center gap-2">
-      {[
-        { label: "Настройки", Icon: Settings },
-        { label: "Открыть", Icon: FolderOpen },
-        { label: "Сохранить", Icon: Save },
-      ].map(({ label, Icon }) => (
+      {TOOL_ROW.map(({ id, label, words, Icon }) => (
         <span
-          key={label}
+          key={id}
           className={cn(
             "lit inline-flex h-9 shrink-0 items-center gap-2 rounded-xl",
             "px-3 text-sm font-medium",
@@ -344,7 +342,10 @@ export function HeaderToolsBones() {
           )}
         >
           <Icon aria-hidden className="size-4.5 shrink-0 opacity-0" />
-          <span className={LABELS_FROM}>{label}</span>
+          {/* Слово и вся его стопка — те же, что у настоящей кнопки: ширину
+              места держит самое длинное из них, и кость, знай она только
+              своё слово, оказалась бы уже той кнопки, которая её сменит. */}
+          <ToolLabel word={label} words={words} />
         </span>
       ))}
     </div>
@@ -539,7 +540,7 @@ function SegmentBone({
     <span
       className={cn(
         "inline-flex h-9 shrink-0 items-center justify-center gap-1.5",
-        "whitespace-nowrap rounded-lg px-3 text-xs font-medium",
+        "whitespace-nowrap rounded-xl px-3 text-xs font-medium",
         wide ? "[&_svg]:size-4.5" : "[&_svg]:size-4",
         "[&_svg]:shrink-0 [&_svg]:opacity-0",
         "skeleton-bone text-transparent lg:flex-1/2",

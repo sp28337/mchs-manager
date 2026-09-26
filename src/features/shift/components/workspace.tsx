@@ -1,9 +1,10 @@
 "use client";
 
+import { ChartColumn, FolderOpen, Settings } from "lucide-react";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 
 import { Hint } from "@/components/ui/hint";
-import { SiteHeader } from "@/components/shared/site-header";
+import { BrandLabel, SiteHeader } from "@/components/shared/site-header";
 import { cn } from "@/lib/utils/cn";
 import { todayIso, type IsoDate } from "../domain/plain-date";
 import {
@@ -15,7 +16,7 @@ import {
   statutoryBounds,
   withShiftMoved,
 } from "../model/derive";
-import { openEntry, readEntryProfile, type LibraryEntry } from "../storage/library";
+import { openEntry, type LibraryEntry } from "../storage/library";
 import type { StoredProfile } from "../storage/profile";
 import { ChangesList } from "./changes-list";
 import { DayRing } from "./day-ring";
@@ -29,6 +30,7 @@ import { ProfileFooter } from "./profile-footer";
 import { ProfileName } from "./profile-name";
 import { DangerActions, SettingsPanel } from "./settings-panel";
 import { SETTINGS_TAB_LABEL, type SettingsTab } from "./settings-tabs";
+import { Statistics } from "./statistics";
 import { CalendarNote } from "./year-calendar-editor";
 import {
   YearView,
@@ -265,6 +267,68 @@ export function Workspace({
       return next;
     });
     setExplorerOpen(false);
+    setStatsOpen(false);
+    setStatsShown(null);
+  }
+
+  /**
+   * Статистика за год — на месте календаря, как настройки и проводник.
+   *
+   * --- Почему не окном ------------------------------------------------------
+   *
+   * Окном она и была: широкий лист поверх страницы, двенадцать столбцов на
+   * трёх рисунках и таблица в семь колонок. Читают её долго — не «сколько
+   * сейчас», а «как шёл год», — и всё это время под листом лежало ровно
+   * то, о чём в нём написано: тот самый график, с теми самыми сменами.
+   * Окно закрывало собой источник собственных чисел.
+   *
+   * И способ показа получался третьим. Настройки и проводник подменяют
+   * содержимое страницы на месте, кнопкой, которая их же и закрывает, —
+   * статистика окном заставляла бы человека держать в голове, что одни
+   * кнопки шапки меняют страницу, а одна открывает лист поверх неё.
+   *
+   * Откат прокрутки — тот же и по той же причине, что у настроек: без него
+   * браузер, поджав страницу до новой высоты, показал бы статистику с
+   * середины.
+   */
+  const [statsOpen, setStatsOpen] = useState(false);
+
+  /**
+   * Чужой профиль, выбранный в статистике, — наверху страницы.
+   *
+   * --- Зачем ------------------------------------------------------------------
+   *
+   * В статистике переключаются между профилями, а полоса цифр и имя над ней
+   * оставались от открытого: человек смотрел статистику Сидорова под
+   * заголовком «Петров И. С.» и его же переработкой. Два разных профиля на
+   * одном экране, и ни один из них не назван лишним.
+   *
+   * --- Почему это не «открыть профиль» ---------------------------------------
+   *
+   * Потому что в хранилище по-прежнему лежит нынешний, и выход из
+   * статистики возвращает всё как было — тем же движением, каким возвращает
+   * указатель, уведённый со строки проводника. Показ и открытие — разные
+   * действия, и смешать их значило бы менять человеку график, пока он
+   * смотрит чужие числа.
+   *
+   * Свод (по всем или по папке) сюда не попадает: одного профиля у него нет,
+   * а подставить наверх сумму по разным людям — значило бы назвать её чьей-то
+   * переработкой.
+   */
+  const [statsShown, setStatsShown] = useState<StoredProfile | null>(null);
+
+  function toggleStats() {
+    setSwitched(true);
+    setStatsOpen((open) => {
+      const next = !open;
+      if (next) window.scrollTo(0, 0);
+      return next;
+    });
+    setSettingsOpen(false);
+    setExplorerOpen(false);
+    // И на входе, и на выходе: статистика всегда открывается на том
+    // профиле, что открыт, и всегда оставляет после себя его же.
+    setStatsShown(null);
   }
 
   /**
@@ -293,31 +357,19 @@ export function Workspace({
       return next;
     });
     setSettingsOpen(false);
-    setPreviewId(null);
+    setStatsOpen(false);
+    setStatsShown(null);
   }
 
   /**
-   * Выбранный в проводнике профиль — наверху страницы, до открытия.
+   * Показанный, но не открытый профиль.
    *
-   * --- Зачем показывать то, что ещё не открыто --------------------------------
-   *
-   * Список говорит о профиле имя и время последней правки, а человек
-   * выбирает между графиками по ЧИСЛАМ: где сколько переработки. Открыть
-   * ради этого каждый профиль по очереди значит каждый раз менять то, что
-   * лежит в хранилище, — и возвращаться обратно.
-   *
-   * Поэтому имя и полоса цифр перестраиваются под тот профиль, на который
-   * человек навёл указатель. Сам профиль при этом не открыт: в хранилище
-   * по-прежнему лежит нынешний, и стоит увести указатель — числа вернутся.
-   *
-   * На экране без указателя наведения не существует, и показ достаётся
-   * первому нажатию, а открытие — второму (`profile-explorer.tsx`).
+   * Путь к нему теперь один — выбор в статистике. Второй был у проводника:
+   * наведение на строку показывало её числа наверху страницы. Вместе с
+   * полосой цифр и именем, которых в проводнике больше нет, ушёл и он —
+   * показывать стало негде и нечем.
    */
-  const [previewId, setPreviewId] = useState<string | null>(null);
-  const preview = useMemo(
-    () => (previewId === null ? null : readEntryProfile(previewId)),
-    [previewId],
-  );
+  const preview = statsShown;
 
   /**
    * Расчёт для показанного профиля — свой, а не нынешний.
@@ -356,7 +408,6 @@ export function Workspace({
       const next = openEntry(entry.id);
       if (next === null) return;
       onReplace(next);
-      setPreviewId(null);
       setExplorerOpen(false);
     });
   }
@@ -424,15 +475,16 @@ export function Workspace({
       <SiteHeader
         // Знак называет «Настройки» вместо «График 1|3», пока показаны
         // они, а не сам расчёт: страница та же, читает она о себе другое.
+        // Значок у каждого — тот же, что на кнопке, которой раздел открыли
+        // (`header-tools.tsx`): на узком экране слово не влезает и уступает
+        // ему место (`BrandLabel`).
         brandLabel={
           explorerOpen ? (
-            // Ниже 360 точек название уходит с глаз, но не из разметки:
-            // кнопок в этом состоянии четыре, и в строку со словом
-            // «ПРОФИЛИ» они на таком экране не встают. Само состояние при
-            // этом видно и без слова — страница занята списком графиков.
-            <span className="max-[359px]:sr-only">Профили</span>
+            <BrandLabel icon={FolderOpen}>Профили</BrandLabel>
           ) : showSettings ? (
-            "Настройки"
+            <BrandLabel icon={Settings}>Настройки</BrandLabel>
+          ) : statsOpen ? (
+            <BrandLabel icon={ChartColumn}>Статистика</BrandLabel>
           ) : undefined
         }
         tools={
@@ -440,6 +492,8 @@ export function Workspace({
             profile={profile}
             settingsOpen={settingsOpen}
             onToggleSettings={toggleSettings}
+            statsOpen={statsOpen}
+            onToggleStats={toggleStats}
             explorerOpen={explorerOpen}
             onToggleExplorer={toggleExplorer}
             explorerTools={explorerTools}
@@ -467,50 +521,75 @@ export function Workspace({
           WORKSPACE_PAD,
         )}
       >
-      {/* Поле под именем — не про воздух: полоса с числами закрывает над
-          собой двенадцать точек бумаги (щиток в `PeriodSummary`, он гасит
-          просвет под шапкой), и без этого зазора щиток лёг бы прямо на
-          имя. */}
-      <header className="pb-12">
-        {/* Пока наверху показан ЧУЖОЙ профиль, имя не правится: нажатие по
-            нему правило бы открытый, а человек читает не его. */}
-        <ProfileName
-          profile={headProfile}
-          onChange={onChange}
-          editable={preview === null}
-        />
-      </header>
+      {/* Имя и числа — о профиле, который ОТКРЫТ. В проводнике открытого
+          профиля на экране нет: там список из всех, и один из них — этот.
+          -----------------------------------------------------------------
+          Раньше они стояли и здесь: имя сверху, под ним полоса цифр, а
+          наведение на строку списка подменяло в них числа на числа той
+          строки. Замысел был — сравнивать графики, не открывая их; на деле
+          выходило, что страница, на которой ВЫБИРАЮТ профиль, наполовину
+          занята одним конкретным, да ещё и меняющимся от движения мыши.
+          Человек, зашедший переименовать папку, читал чужую переработку.
 
-      {/* Итог — закреплённой полосой, календарь — во всю ширину под ней.
-          Числа и сетка нужны одновременно: человек отмечает день и тут же
-          смотрит, что стало с нормой. Колонкой слева это стоило календарю
-          четырёхсот точек ширины, а лентой сверху — прокрутки назад через
-          двенадцать сеток.
+          Поэтому в проводнике их нет вовсе, и место наверху достаётся
+          спискам. Настройки и статистика их сохраняют: там речь как раз об
+          открытом профиле, и числа при нём — ответ на вопрос «что я правлю»
+          (`Statistics` умеет подменять их выбранным профилем сама). */}
+      {explorerOpen ? null : (
+        <>
+          {/* Поле под именем — не про воздух: полоса с числами закрывает
+              над собой двенадцать точек бумаги (щиток в `PeriodSummary`, он
+              гасит просвет под шапкой), и без этого зазора щиток лёг бы
+              прямо на имя. */}
+          <header className="pb-12">
+            {/* Пока наверху показан ЧУЖОЙ профиль, имя не правится: нажатие
+                по нему правило бы открытый, а человек читает не его. */}
+            <ProfileName
+              profile={headProfile}
+              onChange={onChange}
+              editable={preview === null}
+            />
+          </header>
 
-          На телефоне та же полоса умеет становиться закладками настроек
-          (`settings`, ниже) — тем же способом, каким шапка выше умеет
-          называть себя «Настройки»: одно место экрана, разное содержимое. */}
-      <PeriodSummary
-        calculation={previewCalculation ?? calculation}
-        accountingYear={headProfile.accountingYear}
-        overtimeInShifts={headProfile.overtimeInDays}
-        shiftDurationHours={headProfile.shiftDurationHours}
-        settings={{ open: showSettings, tab: settingsTab, onTab: setSettingsTab }}
-      />
+          {/* Итог — закреплённой полосой, календарь — во всю ширину под ней.
+              Числа и сетка нужны одновременно: человек отмечает день и тут
+              же смотрит, что стало с нормой. Колонкой слева это стоило
+              календарю четырёхсот точек ширины, а лентой сверху — прокрутки
+              назад через двенадцать сеток.
+
+              На телефоне та же полоса умеет становиться закладками настроек
+              (`settings`, ниже) — тем же способом, каким шапка выше умеет
+              называть себя «Настройки»: одно место экрана, разное
+              содержимое. */}
+          <PeriodSummary
+            calculation={previewCalculation ?? calculation}
+            accountingYear={headProfile.accountingYear}
+            overtimeInShifts={headProfile.overtimeInDays}
+            shiftDurationHours={headProfile.shiftDurationHours}
+            settings={{ open: showSettings, tab: settingsTab, onTab: setSettingsTab }}
+          />
+        </>
+      )}
 
       {/* Колонка, а не `space-y`: подвалу нужно `mt-auto`, а оно работает
           только во флексе. */}
       <div className="flex flex-1 flex-col gap-10">
       {explorerOpen ? (
-        <FadeIn key="explorer" instant={!switched}>
-          <section aria-labelledby="explorer-heading" className="space-y-4">
+        // Проявляется тем же порядком, что настройки: сперва страница
+        // расчищается, потом проступает раздел. Пауза (`REVEAL_DELAY_MS`)
+        // та же — она отмеряна по тому, за сколько гаснут цифры наверху, а
+        // гаснут они теперь и здесь; без неё проводник наезжал бы на
+        // уходящую полосу, и два движения шли бы одно сквозь другое.
+        <FadeIn key="explorer" delayMs={REVEAL_DELAY_MS} instant={!switched}>
+          {/* Верхнего поля нет: имя и числа отсюда убраны, и список
+              начинается сразу под шапкой — так же, как под ней начинаются
+              закладки настроек. */}
+          <section aria-labelledby="explorer-heading" className="space-y-4 pt-2">
             <h2 id="explorer-heading" className="sr-only">
               Профили
             </h2>
             <ProfileExplorer
               tools={explorerTools}
-              previewId={previewId}
-              onPreview={setPreviewId}
               onChange={onChange}
               onOpenEntry={askOpenEntry}
             />
@@ -611,6 +690,35 @@ export function Workspace({
             </div>
           </section>
         </FadeIn>
+      ) : statsOpen ? (
+        // Статистика на месте графика — тем же порядком, что настройки и
+        // проводник: страница подменяется, панель управления сеткой
+        // (`GridDeck`, ниже) при этом скрыта — управлять ей нечем.
+        <FadeIn key="stats" instant={!switched}>
+          {/* Во всю ширину страницы — ровно как полоса цифр над ней и как
+              сетка, которую статистика собой заменила. Предел в 64 рема тут
+              был, и от него пришлось отказаться: узкая колонка посреди
+              широкой полосы читалась как вставка в страницу, а не как сама
+              страница, и края её ни с чем не сходились. Рисункам ширина
+              только на пользу — они заданы долями, а не точками. */}
+          {/* Подъём на восемь точек — тот же, что у раздела с сеткой ниже, и
+              по той же причине: полоса цифр над ними закреплена и поднята
+              (`-translate-y-8` в `period-summary.tsx`), а раздел под ней
+              обязан встать вплотную к ней, а не к тому месту, где она
+              стояла бы в потоке. Без этого строка выбора в статистике
+              оказывалась на восемь точек ниже строки управления сеткой —
+              замером 280 против 272, — хотя ростом они одинаковы. */}
+          <section aria-labelledby="stats-heading" className="w-full -translate-y-2">
+            {/* Заголовок только для программы чтения: что открыто, на
+                экране уже сказано знаком сайта («Статистика») и нажатой
+                кнопкой в шапке, а строка под полосой цифр повторяла бы это
+                третий раз. */}
+            <h2 id="stats-heading" className="sr-only">
+              Статистика за {profile.accountingYear} год
+            </h2>
+            <Statistics profile={profile} onShow={setStatsShown} />
+          </section>
+        </FadeIn>
       ) : (
         // Календарь не сворачивается. Крышка над ним была наследством от
         // времён, когда на странице стояло пять разделов и двенадцать
@@ -691,7 +799,7 @@ export function Workspace({
 
           Пока показаны настройки, панели тоже нет: управлять ей нечем —
           сетки на экране в этот момент нет вовсе. */}
-      {showSettings || explorerOpen ? null : (
+      {showSettings || explorerOpen || statsOpen ? null : (
         <GridDeck
           profile={profile}
           onChange={onChange}

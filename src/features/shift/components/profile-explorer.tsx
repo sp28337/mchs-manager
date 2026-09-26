@@ -183,16 +183,11 @@ function pickProfileFile(
 
 export function ProfileExplorer({
   tools,
-  previewId,
-  onPreview,
   onChange,
   onOpenEntry,
 }: {
   /** Три действия из шапки и их состояние (`useExplorerTools`). */
   tools: ExplorerTools;
-  /** Запись, которую сейчас показывают наверху страницы, или `null`. */
-  previewId: string | null;
-  onPreview: (entryId: string | null) => void;
   /** Правка открытого профиля: ею переименовывается открытая запись. */
   onChange: (change: (previous: StoredProfile) => StoredProfile) => void;
   /** Человек выбрал профиль. Спросить про нынешний и открыть — забота вызывающего. */
@@ -206,12 +201,18 @@ export function ProfileExplorer({
   const [taken, setTaken] = useState<string | null>(null);
 
   /**
-   * Наведение показывает профиль наверху страницы, нажатие открывает.
+   * Есть ли на этом экране наведение.
    *
-   * На экране без указателя наведения не бывает вовсе, и оба действия
-   * достаются одной и той же строке по очереди: первое нажатие
-   * показывает, второе — открывает. Порядок тот же, что и с мышью, просто
-   * оба шага делаются пальцем.
+   * От него зависит, прятать ли у плитки папки её кнопки — переименование и
+   * удаление. С мышью они проступают при наведении и не мешают читать имя;
+   * пальцем наведения не бывает вовсе, и там они видны всегда.
+   *
+   * Строку профиля это больше не касается. Наведение на неё показывало
+   * профиль наверху страницы, а нажатие открывало — и на экране без
+   * указателя оба действия доставались одной строке по очереди: первое
+   * нажатие показывало, второе открывало. Показывать теперь негде (имя и
+   * числа из проводника убраны, `workspace.tsx`), и нажатие снова одно:
+   * открыть.
    */
   const hoverable = useMediaQuery("(hover: hover)");
 
@@ -477,16 +478,7 @@ export function ProfileExplorer({
             dragging={drag?.moved === true && drag.entryId === entry.id}
             renaming={renaming?.kind === "entry" && renaming.id === entry.id}
             grip={handlers(entry.id, entry.name)}
-            previewed={previewId === entry.id}
-            // С указателем наведение показывает, нажатие открывает. Без
-            // него показывает первое нажатие, а открывает второе — по той
-            // же строке.
-            onHover={hoverable ? () => onPreview(entry.id) : undefined}
-            onLeave={hoverable ? () => onPreview(null) : undefined}
-            onOpen={() => {
-              if (hoverable || previewId === entry.id) onOpenEntry(entry);
-              else onPreview(entry.id);
-            }}
+            onOpen={() => onOpenEntry(entry)}
             onRename={() => setRenaming({ kind: "entry", id: entry.id, value: entry.name })}
             onCommit={commitRename}
             onCancel={() => setRenaming(null)}
@@ -584,8 +576,13 @@ interface Removal {
  *
  * Читаются они вместе и обновляются вместе: указатель без перечня
  * пометил бы открытым профиль, которого в списке уже нет.
+ *
+ * Вынесен наружу: тем же перечнем пользуется статистика — она считает по
+ * нему свод по всем профилям (`statistics.tsx`). Второй такой же подписки
+ * заводить нельзя: разойдись они хоть на одну правку, и свод показал бы
+ * профиль, которого в проводнике уже нет.
  */
-function useLibrary(): { library: Library; activeId: string | null } {
+export function useLibrary(): { library: Library; activeId: string | null } {
   const [snapshot, setSnapshot] = useState(() => ({
     library: loadLibrary(),
     activeId: activeEntryId(),
@@ -780,9 +777,6 @@ function EntryCard({
   dragging,
   renaming,
   grip,
-  previewed,
-  onHover,
-  onLeave,
   onOpen,
   onRename,
   onCommit,
@@ -794,11 +788,6 @@ function EntryCard({
   dragging: boolean;
   renaming: boolean;
   grip: ReturnType<ReturnType<typeof useEntryDrag>["handlers"]>;
-  /** Этот профиль сейчас показан наверху страницы. */
-  previewed: boolean;
-  /** Показать профиль наверху. Пусто там, где наведения не бывает. */
-  onHover?: () => void;
-  onLeave?: () => void;
   onOpen: () => void;
   onRename: () => void;
   onCommit: (value: string) => void;
@@ -807,25 +796,15 @@ function EntryCard({
 }) {
   return (
     <li
-      onPointerEnter={onHover}
-      onPointerLeave={onLeave}
-      // Фокус с клавиатуры — то же наведение: человек, идущий по списку
-      // табуляцией, видит наверху тот же профиль, что и человек с мышью.
-      onFocus={onHover}
-      onBlur={onLeave}
-      // Показанный наверху светится и без указателя: на телефоне показ
-      // включается нажатием, и иначе непонятно, о каком профиле говорят
-      // цифры.
-      //
       // `min-w-0 max-w-full` — про перенос по строкам (`ul` выше): без
       // первого длинное имя не даст строке ужаться и та вылезет за край,
       // без второго она вылезет за него сама.
       className={cn("min-w-0 max-w-full", dragging && "opacity-40")}
     >
-      <div
-        data-glow={previewed ? "on" : undefined}
-        className="lit relative flex h-full items-center gap-2 rounded-xl bg-paper-raised py-1.5 pr-1.5 pl-1"
-      >
+      {/* Свечения по выбору здесь больше нет: им отмечалась строка, чьи
+          числа стоят наверху страницы, а чисел в проводнике не стало
+          (`workspace.tsx`). */}
+      <div className="lit relative flex h-full items-center gap-2 rounded-xl bg-paper-raised py-1.5 pr-1.5 pl-1">
         {renaming ? (
           <NameField value={entry.name} onCommit={onCommit} onCancel={onCancel} />
         ) : (

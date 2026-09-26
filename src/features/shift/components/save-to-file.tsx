@@ -146,12 +146,7 @@ function SaveDialog({
     >
       <div className="space-y-4">
         <Card>
-          <Field
-            id={nameId}
-            label="Имя файла"
-            note="Расширение «.json» допишется само. Запрещённые в именах файлов знаки заменятся на дефис."
-            stack
-          >
+          <Field id={nameId} label="Имя файла" stack>
             <Input
               id={nameId}
               value={name}
@@ -165,11 +160,18 @@ function SaveDialog({
           </Field>
         </Card>
 
-        <div className="flex flex-wrap gap-2 pt-1 md:flex">
-          <Button type="button" onClick={submit}>
+        {/* Две кнопки строкой и поровну. Строка, а не столбик: кнопка
+            `ui/button.tsx` тянется во всю ширину, и в переносящейся строке
+            каждая занимала бы свою — согласие и отказ вставали бы друг под
+            друга лестницей, хотя это одна развилка из двух равных выходов.
+            `flex-1` задаёт основу в ноль и берёт верх над этой шириной, так
+            что половины ровные на любом экране — ровно как в показе на
+            главной. */}
+        <div className="flex gap-2 pt-1">
+          <Button type="button" className="flex-1" onClick={submit}>
             Сохранить
           </Button>
-          <Button type="button" variant="outline" onClick={onClose}>
+          <Button type="button" variant="outline" className="flex-1" onClick={onClose}>
             Отмена
           </Button>
         </div>
