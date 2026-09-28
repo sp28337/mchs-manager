@@ -1,8 +1,17 @@
 "use client";
 
-import { ChevronLeft, ChevronRight, GripVertical, Pencil, Trash2 } from "lucide-react";
+import {
+  ChevronLeft,
+  ChevronRight,
+  Download,
+  GripVertical,
+  Pencil,
+  Trash2,
+  Upload,
+} from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 
+import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Input } from "@/components/ui/input";
 import { useMediaQuery } from "@/lib/hooks/use-media-query";
@@ -13,22 +22,28 @@ import {
   createFolder,
   deleteEntry,
   deleteFolder,
+  exportLibrary,
   folderPath,
   freeName,
   importEntry,
   loadLibrary,
+  mergeLibraryFile,
   moveEntry,
   nameTaken,
+  readLibraryFile,
   renameEntry,
   renameFolder,
   ROOT_FOLDER_ID,
   subscribeToLibrary,
   type Library,
   type LibraryEntry,
+  type LibraryFile,
   type LibraryFolder,
 } from "../storage/library";
+import { numberWord } from "../domain/decimal";
 import { importProfile, type StoredProfile } from "../storage/profile";
 import { CreateProfileModal } from "./create-profile-modal";
+import { downloadText } from "./save-to-file";
 import { useEntryDrag } from "./use-entry-drag";
 
 /**
@@ -159,6 +174,21 @@ function pickProfileFile(
   onPicked: (profile: StoredProfile) => void,
   onError: (message: string) => void,
 ): void {
+  pickJsonFile((text) => onPicked(importProfile(text)), onError);
+}
+
+/** То же поле, но для файла всей библиотеки (`storage/library.ts`). */
+function pickLibraryFile(
+  onPicked: (file: LibraryFile) => void,
+  onError: (message: string) => void,
+): void {
+  pickJsonFile((text) => onPicked(readLibraryFile(text)), onError);
+}
+
+function pickJsonFile(
+  read: (text: string) => void,
+  onError: (message: string) => void,
+): void {
   const input = document.createElement("input");
   input.type = "file";
   input.accept = "application/json,.json";
@@ -168,13 +198,13 @@ function pickProfileFile(
     input.remove();
     if (!file) return;
     try {
-      onPicked(importProfile(await file.text()));
+      read(await file.text());
     } catch (cause) {
-      onError(
-        cause instanceof Error
-          ? `${cause.message} Нужен файл, сохранённый этим же приложением.`
-          : "Файл не прочитан.",
-      );
+      // Сообщение приходит готовым от того, кто читал файл: он один знает,
+      // чего именно не хватило. Дописанная сюда общая приписка («нужен
+      // файл, сохранённый этим приложением») врала на файле, который этим
+      // приложением как раз и сохранён, — просто не того рода.
+      onError(cause instanceof Error ? cause.message : "Файл не прочитан.");
     }
   });
   document.body.append(input);
@@ -199,6 +229,14 @@ export function ProfileExplorer({
   const [removing, setRemoving] = useState<Removal | null>(null);
   /** «Имя занято» — о переименовании; у действий шапки свой сказ. */
   const [taken, setTaken] = useState<string | null>(null);
+  /**
+   * Что вышло из обмена библиотекой целиком.
+   *
+   * Своё состояние, а не общее с ошибками: отсюда приходит и хорошая весть
+   * («загружено семь профилей»), и плохая («это не файл библиотеки»), и
+   * красная плашка под первой из них читалась бы как отказ.
+   */
+  const [note, setNote] = useState<{ text: string; bad: boolean } | null>(null);
 
   /**
    * Есть ли на этом экране наведение.
@@ -303,6 +341,50 @@ export function ProfileExplorer({
     setRenaming(null);
   }
 
+  /** Вся библиотека — файлом. Имя с датой: копий у человека несколько. */
+  function saveLibrary() {
+    setTaken(null);
+    const counts = {
+      folders: library.folders.filter((it) => it.id !== ROOT_FOLDER_ID).length,
+      profiles: library.entries.length,
+    };
+    downloadText(exportLibrary(), `Библиотека ${today()}.json`);
+    setNote({
+      text: `Выгружено: ${countWord(counts.profiles, "профиль", "профиля", "профилей")}, ${countWord(counts.folders, "папка", "папки", "папок")}.`,
+      bad: false,
+    });
+  }
+
+  function loadLibraryFile() {
+    setTaken(null);
+    setNote(null);
+    pickLibraryFile(
+      (file) => {
+        const added = mergeLibraryFile(file);
+        // Профиль, которому не хватило места в хранилище, пропускается
+        // молча (`mergeLibraryFile`), и молчать о нём здесь нельзя:
+        // человек, перенёсший библиотеку, обязан узнать, что перенеслась
+        // она не вся.
+        const lost = file.entries.length - added.profiles;
+        setNote(
+          added.profiles === 0 && added.folders === 0
+            ? { text: "В файле не оказалось ни одного профиля.", bad: false }
+            : {
+                text:
+                  `Загружено: ${countWord(added.profiles, "профиль", "профиля", "профилей")}, ` +
+                  `${countWord(added.folders, "папка", "папки", "папок")}.` +
+                  (lost > 0
+                    ? ` ${countWord(lost, "профиль", "профиля", "профилей")} ` +
+                      `не поместил${lost === 1 ? "ся" : "ись"}: в браузере кончилось место.`
+                    : ""),
+                bad: lost > 0,
+              },
+        );
+      },
+      (message) => setNote({ text: message, bad: true }),
+    );
+  }
+
   return (
     // Колонка с просветом, а не `space-y`: список профилей отодвигается
     // от папок ещё на ступень (`mt-6` ниже), и в колонке отступ
@@ -384,6 +466,15 @@ export function ProfileExplorer({
 
       {(tools.error ?? taken) !== null ? (
         <p className="rounded-xl bg-signal-soft px-4 py-3 text-sm">{tools.error ?? taken}</p>
+      ) : note !== null ? (
+        <p
+          className={cn(
+            "rounded-xl px-4 py-3 text-sm",
+            note.bad ? "bg-signal-soft" : "lit bg-paper-raised",
+          )}
+        >
+          {note.text}
+        </p>
       ) : null}
 
       <FolderShape />
@@ -494,6 +585,44 @@ export function ProfileExplorer({
             : "Папка пуста. Перетащите сюда профиль за полоску слева от имени."}
         </p>
       ) : null}
+
+      {/* Вся библиотека одним файлом.
+          -----------------------------------------------------------------
+          Стоит в самом низу и негромко: это не то, зачем сюда заходят, но
+          и не то, что человек должен искать в настройках, — библиотека
+          показана на этой странице, и действия над ней целиком её место.
+
+          Довод о самом обмене — в `storage/library.ts`: почему файл, а не
+          папка на диске, и почему загрузка дополняет, а не заменяет. */}
+      <div className="mt-2 max-w-xl space-y-2 border-t border-rule pt-4">
+        <p className="text-xs leading-snug text-ink-muted">
+          Все графики и папки одним файлом — чтобы перенести их на другое
+          устройство или пережить чистку браузера. Загруженное добавится к
+          нынешнему списку, ничего не заменяя.
+        </p>
+        <div className="flex gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="flex-1"
+            onClick={saveLibrary}
+          >
+            <Download aria-hidden />
+            Выгрузить всё
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="flex-1"
+            onClick={loadLibraryFile}
+          >
+            <Upload aria-hidden />
+            Загрузить из файла
+          </Button>
+        </div>
+      </div>
 
       {/* Призрак под пальцем: строка, оторванная от списка, — единственный
           признак того, что перенос идёт. Указателя он не ловит, иначе сам
@@ -969,3 +1098,15 @@ function IconButton({
   );
 }
 
+
+/** «7 профилей», «1 папка» — число со своим словом. */
+function countWord(count: number, one: string, few: string, many: string): string {
+  return `${count} ${numberWord(count, one, few, many)}`;
+}
+
+/** Сегодняшняя дата для имени файла: по календарю того, кто выгружает. */
+function today(): string {
+  const now = new Date();
+  const pad = (value: number) => value.toString().padStart(2, "0");
+  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+}

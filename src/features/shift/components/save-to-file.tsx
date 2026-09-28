@@ -196,11 +196,21 @@ export function downloadProfile(profile: StoredProfile, name: string): void {
   // «график.json.json».
   const typed = name.replace(/\.json$/i, "").trim();
   const chosen = fileNameOf(typed === "" ? profile.displayName : typed);
-  const blob = new Blob([exportProfile(profile)], { type: "application/json" });
+  downloadText(exportProfile(profile), `${chosen}.json`);
+}
+
+/**
+ * Текст — файлом человеку.
+ *
+ * Общая для профиля и для всей библиотеки (`storage/library.ts`): способ
+ * отдать файл один, и расходиться этим двум незачем.
+ */
+export function downloadText(text: string, fileName: string): void {
+  const blob = new Blob([text], { type: "application/json" });
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
-  link.download = `${chosen}.json`;
+  link.download = fileName;
   // Ссылка вставляется в страницу перед нажатием: Chromium срабатывает и
   // на оторванной от документа, а Firefox исторически требует, чтобы она
   // была в дереве.

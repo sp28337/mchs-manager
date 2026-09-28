@@ -522,14 +522,23 @@ export function exportProfile(profile: StoredProfile): string {
 }
 
 export function importProfile(text: string): StoredProfile {
-  const parsed: unknown = JSON.parse(text);
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    // Родное сообщение разбора («Unexpected token…») человеку не говорит
+    // ничего: оно про место в строке, а не про то, что он выбрал не тот
+    // файл.
+    throw new Error("Файл не прочитан: внутри не данные приложения.");
+  }
+
   const result = storedProfileSchema.safeParse(parsed);
   if (!result.success) {
-    const first = result.error.issues[0];
+    // Без подробностей от проверки: её слова («schemaVersion — expected
+    // 1») про поля файла и на чужом языке, а человеку нужно одно — он
+    // выбрал не тот файл.
     throw new Error(
-      first
-        ? `Это не файл профиля: ${first.path.join(".")} — ${first.message}`
-        : "Это не файл профиля.",
+      "Это не файл профиля. Нужен файл, выгруженный этим же приложением.",
     );
   }
   return result.data;

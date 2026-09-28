@@ -6,15 +6,18 @@ import {
   createFolder,
   deleteFolder,
   detachActive,
+  exportLibrary,
   folderPath,
   forgetActive,
   freeName,
   importEntry,
   loadLibrary,
+  mergeLibraryFile,
   moveEntry,
   nameTaken,
   openEntry,
   readEntryProfile,
+  readLibraryFile,
   renameEntry,
   ROOT_FOLDER_ID,
   syncActiveIntoLibrary,
@@ -244,5 +247,87 @@ describe("испорченный перечень", () => {
     expect(library.folders.map((folder) => folder.id)).toEqual([ROOT_FOLDER_ID]);
     expect(library.entries).toEqual([]);
     expect(readEntryProfile(entry.id)?.displayName).toBe("Уцелевший");
+  });
+});
+
+/**
+ * Обмен библиотекой целиком.
+ *
+ * Здесь ошибка не показывает неверное число, а пишет чужой профиль поверх
+ * своего — или молча теряет то, чего в файле не было. Поэтому проверяется
+ * ровно это: что из файла приходят КОПИИ, что своё остаётся на месте и что
+ * чужой файл узнаётся до того, как в проводнике что-то изменится.
+ */
+describe("библиотека одним файлом", () => {
+  function twoProfilesInAFolder(): void {
+    const folder = createFolder("4-й караул");
+    importEntry(profileNamed("Петров"), folder.id);
+    importEntry(profileNamed("Сидоров"));
+  }
+
+  it("выгружает папки и профили целиком, а читается обратно как файл библиотеки", () => {
+    twoProfilesInAFolder();
+
+    const file = readLibraryFile(exportLibrary());
+
+    expect(file.kind).toBe("grafik13.library");
+    expect(file.entries.map((entry) => entry.profile.displayName).sort()).toEqual([
+      "Петров",
+      "Сидоров",
+    ]);
+    // Папка человека в файле есть, служебный корень — тоже (он часть
+    // перечня), а вот профили лежат каждый при своей записи.
+    expect(file.folders.map((folder) => folder.name)).toContain("4-й караул");
+    expect(file.entries.every((entry) => entry.profile.schemaVersion === 1)).toBe(true);
+  });
+
+  it("загрузка добавляет копии, не трогая то, что уже есть", () => {
+    twoProfilesInAFolder();
+    const file = readLibraryFile(exportLibrary());
+    const before = loadLibrary();
+
+    const added = mergeLibraryFile(file);
+
+    expect(added).toEqual({ profiles: 2, folders: 1 });
+
+    const after = loadLibrary();
+    // Прежние записи целы: ни одна не переписана и не удалена.
+    for (const entry of before.entries) {
+      expect(after.entries.some((it) => it.id === entry.id && it.name === entry.name)).toBe(true);
+    }
+    expect(after.entries).toHaveLength(before.entries.length + 2);
+    // Имена не повторяются: пришедшие получили свободные.
+    const names = after.entries.map((entry) => entry.name);
+    expect(new Set(names).size).toBe(names.length);
+    expect(names).toContain("Петров (2)");
+  });
+
+  it("пришедшая папка остаётся своей, а профиль в ней — своим", () => {
+    twoProfilesInAFolder();
+    const file = readLibraryFile(exportLibrary());
+    const before = loadLibrary();
+
+    mergeLibraryFile(file);
+
+    const after = loadLibrary();
+    const guards = after.folders.filter((folder) => folder.name === "4-й караул");
+    expect(guards).toHaveLength(2);
+    // Опознания у папок разные: пришедшая не встала на место своей.
+    expect(guards[0]!.id).not.toBe(guards[1]!.id);
+
+    const copy = guards.find((folder) => !before.folders.some((it) => it.id === folder.id))!;
+    const inside = after.entries.filter((entry) => entry.folderId === copy.id);
+    expect(inside).toHaveLength(1);
+    expect(readEntryProfile(inside[0]!.id)?.displayName).toBe(inside[0]!.name);
+  });
+
+  it("файл одного профиля узнаётся и объясняется, а не сваливается «не тот формат»", () => {
+    expect(() => readLibraryFile(JSON.stringify(profileNamed("Мой график")))).toThrow(
+      /файл одного профиля/i,
+    );
+  });
+
+  it("чужой файл не принимается", () => {
+    expect(() => readLibraryFile('{"kind":"что-то своё"}')).toThrow(/не файл библиотеки/i);
   });
 });

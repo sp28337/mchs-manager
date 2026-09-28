@@ -523,3 +523,199 @@ function folderName(raw: string): string {
   const safe = raw.replace(/\s+/g, " ").trim().slice(0, MAX_FOLDER_NAME_LENGTH);
   return safe === "" ? "Новая папка" : safe;
 }
+
+/* ==========================================================================
+   БИБЛИОТЕКА ОДНИМ ФАЙЛОМ.
+
+   --- Зачем это -------------------------------------------------------------
+
+   В файл уходил ОДИН профиль, а профилей у человека десяток, разложенный по
+   папкам караулов. Перенести всё на другое устройство значило сохранить
+   десять файлов, открыть их там по одному и заново развести по папкам —
+   папки-то в файле одного профиля не лежат. Пережить чистку браузера это
+   тем более не помогало: чистится всё разом, а вспоминать при восстановлении
+   приходилось, какой файл в какую папку.
+
+   Поэтому здесь второй формат файла: весь проводник целиком — папки, записи
+   и снимок профиля у каждой записи.
+
+   --- Почему не путь к папке на диске ----------------------------------------
+
+   Потому что его нет. Веб-странице путей не дают вовсе, а выбор ПАПКИ
+   (`showDirectoryPicker`) есть только в Chrome и Edge на компьютере: ни
+   Safari, ни Firefox, ни один браузер телефона его не умеют — а график
+   правят как раз с телефона. Файл же отдаётся и принимается везде
+   одинаково, и человек сам решает, куда его положить: в «Загрузки», в
+   облако, на флешку.
+
+   --- Почему загрузка ДОПОЛНЯЕТ, а не заменяет -------------------------------
+
+   Замена — это молчаливое удаление того, чего в файле нет: открыл файл
+   годичной давности, и полугода работы как не бывало. Поэтому из файла
+   приходят копии: свои опознания, свои свободные имена. Ничего не
+   перезаписывается и не исчезает, а дубликат человек удалит сам — это
+   действие обратимое, в отличие от потери.
+   ========================================================================== */
+
+/** Как подписан файл библиотеки: по этому слову он и отличается от профиля. */
+const LIBRARY_FILE_KIND = "grafik13.library";
+
+const libraryFileSchema = z.object({
+  kind: z.literal(LIBRARY_FILE_KIND),
+  /**
+   * Версия формата. Пока одна, и всё же названа: файл переживёт не одно
+   * обновление приложения, и разбирать «а этот из какого года» по составу
+   * полей — то, чего потом не распутать.
+   */
+  version: z.literal(1),
+  savedAt: z.string(),
+  folders: z.array(folderSchema).max(100).default([]),
+  entries: z
+    .array(
+      z.object({
+        id: z.string().min(1),
+        folderId: z.string().min(1),
+        name: z.string().max(200),
+        savedAt: z.string(),
+        profile: storedProfileSchema,
+      }),
+    )
+    .max(200)
+    .default([]),
+});
+
+export type LibraryFile = z.infer<typeof libraryFileSchema>;
+
+/**
+ * Вся библиотека одним текстом.
+ *
+ * Запись, чей снимок не читается, в файл не идёт: строка перечня без
+ * профиля — это не график, а обещание графика, и переносить его на другое
+ * устройство незачем.
+ */
+export function exportLibrary(): string {
+  const library = loadLibrary();
+  const entries = library.entries.flatMap((entry) => {
+    const profile = readEntryProfile(entry.id);
+    return profile === null ? [] : [{ ...entry, profile }];
+  });
+
+  const file: LibraryFile = {
+    kind: LIBRARY_FILE_KIND,
+    version: 1,
+    savedAt: new Date().toISOString(),
+    folders: library.folders,
+    entries,
+  };
+  return JSON.stringify(file, null, 2);
+}
+
+/**
+ * Разбор файла библиотеки.
+ *
+ * Отдельным шагом от слияния: так проверка остаётся чистой функцией — её
+ * можно позвать в тесте, не трогая хранилище, — а вызывающий успевает
+ * сказать человеку, что файл не тот, до того как в проводнике что-то
+ * изменится.
+ */
+export function readLibraryFile(text: string): LibraryFile {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    // Родное сообщение разбора («Unexpected token…») человеку не говорит
+    // ничего: оно про место в строке, а не про то, что он выбрал не тот
+    // файл.
+    throw new Error("Файл не прочитан: внутри не данные приложения.");
+  }
+
+  const result = libraryFileSchema.safeParse(parsed);
+  if (result.success) return result.data;
+
+  // Файл одного профиля узнаётся отдельно: он тоже «сохранён этим
+  // приложением», и говорить о нём «это не наш файл» — значит послать
+  // человека искать несуществующую ошибку.
+  if (storedProfileSchema.safeParse(parsed).success) {
+    throw new Error(
+      "Это файл одного профиля. Загрузите его кнопкой «Из файла» в проводнике.",
+    );
+  }
+
+  // Без подробностей от проверки: её слова («kind — expected…») про поля
+  // файла, а человеку нужно одно — он выбрал не тот файл.
+  throw new Error(
+    "Это не файл библиотеки. Нужен файл, выгруженный этим же приложением.",
+  );
+}
+
+/** Сколько всего пришло из файла — чтобы сказать это человеку вслух. */
+export interface LibraryMerge {
+  folders: number;
+  profiles: number;
+}
+
+/**
+ * Библиотека из файла — рядом с нынешней, а не вместо неё.
+ *
+ * --- Почему опознания новые -------------------------------------------------
+ *
+ * Опознание папки и записи — внутреннее, человек его не видит. Взять их из
+ * файла значило бы писать поверх своих: у папки караула на этом устройстве
+ * может оказаться то же опознание, что у чужой папки в файле, — и чужое имя
+ * встало бы на своё место. Поэтому каждой пришедшей папке и записи выдаётся
+ * своё опознание, а родство между ними переписывается по тому же правилу.
+ *
+ * --- Куда ложатся папки верхнего уровня -------------------------------------
+ *
+ * В корень этого устройства. Корневая папка из файла не создаётся вовсе: она
+ * не заведена человеком, она и есть «самый верх», и второго верха в
+ * проводнике быть не может.
+ */
+export function mergeLibraryFile(file: LibraryFile): LibraryMerge {
+  const library = loadLibrary();
+  const known = new Map<string, string>([[ROOT_FOLDER_ID, ROOT_FOLDER_ID]]);
+
+  const folders = file.folders
+    .filter((folder) => folder.id !== ROOT_FOLDER_ID)
+    .map((folder) => {
+      const id = newId();
+      known.set(folder.id, id);
+      return { ...folder, id, name: folderName(folder.name) };
+    })
+    // Родитель переписывается ВТОРЫМ проходом: папка может лежать внутри
+    // той, что в файле стоит после неё, и на первом проходе её нового
+    // опознания ещё не существует.
+    .map((folder) => ({
+      ...folder,
+      parentId: known.get(folder.parentId ?? ROOT_FOLDER_ID) ?? ROOT_FOLDER_ID,
+    }));
+
+  const entries: LibraryEntry[] = [];
+  for (const entry of file.entries) {
+    const id = newId();
+    // Имя подбирается свободное — по той же причине, по какой оно
+    // подбирается у одного профиля из файла (`freeName`): отказать здесь
+    // нельзя, а две записи с одним именем человек не различит.
+    const name = freeName(entry.profile.displayName || entry.name);
+    if (!writeEntryProfile(id, { ...entry.profile, displayName: name })) continue;
+    entries.push({
+      id,
+      folderId: known.get(entry.folderId) ?? ROOT_FOLDER_ID,
+      name,
+      savedAt: entry.savedAt,
+    });
+    // Перечень пишется на каждом шаге: имя следующей записи подбирается по
+    // УЖЕ занятым, включая те, что пришли из этого же файла.
+    writeLibrary({
+      folders: [...library.folders, ...folders],
+      entries: [...library.entries, ...entries],
+    });
+  }
+
+  writeLibrary({
+    folders: [...library.folders, ...folders],
+    entries: [...library.entries, ...entries],
+  });
+
+  return { folders: folders.length, profiles: entries.length };
+}
