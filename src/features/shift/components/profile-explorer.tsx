@@ -98,6 +98,15 @@ export interface ExplorerTools {
   folderId: string;
   openFolder: (id: string) => void;
   error: string | null;
+  /**
+   * Сказать о загруженном файле — тем же местом, где говорит об ошибках
+   * сам проводник.
+   *
+   * Нужно окну создания: файл выбирают и в нём («Открыть профиль из
+   * файла»), а сообщение о подменённом имени и о пришедших папках ждут на
+   * одной и той же плашке над списком, а не в двух разных местах.
+   */
+  say: (message: string | null) => void;
 }
 
 export function useExplorerTools(): ExplorerTools {
@@ -135,6 +144,7 @@ export function useExplorerTools(): ExplorerTools {
     folderId,
     openFolder: setFolderId,
     error,
+    say: setError,
   };
 }
 
@@ -541,7 +551,7 @@ export function ProfileExplorer({
       <CreateProfileModal
         open={tools.creating}
         onClose={tools.closeCreate}
-        onCreated={(profile) => {
+        onCreated={(profile, file) => {
           // Заведённый профиль ложится ЗАПИСЬЮ в открытую папку — ровно
           // так же, как загруженный из файла, и по той же причине:
           // человек пришёл сюда пополнить список, а не сменить то, над
@@ -553,7 +563,11 @@ export function ProfileExplorer({
           // появляется в папке, где его завели, а откроется тогда же,
           // когда и любой другой: нажатием по нему.
           tools.closeCreate();
-          importEntry(profile, current.id);
+          // Профиль из того же окна, но пришедший файлом (`file` задан),
+          // идёт тем же путём, что и кнопка «Из файла» в шапке: вместе с
+          // ним приходят папки, а о подменённом имени говорится вслух.
+          if (file === undefined) importEntry(profile, current.id);
+          else tools.say(fileNotice(profile, importProfileFile(profile, file, current.id)));
         }}
       />
     </div>
