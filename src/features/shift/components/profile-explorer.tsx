@@ -134,7 +134,7 @@ export function useExplorerTools(): ExplorerTools {
       // они в нём есть (`importProfileFile`): файл сохранён этим же
       // приложением и несёт весь проводник того устройства.
       pickProfileFile((profile, file) => {
-        setError(fileNotice(profile, importProfileFile(profile, file, folderId)));
+        setError(fileNotice(importProfileFile(profile, file, folderId)));
       }, setError);
     },
     addingFolder,
@@ -151,37 +151,35 @@ export function useExplorerTools(): ExplorerTools {
 /**
  * Что сказать о загруженном файле — или `null`, если говорить нечего.
  *
- * Сказать нужно о двух вещах, и обе человек иначе не заметит.
+ * Человек выбрал ОДИН файл, а в проводнике после этого изменилось место, на
+ * которое он в этот миг даже не смотрит: записи легли не в открытую папку, а
+ * каждая в свою. Значит, сказать нужно, что именно пришло.
  *
- * Первая — подменённое имя. Имена профилей не повторяются, но отказать
- * здесь нельзя: файл уже выбран, и «такое имя занято» не пустило бы в
- * приложение его же сохранённый год. Имя поэтому подбирается свободное, и
- * молчать об этом нельзя — человек искал бы в списке то, под которым
- * сохранял.
+ * И отдельно — что НЕ пришло. Пришедшее узнаётся по именам, и одноимённый
+ * профиль, который на устройстве свежее, остаётся как был
+ * (`importProfileFile`). Промолчи об этом — и человек, открывший файл
+ * годичной давности, решил бы, что тот не открылся вовсе.
  *
- * Вторая — папки и профили, пришедшие вместе с ним. Они лежат не в
- * открытой папке, а каждый в своей, и человек, выбравший ОДИН файл и
- * получивший десяток записей по разным папкам, должен знать, откуда они.
- *
- * Числом, а не перечислением: «перенесено папок: 2» верно при любом их
+ * Числом, а не перечислением: «заведено папок: 2» верно при любом их
  * количестве, а «пришли 2 папки и 1 профиль» требует согласовывать слова с
  * числом в четырёх случаях из четырёх.
  */
-function fileNotice(profile: StoredProfile, imported: ImportedFile): string | null {
+function fileNotice(imported: ImportedFile): string | null {
   const said: string[] = [];
 
-  if (imported.entry.name !== profile.displayName.trim()) {
-    said.push(
-      `Профиль «${profile.displayName.trim()}» уже есть, поэтому ` +
-        `загруженный назван «${imported.entry.name}».`,
-    );
-  }
-
-  const brought = [
+  const born = [
     imported.folders > 0 ? `папок: ${imported.folders}` : null,
     imported.entries > 0 ? `профилей: ${imported.entries}` : null,
   ].filter((it) => it !== null);
-  if (brought.length > 0) said.push(`Из файла перенесено ${brought.join(", ")}.`);
+  if (born.length > 0) said.push(`Из файла заведено ${born.join(", ")}.`);
+
+  if (imported.updated > 0) {
+    said.push(`Обновлено профилей: ${imported.updated}.`);
+  }
+
+  if (said.length === 0 && imported.kept > 0) {
+    said.push("Всё из файла на устройстве уже есть — ничего не изменилось.");
+  }
 
   // Профиль, которому не хватило места в хранилище, пропущен — и человек,
   // перенёсший проводник, обязан узнать, что перенёсся он не весь.
@@ -567,7 +565,7 @@ export function ProfileExplorer({
           // идёт тем же путём, что и кнопка «Из файла» в шапке: вместе с
           // ним приходят папки, а о подменённом имени говорится вслух.
           if (file === undefined) importEntry(profile, current.id);
-          else tools.say(fileNotice(profile, importProfileFile(profile, file, current.id)));
+          else tools.say(fileNotice(importProfileFile(profile, file, current.id)));
         }}
       />
     </div>

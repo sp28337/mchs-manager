@@ -432,13 +432,31 @@ export function importEntry(profile: StoredProfile, folderId = ROOT_FOLDER_ID): 
    Папки, лежавшие в ней, становятся детьми той папки, в которую пришёл
    файл.
 
-   --- Почему приходят КОПИИ -------------------------------------------------
+   --- Почему пришедшее СЛИВАЕТСЯ, а не ложится рядом -------------------------
 
-   Опознания пришедшим папкам и записям выдаются новые, имена подбираются
-   свободные, и ничего из того, что лежало на устройстве, не
-   перезаписывается. Иначе открытие файла годичной давности стирало бы
-   полгода работы — а дубликат человек удалит сам, это действие обратимое,
-   в отличие от потери. */
+   Сперва из файла приходили копии: новые опознания, свободные имена,
+   ничего не перезаписывается. Выглядело это так, что человек, открывший
+   свой же файл на устройстве, где его профили уже лежат, получал вторые
+   «4-й караул» и «Петров И. С. (2)» — и разбирал их вручную. Файл-то его
+   собственный, и «ещё раз открыть» значит «пусть будет как в файле», а не
+   «заведи мне второй комплект».
+
+   Поэтому пришедшее УЗНАЁТСЯ по именам. Папка с тем же именем в том же
+   месте — та же папка, и вторая не заводится. Профиль с тем же именем —
+   тот же профиль: имена профилей в приложении и так не повторяются, это
+   его собственное правило, и опознание у них на деле одно — имя.
+
+   --- Что побеждает при встрече ----------------------------------------------
+
+   Снимок берётся ТОТ, ЧТО СВЕЖЕЕ: у записи есть время последней правки, и
+   открытый файл годичной давности не стирает полгода работы — он просто
+   ничего не меняет. Свежий, наоборот, обновляет устаревшую запись и
+   переносит её туда, где она лежит в файле.
+
+   Исключение одно — профиль, который человек этим файлом ОТКРЫВАЕТ: он
+   встаёт на место своего одноимённого независимо от времени. За этим и
+   открывают файл, а прежняя версия того же профиля всё равно была бы
+   переписана первой же правкой на странице. */
 
 /** Запись в файле — вместе со снимком своего профиля. */
 export interface LibraryFileEntry extends LibraryEntry {
@@ -521,25 +539,17 @@ export function readLibraryFile(text: string): LibraryFile | null {
   return result.success ? result.data : null;
 }
 
-/** Свободное имя среди уже занятых — тех, что ещё не записаны в перечень. */
-function freeNameAmong(name: string, taken: string[]): string {
-  const base = name.trim();
-  const busy = (candidate: string) => taken.some((it) => sameName(it, candidate));
-  if (!busy(base)) return base;
-  for (let n = 2; n < 1000; n += 1) {
-    const candidate = `${base} (${n})`;
-    if (!busy(candidate)) return candidate;
-  }
-  return base;
-}
-
 export interface ImportedFile {
   /** Запись самого профиля из файла — её и открывают. */
   entry: LibraryEntry;
-  /** Сколько папок пришло вместе с ним. */
+  /** Сколько папок из файла на устройстве ЗАВЕДЕНО (остальные уже были). */
   folders: number;
-  /** Сколько ДРУГИХ профилей пришло вместе с ним. */
+  /** Сколько ДРУГИХ профилей заведено. */
   entries: number;
+  /** Сколько одноимённых профилей обновлено снимком посвежее. */
+  updated: number;
+  /** Сколько оставлено как есть: на устройстве они свежее, чем в файле. */
+  kept: number;
   /** Сколько профилей не поместилось в хранилище. */
   skipped: number;
 }
@@ -548,13 +558,13 @@ export interface ImportedFile {
  * Профиль из файла — записью в проводнике, вместе со всем, что в файле лежало.
  *
  * Пишется это одним разом, а не вызовом `importEntry` на каждый профиль:
- * перечень тогда перечитывался бы и переписывался по разу на запись, и
- * свободные имена подбирались бы по вчерашнему его состоянию — два
- * пришедших «Основных» получили бы одно и то же имя.
+ * перечень тогда перечитывался бы и переписывался по разу на запись, а
+ * пришедшие узнавали бы себя во вчерашнем его состоянии — две записи из
+ * одного файла легли бы под одним именем.
  *
- * Профиль, которому не хватило места в хранилище, пропускается и считается
- * отдельно: человек, перенёсший проводник, обязан узнать, что перенёсся он
- * не весь.
+ * Открыть один и тот же файл дважды — то же, что открыть его однажды: во
+ * второй раз всё уже на месте и ничего не меняется. Этим слияние и
+ * отличается от прежних копий (разобрано выше).
  */
 export function importProfileFile(
   profile: StoredProfile,
@@ -566,57 +576,99 @@ export function importProfileFile(
 
   const folders = [...library.folders];
   const entries = [...library.entries];
-  const taken = library.entries.map((entry) => entry.name);
-
-  // Опознания выдаются ВСЕМ папкам сразу, до того как раскладывается
-  // вложенность: родитель в файле мог стоять в списке после ребёнка.
+  const known = new Map((file?.folders ?? []).map((folder) => [folder.id, folder]));
   const moved = new Map<string, string>();
-  for (const folder of file?.folders ?? []) moved.set(folder.id, newId());
-  for (const folder of file?.folders ?? []) {
-    folders.push({
-      id: moved.get(folder.id)!,
-      name: folderName(folder.name),
-      // Папка из самого верха файла становится ребёнком той папки, в
-      // которую пришёл файл. Потерявшая родителя — туда же: `loadLibrary`
-      // всё равно поднял бы её, но уже в grafik13, мимо открытой папки.
-      parentId:
-        folder.parentId === null ? home : (moved.get(folder.parentId) ?? home),
-    });
-  }
+  let born = 0;
 
-  const place = (folderId: string): string => moved.get(folderId) ?? home;
+  /**
+   * Папка устройства, отвечающая папке из файла: та же по имени и месту —
+   * или заведённая здесь же.
+   *
+   * Считается сверху вниз, от родителя к ребёнку: «та же по месту» без
+   * разобранного родителя не определить, а в файле родитель мог стоять в
+   * списке после ребёнка. Глубина ограничена, и опознание кладётся в
+   * `moved` ДО обхода родителя: в испорченном файле папка могла оказаться
+   * собственной прародительницей, и обход без предела завис бы наглухо.
+   */
+  const place = (id: string | null, depth = 0): string => {
+    if (id === null || depth > 32) return home;
+    const already = moved.get(id);
+    if (already !== undefined) return already;
+    const folder = known.get(id);
+    if (folder === undefined) return home;
 
-  const name = freeNameAmong(profile.displayName, taken);
-  taken.push(name);
+    moved.set(id, home);
+    const parentId = place(folder.parentId, depth + 1);
+    const name = folderName(folder.name);
+    const same = folders.find(
+      (it) => it.parentId === parentId && sameName(it.name, name),
+    );
+    const settled = same?.id ?? newId();
+    if (same === undefined) {
+      folders.push({ id: settled, name, parentId });
+      born += 1;
+    }
+    moved.set(id, settled);
+    return settled;
+  };
+
+  const twin = (name: string): LibraryEntry | undefined =>
+    entries.find((entry) => sameName(entry.name, name));
+
+  // Папка, в которой профиль лежал на том устройстве, — ради этого папки и
+  // переносятся. Нет такой (файл без папок) — открытая.
+  const mineFolder = file === null ? home : place(file.folderId);
+  const was = twin(profile.displayName);
   const mine: LibraryEntry = {
-    id: newId(),
-    // Профиль ложится в ту папку, в которой лежал на том устройстве, а не
-    // в корень: ради этого папки и переносятся.
-    folderId: place(file?.folderId ?? home),
-    name,
+    id: was?.id ?? newId(),
+    folderId: mineFolder,
+    name: was?.name ?? profile.displayName.trim(),
     savedAt: profile.savedAt,
   };
-  writeEntryProfile(mine.id, { ...profile, displayName: name });
-  entries.push(mine);
+  // Имя берётся у одноимённой записи, а не из профиля: отличаться они могут
+  // только регистром и пробелами, и менять из-за этого строку в списке —
+  // значит дёргать её на ровном месте.
+  writeEntryProfile(mine.id, { ...profile, displayName: mine.name });
+  if (was === undefined) entries.push(mine);
+  else entries[entries.indexOf(was)] = mine;
 
   let added = 0;
+  let updated = 0;
+  let kept = 0;
   let skipped = 0;
   for (const entry of file?.entries ?? []) {
-    const free = freeNameAmong(entry.name, taken);
-    const id = newId();
+    const folderId = place(entry.folderId);
+    const here = twin(entry.name);
+
+    if (here === undefined) {
+      const id = newId();
+      if (!writeEntryProfile(id, { ...entry.profile, displayName: entry.name })) {
+        skipped += 1;
+        continue;
+      }
+      entries.push({ id, folderId, name: entry.name, savedAt: entry.savedAt });
+      added += 1;
+      continue;
+    }
+
+    // На устройстве свежее — значит, в файле старое, и трогать нечего.
+    if (entry.savedAt <= here.savedAt) {
+      kept += 1;
+      continue;
+    }
+
     // Имя правится и в снимке: в перечне оно копия, и разойдись они —
     // человек, открыв «Подработку», увидел бы на странице другое имя.
-    if (!writeEntryProfile(id, { ...entry.profile, displayName: free })) {
+    if (!writeEntryProfile(here.id, { ...entry.profile, displayName: here.name })) {
       skipped += 1;
       continue;
     }
-    taken.push(free);
-    entries.push({ id, folderId: place(entry.folderId), name: free, savedAt: entry.savedAt });
-    added += 1;
+    entries[entries.indexOf(here)] = { ...here, folderId, savedAt: entry.savedAt };
+    updated += 1;
   }
 
   writeLibrary({ folders, entries });
-  return { entry: mine, folders: moved.size, entries: added, skipped };
+  return { entry: mine, folders: born, entries: added, updated, kept, skipped };
 }
 
 /**
