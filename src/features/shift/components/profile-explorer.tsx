@@ -14,8 +14,8 @@ import {
   deleteEntry,
   deleteFolder,
   folderPath,
-  freeName,
   importEntry,
+  importProfileFile,
   loadLibrary,
   moveEntry,
   nameTaken,
@@ -23,12 +23,14 @@ import {
   renameFolder,
   ROOT_FOLDER_ID,
   subscribeToLibrary,
+  type ImportedFile,
   type Library,
   type LibraryEntry,
   type LibraryFolder,
 } from "../storage/library";
-import { importProfile, type StoredProfile } from "../storage/profile";
+import { type StoredProfile } from "../storage/profile";
 import { CreateProfileModal } from "./create-profile-modal";
+import { pickProfileFile } from "./pick-profile-file";
 import { useEntryDrag } from "./use-entry-drag";
 
 /**
@@ -118,20 +120,12 @@ export function useExplorerTools(): ExplorerTools {
       // Файл ложится в проводник ЗАПИСЬЮ, а не открывается сразу: человек
       // пришёл сюда за списком графиков, и подменять ему открытый профиль,
       // пока он только пополняет список, нельзя.
-      pickProfileFile((profile) => {
-        // Имена профилей не повторяются, но отказать здесь нельзя: файл
-        // уже выбран, и «такое имя занято» не пустило бы в приложение его
-        // же сохранённый год. Поэтому имя подбирается свободное — и о
-        // подмене говорится вслух, иначе человек искал бы в списке то, под
-        // которым сохранял.
-        const displayName = freeName(profile.displayName);
-        importEntry({ ...profile, displayName }, folderId);
-        if (displayName !== profile.displayName.trim()) {
-          setError(
-            `Профиль «${profile.displayName.trim()}» уже есть, поэтому ` +
-              `загруженный назван «${displayName}».`,
-          );
-        }
+      //
+      // Вместе с профилем из файла приходят папки и остальные профили, если
+      // они в нём есть (`importProfileFile`): файл сохранён этим же
+      // приложением и несёт весь проводник того устройства.
+      pickProfileFile((profile, file) => {
+        setError(fileNotice(profile, importProfileFile(profile, file, folderId)));
       }, setError);
     },
     addingFolder,
@@ -145,40 +139,47 @@ export function useExplorerTools(): ExplorerTools {
 }
 
 /**
- * Выбор файла — полем, созданным на месте и тут же выброшенным.
+ * Что сказать о загруженном файле — или `null`, если говорить нечего.
  *
- * Поле, лежащее в разметке невидимкой, потребовало бы ссылки на себя
- * (`ref`), а ссылка эта нужна была бы в ШАПКЕ, где стоит кнопка, — то есть
- * в чужом дереве. Здесь поле живёт ровно столько, сколько длится нажатие.
+ * Сказать нужно о двух вещах, и обе человек иначе не заметит.
  *
- * В документ оно всё же вставляется: Chromium срабатывает и на оторванном
- * от дерева, а Safari исторически требует, чтобы поле в нём было, — та же
- * оговорка, что и у ссылки для выгрузки (`save-to-file.tsx`).
+ * Первая — подменённое имя. Имена профилей не повторяются, но отказать
+ * здесь нельзя: файл уже выбран, и «такое имя занято» не пустило бы в
+ * приложение его же сохранённый год. Имя поэтому подбирается свободное, и
+ * молчать об этом нельзя — человек искал бы в списке то, под которым
+ * сохранял.
+ *
+ * Вторая — папки и профили, пришедшие вместе с ним. Они лежат не в
+ * открытой папке, а каждый в своей, и человек, выбравший ОДИН файл и
+ * получивший десяток записей по разным папкам, должен знать, откуда они.
+ *
+ * Числом, а не перечислением: «перенесено папок: 2» верно при любом их
+ * количестве, а «пришли 2 папки и 1 профиль» требует согласовывать слова с
+ * числом в четырёх случаях из четырёх.
  */
-function pickProfileFile(
-  onPicked: (profile: StoredProfile) => void,
-  onError: (message: string) => void,
-): void {
-  const input = document.createElement("input");
-  input.type = "file";
-  input.accept = "application/json,.json";
-  input.className = "sr-only";
-  input.addEventListener("change", async () => {
-    const file = input.files?.[0];
-    input.remove();
-    if (!file) return;
-    try {
-      onPicked(importProfile(await file.text()));
-    } catch (cause) {
-      onError(
-        cause instanceof Error
-          ? `${cause.message} Нужен файл, сохранённый этим же приложением.`
-          : "Файл не прочитан.",
-      );
-    }
-  });
-  document.body.append(input);
-  input.click();
+function fileNotice(profile: StoredProfile, imported: ImportedFile): string | null {
+  const said: string[] = [];
+
+  if (imported.entry.name !== profile.displayName.trim()) {
+    said.push(
+      `Профиль «${profile.displayName.trim()}» уже есть, поэтому ` +
+        `загруженный назван «${imported.entry.name}».`,
+    );
+  }
+
+  const brought = [
+    imported.folders > 0 ? `папок: ${imported.folders}` : null,
+    imported.entries > 0 ? `профилей: ${imported.entries}` : null,
+  ].filter((it) => it !== null);
+  if (brought.length > 0) said.push(`Из файла перенесено ${brought.join(", ")}.`);
+
+  // Профиль, которому не хватило места в хранилище, пропущен — и человек,
+  // перенёсший проводник, обязан узнать, что перенёсся он не весь.
+  if (imported.skipped > 0) {
+    said.push(`Не поместилось в хранилище браузера профилей: ${imported.skipped}.`);
+  }
+
+  return said.length === 0 ? null : said.join(" ");
 }
 
 export function ProfileExplorer({

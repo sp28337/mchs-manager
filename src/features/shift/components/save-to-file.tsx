@@ -7,11 +7,8 @@ import { Input } from "@/components/ui/input";
 import { Modal } from "@/components/ui/modal";
 import { Card, Field } from "@/components/ui/panel";
 
-import {
-  exportProfile,
-  markProfileExported,
-  type StoredProfile,
-} from "../storage/profile";
+import { profileFileText } from "../storage/library";
+import { markProfileExported, type StoredProfile } from "../storage/profile";
 
 /**
  * Выгрузка профиля в файл.
@@ -183,6 +180,13 @@ function SaveDialog({
 /**
  * Собственно выгрузка.
  *
+ * В файл уходит не только открытый профиль, но и папки проводника со
+ * вложенными в них профилями (`profileFileText`). Отдельной кнопки у этого
+ * нет нарочно: «сохранить профиль» и значит «сохранить то, что у меня
+ * есть», а файл, из которого половина списка не восстанавливается, —
+ * половина спасения. Почему это не ломает старые файлы и почему приходят
+ * копии, разобрано в `storage/library.ts`.
+ *
  * Имя чистится тем же правилом, что и подставленное: человек мог набрать
  * что угодно, включая косую черту, — а имя файла терпит не всё. Пустое
  * поле — не отказ: сохраняется под именем профиля, потому что человек
@@ -196,7 +200,7 @@ export function downloadProfile(profile: StoredProfile, name: string): void {
   // «график.json.json».
   const typed = name.replace(/\.json$/i, "").trim();
   const chosen = fileNameOf(typed === "" ? profile.displayName : typed);
-  const blob = new Blob([exportProfile(profile)], { type: "application/json" });
+  const blob = new Blob([profileFileText(profile)], { type: "application/json" });
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;

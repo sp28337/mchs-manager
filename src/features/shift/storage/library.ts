@@ -43,7 +43,7 @@
 
 import { z } from "zod";
 
-import { storedProfileSchema, type StoredProfile } from "./profile";
+import { exportProfile, storedProfileSchema, type StoredProfile } from "./profile";
 
 /** Перечень папок и записей. Сами профили лежат каждый своим ключом. */
 const INDEX_KEY = "shift-schedule.library";
@@ -399,6 +399,260 @@ export function importEntry(profile: StoredProfile, folderId = ROOT_FOLDER_ID): 
   writeEntryProfile(entry.id, profile);
   writeLibrary({ ...library, entries: [...library.entries, entry] });
   return entry;
+}
+
+/* --- Папки в файле профиля --------------------------------------------------
+
+   Файл профиля уносит с собой ВСЁ, что лежит в проводнике: папки, их
+   вложенность и остальные профили со снимками. Отдельной кнопки у этого
+   нет и быть не должно — «сохранить профиль» и значит «сохранить то, что у
+   меня есть».
+
+   --- Зачем -----------------------------------------------------------------
+
+   Профилей у человека десяток, разложенный по папкам караулов, а в файл
+   уходил один. Перенести всё на другое устройство значило сохранить десять
+   файлов, открыть их там по одному и заново развести по папкам — папок в
+   файле не лежало вовсе. Чистку браузера это не переживало тем более:
+   чистится всё разом, а при восстановлении приходилось вспоминать, какой
+   файл в какую папку.
+
+   --- Почему это не ломает старые файлы --------------------------------------
+
+   Папки лежат ОТДЕЛЬНЫМ полем рядом с профилем, а разбор профиля
+   (`storedProfileSchema`) незнакомые поля отбрасывает. Поэтому файл с
+   папками открывается и прежней версией приложения — она возьмёт из него
+   профиль и не заметит остального, — а файл без папок новой: папок в нём
+   нет, и приходит один профиль, как раньше.
+
+   --- Почему grafik13 в файл не идёт -----------------------------------------
+
+   Её заводит не человек, а приложение, и на том устройстве она уже есть:
+   принеси её файлом — и в проводнике оказалось бы два «самых верха».
+   Папки, лежавшие в ней, становятся детьми той папки, в которую пришёл
+   файл.
+
+   --- Почему приходят КОПИИ -------------------------------------------------
+
+   Опознания пришедшим папкам и записям выдаются новые, имена подбираются
+   свободные, и ничего из того, что лежало на устройстве, не
+   перезаписывается. Иначе открытие файла годичной давности стирало бы
+   полгода работы — а дубликат человек удалит сам, это действие обратимое,
+   в отличие от потери. */
+
+/** Запись в файле — вместе со снимком своего профиля. */
+export interface LibraryFileEntry extends LibraryEntry {
+  profile: StoredProfile;
+}
+
+export interface LibraryFile {
+  /** Папки устройства без grafik13. */
+  folders: LibraryFolder[];
+  /** Остальные профили — без того, что лежит в файле верхним уровнем. */
+  entries: LibraryFileEntry[];
+  /** Папка, в которой лежал сам сохраняемый профиль. */
+  folderId: string;
+}
+
+const libraryFileSchema = z.object({
+  folders: z.array(folderSchema).max(100).default([]),
+  entries: z
+    .array(entrySchema.extend({ profile: storedProfileSchema }))
+    .max(200)
+    .default([]),
+  folderId: z.string().min(1).default(ROOT_FOLDER_ID),
+});
+
+/** Имя файла, под которым папки лежат рядом с профилем. */
+export const LIBRARY_FILE_KEY = "library";
+
+/**
+ * Что уйдёт в файл вместе с профилем, или `null`, если уходить нечему.
+ *
+ * `null` — это ровно прежний файл: у человека с одним профилем и без папок
+ * дописывать к профилю пустой перечень незачем.
+ *
+ * Запись открытого профиля в перечень не идёт: сам профиль лежит в файле
+ * верхним уровнем и свежее своего снимка — правка, сделанная секунду
+ * назад, в снимок попасть ещё не успела. От неё остаётся одно: папка, в
+ * которой она лежала.
+ */
+export function librarySnapshot(): LibraryFile | null {
+  const library = loadLibrary();
+  const active = activeEntryId();
+  const folders = library.folders.filter((folder) => folder.id !== ROOT_FOLDER_ID);
+
+  const entries: LibraryFileEntry[] = [];
+  for (const entry of library.entries) {
+    if (entry.id === active) continue;
+    const profile = readEntryProfile(entry.id);
+    // Нечитаемый снимок переносить нечем: в файл ушла бы строка списка без
+    // профиля за ней.
+    if (profile === null) continue;
+    entries.push({ ...entry, profile });
+  }
+
+  if (folders.length === 0 && entries.length === 0) return null;
+
+  const home =
+    library.entries.find((entry) => entry.id === active)?.folderId ?? ROOT_FOLDER_ID;
+  return { folders, entries, folderId: home };
+}
+
+/**
+ * Папки из текста файла или `null`, если их там нет.
+ *
+ * Разбирается ОТДЕЛЬНО от профиля и молча: файл мог быть сохранён прежней
+ * версией (папок нет вовсе) или испорчен — ни то ни другое не повод не
+ * пустить человека к его же профилю. Профиль из того же текста читает
+ * `importProfile`, и ошибку о файле говорит он.
+ */
+export function readLibraryFile(text: string): LibraryFile | null {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    return null;
+  }
+  if (typeof parsed !== "object" || parsed === null) return null;
+  const raw = (parsed as Record<string, unknown>)[LIBRARY_FILE_KEY];
+  if (raw === undefined) return null;
+  const result = libraryFileSchema.safeParse(raw);
+  return result.success ? result.data : null;
+}
+
+/** Свободное имя среди уже занятых — тех, что ещё не записаны в перечень. */
+function freeNameAmong(name: string, taken: string[]): string {
+  const base = name.trim();
+  const busy = (candidate: string) => taken.some((it) => sameName(it, candidate));
+  if (!busy(base)) return base;
+  for (let n = 2; n < 1000; n += 1) {
+    const candidate = `${base} (${n})`;
+    if (!busy(candidate)) return candidate;
+  }
+  return base;
+}
+
+export interface ImportedFile {
+  /** Запись самого профиля из файла — её и открывают. */
+  entry: LibraryEntry;
+  /** Сколько папок пришло вместе с ним. */
+  folders: number;
+  /** Сколько ДРУГИХ профилей пришло вместе с ним. */
+  entries: number;
+  /** Сколько профилей не поместилось в хранилище. */
+  skipped: number;
+}
+
+/**
+ * Профиль из файла — записью в проводнике, вместе со всем, что в файле лежало.
+ *
+ * Пишется это одним разом, а не вызовом `importEntry` на каждый профиль:
+ * перечень тогда перечитывался бы и переписывался по разу на запись, и
+ * свободные имена подбирались бы по вчерашнему его состоянию — два
+ * пришедших «Основных» получили бы одно и то же имя.
+ *
+ * Профиль, которому не хватило места в хранилище, пропускается и считается
+ * отдельно: человек, перенёсший проводник, обязан узнать, что перенёсся он
+ * не весь.
+ */
+export function importProfileFile(
+  profile: StoredProfile,
+  file: LibraryFile | null,
+  into = ROOT_FOLDER_ID,
+): ImportedFile {
+  const library = loadLibrary();
+  const home = library.folders.some((folder) => folder.id === into) ? into : ROOT_FOLDER_ID;
+
+  const folders = [...library.folders];
+  const entries = [...library.entries];
+  const taken = library.entries.map((entry) => entry.name);
+
+  // Опознания выдаются ВСЕМ папкам сразу, до того как раскладывается
+  // вложенность: родитель в файле мог стоять в списке после ребёнка.
+  const moved = new Map<string, string>();
+  for (const folder of file?.folders ?? []) moved.set(folder.id, newId());
+  for (const folder of file?.folders ?? []) {
+    folders.push({
+      id: moved.get(folder.id)!,
+      name: folderName(folder.name),
+      // Папка из самого верха файла становится ребёнком той папки, в
+      // которую пришёл файл. Потерявшая родителя — туда же: `loadLibrary`
+      // всё равно поднял бы её, но уже в grafik13, мимо открытой папки.
+      parentId:
+        folder.parentId === null ? home : (moved.get(folder.parentId) ?? home),
+    });
+  }
+
+  const place = (folderId: string): string => moved.get(folderId) ?? home;
+
+  const name = freeNameAmong(profile.displayName, taken);
+  taken.push(name);
+  const mine: LibraryEntry = {
+    id: newId(),
+    // Профиль ложится в ту папку, в которой лежал на том устройстве, а не
+    // в корень: ради этого папки и переносятся.
+    folderId: place(file?.folderId ?? home),
+    name,
+    savedAt: profile.savedAt,
+  };
+  writeEntryProfile(mine.id, { ...profile, displayName: name });
+  entries.push(mine);
+
+  let added = 0;
+  let skipped = 0;
+  for (const entry of file?.entries ?? []) {
+    const free = freeNameAmong(entry.name, taken);
+    const id = newId();
+    // Имя правится и в снимке: в перечне оно копия, и разойдись они —
+    // человек, открыв «Подработку», увидел бы на странице другое имя.
+    if (!writeEntryProfile(id, { ...entry.profile, displayName: free })) {
+      skipped += 1;
+      continue;
+    }
+    taken.push(free);
+    entries.push({ id, folderId: place(entry.folderId), name: free, savedAt: entry.savedAt });
+    added += 1;
+  }
+
+  writeLibrary({ folders, entries });
+  return { entry: mine, folders: moved.size, entries: added, skipped };
+}
+
+/**
+ * Текст файла профиля: сам профиль и папки проводника рядом с ним.
+ *
+ * Стоит ЗДЕСЬ, а не при выгрузке (`save-to-file.tsx`): папки знает этот
+ * файл, а выгрузок у профиля три места (шапка, подвал, предупреждение
+ * перед сменой профиля), и собирай каждая файл сама — однажды одна из них
+ * уехала бы без папок.
+ */
+export function profileFileText(profile: StoredProfile): string {
+  const snapshot = librarySnapshot();
+  return exportProfile(
+    profile,
+    snapshot === null ? undefined : { [LIBRARY_FILE_KEY]: snapshot },
+  );
+}
+
+/**
+ * То же, но профиль из файла становится ОТКРЫТЫМ.
+ *
+ * Нужно там, где файлом заводят профиль с нуля: на главной и в окне
+ * создания. Возвращает профиль, каким он встанет на страницу, — имя могло
+ * быть занято, и тогда оно подобрано свободное.
+ *
+ * Указатель на запись ставится здесь же, до того как профиль уйдёт на
+ * страницу: первая же его запись (`saveProfile` у вызывающего) иначе
+ * завела бы ему ВТОРУЮ запись в проводнике, рядом с этой.
+ */
+export function openProfileFile(
+  profile: StoredProfile,
+  file: LibraryFile | null,
+): StoredProfile {
+  const imported = importProfileFile(profile, file);
+  writeActiveId(imported.entry.id);
+  return { ...profile, displayName: imported.entry.name };
 }
 
 export function createFolder(name: string, parentId = ROOT_FOLDER_ID): LibraryFolder {
