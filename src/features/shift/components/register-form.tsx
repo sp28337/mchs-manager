@@ -7,6 +7,7 @@ import { CtaIcon } from "@/components/landing/to-calculator";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 
+import { openProfileFile } from "../storage/library";
 import type { StoredProfile } from "../storage/profile";
 import { CreateProfileModal } from "./create-profile-modal";
 
@@ -58,7 +59,13 @@ export function RegisterForm({ onCreated, notice }: RegisterFormProps) {
       <CreateProfileModal
         open={open}
         onClose={() => setOpen(false)}
-        onCreated={onCreated}
+        // Профиль, пришедший файлом, открывается вместе со своими папками
+        // (`openProfileFile`), а наружу уходит один — тому, кто его
+        // запишет. Этот экран для того и остался: сюда попадают с
+        // испорченным хранилищем, то есть ровно с файлом в руках.
+        onCreated={(profile, file) =>
+          onCreated(file === undefined ? profile : openProfileFile(profile, file))
+        }
         notice={notice}
       />
 

@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState, useSyncExternalStore } from "react";
 
 import { CreateProfileModal } from "@/features/shift/components/create-profile-modal";
+import { openProfileFile } from "@/features/shift/storage/library";
 import {
   hasStoredProfile,
   saveProfile,
@@ -74,11 +75,16 @@ export function HeroCta() {
       <CreateProfileModal
         open={open}
         onClose={() => setOpen(false)}
-        onCreated={(profile) => {
+        onCreated={(profile, file) => {
           // Профиль пишется здесь, а не на странице расчёта: та узнала бы
           // о нём только из хранилища и первым делом показала бы заглушку
           // чтения — при том, что профиль только что был в руках.
-          saveProfile(profile);
+          //
+          // Пришедший файлом открывается вместе со своими папками и
+          // остальными профилями (`openProfileFile`): здесь, на главной,
+          // этим путём и возвращаются после чистки браузера или на новом
+          // устройстве — и возвращается весь проводник, а не один график.
+          saveProfile(file === undefined ? profile : openProfileFile(profile, file));
           router.push("/calculator");
         }}
       />

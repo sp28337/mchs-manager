@@ -10,16 +10,21 @@ import {
   forgetActive,
   freeName,
   importEntry,
+  importProfileFile,
+  librarySnapshot,
   loadLibrary,
   moveEntry,
   nameTaken,
   openEntry,
+  openProfileFile,
+  profileFileText,
   readEntryProfile,
+  readLibraryFile,
   renameEntry,
   ROOT_FOLDER_ID,
   syncActiveIntoLibrary,
 } from "./library";
-import { createProfile, type StoredProfile } from "./profile";
+import { createProfile, importProfile, type StoredProfile } from "./profile";
 
 /**
  * Проводник трогает то единственное место, где у человека лежит год
@@ -244,5 +249,176 @@ describe("испорченный перечень", () => {
     expect(library.folders.map((folder) => folder.id)).toEqual([ROOT_FOLDER_ID]);
     expect(library.entries).toEqual([]);
     expect(readEntryProfile(entry.id)?.displayName).toBe("Уцелевший");
+  });
+});
+
+/**
+ * Папки в файле профиля.
+ *
+ * Здесь проверяется то, ради чего всё и заведено: файл, сохранённый на
+ * одном устройстве, восстанавливает на другом не один график, а весь
+ * проводник — с папками, вложенностью и остальными профилями. И второе,
+ * не менее важное: при этом НИЧЕГО не перезаписывается, потому что открытый
+ * файл годичной давности иначе стирал бы полгода работы.
+ */
+describe("папки в файле профиля", () => {
+  /** Запись (и её снимок) с другим временем последней правки. */
+  function writeNewer(id: string, savedAt: string): void {
+    const library = loadLibrary();
+    const profile = readEntryProfile(id)!;
+    window.localStorage.setItem(
+      `shift-schedule.library.entry.${id}`,
+      JSON.stringify({ ...profile, savedAt }),
+    );
+    window.localStorage.setItem(
+      "shift-schedule.library",
+      JSON.stringify({
+        ...library,
+        entries: library.entries.map((entry) =>
+          entry.id === id ? { ...entry, savedAt } : entry,
+        ),
+      }),
+    );
+  }
+
+  /** Проводник одного устройства: две папки вложенно и два профиля. */
+  function deviceWithFolders(): { guard: string; year: string } {
+    const guard = createFolder("Караул 1").id;
+    const year = createFolder("2025", guard).id;
+    syncActiveIntoLibrary(profileNamed("Мой график"));
+    moveEntry(loadLibrary().entries[0]!.id, year);
+    importEntry(profileNamed("Подработка"), guard);
+    return { guard, year };
+  }
+
+  it("в снимок идут папки и ЧУЖИЕ профили, а открытый — нет", () => {
+    const { year } = deviceWithFolders();
+
+    const snapshot = librarySnapshot()!;
+
+    expect(snapshot.folders.map((folder) => folder.name)).toEqual(["Караул 1", "2025"]);
+    expect(snapshot.entries.map((entry) => entry.name)).toEqual(["Подработка"]);
+    expect(snapshot.entries[0]!.profile.displayName).toBe("Подработка");
+    // Папка открытого профиля — единственное, что от его записи остаётся:
+    // сам он лежит в файле верхним уровнем и свежее своего снимка.
+    expect(snapshot.folderId).toBe(year);
+  });
+
+  it("у одного профиля без папок снимка нет вовсе", () => {
+    syncActiveIntoLibrary(profileNamed("Мой график"));
+
+    expect(librarySnapshot()).toBeNull();
+  });
+
+  it("файл с папками остаётся обычным файлом профиля", () => {
+    deviceWithFolders();
+
+    const text = profileFileText(profileNamed("Мой график"));
+
+    // Прежняя версия приложения возьмёт из такого файла профиль и не
+    // заметит приписки: незнакомые поля разбор отбрасывает.
+    expect(importProfile(text).displayName).toBe("Мой график");
+    expect(readLibraryFile(text)?.folders).toHaveLength(2);
+  });
+
+  it("файл без папок и испорченная приписка читаются как «папок нет»", () => {
+    expect(readLibraryFile(profileFileText(profileNamed("Один")))).toBeNull();
+    expect(readLibraryFile('{"library":{"folders":"не список"}}')).toBeNull();
+    expect(readLibraryFile("{это не json")).toBeNull();
+  });
+
+  it("на другом устройстве восстанавливает папки, вложенность и профили", () => {
+    deviceWithFolders();
+    const file = readLibraryFile(profileFileText(profileNamed("Мой график")));
+
+    // Другое устройство: хранилище пустое.
+    stubWindow();
+    const imported = importProfileFile(profileNamed("Мой график"), file);
+
+    const { folders, entries } = loadLibrary();
+    const guard = folders.find((folder) => folder.name === "Караул 1")!;
+    const year = folders.find((folder) => folder.name === "2025")!;
+    expect(folders).toHaveLength(3);
+    expect(guard.parentId).toBe(ROOT_FOLDER_ID);
+    expect(year.parentId).toBe(guard.id);
+    expect(imported).toMatchObject({ folders: 2, entries: 1, skipped: 0 });
+    // Профиль из файла встаёт в ту папку, в которой лежал, — ради этого
+    // папки и переносятся.
+    expect(entries.find((entry) => entry.name === "Мой график")!.folderId).toBe(year.id);
+    expect(entries.find((entry) => entry.name === "Подработка")!.folderId).toBe(guard.id);
+    expect(readEntryProfile(entries[0]!.id)).not.toBeNull();
+  });
+
+  it("на СВОЁМ устройстве ничего не задваивает: тот же файл — те же папки", () => {
+    const { year } = deviceWithFolders();
+    const file = readLibraryFile(profileFileText(profileNamed("Мой график")));
+    const before = loadLibrary();
+
+    const imported = importProfileFile(profileNamed("Мой график"), file);
+
+    const { folders, entries } = loadLibrary();
+    expect(folders).toHaveLength(3);
+    expect(entries.map((entry) => entry.name).sort()).toEqual(["Мой график", "Подработка"]);
+    // Записи — те же самые, а не их тёзки с новыми опознаниями.
+    for (const old of before.entries) {
+      expect(entries.some((entry) => entry.id === old.id && entry.name === old.name)).toBe(true);
+    }
+    expect(imported).toMatchObject({ folders: 0, entries: 0, updated: 0, kept: 1 });
+    expect(imported.entry.folderId).toBe(year);
+  });
+
+  it("файл постарее не затирает запись, которая на устройстве свежее", () => {
+    deviceWithFolders();
+    const file = readLibraryFile(profileFileText(profileNamed("Мой график")))!;
+    // Человек поработал с «Подработкой» уже после того, как сохранил файл.
+    const id = loadLibrary().entries.find((entry) => entry.name === "Подработка")!.id;
+    writeNewer(id, "2030-01-01T00:00:00.000Z");
+
+    const imported = importProfileFile(profileNamed("Мой график"), file);
+
+    expect(imported).toMatchObject({ entries: 0, updated: 0, kept: 1 });
+    expect(loadLibrary().entries.find((entry) => entry.name === "Подработка")!.savedAt).toBe(
+      "2030-01-01T00:00:00.000Z",
+    );
+  });
+
+  it("файл посвежее обновляет устаревшую запись и переносит её в свою папку", () => {
+    const { guard } = deviceWithFolders();
+    const id = loadLibrary().entries.find((entry) => entry.name === "Подработка")!.id;
+    // В файле «Подработка» свежее, чем на устройстве, и лежит в караулe.
+    writeNewer(id, "2030-01-01T00:00:00.000Z");
+    const file = readLibraryFile(profileFileText(profileNamed("Мой график")))!;
+    writeNewer(id, "2020-01-01T00:00:00.000Z");
+    moveEntry(id, ROOT_FOLDER_ID);
+
+    const imported = importProfileFile(profileNamed("Мой график"), file);
+
+    expect(imported).toMatchObject({ entries: 0, updated: 1, kept: 0 });
+    const entry = loadLibrary().entries.find((it) => it.name === "Подработка")!;
+    expect(entry.id).toBe(id);
+    expect(entry.savedAt).toBe("2030-01-01T00:00:00.000Z");
+    expect(entry.folderId).toBe(guard);
+  });
+
+  it("без папок в файле ведёт себя как обычная загрузка профиля", () => {
+    const imported = importProfileFile(profileNamed("Из файла"), null);
+
+    expect(loadLibrary().entries.map((entry) => entry.name)).toEqual(["Из файла"]);
+    expect(imported).toMatchObject({ folders: 0, entries: 0, skipped: 0 });
+    expect(imported.entry.folderId).toBe(ROOT_FOLDER_ID);
+  });
+
+  it("открытым профилем файл становится без второй записи рядом", () => {
+    const old = importEntry(profileNamed("Мой график"));
+
+    const opened = openProfileFile(profileNamed("Мой график"), null);
+
+    // Профиль встал на место своего одноимённого, а указатель — на ту же
+    // запись: первая же правка на странице обновит её, а не заведёт рядом
+    // ещё одну.
+    expect(opened.displayName).toBe("Мой график");
+    expect(activeEntryId()).toBe(old.id);
+    syncActiveIntoLibrary(opened);
+    expect(loadLibrary().entries).toHaveLength(1);
   });
 });

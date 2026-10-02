@@ -516,9 +516,21 @@ export function clearProfile(): void {
   announceProfile();
 }
 
-/** Выгрузка в файл: единственный способ пережить очистку браузера. */
-export function exportProfile(profile: StoredProfile): string {
-  return JSON.stringify(profile, null, 2);
+/**
+ * Выгрузка в файл: единственный способ пережить очистку браузера.
+ *
+ * Рядом с полями профиля в файл ложится то, что передано вторым доводом, —
+ * папки проводника со вложенными в них профилями (`librarySnapshot` в
+ * `library.ts`). Здесь оно безымянным объектом нарочно: профиль о
+ * проводнике не знает и знать не должен — тот надстроен СВЕРХУ, и ссылка
+ * отсюда на него замкнула бы их друг на друга.
+ *
+ * Разбор профиля (`storedProfileSchema`) незнакомые поля отбрасывает,
+ * поэтому файл с папками остаётся обычным файлом профиля: его открывает и
+ * прежняя версия приложения, не заметив приписки.
+ */
+export function exportProfile(profile: StoredProfile, alongside?: object): string {
+  return JSON.stringify({ ...profile, ...alongside }, null, 2);
 }
 
 export function importProfile(text: string): StoredProfile {
