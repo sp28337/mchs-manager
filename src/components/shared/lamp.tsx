@@ -352,6 +352,24 @@ function useLitTilt(ready: boolean): void {
 const REACH = 150;
 
 /**
+ * Он же для клетки суток — вдвое с лишним короче.
+ *
+ * Клетка размером с ноготь, и соседей у неё в той же дали не двое, а
+ * полсотни: от общего вылета света по сетке года ехало бы светлое пятно в
+ * пол-ладони — это читается фонариком, а не светом в комнате. Укороченный
+ * зажигает кольцо клеток вокруг курсора: ровно столько, чтобы сетка
+ * перестала быть плоской.
+ *
+ * Заодно это и цена: клеток на странице больше трёхсот, каждая
+ * перерисовывает свою кайму, и горящих за кадр тут вчетверо меньше, чем
+ * было бы при общем вылете.
+ */
+const TILE_REACH = 64;
+
+/** За сколько гаснет отблеск, когда курсор ушёл с окна. Столько же, сколько кайма. */
+const FADE_MS = 240;
+
+/**
  * Самый яркий отблеск на подступах.
  *
  * Половина от каймы под курсором, и это не осторожность, а разница в
@@ -371,21 +389,8 @@ const NEAR_MAX = 0.55;
  */
 const AIM_FROM = 0.08;
 
-/**
- * Кому достаётся отблеск на подступах — и почему не клеткам календаря.
- *
- * Клетка суток (`.lit-tile`) — не предмет на столе, а часть разлинованного
- * листа: объёма у неё нет, и показывать его нечем. Зажги их приближением —
- * и по сетке года поехало бы световое пятно, которое читается фонариком, а
- * не светом в комнате; заодно это и вся цена затеи, потому что клеток на
- * странице больше трёхсот, и каждая перерисовывает свою кайму.
- *
- * Поднятым поверхностям — плашкам, кнопкам, карточкам, легендам — он
- * достаётся весь: это они лежат НАД бумагой, и это у них есть край, о
- * котором свет и рассказывает. Клеткам остаётся прежнее: кайма под
- * курсором.
- */
-const NEAR_LIT = ".lit, .lit-edge";
+/** Всё, что ловит свет и потому следит за курсором. */
+const NEAR_LIT = ".lit, .lit-edge, .lit-tile";
 
 /**
  * Как быстро отблеск гаснет с расстоянием.
@@ -396,8 +401,8 @@ const NEAR_LIT = ".lit, .lit-edge";
  * наведение, только раньше на палец. Степень в полтора держит середину:
  * свет заметен уже на подступах и сходит на нет без видимой границы.
  */
-function nearness(away: number): number {
-  const close = 1 - away / REACH;
+function nearness(away: number, reach: number): number {
+  const close = 1 - away / reach;
   return NEAR_MAX * close * Math.sqrt(close);
 }
 
@@ -461,9 +466,11 @@ function useCursorGlow(ready: boolean): void {
 
     let frame = 0;
     let latest: PointerEvent | null = null;
-    let boxes: { node: HTMLElement; box: DOMRect }[] = [];
+    let boxes: { node: HTMLElement; box: DOMRect; reach: number }[] = [];
     let measured = 0;
     let stale = true;
+    /** Идущее угасание: кадр, который его ведёт, или 0. */
+    let fading = 0;
     /**
      * Что каждому уже написано.
      *
@@ -482,7 +489,11 @@ function useCursorGlow(ready: boolean): void {
         // экрана, светить некому.
         if (box.width === 0) continue;
         if (box.bottom < -REACH || box.top > window.innerHeight + REACH) continue;
-        boxes.push({ node, box });
+        boxes.push({
+          node,
+          box,
+          reach: node.classList.contains("lit-tile") ? TILE_REACH : REACH,
+        });
       }
       // Погасить то, что из снимка ушло: уехавшая за край экрана или
       // исчезнувшая поверхность иначе осталась бы светиться написанной ей
@@ -505,10 +516,59 @@ function useCursorGlow(ready: boolean): void {
       written.clear();
     };
 
+    /**
+     * Курсор ушёл за край окна — свет уходит за ним, но не разом.
+     *
+     * Погаси его в один кадр, и у края страницы мигнуло бы полдюжины
+     * плашек; оставь как есть — и отблеск остался бы висеть там, где
+     * курсора уже нет, до следующего его появления. Поэтому накал
+     * сводится к нулю за четверть секунды — тем же временем, которым
+     * гаснет кайма наведения (`--rim` в `globals.css`).
+     *
+     * Ведётся это здесь, а не переходом CSS, по той же причине, по
+     * которой отблеск вообще пишется в стиль: переход на `--near`
+     * смягчал бы КАЖДУЮ покадровую поправку, и свет таскался бы за
+     * курсором шлейфом.
+     */
+    const fade = () => {
+      if (fading !== 0 || written.size === 0) return;
+      const started = performance.now();
+      const step = () => {
+        const left = 1 - (performance.now() - started) / FADE_MS;
+        if (left <= 0) {
+          fading = 0;
+          darken();
+          return;
+        }
+        for (const [node, was] of written) {
+          node.style.setProperty("--near", (was.near * left).toFixed(3));
+        }
+        fading = window.requestAnimationFrame(step);
+      };
+      fading = window.requestAnimationFrame(step);
+    };
+
+    /**
+     * Курсор вернулся посреди угасания.
+     *
+     * Погашенное записывается заново целиком: в памяти о написанном лежат
+     * величины ДО угасания, и сличать с ними было бы нечего — поправка на
+     * сотую долю не прошла бы порог, а на узлах остался бы недогасший
+     * свет. Снятие и запись идут в одном кадре, так что промежутка не
+     * видно.
+     */
+    const stopFade = () => {
+      if (fading === 0) return;
+      window.cancelAnimationFrame(fading);
+      fading = 0;
+      darken();
+    };
+
     const paint = () => {
       frame = 0;
       const event = latest;
       if (event === null) return;
+      stopFade();
 
       // Касание: ни приближения, ни того, к чему приближаться, — только
       // блик под пальцем, как было до всего этого.
@@ -526,7 +586,7 @@ function useCursorGlow(ready: boolean): void {
 
       if (stale || performance.now() - measured > 400) measure();
 
-      for (const { node, box } of boxes) {
+      for (const { node, box, reach } of boxes) {
         // Расстояние до самой поверхности, а не до её середины: у длинной
         // плашки середина может быть за экраном, когда её край — под
         // курсором. Внутри расстояние нулевое.
@@ -534,7 +594,7 @@ function useCursorGlow(ready: boolean): void {
         const dy = Math.max(box.top - event.clientY, 0, event.clientY - box.bottom);
         const away = Math.hypot(dx, dy);
 
-        if (away > REACH) {
+        if (away > reach) {
           if (written.delete(node)) node.style.removeProperty("--near");
           continue;
         }
@@ -543,7 +603,7 @@ function useCursorGlow(ready: boolean): void {
         // оно же решает, какой из вложенных поверхностей она достанется
         // (`globals.css`). Напиши её здесь — загорелись бы разом и плашка,
         // и всё, что на ней лежит.
-        const near = away === 0 ? 0 : nearness(away);
+        const near = away === 0 ? 0 : nearness(away, reach);
         // Свет входит в ближнюю к курсору точку поверхности. Пока курсор
         // внутри, это он сам; снаружи — её край с его стороны, и оттого
         // соседи загораются обращёнными друг к другу кромками.
@@ -584,17 +644,35 @@ function useCursorGlow(ready: boolean): void {
       stale = true;
     };
 
-    // Курсор ушёл за край окна: он не «остановился у кромки», он пропал, и
-    // оставленный им отблеск повис бы на странице до следующего движения.
-    const leave = (event: PointerEvent) => {
-      if (event.relatedTarget === null) {
-        latest = null;
-        darken();
-      }
+    /**
+     * Курсор ушёл: он не «остановился у кромки», его больше нет.
+     *
+     * Поводов к этому несколько, и ловятся они все. Выход за край окна
+     * браузер объявляет по-разному — `pointerout` без того, на что
+     * указали, и `mouseleave` у документа, — и какой из них придёт,
+     * зависит от браузера и от того, насколько резко курсор ушёл. К ним
+     * добавлены уход окна из-под рук (`blur`: человек переключился на
+     * другое окно или вкладку) и скрытая вкладка: там отблеск светил бы
+     * никому и ждал бы возвращения, чтобы погаснуть на глазах.
+     */
+    const leave = () => {
+      latest = null;
+      fade();
+    };
+
+    const pointerLeft = (event: PointerEvent) => {
+      if (event.relatedTarget === null) leave();
+    };
+
+    const hidden = () => {
+      if (document.hidden) leave();
     };
 
     window.addEventListener("pointermove", follow, { passive: true });
-    window.addEventListener("pointerout", leave, { passive: true });
+    window.addEventListener("pointerout", pointerLeft, { passive: true });
+    document.addEventListener("mouseleave", leave, { passive: true });
+    window.addEventListener("blur", leave);
+    document.addEventListener("visibilitychange", hidden);
     window.addEventListener("resize", forget);
     window.addEventListener("scroll", forget, { passive: true, capture: true });
     const watcher = new MutationObserver(forget);
@@ -606,11 +684,15 @@ function useCursorGlow(ready: boolean): void {
 
     return () => {
       window.removeEventListener("pointermove", follow);
-      window.removeEventListener("pointerout", leave);
+      window.removeEventListener("pointerout", pointerLeft);
+      document.removeEventListener("mouseleave", leave);
+      window.removeEventListener("blur", leave);
+      document.removeEventListener("visibilitychange", hidden);
       window.removeEventListener("resize", forget);
       window.removeEventListener("scroll", forget, { capture: true });
       watcher.disconnect();
       if (frame !== 0) window.cancelAnimationFrame(frame);
+      if (fading !== 0) window.cancelAnimationFrame(fading);
       darken();
     };
   }, [ready]);
