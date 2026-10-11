@@ -13,7 +13,7 @@ from datetime import datetime
 
 from sqlalchemy import select, update
 
-from grafik_api.models import RefreshToken
+from grafik_api.models import OneTimeToken, RefreshToken
 from grafik_api.repositories.base import Repository
 
 
@@ -64,3 +64,65 @@ class RefreshTokenRepository(Repository[RefreshToken]):
             .returning(RefreshToken.id)
         )
         return len(результат.scalars().all())
+
+    async def revoke_all(
+        self, user_id: uuid.UUID, at: datetime, *, keep_device: str | None = None
+    ) -> int:
+        """Погасить все сессии аккаунта, кроме одного устройства.
+
+        Так ведёт себя смена пароля: прочие сессии гаснут, а то устройство,
+        на котором пароль меняли, остаётся в деле. Устройство опознаётся
+        по заголовку `X-Device-Id` — подделать его может только сам хозяин
+        аккаунта, которому это ничего не даёт.
+
+        Без `keep_device` гасится всё — так ведёт себя восстановление
+        доступа: там неизвестно, кто именно восстанавливает.
+        """
+        условия = [
+            RefreshToken.user_id == user_id,
+            RefreshToken.revoked_at.is_(None),
+        ]
+        if keep_device is not None:
+            условия.append(RefreshToken.device_id.is_distinct_from(keep_device))
+
+        строки = await self.session.execute(
+            update(RefreshToken)
+            .where(*условия)
+            .values(revoked_at=at)
+            .returning(RefreshToken.id)
+        )
+        return len(строки.scalars().all())
+
+
+class OneTimeTokenRepository(Repository[OneTimeToken]):
+    """Строки таблицы `one_time_tokens` — ссылки из писем.
+
+    Живут сутки и срабатывают один раз. В базе только хэш: письмо может
+    осесть в чужом ящике, но из базы ссылку не восстановить.
+    """
+
+    model = OneTimeToken
+
+    def create(
+        self,
+        *,
+        user_id: uuid.UUID,
+        purpose: str,
+        digest: bytes,
+        created_at: datetime,
+        expires_at: datetime,
+    ) -> OneTimeToken:
+        return self.add(
+            OneTimeToken(
+                user_id=user_id,
+                purpose=purpose,
+                token_hash=digest,
+                created_at=created_at,
+                expires_at=expires_at,
+            )
+        )
+
+    async def by_digest(self, digest: bytes) -> OneTimeToken | None:
+        return await self.session.scalar(
+            select(OneTimeToken).where(OneTimeToken.token_hash == digest)
+        )

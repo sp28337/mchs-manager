@@ -18,14 +18,15 @@ from fastapi import FastAPI
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from grafik_api.api.deps import CurrentUserDep
+from grafik_api.api.deps import CurrentUserDep, get_mailer
 from grafik_api.core.legal import CURRENT_VERSIONS
-from grafik_api.core.security import encode_wrapped, issue_access_token
+from grafik_api.core.security import encode_wrapped, issue_access_token, token_digest
 from grafik_api.models import (
     AuditEntry,
     Consent,
     Credential,
     DataKey,
+    OneTimeToken,
     RefreshToken,
     User,
 )
@@ -33,6 +34,7 @@ from tests import factories
 
 АДРЕС = "петров@example.com"
 ДРУГОЕ_ЗНАЧЕНИЕ = encode_wrapped(b"\x02" * 32)
+ДРУГАЯ_ОБЁРТКА = encode_wrapped(b"\x03" * 60)
 
 # Общие части — в фабриках: ими пользуется и синхронизация.
 ЗНАЧЕНИЕ = factories.ЗНАЧЕНИЕ
@@ -604,3 +606,306 @@ async def test_годный_идентификатор_устройства_за
     )
 
     assert await устройство(сессия, ответ.json()["account"]["id"]) == "telefon-1"
+
+
+# --- Подтверждение адреса --------------------------------------------------
+
+
+async def test_при_регистрации_уходит_письмо(
+    клиент: httpx.AsyncClient, почта: factories.Почта
+) -> None:
+    """Письмо — единственное место, где существует одноразовый токен."""
+    ответ = await зарегистрировать(клиент)
+
+    [письмо] = почта.письма
+    assert письмо.to == АДРЕС
+    assert "подтверждение адреса" in письмо.subject
+    assert "/account/verify?token=" in письмо.text
+    # В ответе ручки токена нет и быть не должно: подтверждает адрес тот,
+    # кто читает почту, а не тот, кто отправил форму.
+    assert почта.токен() not in ответ.text
+
+
+async def test_подтверждение_адреса_по_ссылке(
+    клиент: httpx.AsyncClient, сессия: AsyncSession, почта: factories.Почта
+) -> None:
+    await зарегистрировать(клиент)
+
+    ответ = await клиент.post(
+        "/api/v1/auth/verify-email", json={"token": почта.токен()}
+    )
+
+    assert ответ.status_code == 204
+    assert await сессия.scalar(select(User.email_verified_at)) is not None
+    assert await событий(сессия, "auth.email.verified") == 1
+
+
+async def test_ссылка_подтверждения_срабатывает_один_раз(
+    клиент: httpx.AsyncClient, почта: factories.Почта
+) -> None:
+    """Иначе письмо из чужого ящика годится и через месяц."""
+    await зарегистрировать(клиент)
+    токен = почта.токен()
+
+    первый = await клиент.post("/api/v1/auth/verify-email", json={"token": токен})
+    второй = await клиент.post("/api/v1/auth/verify-email", json={"token": токен})
+
+    assert первый.status_code == 204
+    assert второй.status_code == 401
+    assert второй.json()["code"] == "token_revoked"
+
+
+async def test_протухшая_ссылка_подтверждения(
+    клиент: httpx.AsyncClient, сессия: AsyncSession, почта: factories.Почта
+) -> None:
+    await зарегистрировать(клиент)
+
+    ссылка = await сессия.scalar(select(OneTimeToken))
+    assert ссылка is not None
+    ссылка.expires_at = datetime.now(UTC) - timedelta(seconds=1)
+    await сессия.flush()
+
+    ответ = await клиент.post(
+        "/api/v1/auth/verify-email", json={"token": почта.токен()}
+    )
+
+    assert ответ.status_code == 401
+    assert ответ.json()["code"] == "token_expired"
+
+
+async def test_повторное_подтверждение_не_сдвигает_дату(
+    клиент: httpx.AsyncClient, сессия: AsyncSession, почта: factories.Почта
+) -> None:
+    """Вторая ссылка безвредна, и дата подтверждения остаётся первой.
+
+    Второй живой ссылки сейчас не заводит никто — письмо уходит одно, при
+    регистрации. Но ручка «прислать ещё раз» появится, и к тому дню
+    подтверждение не должно переписывать дату: ею доказывается, когда
+    адрес был подтверждён, а не когда по ссылке щёлкнули в последний раз.
+    """
+    await зарегистрировать(клиент)
+    await клиент.post("/api/v1/auth/verify-email", json={"token": почта.токен()})
+
+    подтверждено = await сессия.scalar(select(User.email_verified_at))
+    assert подтверждено is not None
+
+    user_id = await сессия.scalar(select(User.id))
+    assert user_id is not None
+    now = datetime.now(UTC)
+    сессия.add(
+        OneTimeToken(
+            user_id=user_id,
+            purpose="verify_email",
+            token_hash=token_digest("vtoraya-ssylka-iz-pisma"),
+            created_at=now,
+            expires_at=now + timedelta(hours=1),
+        )
+    )
+    await сессия.flush()
+
+    ответ = await клиент.post(
+        "/api/v1/auth/verify-email", json={"token": "vtoraya-ssylka-iz-pisma"}
+    )
+
+    assert ответ.status_code == 204
+    assert await сессия.scalar(select(User.email_verified_at)) == подтверждено
+
+
+async def test_негодная_ссылка_подтверждения(клиент: httpx.AsyncClient) -> None:
+    """Чужая ссылка и выдуманная не различаются в ответе."""
+    ответ = await клиент.post(
+        "/api/v1/auth/verify-email", json={"token": "vzyataya-s-potolka-ssylka"}
+    )
+
+    assert ответ.status_code == 401
+    assert ответ.json()["code"] == "token_revoked"
+
+
+# --- Восстановление доступа ------------------------------------------------
+
+
+async def test_восстановление_присылает_письмо(
+    клиент: httpx.AsyncClient, сессия: AsyncSession, почта: factories.Почта
+) -> None:
+    await зарегистрировать(клиент)
+    почта.письма.clear()
+
+    ответ = await клиент.post("/api/v1/auth/recover/start", json={"email": АДРЕС})
+
+    assert ответ.status_code == 202
+
+    [письмо] = почта.письма
+    assert письмо.to == АДРЕС
+    assert "восстановление доступа" in письмо.subject
+    assert "/account/recover?token=" in письмо.text
+    assert await событий(сессия, "auth.recover.started") == 1
+
+
+async def test_восстановление_для_незнакомого_адреса_отвечает_так_же(
+    клиент: httpx.AsyncClient, почта: factories.Почта
+) -> None:
+    """Иначе достаточно перебрать адреса, чтобы узнать, кто у нас есть."""
+    ответ = await клиент.post(
+        "/api/v1/auth/recover/start", json={"email": "никого@example.com"}
+    )
+
+    assert ответ.status_code == 202
+    assert почта.письма == []
+
+
+async def test_новый_пароль_по_ссылке(
+    клиент: httpx.AsyncClient, сессия: AsyncSession, почта: factories.Почта
+) -> None:
+    """Ключ восстановления на сервер не приходит: браузер присылает обёртку."""
+    await зарегистрировать(клиент)
+    await клиент.post("/api/v1/auth/recover/start", json={"email": АДРЕС})
+
+    ответ = await клиент.post(
+        "/api/v1/auth/recover/finish",
+        json={
+            "token": почта.токен(),
+            "verifier": ДРУГОЕ_ЗНАЧЕНИЕ,
+            "wrapped_dek_pwd": ДРУГАЯ_ОБЁРТКА,
+            "kdf_version": "kdf_v1",
+        },
+    )
+
+    assert ответ.status_code == 204
+
+    # Прежнее значение больше не подходит.
+    отказ = await клиент.post(
+        "/api/v1/auth/login", json={"email": АДРЕС, "verifier": ЗНАЧЕНИЕ}
+    )
+    assert отказ.status_code == 401
+
+    вход = await клиент.post(
+        "/api/v1/auth/login", json={"email": АДРЕС, "verifier": ДРУГОЕ_ЗНАЧЕНИЕ}
+    )
+    assert вход.status_code == 200
+    assert вход.json()["wrapped_dek_pwd"] == ДРУГАЯ_ОБЁРТКА
+
+    # Сессия, открытая до восстановления, погашена: неизвестно, кто и
+    # почему терял доступ. Живой остаётся только та, что завёл вход выше.
+    живых = await сессия.scalar(
+        select(func.count())
+        .select_from(RefreshToken)
+        .where(RefreshToken.revoked_at.is_(None))
+    )
+    assert живых == 1
+    assert await событий(сессия, "auth.recover.finished") == 1
+
+
+async def test_ссылка_восстановления_срабатывает_один_раз(
+    клиент: httpx.AsyncClient, почта: factories.Почта
+) -> None:
+    await зарегистрировать(клиент)
+    await клиент.post("/api/v1/auth/recover/start", json={"email": АДРЕС})
+    тело = {
+        "token": почта.токен(),
+        "verifier": ДРУГОЕ_ЗНАЧЕНИЕ,
+        "wrapped_dek_pwd": ДРУГАЯ_ОБЁРТКА,
+        "kdf_version": "kdf_v1",
+    }
+
+    первый = await клиент.post("/api/v1/auth/recover/finish", json=тело)
+    второй = await клиент.post("/api/v1/auth/recover/finish", json=тело)
+
+    assert первый.status_code == 204
+    assert второй.status_code == 401
+    assert второй.json()["code"] == "token_revoked"
+
+
+async def test_ссылка_подтверждения_не_годится_для_восстановления(
+    клиент: httpx.AsyncClient, почта: factories.Почта
+) -> None:
+    """Ссылки различаются назначением, а не только случайными байтами."""
+    await зарегистрировать(клиент)
+
+    ответ = await клиент.post(
+        "/api/v1/auth/recover/finish",
+        json={
+            "token": почта.токен(),
+            "verifier": ДРУГОЕ_ЗНАЧЕНИЕ,
+            "wrapped_dek_pwd": ДРУГАЯ_ОБЁРТКА,
+            "kdf_version": "kdf_v1",
+        },
+    )
+
+    assert ответ.status_code == 401
+    assert ответ.json()["code"] == "token_revoked"
+
+
+async def test_неизвестная_версия_параметров_при_восстановлении(
+    клиент: httpx.AsyncClient, почта: factories.Почта
+) -> None:
+    await зарегистрировать(клиент)
+    await клиент.post("/api/v1/auth/recover/start", json={"email": АДРЕС})
+
+    ответ = await клиент.post(
+        "/api/v1/auth/recover/finish",
+        json={
+            "token": почта.токен(),
+            "verifier": ДРУГОЕ_ЗНАЧЕНИЕ,
+            "wrapped_dek_pwd": ДРУГАЯ_ОБЁРТКА,
+            "kdf_version": "kdf_v9",
+        },
+    )
+
+    assert ответ.status_code == 422
+    assert ответ.json()["code"] == "validation_failed"
+
+
+async def test_предел_писем_восстановления(
+    клиент: httpx.AsyncClient, почта: factories.Почта
+) -> None:
+    """Завалить чужой ящик письмами о восстановлении нельзя."""
+    await зарегистрировать(клиент)
+
+    for _ in range(5):
+        ответ = await клиент.post("/api/v1/auth/recover/start", json={"email": АДРЕС})
+        assert ответ.status_code == 202
+
+    ответ = await клиент.post("/api/v1/auth/recover/start", json={"email": АДРЕС})
+
+    assert ответ.status_code == 429
+    assert ответ.json()["code"] == "rate_limited"
+    # Шестого письма нет: отказ наступает до отправки.
+    assert len(почта.письма) == 1 + 5
+
+
+# --- Когда почта недоступна ------------------------------------------------
+
+
+async def test_регистрация_отменяется_если_письмо_не_ушло(
+    приложение: FastAPI, клиент: httpx.AsyncClient, сессия: AsyncSession
+) -> None:
+    """Аккаунт без письма не нужен никому: отказ целиком, не половина.
+
+    Человек повторит регистрацию тем же адресом, когда почта оживёт, —
+    а если бы аккаунт остался, он получил бы `email_taken` и тупик.
+    """
+    приложение.dependency_overrides[get_mailer] = factories.СломаннаяПочта
+
+    ответ = await зарегистрировать(клиент)
+
+    assert ответ.status_code == 503
+    assert ответ.json()["code"] == "service_unavailable"
+    assert await сессия.scalar(select(func.count()).select_from(User)) == 0
+
+
+async def test_восстановление_отвечает_так_же_когда_письмо_не_ушло(
+    приложение: FastAPI, клиент: httpx.AsyncClient, сессия: AsyncSession
+) -> None:
+    """Иначе сломанная почта становится способом узнать, кто у нас есть."""
+    await зарегистрировать(клиент)
+    приложение.dependency_overrides[get_mailer] = factories.СломаннаяПочта
+
+    известный = await клиент.post("/api/v1/auth/recover/start", json={"email": АДРЕС})
+    незнакомый = await клиент.post(
+        "/api/v1/auth/recover/start", json={"email": "никого@example.com"}
+    )
+
+    assert известный.status_code == 202
+    assert незнакомый.status_code == 202
+    # Запись о запросе осталась: отказ почты её не откатил.
+    assert await событий(сессия, "auth.recover.started") == 1

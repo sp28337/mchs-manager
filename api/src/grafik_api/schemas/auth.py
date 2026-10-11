@@ -88,6 +88,36 @@ class LoginIn(BaseModel):
     verifier: Verifier
 
 
+#: Одноразовый токен из письма. Длина с запасом: это 32 случайных байта
+#: в base64url, но формат может поменяться, а схема — нет.
+LinkToken = Annotated[str, StringConstraints(min_length=16, max_length=512)]
+
+
+class VerifyEmailIn(BaseModel):
+    """Подтверждение адреса по ссылке из письма."""
+
+    token: LinkToken
+
+
+class RecoverStartIn(BaseModel):
+    """Просьба прислать письмо для восстановления доступа."""
+
+    email: Email
+
+
+class RecoverFinishIn(BaseModel):
+    """Новый пароль после восстановления.
+
+    Ключ восстановления на сервер не приходит: браузер уже развернул им
+    ключ данных и присылает новую обёртку.
+    """
+
+    token: LinkToken
+    verifier: Verifier
+    wrapped_dek_pwd: WrappedKey
+    kdf_version: str = Field(max_length=32)
+
+
 class ConsentOut(BaseModel):
     """Принятая редакция одного документа."""
 

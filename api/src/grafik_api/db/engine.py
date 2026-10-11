@@ -6,14 +6,35 @@
 Соединение он при создании не открывает, первое открывается по надобности.
 
 Сессия — на запрос, через зависимость (`api/deps.py`, шаг 6).
+
+--- Адрес IP приходит строкой ---------------------------------------------
+
+Здесь же настраивается один адаптер драйвера, и без него врут модели.
+psycopg 3 по умолчанию превращает `inet` в объект `ipaddress.IPv4Address`
+(это его документированное поведение), а `AuditEntry.ip` объявлен как
+`str | None` — проверке типов разойтись негде, она видит только
+объявление. Расхождение всплывает там, где значение уходит в ответ:
+pydantic отказывается считать `IPv4Address` строкой, и выгрузка журнала
+падает уже в бою.
+
+Сетей и масок мы не храним — только адрес обратившегося, и нужен он как
+строка. Поэтому `inet` загружается текстом; столбец в базе остаётся
+`INET`, то есть проверка значения на входе никуда не делась.
 """
 
 from __future__ import annotations
 
+import psycopg
+from psycopg.types.string import TextLoader
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 from sqlalchemy.ext.asyncio import create_async_engine as _create_async_engine
 
 from grafik_api.core.config import Settings
+
+# На уровне модуля и в глобальной карте адаптеров: регистрация должна
+# случиться до первого соединения, а соединения открывают все — и
+# приложение, и Alembic, и тесты.
+psycopg.adapters.register_loader("inet", TextLoader)
 
 
 def create_engine(settings: Settings) -> AsyncEngine:

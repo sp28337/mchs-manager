@@ -59,6 +59,18 @@ REGISTER = Limit(requests=5, seconds=60 * 60)
 #: `POST /auth/params` — на адрес IP. Защита от перебора адресов.
 PARAMS = Limit(requests=30, seconds=60)
 
+#: `POST /auth/recover/start` — на адрес IP. Письмо стоит денег и нервов
+#: получателя: завалить чужой ящик письмами о восстановлении нельзя.
+RECOVER = Limit(requests=5, seconds=60 * 60)
+
+#: `GET /account/export` — на аккаунт. Выгрузка тяжёлая: это все блобы
+#: аккаунта в одном ответе.
+EXPORT = Limit(requests=10, seconds=60 * 60)
+
+#: `POST /account/password` и `DELETE /account` — на аккаунт. Обе ручки
+#: проверяют проверочное значение, то есть годятся для перебора.
+SENSITIVE = Limit(requests=10, seconds=15 * 60)
+
 
 class RateLimiter:
     """Скользящее окно в памяти процесса.

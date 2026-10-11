@@ -8,13 +8,15 @@
 
 from fastapi import APIRouter
 
-from grafik_api.api.v1 import auth, health, sync
+from grafik_api.api.v1 import account, auth, health, sync
 
 router = APIRouter()
 router.include_router(health.router)
 router.include_router(auth.router)
 router.include_router(sync.router)
+router.include_router(account.router)
 
-# Дальше здесь появятся account и legal (шаг 9).
+# Дальше здесь появится legal — действующие версии документов с хэшами
+# текстов (шаг 12, вместе со страницами).
 
 __all__ = ["router"]

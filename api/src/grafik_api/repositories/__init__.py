@@ -20,7 +20,10 @@ from grafik_api.repositories.credentials import (
     CredentialRepository,
     DataKeyRepository,
 )
-from grafik_api.repositories.sessions import RefreshTokenRepository
+from grafik_api.repositories.sessions import (
+    OneTimeTokenRepository,
+    RefreshTokenRepository,
+)
 from grafik_api.repositories.users import UserRepository
 
 __all__ = [
@@ -31,6 +34,7 @@ __all__ = [
     "ConsentRepository",
     "CredentialRepository",
     "DataKeyRepository",
+    "OneTimeTokenRepository",
     "RefreshTokenRepository",
     "Repository",
     "UserRepository",

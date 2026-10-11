@@ -51,6 +51,17 @@ class BlobRepository(Repository[Blob]):
         )
         return строки.all()
 
+    async def all_of(self, user_id: uuid.UUID) -> Sequence[Blob]:
+        """Все элементы аккаунта — для выгрузки по требованию человека.
+
+        Без постраничности намеренно: выгрузка это один файл, и собирать
+        его из страниц пришлось бы тому, кто его читает.
+        """
+        строки = await self.session.scalars(
+            select(Blob).where(Blob.user_id == user_id).order_by(Blob.rev)
+        )
+        return строки.all()
+
     async def usage(self, user_id: uuid.UUID) -> tuple[int, int]:
         """Сколько у аккаунта элементов и байтов — для проверки квот.
 

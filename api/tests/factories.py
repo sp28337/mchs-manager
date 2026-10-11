@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import re
 from datetime import UTC, datetime
 from itertools import count
 from typing import Any
@@ -14,7 +15,9 @@ from typing import Any
 import httpx
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from grafik_api.core.errors import ServiceUnavailableError
 from grafik_api.core.legal import CURRENT_VERSIONS
+from grafik_api.core.mail import Letter
 from grafik_api.core.security import encode_wrapped
 from grafik_api.models import Credential, User
 
@@ -106,3 +109,44 @@ async def войти(клиент: httpx.AsyncClient, **правки: Any) -> di
     assert ответ.status_code == 201, ответ.text
 
     return {"Authorization": f"Bearer {ответ.json()['access_token']}"}
+
+
+class Почта:
+    """Отправщик писем, который ничего не отправляет, а запоминает.
+
+    Подменяет `get_mailer` в тестах (см. фикстуру `почта`). Нужен не
+    только чтобы не ходить в сеть: без письма не проверить ни
+    подтверждение адреса, ни восстановление доступа — одноразовый токен
+    существует ровно в одном месте, в тексте письма. Сервер его больше
+    нигде не отдаёт, и это правильно.
+    """
+
+    def __init__(self) -> None:
+        self.письма: list[Letter] = []
+
+    async def send(self, letter: Letter) -> None:
+        self.письма.append(letter)
+
+    @property
+    def последнее(self) -> Letter:
+        """Последнее письмо — или понятный отказ вместо `IndexError`."""
+        assert self.письма, "письмо не отправлено"
+        return self.письма[-1]
+
+    def токен(self) -> str:
+        """Одноразовый токен из ссылки последнего письма."""
+        совпадение = re.search(r"token=([A-Za-z0-9_-]+)", self.последнее.text)
+        assert совпадение is not None, self.последнее.text
+        return совпадение.group(1)
+
+
+class СломаннаяПочта:
+    """Отправщик, у которого почтовый сервер недоступен.
+
+    Ровно то, чем `SmtpMailer` отвечает на неисправность SMTP. Нужен,
+    чтобы проверить, кто этот отказ как переживает: регистрация
+    отменяется целиком, восстановление доступа отвечает как обычно.
+    """
+
+    async def send(self, letter: Letter) -> None:
+        raise ServiceUnavailableError()

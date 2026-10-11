@@ -45,9 +45,11 @@ from sqlalchemy.ext.asyncio import (
     create_async_engine,
 )
 
+from grafik_api.api.deps import get_mailer
 from grafik_api.core.config import Settings, get_settings
 from grafik_api.db import Base
 from grafik_api.main import create_app
+from tests.factories import Почта
 
 КОРЕНЬ = Path(__file__).resolve().parents[1]
 
@@ -133,10 +135,26 @@ async def сессия(
 
 
 @pytest.fixture
-def приложение(схема: str, фабрика_сессий: async_sessionmaker[AsyncSession]) -> FastAPI:
-    """Настоящее приложение, но с базой внутри транзакции теста."""
+def почта() -> Почта:
+    """Почтовый ящик вместо SMTP: письма складываются в список."""
+    return Почта()
+
+
+@pytest.fixture
+def приложение(
+    схема: str,
+    фабрика_сессий: async_sessionmaker[AsyncSession],
+    почта: Почта,
+) -> FastAPI:
+    """Настоящее приложение, но с базой внутри транзакции теста.
+
+    Отправщик писем подменяется всегда, а не только там, где письма
+    проверяют: регистрация отправляет письмо, и без подмены любой тест,
+    создающий аккаунт, полез бы в сеть за несуществующим `mailpit`.
+    """
     app = create_app(Settings(env="test", database_url=схема))
     app.state.sessionmaker = фабрика_сессий
+    app.dependency_overrides[get_mailer] = lambda: почта
     return app
 
 

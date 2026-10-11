@@ -14,8 +14,10 @@ import pytest
 from fastapi import FastAPI
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from grafik_api.api.deps import SessionDep, SettingsDep, get_session
+from grafik_api.api.deps import SessionDep, SettingsDep, get_mailer, get_session
+from grafik_api.core.config import Settings
 from grafik_api.core.errors import EmailTakenError
+from grafik_api.core.mail import NullMailer, SmtpMailer
 from grafik_api.repositories import UserRepository
 
 АДРЕС = "единица-работы@example.com"
@@ -86,6 +88,19 @@ async def test_настройки_доступны_ручке(
     ответ = await клиент.get("/api/v1/проба-настроек")
 
     assert ответ.json() == {"env": "test"}
+
+
+def test_отправщик_писем_берётся_из_настроек() -> None:
+    """Отправщик выбирается по настройкам, а не по месту вызова.
+
+    Проверяется сама зависимость: в остальных тестах она подменена
+    почтовым ящиком, то есть иначе её не вызвал бы никто ни разу.
+    """
+    без_почты = Settings(env="test", smtp_host="")
+    с_почтой = Settings(env="test", smtp_host="pochta")
+
+    assert isinstance(get_mailer(без_почты), NullMailer)
+    assert isinstance(get_mailer(с_почтой), SmtpMailer)
 
 
 def _заглушка_запроса(фабрика: async_sessionmaker[AsyncSession]) -> Any:

@@ -11,7 +11,8 @@
 * адрес клиента (с оглядкой на nginx) и идентификатор устройства;
 * ограничитель частоты обращений;
 * текущий пользователь — по access-токену;
-* сервисы входа и синхронизации, собранные на сессии запроса.
+* сервисы входа, синхронизации и прав субъекта — на сессии запроса;
+* отправщик писем.
 """
 
 from __future__ import annotations
@@ -28,7 +29,9 @@ from grafik_api.core.config import Settings
 from grafik_api.core.context import user_id_var
 from grafik_api.core.errors import BadCredentialsError, RateLimitedError
 from grafik_api.core.limits import Limit
+from grafik_api.core.mail import Mailer, create_mailer
 from grafik_api.core.security import read_access_token
+from grafik_api.services.account import AccountService
 from grafik_api.services.auth import AuthService
 from grafik_api.services.sync import SyncService
 
@@ -169,9 +172,23 @@ async def get_current_user_id(request: Request, settings: SettingsDep) -> UUID:
 CurrentUserDep = Annotated[UUID, Depends(get_current_user_id)]
 
 
-def get_auth_service(session: SessionDep, settings: SettingsDep) -> AuthService:
+def get_mailer(settings: SettingsDep) -> Mailer:
+    """Отправщик писем по настройкам.
+
+    Отдельной зависимостью, а не внутри сервиса: тест подменяет её и
+    читает письма, не поднимая почтовый сервер.
+    """
+    return create_mailer(settings)
+
+
+MailerDep = Annotated[Mailer, Depends(get_mailer)]
+
+
+def get_auth_service(
+    session: SessionDep, settings: SettingsDep, mailer: MailerDep
+) -> AuthService:
     """Сервис входа на сессии этого запроса."""
-    return AuthService(session, settings)
+    return AuthService(session, settings, mailer)
 
 
 AuthServiceDep = Annotated[AuthService, Depends(get_auth_service)]
@@ -183,6 +200,14 @@ def get_sync_service(session: SessionDep, settings: SettingsDep) -> SyncService:
 
 
 SyncServiceDep = Annotated[SyncService, Depends(get_sync_service)]
+
+
+def get_account_service(session: SessionDep, settings: SettingsDep) -> AccountService:
+    """Сервис прав субъекта на сессии этого запроса."""
+    return AccountService(session, settings)
+
+
+AccountServiceDep = Annotated[AccountService, Depends(get_account_service)]
 
 
 #: Что годится в идентификатор, пришедший от клиента.

@@ -31,7 +31,7 @@ from grafik_api.api.deps import (
     check_rate,
     rate_limit,
 )
-from grafik_api.core.limits import LOGIN, PARAMS, REGISTER
+from grafik_api.core.limits import LOGIN, PARAMS, RECOVER, REGISTER
 from grafik_api.core.security import decode_wrapped, encode_wrapped
 from grafik_api.schemas.auth import (
     AccountOut,
@@ -39,8 +39,11 @@ from grafik_api.schemas.auth import (
     KdfParamsOut,
     LoginIn,
     ParamsIn,
+    RecoverFinishIn,
+    RecoverStartIn,
     RegisterIn,
     SessionOut,
+    VerifyEmailIn,
 )
 from grafik_api.services.auth import SessionResult, normalize_email
 
@@ -166,6 +169,60 @@ async def logout(
     """
     await service.logout(token=request.cookies.get(COOKIE_NAME), ip=ip)
     _убрать_cookie(response)
+
+
+@router.post(
+    "/verify-email",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Подтверждение адреса по ссылке из письма",
+)
+async def verify_email(
+    данные: VerifyEmailIn, service: AuthServiceDep, ip: ClientIpDep
+) -> None:
+    """Отметить адрес подтверждённым.
+
+    Негодная ссылка и чужая не различаются в ответе: знать, существовала
+    ли ссылка, посторонним незачем.
+    """
+    await service.verify_email(token=данные.token, ip=ip)
+
+
+@router.post(
+    "/recover/start",
+    status_code=status.HTTP_202_ACCEPTED,
+    summary="Письмо для восстановления доступа",
+    dependencies=[Depends(rate_limit("auth.recover", RECOVER))],
+)
+async def recover_start(
+    данные: RecoverStartIn, service: AuthServiceDep, ip: ClientIpDep
+) -> None:
+    """Отправить письмо, если такой адрес есть.
+
+    Ответ один и тот же в любом случае — `202`. Иначе достаточно
+    перебрать адреса, чтобы узнать, кто у нас есть.
+    """
+    await service.recover_start(email=данные.email, ip=ip)
+
+
+@router.post(
+    "/recover/finish",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Новый пароль после восстановления",
+)
+async def recover_finish(
+    данные: RecoverFinishIn, service: AuthServiceDep, ip: ClientIpDep
+) -> None:
+    """Заменить пароль по ссылке из письма.
+
+    Все сессии при этом гаснут: неизвестно, кто и почему терял доступ.
+    """
+    await service.recover_finish(
+        token=данные.token,
+        verifier=данные.verifier,
+        wrapped_dek_pwd=decode_wrapped(данные.wrapped_dek_pwd),
+        kdf_version=данные.kdf_version,
+        ip=ip,
+    )
 
 
 def _поставить_cookie(response: Response, результат: SessionResult, дней: int) -> None:

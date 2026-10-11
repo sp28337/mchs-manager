@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import uuid
+from collections.abc import Sequence
 from datetime import datetime
 
 from sqlalchemy import select
@@ -41,6 +42,15 @@ class ConsentRepository(Repository[Consent]):
                 ip=ip,
             )
         )
+
+    async def all_of(self, user_id: uuid.UUID) -> Sequence[Consent]:
+        """Все согласия аккаунта по порядку — для выгрузки."""
+        строки = await self.session.scalars(
+            select(Consent)
+            .where(Consent.user_id == user_id)
+            .order_by(Consent.accepted_at)
+        )
+        return строки.all()
 
     async def latest(self, user_id: uuid.UUID) -> Consent | None:
         """Последнее по времени согласие аккаунта."""

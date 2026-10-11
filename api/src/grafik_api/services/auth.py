@@ -32,12 +32,19 @@ from grafik_api.core.errors import (
     BadCredentialsError,
     ConsentRequiredError,
     EmailTakenError,
+    ServiceUnavailableError,
     TokenExpiredError,
     TokenRevokedError,
     ValidationFailedError,
 )
 from grafik_api.core.legal import CURRENT_VERSIONS
 from grafik_api.core.logging import get_logger
+from grafik_api.core.mail import (
+    Mailer,
+    NullMailer,
+    recovery_letter,
+    verify_letter,
+)
 from grafik_api.core.security import (
     CURRENT_KDF,
     KDF_VERSIONS,
@@ -49,7 +56,7 @@ from grafik_api.core.security import (
     token_digest,
     verify_verifier,
 )
-from grafik_api.models import Consent, User
+from grafik_api.models import Consent, OneTimeToken, User
 from grafik_api.repositories import (
     KIND_PWD,
     KIND_REC,
@@ -57,6 +64,7 @@ from grafik_api.repositories import (
     ConsentRepository,
     CredentialRepository,
     DataKeyRepository,
+    OneTimeTokenRepository,
     RefreshTokenRepository,
     UserRepository,
 )
@@ -91,14 +99,23 @@ class SessionResult:
 class AuthService:
     """Правила входа и сессий."""
 
-    def __init__(self, session: AsyncSession, settings: Settings) -> None:
+    def __init__(
+        self,
+        session: AsyncSession,
+        settings: Settings,
+        mailer: Mailer | None = None,
+    ) -> None:
         self.session = session
         self.settings = settings
+        # Без отправщика сервис работает, только писем не будет: так его
+        # можно позвать из команды, которой почта не нужна.
+        self.mailer = mailer or NullMailer()
         self.users = UserRepository(session)
         self.credentials = CredentialRepository(session)
         self.data_keys = DataKeyRepository(session)
         self.consents = ConsentRepository(session)
         self.tokens = RefreshTokenRepository(session)
+        self.links = OneTimeTokenRepository(session)
         self.audit = AuditRepository(session)
 
     # --- Параметры до входа ------------------------------------------------
@@ -176,7 +193,14 @@ class AuthService:
             ip=ip,
         )
 
-        self.audit.record("auth.register", user_id=user.id, ip=ip, at=now)
+        self.audit.record(
+            "auth.register",
+            user_id=user.id,
+            ip=ip,
+            details={"device_id": device_id},
+            at=now,
+        )
+        await self._послать_подтверждение(user, now)
         logger.info(
             "аккаунт заведён", extra={"event": "auth.register", "user_id": str(user.id)}
         )
@@ -236,7 +260,13 @@ class AuthService:
             credential.verifier_hash = hash_verifier(verifier, self.settings)
 
         now = datetime.now(UTC)
-        self.audit.record("auth.login.ok", user_id=user.id, ip=ip, at=now)
+        self.audit.record(
+            "auth.login.ok",
+            user_id=user.id,
+            ip=ip,
+            details={"device_id": device_id},
+            at=now,
+        )
         logger.info("вход", extra={"event": "auth.login.ok", "user_id": str(user.id)})
 
         обёртки = await self.data_keys.by_user(user.id)
@@ -336,7 +366,155 @@ class AuthService:
             "выход", extra={"event": "auth.logout", "user_id": str(строка.user_id)}
         )
 
+    # --- Подтверждение адреса --------------------------------------------
+
+    async def verify_email(self, *, token: str, ip: str | None) -> None:
+        """Подтвердить адрес по ссылке из письма."""
+        ссылка = await self._взять_ссылку(token, purpose="verify_email")
+        now = datetime.now(UTC)
+
+        user = await self.users.get(ссылка.user_id)
+        if user is None:  # pragma: no cover - каскад уносит ссылки с аккаунтом
+            raise TokenRevokedError()
+
+        ссылка.used_at = now
+        if user.email_verified_at is None:
+            user.email_verified_at = now
+
+        self.audit.record("auth.email.verified", user_id=user.id, ip=ip, at=now)
+        logger.info(
+            "адрес подтверждён",
+            extra={"event": "auth.email.verified", "user_id": str(user.id)},
+        )
+
+    # --- Восстановление доступа -------------------------------------------
+
+    async def recover_start(self, *, email: str, ip: str | None) -> None:
+        """Отправить письмо для восстановления доступа.
+
+        Ответ у ручки один и тот же, есть такой адрес или нет: иначе
+        достаточно перебрать адреса, чтобы узнать, кто у нас есть.
+        Поэтому и здесь ничего не возвращается — ни успеха, ни отказа.
+        """
+        user = await self.users.by_email(normalize_email(email))
+
+        if user is None:
+            logger.info(
+                "восстановление запрошено для незнакомого адреса",
+                extra={"event": "auth.recover.unknown"},
+            )
+            return
+
+        now = datetime.now(UTC)
+        токен, digest = new_refresh_token()
+        self.links.create(
+            user_id=user.id,
+            purpose="recover",
+            digest=digest,
+            created_at=now,
+            expires_at=now + timedelta(hours=self.settings.link_ttl_hours),
+        )
+
+        self.audit.record("auth.recover.started", user_id=user.id, ip=ip, at=now)
+
+        try:
+            await self.mailer.send(recovery_letter(user.email, токен, self.settings))
+        except ServiceUnavailableError:
+            # Ответ обязан быть одним и тем же, есть такой адрес или нет
+            # (раздел 6 контракта). Отдай мы здесь `503`, а незнакомому
+            # адресу — `202`, и разница в ответах стала бы способом
+            # узнать, кто у нас есть: достаточно дождаться, когда почта
+            # сломается. Отправщик уже записал неисправность в журнал,
+            # ссылка в базе останется и протухнет сама через сутки.
+            logger.warning(
+                "письмо для восстановления не ушло",
+                extra={"event": "auth.recover.mail_failed", "user_id": str(user.id)},
+            )
+
+    async def recover_finish(
+        self,
+        *,
+        token: str,
+        verifier: str,
+        wrapped_dek_pwd: bytes,
+        kdf_version: str,
+        ip: str | None,
+    ) -> None:
+        """Задать новый пароль по ссылке из письма.
+
+        Ключ восстановления на сервер не приходит: браузер развернул им
+        ключ данных сам и присылает новую обёртку. Сервер проверяет только
+        токен из письма — больше ему проверять нечем.
+        """
+        if kdf_version not in KDF_VERSIONS:
+            raise ValidationFailedError(f"неизвестная версия параметров: {kdf_version}")
+
+        ссылка = await self._взять_ссылку(token, purpose="recover")
+        now = datetime.now(UTC)
+
+        user = await self.users.get(ссылка.user_id)
+        if user is None:  # pragma: no cover - каскад уносит ссылки с аккаунтом
+            raise TokenRevokedError()
+
+        credential = await self.credentials.by_user(user.id)
+        if credential is None:  # pragma: no cover - аккаунт без доступа
+            raise TokenRevokedError()
+
+        credential.verifier_hash = hash_verifier(verifier, self.settings)
+        credential.kdf_version = kdf_version
+        await self.data_keys.put(user.id, KIND_PWD, wrapped_dek_pwd)
+
+        ссылка.used_at = now
+        # Все сессии гаснут: неизвестно, кто и почему терял доступ.
+        погашено = await self.tokens.revoke_all(user.id, now)
+
+        self.audit.record(
+            "auth.recover.finished",
+            user_id=user.id,
+            ip=ip,
+            details={"revoked": погашено},
+            at=now,
+        )
+        logger.info(
+            "доступ восстановлен",
+            extra={
+                "event": "auth.recover.finished",
+                "user_id": str(user.id),
+                "revoked": погашено,
+            },
+        )
+
     # --- Внутреннее -------------------------------------------------------
+
+    async def _послать_подтверждение(self, user: User, now: datetime) -> None:
+        """Завести ссылку подтверждения и отправить письмо."""
+        токен, digest = new_refresh_token()
+
+        self.links.create(
+            user_id=user.id,
+            purpose="verify_email",
+            digest=digest,
+            created_at=now,
+            expires_at=now + timedelta(hours=self.settings.link_ttl_hours),
+        )
+
+        await self.mailer.send(verify_letter(user.email, токен, self.settings))
+
+    async def _взять_ссылку(self, token: str, *, purpose: str) -> OneTimeToken:
+        """Найти живую одноразовую ссылку или отказать.
+
+        Негодную ссылку от чужой не отличаем в ответе: `token_revoked` и
+        там, и там. Знать, существовала ли ссылка, посторонним незачем.
+        """
+        ссылка = await self.links.by_digest(token_digest(token))
+
+        if ссылка is None or ссылка.purpose != purpose or ссылка.used_at is not None:
+            raise TokenRevokedError()
+
+        if ссылка.expires_at <= datetime.now(UTC):
+            raise TokenExpiredError()
+
+        return ссылка
 
     async def _зафиксировать_до_отказа(self) -> None:
         """Зафиксировать то, что должно пережить отказ.
