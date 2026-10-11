@@ -569,6 +569,48 @@ describe("отгул", () => {
   });
 });
 
+describe("командировка", () => {
+  test("считается как отпуск: норма меньше, факт не растёт", () => {
+    // Человек в командировке РАБОТАЕТ, но не по своему графику: смены за
+    // эти сутки не отрабатываются никем, а дни поездки идут по среднему
+    // заработку (ст. 167 ТК РФ, п. 9 Положения № 749). Значит, часы по
+    // норме за них из нормы уходят, а в отработанное не попадают —
+    // попади они туда, их заплатили бы дважды: средним заработком и
+    // переработкой.
+    const clean = march([]);
+    const trip = march([
+      { start: "2026-03-01", endInclusive: "2026-03-14", kind: "business_trip" },
+    ]);
+    const leave = march([
+      { start: "2026-03-01", endInclusive: "2026-03-14", kind: "annual_leave" },
+    ]);
+
+    expect(trip.excludedHours.toString()).toBe("80");
+    expect(trip.normHours.toString()).toBe(clean.baseNormHours.minus(80).toString());
+    expect(trip.actualHours.toString()).toBe(clean.actualHours.minus(96).toString());
+    expect(trip.undertimeHours.toString()).toBe("0");
+
+    // Тот же период отпуска даёт те же числа: отличие командировки от
+    // отпуска — в оплате и в основании, а не в арифметике нормы.
+    expect(trip.normHours.toString()).toBe(leave.normHours.toString());
+    expect(trip.overtimeHours.toString()).toBe(leave.overtimeHours.toString());
+  });
+
+  test("сутки поездки помечены видом, включая выходные по графику", () => {
+    // Командировка идёт подряд: свободные по графику сутки внутри неё —
+    // такая же командировка, как день со сменой. На сетке это и показано.
+    const trip = march([
+      { start: "2026-03-03", endInclusive: "2026-03-07", kind: "business_trip" },
+    ]);
+
+    expect(trip.absentDays.get("2026-03-03")).toBe("business_trip");
+    expect(trip.absentDays.get("2026-03-05")).toBe("business_trip");
+    expect(trip.absentDays.get("2026-03-08")).toBeUndefined();
+    // Смены 6 марта в факте нет: она попала в поездку.
+    expect(trip.absentShifts).toBe(1);
+  });
+});
+
 describe("вызовы помимо графика", () => {
   const call = (overrides: Partial<CalculatePeriodInput> = {}) =>
     march([], {

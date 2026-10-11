@@ -52,6 +52,11 @@ export const CALLOUT_MARK = "Р";
  *
  * Обозначения взяты из табеля Т-13, а не выдуманы: их узнает и тот, кто
  * заполняет табель по ту сторону спора.
+ *
+ * Порядок здесь — порядок легенды под сеткой, и он тот же, что в кольце
+ * выбора (`SHIFT_RING` в `day-ring.tsx`): отпуска, командировка,
+ * больничный, отгул. Разойдись они — человек искал бы в легенде по месту,
+ * которое запомнил в кольце, и не находил.
  */
 export const ABSENCE_MARK: Record<AbsenceKind, string> = {
   annual_leave: "О",
@@ -59,9 +64,13 @@ export const ABSENCE_MARK: Record<AbsenceKind, string> = {
   // именно так, и двум знакам в клетке место есть — коды вызовов тоже
   // двухбуквенные.
   extra_leave: "Д",
+  study_leave: "У",
+  // «К» — служебная командировка по тому же табелю Т-13 (код 06). Буква
+  // не выдумана и здесь: её узнает и тот, кто заполняет табель по ту
+  // сторону спора.
+  business_trip: "К",
   sick_leave: "Б",
   time_off_in_lieu: "В",
-  study_leave: "У",
 };
 
 /**
@@ -81,6 +90,7 @@ export const ABSENCE_TONE: Record<AbsenceKind, string> = {
   sick_leave: "border-dashed border-sick/50 bg-sick-soft text-sick rounded-md",
   time_off_in_lieu: "border-dashed border-rest/50 bg-rest-soft text-rest rounded-md",
   study_leave: "border-dashed border-study/50 bg-study-soft text-study rounded-md",
+  business_trip: "border-dashed border-errand/50 bg-errand-soft text-errand rounded-md",
 };
 
 /**

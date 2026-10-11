@@ -795,6 +795,7 @@ function OneProfile({ profile }: { profile: StoredProfile }) {
       <Callouts stats={stats} />
       <Absences stats={stats} />
       <Sick stats={stats} />
+      <Trips stats={stats} />
       <TimeOff stats={stats} />
       <MonthTable stats={stats} />
       <PartTable stats={stats} />
@@ -1110,6 +1111,28 @@ function Sick({ stats }: { stats: Statistics }) {
   );
 }
 
+/**
+ * Командировки — разделом по записям, как больничные.
+ *
+ * Вопрос к ним тот же, что и к больничным: не «сколько всего суток», а
+ * «когда и сколько раз». Две поездки по три дня и одна на шесть — разный
+ * разговор и с руководителем, и с бухгалтерией, а год, в котором человека
+ * отправляли шесть раз, виден только списком.
+ *
+ * В итоге заголовка стоят снятые из нормы часы: смены, попавшие в поездку,
+ * не отрабатываются, и норма за них уменьшается (ст. 167 ТК РФ, п. 9
+ * Положения № 749) — ровно как у отпуска и больничного.
+ */
+function Trips({ stats }: { stats: Statistics }) {
+  return (
+    <Records
+      title="Командировки"
+      total={absenceTotal(stats.absences, "trip")}
+      lines={groupOf(stats.absenceEntries, "trip").map((it) => absenceLine(it, false))}
+    />
+  );
+}
+
 function TimeOff({ stats }: { stats: Statistics }) {
   return (
     <Records
@@ -1200,18 +1223,25 @@ function absenceLine(it: AbsenceEntry, named: boolean): EventLine {
 }
 
 /**
- * Три разговора об освобождениях, а не один.
+ * Четыре разговора о пропущенных сменах, а не один.
  *
  * `leave` — отдых, за которым шли сами: отпуск, дополнительный, учебный.
  * `sick` — больничный: не планируется, платится по своему правилу и
  * спрашивается по датам. `off` — отгул: единственный, кто норму не
- * уменьшает. Каждому свой раздел и в статистике профиля, и в своде по всем.
+ * уменьшает. `trip` — командировка: единственная, где человек работал, и
+ * складывать её с отпусками значило бы отвечать «сколько отдыхал» числом,
+ * в которое вошли рабочие поездки. Спрашивают о ней к тому же как о
+ * больничном — по датам: «сколько раз и когда отправляли», а не «сколько
+ * всего суток».
+ *
+ * Каждой группе свой раздел и в статистике профиля, и в своде по всем.
  */
-type AbsenceGroup = "leave" | "sick" | "off";
+type AbsenceGroup = "leave" | "sick" | "off" | "trip";
 
 function groupNameOf(kind: AbsenceKind): AbsenceGroup {
   if (kind === "time_off_in_lieu") return "off";
   if (kind === "sick_leave") return "sick";
+  if (kind === "business_trip") return "trip";
   return "leave";
 }
 
@@ -1744,6 +1774,7 @@ function Summary({ sheets, onPick }: { sheets: readonly Sheet[]; onPick: (id: st
           вид один и он написан в заголовке раздела. */}
       <Shares title="Отпуска" rows={live.map((line) => absenceRow(line, "leave", true))} />
       <Shares title="Больничные" rows={live.map((line) => absenceRow(line, "sick", false))} />
+      <Shares title="Командировки" rows={live.map((line) => absenceRow(line, "trip", false))} />
       <Shares title="Отгулы" rows={live.map((line) => absenceRow(line, "off", false))} />
       <ProfileTable lines={lines} onPick={onPick} />
     </div>

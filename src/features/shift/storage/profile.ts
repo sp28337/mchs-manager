@@ -74,6 +74,7 @@ const absenceSchema = z.object({
     "extra_leave",
     "sick_leave",
     "study_leave",
+    "business_trip",
     "time_off_in_lieu",
   ]),
   startsOn: isoDate,

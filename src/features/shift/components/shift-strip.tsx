@@ -63,6 +63,7 @@ const ABSENCE_TONE_QUIET: Record<AbsenceKind, string> = {
   sick_leave: "border-dashed border-sick/20 bg-sick-soft/40 text-sick/70 rounded-md",
   time_off_in_lieu: "border-dashed border-rest/20 bg-rest-soft/40 text-rest/70 rounded-md",
   study_leave: "border-dashed border-study/20 bg-study-soft/40 text-study/70 rounded-md",
+  business_trip: "border-dashed border-errand/20 bg-errand-soft/40 text-errand/70 rounded-md",
 };
 import { MONTH_NAMES } from "./month-names";
 import {

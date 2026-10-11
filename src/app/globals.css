@@ -105,6 +105,15 @@
   --fps-unpaid-soft: #e4f2e5;
   --fps-trip: #8a6100;
   --fps-trip-soft: #f8f0dc;
+  /* Командировка. Названа `errand` (ст. 166 ТК РФ — поездка для
+     выполнения служебного ПОРУЧЕНИЯ), потому что `trip` в этом наборе
+     занят дополнительным отпуском с тех пор, когда командировки в
+     приложении не было вовсе; переименовывать чужой цвет ради своего
+     имени — худший размен, чем взять второе слово.
+     Тон маджентовый (311°): до учебного отпуска 35°, до больничного 34°,
+     то есть правило «не ближе 26°» выдержано с запасом. */
+  --fps-errand: #a5128a;
+  --fps-errand-soft: #f9e9f6;
   --fps-excused: #575d63;
   --fps-excused-soft: #e9eaec;
 
@@ -183,6 +192,8 @@
   --fps-unpaid-soft: #0d1f0f;
   --fps-trip: #e0a33a;
   --fps-trip-soft: #251d08;
+  --fps-errand: #ea7bd5;
+  --fps-errand-soft: #2b0d25;
   --fps-excused: #a4abb3;
   --fps-excused-soft: #1a1d21;
 
@@ -230,6 +241,8 @@
   --color-unpaid-soft: var(--fps-unpaid-soft);
   --color-trip: var(--fps-trip);
   --color-trip-soft: var(--fps-trip-soft);
+  --color-errand: var(--fps-errand);
+  --color-errand-soft: var(--fps-errand-soft);
   --color-excused: var(--fps-excused);
   --color-excused-soft: var(--fps-excused-soft);
 
@@ -4127,6 +4140,9 @@
   /* Учебный отпуск */
   --fps-study: #5e1f88;
   --fps-study-soft: #e2c9f5;
+  /* Командировка */
+  --fps-errand: #8d0b75;
+  --fps-errand-soft: #f2c9e8;
   /* Больничный */
   --fps-sick: #96102f;
   --fps-sick-soft: #fbc9d7;
