@@ -13,11 +13,12 @@
 балансировки и ждут.
 """
 
-from fastapi import APIRouter, HTTPException, Request, status
+from fastapi import APIRouter, Request
 from pydantic import BaseModel
 from sqlalchemy import text
 
 from grafik_api import __version__
+from grafik_api.core.errors import ServiceUnavailableError
 from grafik_api.core.logging import get_logger
 
 logger = get_logger("api.health")
@@ -66,9 +67,8 @@ async def readyz(request: Request) -> Health:
             exc_info=True,
             extra={"event": "db.unavailable"},
         )
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="база недоступна",
-        ) from error
+        # Доменной ошибкой, а не `HTTPException`: ответ тогда уходит в том
+        # же формате, что и все остальные (problem+json).
+        raise ServiceUnavailableError("база недоступна") from error
 
     return Health(status="ready", version=__version__)

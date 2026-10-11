@@ -57,6 +57,13 @@ class RequestContextMiddleware:
 
         request_id = _incoming_id(scope) or uuid4().hex
         token = request_id_var.set(request_id)
+
+        # Тот же идентификатор — в область видимости запроса. Контекстная
+        # переменная к моменту ответа об необработанной ошибке уже
+        # сброшена (обработчик срабатывает снаружи этой прослойки), а
+        # `scope` живёт до конца обработки, и из него идентификатор
+        # попадает в тело ответа.
+        scope.setdefault("state", {})["request_id"] = request_id
         started_at = perf_counter()
         status = 0
 
@@ -66,9 +73,20 @@ class RequestContextMiddleware:
                 status = message["status"]
                 # Заголовки правим списком, а не помощником Starlette: это
                 # обычный ASGI-кадр, и лишняя зависимость тут не нужна.
+                #
+                # Свой заголовок сначала убираем, потом ставим: ответ об
+                # ошибке приходит сюда уже с ним (его ставит обработчик,
+                # потому что ответ о необработанном исключении уходит мимо
+                # этой прослойки), а два одинаковых заголовка клиент
+                # склеивает в «значение, значение».
+                имя = HEADER.encode("ascii")
                 message["headers"] = [
-                    *message.get("headers", []),
-                    (HEADER.encode("ascii"), request_id.encode("ascii")),
+                    *(
+                        (name, value)
+                        for name, value in message.get("headers", [])
+                        if name.lower() != имя
+                    ),
+                    (имя, request_id.encode("ascii")),
                 ]
             await send(message)
 

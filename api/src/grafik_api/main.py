@@ -20,8 +20,10 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
 from grafik_api import __version__
+from grafik_api.api.problems import install_problem_handlers
 from grafik_api.api.v1 import router as v1_router
 from grafik_api.core.config import Settings, get_settings
+from grafik_api.core.limits import RateLimiter
 from grafik_api.core.logging import configure_logging, get_logger
 from grafik_api.db import create_engine, create_sessionmaker
 from grafik_api.middleware.request_context import RequestContextMiddleware
@@ -80,6 +82,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     # Настройки нужны жизненному циклу и зависимостям, а до них доходит
     # только приложение — значит, им и хранить.
     app.state.settings = settings
+
+    # Счётчик обращений — в памяти процесса, поэтому создаётся вместе с
+    # приложением, а не в жизненном цикле: закрывать его не нужно.
+    app.state.limiter = RateLimiter()
+
+    # Все ошибки — одним форматом (problem+json), включая те, что поднимает
+    # сам веб-сервер.
+    install_problem_handlers(app)
 
     # Прослойка снаружи всего прикладного: идентификатор запроса нужен уже
     # первой записи журнала, а длительность — считая разбор запроса.

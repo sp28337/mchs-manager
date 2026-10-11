@@ -118,6 +118,10 @@ branch = true
 
 [tool.coverage.report]
 show_missing = true
+# Цель плана — 85% на сервисах и репозиториях. Порог общий и ниже
+# нынешних 100%: он страховка от обвала, а не повод дописывать тесты ради
+# процента.
+fail_under = 85
 exclude_also = ["if TYPE_CHECKING:"]
 
 

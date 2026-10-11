@@ -423,6 +423,9 @@ components:
             - item_too_large
             - quota_exceeded
             - rate_limited
+            - not_found
+            - method_not_allowed
+            - service_unavailable
             - internal_error
         request_id: { type: string }
 
