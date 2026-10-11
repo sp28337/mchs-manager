@@ -1,0 +1,104 @@
+name: API
+
+on:
+  # Как и у фронта: запуск руками на случай, когда событие до Actions не
+  # дошло.
+  workflow_dispatch:
+  pull_request:
+    branches:
+      - main
+      - staging
+    paths:
+      - 'api/**'
+      - 'docker-compose.yml'
+      - '.github/workflows/api.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - 'api/**'
+      - 'docker-compose.yml'
+      - '.github/workflows/api.yml'
+
+# Отдельный workflow, а не вторая джоба в CI, намеренно: CD слушает
+# завершение именно CI, и выкладка фронта начала бы ждать проверок
+# бэкенда — при том что в статический экспорт бэкенд не попадает вовсе.
+
+permissions:
+  contents: read
+
+concurrency:
+  group: api-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    name: Линтеры, типы, тесты
+    runs-on: ubuntu-24.04
+
+    defaults:
+      run:
+        working-directory: api
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      # uv ставится из PyPI с точной версией, а не сторонним действием:
+      # версия инструмента сборки должна меняться коммитом, а не чужим
+      # выпуском действия.
+      - name: Setup uv
+        run: pipx install uv==0.13.0
+        working-directory: .
+
+      # Интерпретатор скачивает сам uv — отдельное действие для Python не
+      # нужно. В образе и здесь версия одна и та же: 3.14.
+      - name: Install dependencies
+        run: uv sync --locked --python 3.14
+
+      - name: Lint
+        run: |
+          uv run ruff check .
+          uv run black --check .
+
+      - name: Types
+        run: uv run mypy
+
+      - name: Tests
+        run: uv run pytest --cov --cov-report=term-missing
+
+  image:
+    name: Образ и живость
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      # Сборка образа — единственная настоящая проверка Dockerfile, и
+      # делается она здесь: в контейнере разработки, где пишется код,
+      # демона Docker нет.
+      - name: Build image
+        run: docker build --tag grafik-api:ci api
+
+      - name: Health check in container
+        run: |
+          set -euo pipefail
+          docker run --detach --name grafik-api-ci --publish 8000:8000 grafik-api:ci
+
+          # Первый запрос может прийти раньше, чем поднимется uvicorn:
+          # ждём до 30 секунд и только потом считаем это отказом.
+          for attempt in $(seq 1 30); do
+            if curl --silent --fail http://127.0.0.1:8000/api/v1/healthz > answer.json; then
+              break
+            fi
+            sleep 1
+          done
+
+          cat answer.json
+          grep -q '"status":"ok"' answer.json
+
+      - name: Container logs
+        # Журналы нужны именно тогда, когда шаг выше упал.
+        if: always()
+        run: docker logs grafik-api-ci || true

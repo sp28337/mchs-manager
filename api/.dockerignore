@@ -1,0 +1,21 @@
+# Что не должно попасть в образ.
+#
+# README.md здесь нет намеренно: на него ссылается pyproject.toml, и без
+# него сборка пакета падает.
+
+.venv/
+__pycache__/
+*.py[cod]
+
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# Тесты в боевом образе не нужны: их место — в CI, рядом с исходниками.
+tests/
+
+.env
+.git/
+Makefile

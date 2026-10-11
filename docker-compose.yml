@@ -1,0 +1,81 @@
+# Окружение разработки: база, API и почтовая ловушка.
+#
+# Боевой состав — отдельным файлом (deploy/compose.prod.yml, шаг 13): у него
+# другие образы, другие порты, другие секреты и нет ни перезагрузки, ни
+# монтирования исходников. Смешивать их в одном файле с профилями значит
+# однажды поднять в бою разработческий пароль.
+#
+# Ключа `version` здесь нет: Compose считает его устаревшим и ругается.
+
+name: grafik13
+
+services:
+  postgres:
+    image: postgres:18.6-trixie
+    environment:
+      # Пароль заведомо разработческий и лежит в git осознанно: эта база
+      # живёт в контейнере на машине разработчика и наружу не смотрит.
+      # Боевые значения приходят из окружения сервера (шаг 13).
+      POSTGRES_USER: grafik
+      POSTGRES_PASSWORD: grafik
+      POSTGRES_DB: grafik
+      # Инициализация с явной локалью: сортировка по умолчанию зависит от
+      # локали образа, а на ней стоят индексы — пусть будет одинаковой у
+      # всех.
+      POSTGRES_INITDB_ARGS: "--locale=C.UTF-8 --encoding=UTF8"
+    ports:
+      # Только на петлю: порт базы, открытый в локальную сеть, — это
+      # приглашение всем, кто в той же кофейне.
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U grafik -d grafik"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+
+  api:
+    build:
+      context: ./api
+      target: dev
+    environment:
+      GRAFIK_ENV: dev
+      GRAFIK_LOG_LEVEL: DEBUG
+      GRAFIK_DATABASE_URL: postgresql+psycopg://grafik:grafik@postgres:5432/grafik
+    volumes:
+      # Монтируется только src, а не весь ./api: виртуальное окружение
+      # живёт в /app/.venv внутри образа, и монтирование каталога целиком
+      # перекрыло бы его — приложение не нашло бы собственных зависимостей.
+      - ./api/src:/app/src
+    ports:
+      - "127.0.0.1:8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      # curl в slim-образе нет, и ставить его только ради проверки незачем:
+      # интерпретатор уже на месте.
+      test:
+        - CMD
+        - python
+        - -c
+        - import urllib.request; urllib.request.urlopen("http://127.0.0.1:8000/api/v1/healthz")
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+
+  mailpit:
+    # Ловушка для писем: всё, что приложение отправит, останется здесь и
+    # покажется на http://127.0.0.1:8025. Нужна с шага 7 (подтверждение
+    # адреса и восстановление доступа); стоит заранее, чтобы окружение
+    # разработки не пришлось менять задним числом.
+    image: axllent/mailpit:v1.31.5
+    ports:
+      - "127.0.0.1:1025:1025"
+      - "127.0.0.1:8025:8025"
+
+volumes:
+  pgdata:

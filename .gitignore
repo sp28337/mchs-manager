@@ -5,31 +5,31 @@ __pycache__/
 
 # Distribution / packaging (Python).
 #
-# ПРИВЯЗАНО К `backend/`, и это не косметика. Шаблон .gitignore для
+# ПРИВЯЗАНО К `api/`, и это не косметика. Шаблон .gitignore для
 # Python перечисляет здесь каталоги без ведущего пути, а такой шаблон
 # git применяет НА ЛЮБОЙ ГЛУБИНЕ. Строка `lib/` тем самым исключала
-# `frontend/src/features/*/lib/` — обычные каталоги исходников, — и
+# `src/features/*/lib/` — обычные каталоги исходников, — и
 # файлы уходили в коммит невидимыми: `git add -A` их молча пропускал,
 # сборка у автора работала (файлы-то на диске), а у всех остальных
 # падала на неразрешённом импорте.
 #
 # Восстановить такой файл негативным правилом нельзя: git не заходит
-# внутрь исключённого КАТАЛОГА, и `!frontend/**` его не вернёт. Поэтому
+# внутрь исключённого КАТАЛОГА, и `!src/**` его не вернёт. Поэтому
 # исключение сужено до каталога, для которого оно писалось.
-backend/.Python
-backend/build/
-backend/develop-eggs/
-backend/dist/
-backend/downloads/
-backend/eggs/
-backend/.eggs/
-backend/lib/
-backend/lib64/
-backend/parts/
-backend/sdist/
-backend/var/
-backend/wheels/
-backend/share/python-wheels/
+api/.Python
+api/build/
+api/develop-eggs/
+api/dist/
+api/downloads/
+api/eggs/
+api/.eggs/
+api/lib/
+api/lib64/
+api/parts/
+api/sdist/
+api/var/
+api/wheels/
+api/share/python-wheels/
 *.egg-info/
 .installed.cfg
 *.egg
@@ -55,11 +55,13 @@ coverage.xml
 .pytest_cache/
 cover/
 
-# UV
-#   Similar to Pipfile.lock, it is generally recommended to include uv.lock in version control.
-#   This is especially recommended for binary packages to ensure reproducibility, and is more
-#   commonly ignored for libraries.
-uv.lock
+# uv
+#
+# uv.lock НЕ исключается, и это осознанно: `api/` — приложение, а не
+# библиотека. Лок-файл фиксирует точные версии, на которых собирается
+# образ и проходят тесты; без него «та же» сборка через месяц приезжает с
+# другими версиями, и расследование начинается с вопроса «а что у тебя
+# установлено».
 
 
 # PEP 582; used by e.g. github.com/David-OConnor/pyflow and github.com/pdm-project/pdm
