@@ -223,15 +223,22 @@ const LEAST_CELL = 34;
  * Квадрат кольца — размером с клетку, и на сетке года это 25 точек на
  * компьютере и 46 на телефоне. Вторую величину круг возводит в квадрат:
  * радиус считается от стороны квадрата, и кольцо из девяти сорокашести-
- * точечных заняло бы на телефоне почти всю ширину экрана, а у края — и
- * всю. Предел снимает это, ничего не отнимая: 44 точки — это всё ещё
- * заметно крупнее пальца (рекомендованные 44 у Apple, 48 у Material), а
- * кольцо остаётся кольцом вокруг дня, а не ободом вокруг страницы.
+ * точечных отодвигалось бы от дня на полторы клетки пустоты. Предел
+ * снимает это, ничего не отнимая: 40 точек — это всё ещё крупнее пальца
+ * (рекомендованные 44 у Apple, 48 у Material считают от ЦЕЛИ, а цель
+ * здесь — квадрат с просветом вокруг), а кольцо садится к дню ближе.
  */
-const MOST_CELL = 44;
+const MOST_CELL = 40;
 
-/** Просвет между соседними квадратами кольца и между кольцом и клеткой. */
-const RING_GAP = 6;
+/**
+ * Просвет между соседними квадратами кольца и между кольцом и клеткой.
+ *
+ * Тот же, что между клетками сетки. Был шире (шесть точек), и на круге
+ * это обходилось дороже, чем на сетке: просвет входит в шаг, шаг — в
+ * радиус с коэффициентом почти два, и каждая лишняя точка просвета
+ * отодвигала всё кольцо на две.
+ */
+const RING_GAP = 4;
 
 /** С какой сетки открыто кольцо — от этого зависит, о чём оно спрашивает. */
 export type DayRingKind = "shifts" | "calendar";
@@ -312,10 +319,17 @@ function at(radius: number, angle: number): Place {
  * друга. Первое считается просто: полклетки, полквадрата и просвет.
  *
  * Второе — через хорду. Квадраты не наезжают, пока их середины разведены
- * на шаг (сторона плюс просвет) ХОТЯ БЫ ПО ОДНОЙ оси; у хорды, идущей под
- * 45°, обе оси вдвое с лишним меньше её самой, и в этом худшем направлении
- * нужна хорда в √2 шага. Считать по дуге окружности здесь нельзя: дуга
- * длиннее хорды, и по ней соседи оказались бы ближе, чем вышло в расчёте.
+ * на шаг (сторона плюс просвет) ХОТЯ БЫ ПО ОДНОЙ оси. Сколько для этого
+ * нужно хорды, зависит от того, КУДА она идёт: вдоль оси довольно самого
+ * шага, под 45° нужно в √2 раза больше, между — что-то посередине
+ * (`needChord`). Считать по дуге окружности при этом нельзя: дуга длиннее
+ * хорды, и по ней соседи оказались бы ближе, чем вышло в расчёте.
+ *
+ * Сперва здесь стоял худший случай на всех — √2 шага, — и кольцо от этого
+ * отодвигалось от дня на лишнюю восьмую часть радиуса, хотя под 45° из
+ * девяти хорд не идёт ни одна (самые косые — под 40° и 50°). Теперь
+ * каждая пара меряется по своему направлению, и круг садится к дню
+ * вплотную настолько, насколько позволяет счёт.
  *
  * --- Что происходит у края экрана -------------------------------------------
  *
@@ -347,69 +361,95 @@ function at(radius: number, angle: number): Place {
  */
 function roundPlaces(spot: Spot, tile: number, count: number): Place[] {
   const pitch = tile + RING_GAP;
-  const chord = Math.SQRT2 * pitch;
+  const top = -Math.PI / 2;
   const near = (spot.size + tile) / 2 + RING_GAP;
-  const even = chord / (2 * Math.sin(Math.PI / Math.max(count, 3)));
-  const first = Math.max(near, even);
+  const first = Math.max(near, evenRadius(pitch, count, top));
   const most = Math.min(window.innerWidth, window.innerHeight) * 0.6;
+  /** На столько отодвигается следующее кольцо, если одного не хватило. */
+  const apart = Math.SQRT2 * pitch;
 
-  /** Сколько квадратов встанет на эту дугу и каким шагом. */
-  const room = (radius: number, span: number) => {
-    const step = 2 * Math.asin(Math.min(1, chord / (2 * radius)));
-    const full = span >= Math.PI * 2 - step;
-    return {
-      step,
-      full,
-      fits: full ? Math.floor((Math.PI * 2) / step) : Math.floor(span / step) + 1,
-    };
+  /**
+   * Углы по дуге от `from`, пока хватает места и пока не набрано `limit`.
+   *
+   * Шаг у каждой пары свой: он зависит от направления хорды, а оно — от
+   * того, в какой части круга пара стоит. Поэтому не деление, а обход.
+   */
+  const walk = (radius: number, from: number, span: number, limit: number) => {
+    const angles = [from];
+    let used = 0;
+    while (angles.length < limit) {
+      const step = nextStep(pitch, radius, from + used);
+      if (used + step > span + 1e-6) break;
+      used += step;
+      angles.push(from + used);
+    }
+    return { angles, used };
   };
 
-  /** Квадраты по дуге: полный круг — поровну, дуга — вплотную от середины. */
-  const along = (
+  /** Полный ли это круг: до замыкания не хватает меньше одного шага. */
+  const whole = (radius: number, span: number) =>
+    span >= Math.PI * 2 - nextStep(pitch, radius, top);
+
+  /** Квадраты по кругу поровну — с верхней точки и по часовой. */
+  const evenly = (radius: number, take: number): Place[] => {
+    const spread = (Math.PI * 2) / take;
+    return Array.from({ length: take }, (_, i) => at(radius, top + i * spread));
+  };
+
+  /**
+   * Квадраты по дуге: вплотную, от её середины в обе стороны.
+   *
+   * Растянуть по всей дуге было бы ровнее на вид, но у края окна дуга
+   * длинная и узкая, и крайние квадраты уехали бы к самым кромкам — туда,
+   * где их уже не связать глазом с днём.
+   *
+   * Обход идёт дважды: первый показывает, сколько дуги уйдёт под
+   * квадраты, второй ставит их, сдвинув на половину остатка. Шаги от
+   * сдвига чуть меняются (направления хорд другие), и если после сдвига
+   * последнему места не хватило — остаётся первая раскладка, прижатая к
+   * началу дуги: лучше немного не по середине, чем на один вид меньше.
+   */
+  const centred = (
     radius: number,
     arc: { from: number; span: number },
     take: number,
-    step: number,
-    full: boolean,
   ): Place[] => {
-    if (full) {
-      // Полный круг: поровну, начиная с верхней точки и по часовой.
-      const spread = (Math.PI * 2) / take;
-      return Array.from({ length: take }, (_, i) =>
-        at(radius, -Math.PI / 2 + i * spread),
-      );
-    }
-    // Дуга: вплотную, от её середины в обе стороны. Растянуть по всей дуге
-    // было бы ровнее на вид, но у края окна дуга длинная и узкая, и
-    // крайние квадраты уехали бы к самым кромкам — туда, где их уже не
-    // связать глазом с днём.
-    const start = arc.from + (arc.span - (take - 1) * step) / 2;
-    return Array.from({ length: take }, (_, i) => at(radius, start + i * step));
+    const probe = walk(radius, arc.from, arc.span, take);
+    const shift = Math.max(0, (arc.span - probe.used) / 2);
+    const moved = walk(radius, arc.from + shift, arc.span - shift, take);
+    const angles = moved.angles.length === take ? moved.angles : probe.angles;
+    return angles.map((angle) => at(radius, angle));
   };
 
   // 1. Одним кольцом. Радиус растёт, пока все виды не встанут на дугу:
-  // шаг в восемь точек мельче, чем глаз различит, а перебор этот идёт раз
+  // шаг в шесть точек мельче, чем глаз различит, а перебор этот идёт раз
   // на открытие кольца.
-  for (let radius = first; radius <= most; radius += 8) {
+  for (let radius = first; radius <= most; radius += 6) {
     const arc = widestArc(spot, radius, tile);
     if (arc === null) continue;
-    const { step, full, fits } = room(radius, arc.span);
-    if (fits >= count) return along(radius, arc, count, step, full);
+    if (whole(radius, arc.span)) return evenly(radius, count);
+    if (walk(radius, arc.from, arc.span, count).angles.length >= count) {
+      return centred(radius, arc, count);
+    }
   }
 
   // 2. Кольцо за кольцом. Следующее отодвигается на ту же хорду, которой
-  // разведены соседи: расстояние между точками разных колец не меньше
-  // разности радиусов, и этого довольно, чтобы они не наехали.
+  // разведены соседи под 45°: расстояние между точками разных колец не
+  // меньше разности радиусов, и этого довольно, чтобы они не наехали.
   const places: Place[] = [];
   let left = count;
   let radius = first;
-  for (let ring = 0; ring < 4 && left > 0; ring += 1, radius += chord) {
+  for (let ring = 0; ring < 4 && left > 0; ring += 1, radius += apart) {
     const arc = widestArc(spot, radius, tile);
     if (arc === null) continue;
-    const { step, full, fits } = room(radius, arc.span);
+    const fits = whole(radius, arc.span)
+      ? Math.floor((Math.PI * 2) / nextStep(pitch, radius, top))
+      : walk(radius, arc.from, arc.span, left).angles.length;
     const take = Math.min(fits, left);
     if (take <= 0) continue;
-    places.push(...along(radius, arc, take, step, full));
+    places.push(
+      ...(whole(radius, arc.span) ? evenly(radius, take) : centred(radius, arc, take)),
+    );
     left -= take;
   }
 
@@ -417,14 +457,49 @@ function roundPlaces(spot: Spot, tile: number, count: number): Place[] {
   // нет, но раскладка обязана вернуть место КАЖДОМУ виду: не вернёт —
   // часть кольца просто не нарисуется, и человек не узнает, что вид
   // существует.
-  if (left > 0) {
-    const spread = (Math.PI * 2) / left;
-    for (let i = 0; i < left; i += 1) {
-      places.push(at(radius, -Math.PI / 2 + i * spread));
-    }
-  }
+  if (left > 0) places.push(...evenly(radius, left));
 
   return places;
+}
+
+/**
+ * Какой длины нужна хорда между соседями, если идёт она в сторону `dir`.
+ *
+ * Квадраты не наезжают, пока их середины разведены на шаг хотя бы по
+ * одной оси. Хорда, идущая вдоль оси, даёт этой оси себя целиком — ей
+ * довольно самого шага. Косая раздаёт себя обеим осям, и чем она ближе к
+ * 45°, тем меньше достаётся каждой: под 45° — ровно половина с
+ * хвостиком, и хорда нужна в √2 раза длиннее.
+ */
+function needChord(pitch: number, dir: number): number {
+  return pitch / Math.max(Math.abs(Math.cos(dir)), Math.abs(Math.sin(dir)));
+}
+
+/**
+ * Угловой шаг от `angle` до следующего места на окружности.
+ *
+ * Считается уточнением: нужная хорда зависит от направления, направление
+ * — от шага, а шаг — от хорды. Начало берётся самое тесное (хорда вдоль
+ * оси), трёх проходов довольно — величина сходится с первого же.
+ */
+function nextStep(pitch: number, radius: number, angle: number): number {
+  let step = 2 * Math.asin(Math.min(1, pitch / (2 * radius)));
+  for (let turn = 0; turn < 3; turn += 1) {
+    const need = needChord(pitch, angle + step / 2 + Math.PI / 2);
+    step = 2 * Math.asin(Math.min(1, need / (2 * radius)));
+  }
+  return step;
+}
+
+/** Наименьший радиус, на котором `count` мест встают по кругу поровну. */
+function evenRadius(pitch: number, count: number, from: number): number {
+  const step = (Math.PI * 2) / Math.max(count, 3);
+  let radius = 0;
+  for (let i = 0; i < count; i += 1) {
+    const need = needChord(pitch, from + i * step + step / 2 + Math.PI / 2);
+    radius = Math.max(radius, need / (2 * Math.sin(step / 2)));
+  }
+  return radius;
 }
 
 /** Самый длинный кусок окружности, на котором квадрат целиком виден в окне. */
