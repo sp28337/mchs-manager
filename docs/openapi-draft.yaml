@@ -448,10 +448,11 @@ components:
         kdf_version: { type: string }
         consent:
           type: object
-          required: [policy_version, consent_version]
+          required: [policy_version, consent_version, terms_version]
           properties:
             policy_version: { type: string, examples: ["2026-10-11"] }
             consent_version: { type: string, examples: ["2026-10-11"] }
+            terms_version: { type: string, examples: ["2026-10-11"] }
 
     Session:
       type: object
@@ -610,10 +611,10 @@ components:
 
     LegalDocument:
       type: object
-      required: [version, published_at, url, sha256]
+      required: [version, effective_from, url, sha256]
       properties:
         version: { type: string, examples: ["2026-10-11"] }
-        published_at: { type: string, format: date }
+        effective_from: { type: string, format: date }
         url: { type: string, format: uri }
         sha256:
           type: string
