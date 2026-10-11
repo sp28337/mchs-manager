@@ -5,7 +5,7 @@
 # длинные, а запускаются десятки раз в день.
 
 .DEFAULT_GOAL := help
-.PHONY: help up down logs ps api-sync api-fmt api-lint api-type api-test api-check api-run api-shell
+.PHONY: help up down logs ps api-sync api-fmt api-lint api-type api-test api-check api-run api-shell api-migrate api-downgrade api-revision api-drift
 
 # Все команды uv выполняются из api/: там лежит pyproject.toml, и uv сам
 # находит и проект, и окружение.
@@ -46,6 +46,19 @@ api-test: ## Прогнать тесты с покрытием
 	$(UV) run pytest --cov --cov-report=term-missing
 
 api-check: api-lint api-type api-test ## Всё, что проверяет CI
+
+api-migrate: ## Применить миграции до головы
+	$(UV) run alembic upgrade head
+
+api-downgrade: ## Откатить одну миграцию
+	$(UV) run alembic downgrade -1
+
+api-revision: ## Новая миграция по разнице моделей с базой: make api-revision m="что сделано"
+	@test -n "$(m)" || { echo 'нужно: make api-revision m="что сделано"'; exit 1; }
+	$(UV) run alembic revision --autogenerate -m "$(m)"
+
+api-drift: ## Не разошлись ли модели с базой
+	$(UV) run alembic check
 
 api-run: ## Запустить API без Docker (нужна своя база)
 	$(UV) run uvicorn grafik_api.main:app --reload --port 8000

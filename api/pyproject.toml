@@ -17,8 +17,13 @@ readme = "README.md"
 # (target-version = py313).
 requires-python = ">=3.13"
 dependencies = [
+    "alembic>=1.20,<2",
     "fastapi>=0.143,<0.144",
+    # [binary] — готовое libpq в колесе: иначе образу нужен libpq-dev и
+    # компилятор, а это лишние сто мегабайт и лишняя сборка.
+    "psycopg[binary]>=3.3.6,<4",
     "pydantic-settings>=2.15,<3",
+    "sqlalchemy[asyncio]>=2.1.4,<3",
     # [standard] — uvloop, httptools и watchfiles: первые два нужны
     # боевому серверу, третий — перезагрузке при разработке.
     "uvicorn[standard]>=0.54,<0.55",
@@ -92,7 +97,9 @@ ignore = [
 python_version = "3.13"
 strict = true
 plugins = ["pydantic.mypy"]
-files = ["src", "tests"]
+# Миграции тоже проверяются: сгенерированный файл — обычный код, и
+# опечатка в нём обнаруживается либо здесь, либо на боевой базе.
+files = ["src", "tests", "migrations"]
 # Сообщение без кода правила нечем ни подавить, ни найти в документации.
 show_error_codes = true
 
@@ -112,3 +119,33 @@ branch = true
 [tool.coverage.report]
 show_missing = true
 exclude_also = ["if TYPE_CHECKING:"]
+
+
+[tool.alembic]
+
+# Своего alembic.ini у проекта нет: всё, что в нём оставалось, — адрес базы
+# (он приходит из GRAFIK_DATABASE_URL, см. migrations/env.py) и настройка
+# логов (она у нас своя, JSON). Два места, задающих одно и то же, однажды
+# разойдутся.
+script_location = "%(here)s/migrations"
+
+# `src` в пути — чтобы миграции запускались и в неустановленном дереве.
+prepend_sys_path = ["src", "."]
+
+# Дата в имени файла: в каталоге сразу видно порядок, а не только связь
+# по `down_revision`.
+file_template = "%%(year)d%%(month).2d%%(day).2d_%%(rev)s_%%(slug)s"
+
+# Сгенерированный файл проходит те же проверки, что и остальной код, —
+# иначе первая же автогенерация роняет линтер.
+[[tool.alembic.post_write_hooks]]
+name = "black"
+type = "console_scripts"
+entrypoint = "black"
+options = "REVISION_SCRIPT_FILENAME"
+
+[[tool.alembic.post_write_hooks]]
+name = "ruff"
+type = "module"
+module = "ruff"
+options = "check --fix REVISION_SCRIPT_FILENAME"

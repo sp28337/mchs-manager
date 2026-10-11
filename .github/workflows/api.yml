@@ -40,6 +40,30 @@ jobs:
       run:
         working-directory: api
 
+    # База настоящая, той же версии, что в бою: миграции на SQLite не
+    # проверяются никак — половина типов и ограничений там другая.
+    services:
+      postgres:
+        image: postgres:18.6-trixie
+        env:
+          POSTGRES_USER: grafik
+          POSTGRES_PASSWORD: grafik
+          POSTGRES_DB: grafik
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U grafik -d grafik"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+
+    env:
+      GRAFIK_ENV: test
+      GRAFIK_DATABASE_URL: postgresql+psycopg://grafik:grafik@127.0.0.1:5432/grafik
+      # По нему тесты узнают, что живая база есть, и включают проверки,
+      # которые без неё пропускаются.
+      GRAFIK_TEST_DATABASE_URL: postgresql+psycopg://grafik:grafik@127.0.0.1:5432/grafik
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v5
@@ -63,6 +87,19 @@ jobs:
 
       - name: Types
         run: uv run mypy
+
+      # Миграции прогоняются вверх, вниз и снова вверх: миграция, которую
+      # нельзя снять, на боевой базе означает «только вперёд».
+      - name: Migrations up and down
+        run: |
+          uv run alembic upgrade head
+          uv run alembic downgrade base
+          uv run alembic upgrade head
+
+      # Расхождение моделей с базой — это забытая миграция. Дешевле узнать
+      # здесь, чем на выкладке.
+      - name: Schema drift
+        run: uv run alembic check
 
       - name: Tests
         run: uv run pytest --cov --cov-report=term-missing

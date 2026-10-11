@@ -1,20 +1,26 @@
 """Проверка живости.
 
-`/healthz` отвечает на один вопрос: процесс жив и способен обработать
-запрос. Он намеренно ничего не проверяет снаружи — ни базу, ни почту:
-ручка живости, падающая из-за недоступной базы, заставляет оркестратор
-перезапускать совершенно здоровое приложение, и перезапуск базу не лечит.
+Две ручки, и разница между ними не косметическая.
 
-Готовность к приёму запросов — это `/readyz`, и он появится на шаге 5
-вместе с базой, которую ему и надо будет проверять. Ручка, которая всегда
-отвечает «готов», хуже отсутствующей: она обманывает того, кто на неё
-смотрит.
+`/healthz` — **живость**: процесс жив и способен обработать запрос. Он
+намеренно ничего не проверяет снаружи: ручка живости, падающая из-за
+недоступной базы, заставляет оркестратор перезапускать совершенно здоровое
+приложение, а база от перезапуска не лечится.
+
+`/readyz` — **готовность**: можно ли направлять сюда запросы. Вот он базу и
+проверяет, потому что без неё приложение бесполезно. Разница в том, что
+делают по ответу: на `/healthz` — перезапускают, на `/readyz` — убирают из
+балансировки и ждут.
 """
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException, Request, status
 from pydantic import BaseModel
+from sqlalchemy import text
 
 from grafik_api import __version__
+from grafik_api.core.logging import get_logger
+
+logger = get_logger("api.health")
 
 router = APIRouter(tags=["ops"])
 
@@ -34,3 +40,35 @@ async def healthz() -> Health:
     первое, что нужно знать, когда после выкладки что-то ведёт себя не так.
     """
     return Health(status="ok", version=__version__)
+
+
+@router.get(
+    "/readyz",
+    summary="Готово ли принимать запросы",
+    responses={503: {"description": "Не готово: база недоступна"}},
+)
+async def readyz(request: Request) -> Health:
+    """Проверить то, без чего приложение бесполезно, — базу.
+
+    Запрос самый дешёвый из возможных: нужно знать, что соединение живо и
+    база отвечает, а не нагружать её на каждой проверке.
+
+    Если жизненный цикл не запускался, фабрики сессий в состоянии нет — и
+    это тоже «не готово», а не ошибка: именно так выглядит приложение,
+    которое ещё не поднялось.
+    """
+    try:
+        async with request.app.state.sessionmaker() as session:
+            await session.execute(text("SELECT 1"))
+    except Exception as error:
+        logger.warning(
+            "база недоступна",
+            exc_info=True,
+            extra={"event": "db.unavailable"},
+        )
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="база недоступна",
+        ) from error
+
+    return Health(status="ready", version=__version__)

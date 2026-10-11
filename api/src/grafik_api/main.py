@@ -23,6 +23,7 @@ from grafik_api import __version__
 from grafik_api.api.v1 import router as v1_router
 from grafik_api.core.config import Settings, get_settings
 from grafik_api.core.logging import configure_logging, get_logger
+from grafik_api.db import create_engine, create_sessionmaker
 from grafik_api.middleware.request_context import RequestContextMiddleware
 
 logger = get_logger("api.main")
@@ -32,13 +33,25 @@ logger = get_logger("api.main")
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Запуск и остановка.
 
-    Пока здесь только две записи в журнал. Сюда же придёт пул соединений с
-    базой (шаг 5) — всё, что надо открыть один раз на процесс и закрыть при
-    остановке, чтобы не держать соединения после `docker stop`.
+    Движок создаётся здесь, а не при импорте: соединений он при создании не
+    открывает, но закрыть его на остановке обязательно — иначе после
+    `docker stop` соединения висят на стороне базы до таймаута.
+
+    Движок и фабрика сессий живут в `app.state`, а не модульными
+    переменными: так в одном процессе могут существовать два приложения с
+    разными настройками (ровно это делают тесты), и зависимость получает их
+    из запроса, а не из глобального состояния.
     """
+    engine = create_engine(app.state.settings)
+    app.state.engine = engine
+    app.state.sessionmaker = create_sessionmaker(engine)
+
     logger.info("приложение запускается", extra={"event": "app.start"})
-    yield
-    logger.info("приложение остановлено", extra={"event": "app.stop"})
+    try:
+        yield
+    finally:
+        await engine.dispose()
+        logger.info("приложение остановлено", extra={"event": "app.stop"})
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -63,6 +76,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         redoc_url=None,
         openapi_url="/openapi.json" if settings.docs_enabled else None,
     )
+
+    # Настройки нужны жизненному циклу и зависимостям, а до них доходит
+    # только приложение — значит, им и хранить.
+    app.state.settings = settings
 
     # Прослойка снаружи всего прикладного: идентификатор запроса нужен уже
     # первой записи журнала, а длительность — считая разбор запроса.
