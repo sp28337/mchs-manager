@@ -14,6 +14,11 @@
 Отдельное правило, которое важнее формата: **ответ об ошибке не раскрывает
 существование аккаунта**. На неверный пароль и на незнакомый адрес ответ
 один и тот же — `bad_credentials`.
+
+Кода расхождения ревизий здесь нет намеренно. Расхождение — не ошибка
+запроса: `POST /sync` отвечает `200` и приносит нынешнее состояние
+разошедшихся элементов списком, чтобы клиент слил их и повторил. Ошибкой
+это сделать значило бы отвергать всю отправку из-за одного профиля.
 """
 
 from __future__ import annotations
@@ -32,7 +37,6 @@ ProblemCode = Literal[
     "token_expired",
     "token_revoked",
     "consent_required",
-    "rev_conflict",
     "resync_required",
     "item_too_large",
     "quota_exceeded",
@@ -115,12 +119,6 @@ class ConsentRequiredError(DomainError):
     code = "consent_required"
     status = 403
     title = "Нужно согласие с новой редакцией документов"
-
-
-class RevConflictError(DomainError):
-    code = "rev_conflict"
-    status = 409
-    title = "Базовая ревизия не совпала"
 
 
 class ResyncRequiredError(DomainError):

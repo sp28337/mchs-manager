@@ -418,7 +418,6 @@ components:
             - token_expired
             - token_revoked
             - consent_required
-            - rev_conflict
             - resync_required
             - item_too_large
             - quota_exceeded
@@ -573,9 +572,10 @@ components:
           type: array
           items:
             type: object
-            required: [id, rev]
+            required: [id, kind, rev]
             properties:
               id: { type: string }
+              kind: { type: string, enum: [index, profile] }
               rev: { type: integer, format: int64 }
         conflicts:
           type: array

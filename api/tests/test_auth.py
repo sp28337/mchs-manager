@@ -29,30 +29,19 @@ from grafik_api.models import (
     RefreshToken,
     User,
 )
+from tests import factories
 
 АДРЕС = "петров@example.com"
-ЗНАЧЕНИЕ = encode_wrapped(b"\x01" * 32)
 ДРУГОЕ_ЗНАЧЕНИЕ = encode_wrapped(b"\x02" * 32)
-ОБЁРТКА_ПАРОЛЕМ = encode_wrapped(b"\x10" * 60)
-ОБЁРТКА_КЛЮЧОМ = encode_wrapped(b"\x20" * 60)
+
+# Общие части — в фабриках: ими пользуется и синхронизация.
+ЗНАЧЕНИЕ = factories.ЗНАЧЕНИЕ
+ОБЁРТКА_ПАРОЛЕМ = factories.ОБЁРТКА_ПАРОЛЕМ
 
 
 def тело_регистрации(**правки: Any) -> dict[str, Any]:
-    """Исправное тело регистрации — с возможностью испортить одно поле."""
-    тело: dict[str, Any] = {
-        "email": АДРЕС,
-        "verifier": ЗНАЧЕНИЕ,
-        "wrapped_dek_pwd": ОБЁРТКА_ПАРОЛЕМ,
-        "wrapped_dek_rec": ОБЁРТКА_КЛЮЧОМ,
-        "kdf_version": "kdf_v1",
-        "consent": {
-            "policy_version": CURRENT_VERSIONS["policy"],
-            "consent_version": CURRENT_VERSIONS["consent"],
-            "terms_version": CURRENT_VERSIONS["terms"],
-        },
-    }
-    тело.update(правки)
-    return тело
+    """Исправное тело регистрации — по умолчанию на один и тот же адрес."""
+    return factories.тело_регистрации(**{"email": АДРЕС, **правки})
 
 
 async def зарегистрировать(клиент: httpx.AsyncClient, **правки: Any) -> httpx.Response:

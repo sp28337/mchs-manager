@@ -11,7 +11,7 @@
 * адрес клиента (с оглядкой на nginx) и идентификатор устройства;
 * ограничитель частоты обращений;
 * текущий пользователь — по access-токену;
-* сервис входа, собранный на сессии запроса.
+* сервисы входа и синхронизации, собранные на сессии запроса.
 """
 
 from __future__ import annotations
@@ -30,6 +30,7 @@ from grafik_api.core.errors import BadCredentialsError, RateLimitedError
 from grafik_api.core.limits import Limit
 from grafik_api.core.security import read_access_token
 from grafik_api.services.auth import AuthService
+from grafik_api.services.sync import SyncService
 
 
 async def get_session(request: Request) -> AsyncIterator[AsyncSession]:
@@ -174,6 +175,14 @@ def get_auth_service(session: SessionDep, settings: SettingsDep) -> AuthService:
 
 
 AuthServiceDep = Annotated[AuthService, Depends(get_auth_service)]
+
+
+def get_sync_service(session: SessionDep, settings: SettingsDep) -> SyncService:
+    """Сервис синхронизации на сессии этого запроса."""
+    return SyncService(session, settings)
+
+
+SyncServiceDep = Annotated[SyncService, Depends(get_sync_service)]
 
 
 #: Что годится в идентификатор, пришедший от клиента.

@@ -18,7 +18,7 @@ from grafik_api.api.deps import get_client_ip
 from grafik_api.core.config import Settings
 from grafik_api.core.errors import (
     RateLimitedError,
-    RevConflictError,
+    ResyncRequiredError,
     ValidationFailedError,
 )
 from grafik_api.main import create_app
@@ -38,9 +38,9 @@ def приложение_с_пробами() -> FastAPI:
     async def доменная() -> None:
         raise ValidationFailedError("так нельзя")
 
-    @app.post("/api/v1/конфликт")
-    async def конфликт() -> None:
-        raise RevConflictError("ревизия устарела", item={"id": "index", "rev": 7})
+    @app.post("/api/v1/с-подробностями")
+    async def с_подробностями() -> None:
+        raise ResyncRequiredError("история не полна", min_rev_available=7)
 
     @app.post("/api/v1/часто")
     async def часто() -> None:
@@ -94,12 +94,13 @@ async def test_доменная_ошибка_это_problem_json(приложе�
 
 
 async def test_дополнительные_поля_доезжают(приложение_с_пробами: FastAPI) -> None:
-    """RFC 9457 разрешает свои члены — конфликт ревизий ими и пользуется."""
+    """RFC 9457 разрешает свои члены — ими и сообщается, что делать дальше."""
     async with клиент_для(приложение_с_пробами) as client:
-        ответ = await client.post("/api/v1/конфликт")
+        ответ = await client.post("/api/v1/с-подробностями")
 
     assert ответ.status_code == 409
-    assert ответ.json()["item"] == {"id": "index", "rev": 7}
+    assert ответ.json()["code"] == "resync_required"
+    assert ответ.json()["min_rev_available"] == 7
 
 
 async def test_предел_частоты_подсказывает_когда_повторить(

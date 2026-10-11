@@ -7,6 +7,8 @@
 
 from __future__ import annotations
 
+import uuid
+
 from sqlalchemy import select
 
 from grafik_api.models import User
@@ -21,6 +23,18 @@ class UserRepository(Repository[User]):
     async def by_email(self, email: str) -> User | None:
         """Аккаунт по нормализованному адресу почты."""
         return await self.session.scalar(select(User).where(User.email == email))
+
+    async def lock(self, user_id: uuid.UUID) -> User | None:
+        """Взять аккаунт с блокировкой строки.
+
+        Нужно отправке изменений: ревизия аккаунта — одна
+        последовательность, и два устройства, отправившие правки разом,
+        иначе получили бы один и тот же номер. Блокировка держится до
+        конца транзакции запроса, то есть считанные миллисекунды.
+        """
+        return await self.session.scalar(
+            select(User).where(User.id == user_id).with_for_update()
+        )
 
     async def create(self, email: str) -> User:
         """Добавить аккаунт.

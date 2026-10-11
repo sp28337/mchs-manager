@@ -12,6 +12,7 @@
 
 from grafik_api.repositories.audit import AuditRepository
 from grafik_api.repositories.base import Repository
+from grafik_api.repositories.blobs import BlobRepository
 from grafik_api.repositories.consents import ConsentRepository
 from grafik_api.repositories.credentials import (
     KIND_PWD,
@@ -26,6 +27,7 @@ __all__ = [
     "KIND_PWD",
     "KIND_REC",
     "AuditRepository",
+    "BlobRepository",
     "ConsentRepository",
     "CredentialRepository",
     "DataKeyRepository",

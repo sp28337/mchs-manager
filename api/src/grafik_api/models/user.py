@@ -57,6 +57,14 @@ class User(TimestampMixin, Base):
         BigInteger, nullable=False, default=0, server_default=text("0")
     )
 
+    # Ревизия, начиная с которой история ещё полна. Поднимается сборщиком,
+    # когда он убирает надгробия старше 180 дней: устройство, не выходившее
+    # на связь дольше, не узнало бы об удалениях — и ему отвечают
+    # «выбирай всё с нуля» (раздел 4 контракта).
+    min_rev_available: Mapped[int] = mapped_column(
+        BigInteger, nullable=False, default=0, server_default=text("0")
+    )
+
     credential: Mapped[Credential | None] = relationship(
         back_populates="user", cascade="all, delete-orphan", uselist=False
     )
