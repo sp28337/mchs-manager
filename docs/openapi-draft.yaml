@@ -1,0 +1,620 @@
+# Черновик описания API. Настоящее описание будет собирать сам FastAPI из
+# схем pydantic (шаги 3–9) — этот файл нужен до кода: по нему сверяются
+# фронт и бэкенд, пока ни того, ни другого ещё нет.
+#
+# Доводы по каждому решению — в docs/sync-contract.md, здесь только форма.
+openapi: 3.1.0
+
+info:
+  title: График 1 3 — синхронизация
+  version: 1.0.0-draft
+  description: >
+    Сервер хранит зашифрованные на устройстве куски данных и не владеет
+    ключом. Он не видит ни имён профилей, ни смен, ни отпусков и не умеет
+    сливать правки: слияние делает браузер (раздел 5 контракта).
+
+servers:
+  - url: https://grafik13.ru/api/v1
+    description: Прод (nginx на том же домене проксирует /api/ в контейнер)
+  - url: http://localhost:8000/api/v1
+    description: Разработка
+
+tags:
+  - name: auth
+    description: Регистрация, вход, токены, восстановление
+  - name: account
+    description: Аккаунт и права субъекта персональных данных
+  - name: sync
+    description: Обмен зашифрованными элементами
+  - name: legal
+    description: Действующие версии документов
+  - name: ops
+    description: Эксплуатация
+
+security:
+  - bearerAuth: []
+
+paths:
+  /auth/params:
+    post:
+      tags: [auth]
+      summary: Параметры вывода ключа до входа
+      description: >
+        Отвечает одинаково для существующего и несуществующего адреса —
+        иначе это оракул существования аккаунта.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email: { type: string, format: email, maxLength: 254 }
+      responses:
+        "200":
+          description: Параметры
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/KdfParams" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+
+  /auth/register:
+    post:
+      tags: [auth]
+      summary: Регистрация
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/RegisterRequest" }
+      responses:
+        "201":
+          description: Аккаунт заведён, письмо с подтверждением отправлено
+          headers:
+            Set-Cookie: { $ref: "#/components/headers/RefreshCookie" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Session" }
+        "409":
+          description: Адрес занят (код email_taken)
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        "422": { $ref: "#/components/responses/Validation" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+
+  /auth/login:
+    post:
+      tags: [auth]
+      summary: Вход
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, verifier]
+              properties:
+                email: { type: string, format: email }
+                verifier: { $ref: "#/components/schemas/Base64Url" }
+      responses:
+        "200":
+          description: Вошли; в ответе обёртка ключа данных паролем
+          headers:
+            Set-Cookie: { $ref: "#/components/headers/RefreshCookie" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Session" }
+        "401":
+          description: Неверная пара (код bad_credentials — тот же и для несуществующего адреса)
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+
+  /auth/refresh:
+    post:
+      tags: [auth]
+      summary: Обновить access-токен по cookie
+      description: Ротация обязательна; повторное использование гасит всю семью токенов.
+      security:
+        - refreshCookie: []
+      responses:
+        "200":
+          description: Новый access-токен
+          headers:
+            Set-Cookie: { $ref: "#/components/headers/RefreshCookie" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Session" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /auth/logout:
+    post:
+      tags: [auth]
+      summary: Выход
+      security:
+        - refreshCookie: []
+      responses:
+        "204": { description: Семья токенов погашена }
+
+  /auth/verify-email:
+    post:
+      tags: [auth]
+      summary: Подтверждение адреса по ссылке из письма
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token]
+              properties:
+                token: { type: string, maxLength: 512 }
+      responses:
+        "204": { description: Адрес подтверждён }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /auth/recover/start:
+    post:
+      tags: [auth]
+      summary: Письмо для восстановления доступа
+      description: Всегда 202 — существование адреса не раскрывается.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email: { type: string, format: email }
+      responses:
+        "202": { description: Если такой адрес есть, письмо отправлено }
+        "429": { $ref: "#/components/responses/RateLimited" }
+
+  /auth/recover/finish:
+    post:
+      tags: [auth]
+      summary: Новый пароль после восстановления
+      description: >
+        Клиент уже развернул ключ данных ключом восстановления и прислал
+        новую обёртку. Сервер проверяет только токен из письма.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token, verifier, wrapped_dek_pwd, kdf_version]
+              properties:
+                token: { type: string, maxLength: 512 }
+                verifier: { $ref: "#/components/schemas/Base64Url" }
+                wrapped_dek_pwd: { $ref: "#/components/schemas/Base64Url" }
+                kdf_version: { type: string, examples: ["kdf_v1"] }
+      responses:
+        "204": { description: Пароль заменён, все сессии погашены }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /account:
+    get:
+      tags: [account]
+      summary: Сведения об аккаунте
+      responses:
+        "200":
+          description: Аккаунт
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Account" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+    delete:
+      tags: [account]
+      summary: Удалить аккаунт со всеми данными
+      description: >
+        Уничтожает блобы, историю, обёртки, адрес, согласие и журнал входов.
+        Остаётся обезличенная строка аудита. Резервные копии догоняют
+        удаление по своему сроку (30 дней).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [verifier]
+              properties:
+                verifier: { $ref: "#/components/schemas/Base64Url" }
+      responses:
+        "204": { description: Удалено }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /account/password:
+    post:
+      tags: [account]
+      summary: Смена пароля
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [current_verifier, verifier, wrapped_dek_pwd, kdf_version]
+              properties:
+                current_verifier: { $ref: "#/components/schemas/Base64Url" }
+                verifier: { $ref: "#/components/schemas/Base64Url" }
+                wrapped_dek_pwd: { $ref: "#/components/schemas/Base64Url" }
+                wrapped_dek_rec:
+                  description: Если человек заодно перевыпустил ключ восстановления
+                  anyOf:
+                    - { $ref: "#/components/schemas/Base64Url" }
+                    - { type: "null" }
+                kdf_version: { type: string }
+      responses:
+        "204": { description: Пароль заменён, прочие сессии погашены }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /account/export:
+    get:
+      tags: [account]
+      summary: Выгрузка всего, что о человеке есть (право субъекта)
+      responses:
+        "200":
+          description: >
+            Один JSON: аккаунт, согласия, журнал входов и все элементы как
+            есть — зашифрованными. Расшифровать их может только владелец.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Export" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /sync:
+    get:
+      tags: [sync]
+      summary: Что изменилось после ревизии
+      parameters:
+        - name: since
+          in: query
+          required: true
+          schema: { type: integer, format: int64, minimum: 0 }
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 50, default: 50 }
+      responses:
+        "200":
+          description: Изменения
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PullResponse" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "409":
+          description: >
+            `since` старше полной истории (код resync_required): надгробия за
+            этот срок уже убраны, и выборку надо начать с нуля.
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+    post:
+      tags: [sync]
+      summary: Отправить изменения
+      description: >
+        Каждый элемент идёт со своей базовой ревизией. Расхождение — не
+        ошибка запроса: в ответе 200 придут и принятые, и конфликтные,
+        чтобы клиент слил и повторил.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PushRequest" }
+      responses:
+        "200":
+          description: Что принято и что разошлось
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PushResponse" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "413":
+          description: Элемент больше 1 МиБ или исчерпана квота аккаунта
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+
+  /legal/documents:
+    get:
+      tags: [legal]
+      summary: Действующие версии политики, согласия и соглашения
+      security: []
+      responses:
+        "200":
+          description: Версии и их даты
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/LegalDocuments" }
+
+  /healthz:
+    get:
+      tags: [ops]
+      summary: Живо ли приложение
+      security: []
+      responses:
+        "200": { description: Живо }
+
+  /readyz:
+    get:
+      tags: [ops]
+      summary: Готово ли принимать запросы (включая базу)
+      security: []
+      responses:
+        "200": { description: Готово }
+        "503": { description: Не готово }
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Access-токен, 15 минут, живёт только в памяти вкладки.
+    refreshCookie:
+      type: apiKey
+      in: cookie
+      name: grafik_refresh
+      description: HttpOnly; Secure; SameSite=Strict; Path=/api/v1/auth; 30 дней.
+
+  headers:
+    RefreshCookie:
+      description: Новый refresh-токен (ротация при каждом обновлении)
+      schema: { type: string }
+
+  responses:
+    Unauthorized:
+      description: Не аутентифицирован или токен отозван
+      content:
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/Problem" }
+    Validation:
+      description: Тело не прошло схему
+      content:
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/Problem" }
+    RateLimited:
+      description: Слишком часто
+      headers:
+        Retry-After:
+          schema: { type: integer }
+      content:
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/Problem" }
+
+  schemas:
+    Base64Url:
+      type: string
+      pattern: "^[A-Za-z0-9_-]+$"
+      maxLength: 1400000
+      description: Двоичные данные в base64url без выравнивающих знаков.
+
+    Problem:
+      type: object
+      description: RFC 9457. Человеку текст рисует фронт, решение принимает по `code`.
+      required: [type, title, status, code]
+      properties:
+        type: { type: string, format: uri, examples: ["https://grafik13.ru/problems/rev-conflict"] }
+        title: { type: string }
+        status: { type: integer }
+        detail: { type: string }
+        code:
+          type: string
+          enum:
+            - validation_failed
+            - email_taken
+            - bad_credentials
+            - email_not_verified
+            - token_expired
+            - token_revoked
+            - consent_required
+            - rev_conflict
+            - resync_required
+            - item_too_large
+            - quota_exceeded
+            - rate_limited
+            - internal_error
+        request_id: { type: string }
+
+    KdfParams:
+      type: object
+      required: [kdf_version, algorithm, memory_kib, iterations, parallelism, length]
+      properties:
+        kdf_version: { type: string, examples: ["kdf_v1"] }
+        algorithm: { type: string, const: argon2id }
+        memory_kib: { type: integer, examples: [65536] }
+        iterations: { type: integer, examples: [3] }
+        parallelism: { type: integer, examples: [1] }
+        length: { type: integer, const: 32 }
+
+    RegisterRequest:
+      type: object
+      required: [email, verifier, wrapped_dek_pwd, wrapped_dek_rec, kdf_version, consent]
+      properties:
+        email: { type: string, format: email, maxLength: 254 }
+        verifier: { $ref: "#/components/schemas/Base64Url" }
+        wrapped_dek_pwd: { $ref: "#/components/schemas/Base64Url" }
+        wrapped_dek_rec: { $ref: "#/components/schemas/Base64Url" }
+        kdf_version: { type: string }
+        consent:
+          type: object
+          required: [policy_version, consent_version]
+          properties:
+            policy_version: { type: string, examples: ["2026-10-11"] }
+            consent_version: { type: string, examples: ["2026-10-11"] }
+
+    Session:
+      type: object
+      required: [access_token, expires_in, account]
+      properties:
+        access_token: { type: string }
+        expires_in: { type: integer, examples: [900] }
+        wrapped_dek_pwd:
+          description: Приходит при входе и регистрации; обёртка разворачивается ключом из пароля.
+          anyOf:
+            - { $ref: "#/components/schemas/Base64Url" }
+            - { type: "null" }
+        kdf: { $ref: "#/components/schemas/KdfParams" }
+        account: { $ref: "#/components/schemas/Account" }
+
+    Account:
+      type: object
+      required: [id, email, email_verified, created_at, rev, consents]
+      properties:
+        id: { type: string, format: uuid }
+        email: { type: string, format: email }
+        email_verified: { type: boolean }
+        created_at: { type: string, format: date-time }
+        rev:
+          type: integer
+          format: int64
+          description: Нынешняя ревизия аккаунта — курсор для первой выборки.
+        usage:
+          type: object
+          properties:
+            items: { type: integer }
+            bytes: { type: integer, format: int64 }
+        consents:
+          type: array
+          items:
+            type: object
+            required: [kind, version, accepted_at]
+            properties:
+              kind: { type: string, enum: [policy, consent, terms] }
+              version: { type: string }
+              accepted_at: { type: string, format: date-time }
+
+    Item:
+      type: object
+      required: [id, kind, rev, deleted, updated_at]
+      properties:
+        id:
+          type: string
+          maxLength: 64
+          description: uuid записи проводника или строка `index`.
+        kind: { type: string, enum: [index, profile] }
+        rev: { type: integer, format: int64 }
+        deleted: { type: boolean }
+        updated_at: { type: string, format: date-time }
+        size: { type: integer, description: Размер блоба в байтах }
+        blob:
+          description: nonce ‖ шифротекст ‖ тег. У надгробия отсутствует.
+          anyOf:
+            - { $ref: "#/components/schemas/Base64Url" }
+            - { type: "null" }
+
+    PullResponse:
+      type: object
+      required: [rev, min_rev_available, items, has_more]
+      properties:
+        rev: { type: integer, format: int64, description: Ревизия аккаунта на момент ответа }
+        min_rev_available:
+          type: integer
+          format: int64
+          description: >
+            Ревизия, начиная с которой история полна. Клиент, чей курсор
+            меньше, обязан выбрать всё с нуля.
+        items:
+          type: array
+          maxItems: 50
+          items: { $ref: "#/components/schemas/Item" }
+        has_more: { type: boolean }
+
+    PushItem:
+      type: object
+      required: [id, kind, base_rev, mutation_id]
+      properties:
+        id: { type: string, maxLength: 64 }
+        kind: { type: string, enum: [index, profile] }
+        base_rev:
+          type: integer
+          format: int64
+          description: 0 для элемента, которого на сервере ещё не было.
+        mutation_id:
+          type: string
+          format: uuid
+          description: Повтор с тем же значением не создаёт новой ревизии.
+        deleted: { type: boolean, default: false }
+        blob:
+          anyOf:
+            - { $ref: "#/components/schemas/Base64Url" }
+            - { type: "null" }
+
+    PushRequest:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          minItems: 1
+          maxItems: 50
+          items: { $ref: "#/components/schemas/PushItem" }
+
+    PushResponse:
+      type: object
+      required: [rev, applied, conflicts]
+      properties:
+        rev: { type: integer, format: int64 }
+        applied:
+          type: array
+          items:
+            type: object
+            required: [id, rev]
+            properties:
+              id: { type: string }
+              rev: { type: integer, format: int64 }
+        conflicts:
+          type: array
+          description: Нынешнее состояние элементов, чья базовая ревизия не совпала.
+          items: { $ref: "#/components/schemas/Item" }
+
+    Export:
+      type: object
+      required: [account, items, consents, sign_ins, exported_at]
+      properties:
+        account: { $ref: "#/components/schemas/Account" }
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/Item" }
+        consents:
+          type: array
+          items: { type: object }
+        sign_ins:
+          type: array
+          items:
+            type: object
+            properties:
+              at: { type: string, format: date-time }
+              ip: { type: string }
+              device_id: { type: string, format: uuid }
+              event: { type: string }
+        exported_at: { type: string, format: date-time }
+
+    LegalDocuments:
+      type: object
+      required: [policy, consent, terms]
+      properties:
+        policy: { $ref: "#/components/schemas/LegalDocument" }
+        consent: { $ref: "#/components/schemas/LegalDocument" }
+        terms: { $ref: "#/components/schemas/LegalDocument" }
+
+    LegalDocument:
+      type: object
+      required: [version, published_at, url, sha256]
+      properties:
+        version: { type: string, examples: ["2026-10-11"] }
+        published_at: { type: string, format: date }
+        url: { type: string, format: uri }
+        sha256:
+          type: string
+          description: Хэш текста — им подтверждается, с чем именно согласился человек.
