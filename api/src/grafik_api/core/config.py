@@ -15,9 +15,15 @@ from __future__ import annotations
 from functools import lru_cache
 from typing import Literal
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 Env = Literal["dev", "test", "prod"]
+
+# Уровни ровно те, что понимает `logging`. Перечислением, а не строкой:
+# опечатка в переменной окружения должна падать при старте с внятным
+# сообщением, а не глотать половину журнала молча.
+LogLevel = Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
 
 
 class Settings(BaseSettings):
@@ -34,16 +40,23 @@ class Settings(BaseSettings):
 
     env: Env = "dev"
 
-    # Уровень журналирования строкой, как его понимает logging. Настоящая
-    # настройка журналов — шаг 4; здесь значение лежит заранее, чтобы
-    # окружение контейнера не пришлось менять задним числом.
-    log_level: str = "INFO"
+    log_level: LogLevel = "INFO"
 
     # Строка подключения к базе. Значение по умолчанию ведёт на сервис из
     # docker-compose.yml: так `docker compose up` работает без .env, а
     # пароль `grafik` в нём — заведомо разработческий (см. комментарий в
     # самом compose-файле).
     database_url: str = "postgresql+psycopg://grafik:grafik@postgres:5432/grafik"
+
+    @field_validator("log_level", mode="before")
+    @classmethod
+    def _upper(cls, value: object) -> object:
+        """`debug` в переменной окружения — это тоже DEBUG.
+
+        Регистр здесь не несёт смысла, а спотыкаться об него при отладке в
+        три часа ночи — обидно.
+        """
+        return value.upper() if isinstance(value, str) else value
 
     @property
     def docs_enabled(self) -> bool:
