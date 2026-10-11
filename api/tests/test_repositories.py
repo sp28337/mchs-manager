@@ -17,14 +17,14 @@ from tests import factories
 async def test_незнакомого_адреса_нет(сессия: AsyncSession) -> None:
     репозиторий = UserRepository(сессия)
 
-    assert await репозиторий.by_email("нет-такого@example.test") is None
+    assert await репозиторий.by_email("нет-такого@example.com") is None
 
 
 async def test_созданный_аккаунт_находится_по_адресу(сессия: AsyncSession) -> None:
     репозиторий = UserRepository(сессия)
 
-    создан = await репозиторий.create("петров@example.test")
-    найден = await репозиторий.by_email("петров@example.test")
+    создан = await репозиторий.create("петров@example.com")
+    найден = await репозиторий.by_email("петров@example.com")
 
     assert найден is not None
     assert найден.id == создан.id
@@ -49,10 +49,10 @@ async def test_повторный_адрес_не_проходит(сессия:
     ограничение в базе, а сервис превращает его в понятный ответ (шаг 7).
     """
     репозиторий = UserRepository(сессия)
-    await репозиторий.create("один@example.test")
+    await репозиторий.create("один@example.com")
 
     try:
-        await репозиторий.create("один@example.test")
+        await репозиторий.create("один@example.com")
     except IntegrityError:
         pass
     else:  # pragma: no cover - если дошли сюда, ограничения нет

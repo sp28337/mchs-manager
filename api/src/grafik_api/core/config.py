@@ -15,7 +15,7 @@ from __future__ import annotations
 from functools import lru_cache
 from typing import Literal
 
-from pydantic import field_validator
+from pydantic import SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 Env = Literal["dev", "test", "prod"]
@@ -48,6 +48,27 @@ class Settings(BaseSettings):
     # самом compose-файле).
     database_url: str = "postgresql+psycopg://grafik:grafik@postgres:5432/grafik"
 
+    # --- Секреты ---------------------------------------------------------
+    #
+    # Значения по умолчанию заведомо разработческие и в бою запрещены
+    # (см. проверку ниже). Хранить их здесь нельзя: файл в git.
+
+    #: Перец для хэша проверочного значения пароля. Лежит в окружении, а не
+    #: в базе: украденной базы не должно хватать для подбора пароля.
+    pepper: SecretStr = SecretStr("перец-только-для-разработки")
+
+    #: Ключ подписи access-токенов (HS256).
+    jwt_secret: SecretStr = SecretStr("подпись-только-для-разработки")
+
+    # --- Сроки -----------------------------------------------------------
+
+    #: Жизнь access-токена, секунды. Он живёт в памяти вкладки, и 15 минут —
+    #: разумный предел для украденного токена.
+    access_ttl: int = 15 * 60
+
+    #: Жизнь refresh-токена, дни. Каждое обновление выдаёт новый.
+    refresh_ttl_days: int = 30
+
     @field_validator("log_level", mode="before")
     @classmethod
     def _upper(cls, value: object) -> object:
@@ -57,6 +78,34 @@ class Settings(BaseSettings):
         три часа ночи — обидно.
         """
         return value.upper() if isinstance(value, str) else value
+
+    @model_validator(mode="after")
+    def _секреты_в_бою_обязательны(self) -> Settings:
+        """В прод нельзя уехать с разработческим секретом.
+
+        Проверка при старте, а не при первом входе: приложение, поднятое с
+        перцем из репозитория, лучше не поднять вовсе — иначе об этом
+        узнают по утечке.
+        """
+        if self.env != "prod":
+            return self
+
+        слабые = [
+            имя
+            for имя, значение in (
+                ("GRAFIK_PEPPER", self.pepper),
+                ("GRAFIK_JWT_SECRET", self.jwt_secret),
+            )
+            if "разработки" in значение.get_secret_value()
+            or len(значение.get_secret_value()) < 32
+        ]
+
+        if слабые:
+            raise ValueError(
+                "в боевом окружении нужны свои длинные значения: " + ", ".join(слабые)
+            )
+
+        return self
 
     @property
     def docs_enabled(self) -> bool:

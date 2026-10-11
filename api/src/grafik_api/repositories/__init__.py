@@ -10,7 +10,26 @@
 транзакциях.
 """
 
+from grafik_api.repositories.audit import AuditRepository
 from grafik_api.repositories.base import Repository
+from grafik_api.repositories.consents import ConsentRepository
+from grafik_api.repositories.credentials import (
+    KIND_PWD,
+    KIND_REC,
+    CredentialRepository,
+    DataKeyRepository,
+)
+from grafik_api.repositories.sessions import RefreshTokenRepository
 from grafik_api.repositories.users import UserRepository
 
-__all__ = ["Repository", "UserRepository"]
+__all__ = [
+    "KIND_PWD",
+    "KIND_REC",
+    "AuditRepository",
+    "ConsentRepository",
+    "CredentialRepository",
+    "DataKeyRepository",
+    "RefreshTokenRepository",
+    "Repository",
+    "UserRepository",
+]

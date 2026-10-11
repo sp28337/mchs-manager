@@ -38,7 +38,9 @@ async def test_в_бою_описание_api_закрыто() -> None:
     Проверяется поведением, а не значением настройки: смысл в том, что
     ручки нет, а не в том, что флаг выключен.
     """
-    app = create_app(Settings(env="prod"))
+    # Боевые настройки требуют своих секретов — иначе приложение не
+    # поднимается вовсе (это проверяется в test_security.py).
+    app = create_app(Settings(env="prod", pepper="x" * 40, jwt_secret="y" * 40))
 
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="http://api") as client:

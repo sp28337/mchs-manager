@@ -8,12 +8,10 @@
 
 * сессия базы на запрос — с фиксацией в конце и откатом при ошибке;
 * настройки приложения;
-* адрес клиента (с оглядкой на nginx);
-* ограничитель частоты обращений.
-
-Чего здесь пока нет: текущего пользователя. Он появится на шаге 7 вместе с
-токенами — раньше его неоткуда взять, а заглушка, возвращающая «какого-то»
-пользователя, опаснее отсутствующей функции.
+* адрес клиента (с оглядкой на nginx) и идентификатор устройства;
+* ограничитель частоты обращений;
+* текущий пользователь — по access-токену;
+* сервис входа, собранный на сессии запроса.
 """
 
 from __future__ import annotations
@@ -21,13 +19,17 @@ from __future__ import annotations
 import ipaddress
 from collections.abc import AsyncIterator, Callable, Coroutine
 from typing import Annotated, Any
+from uuid import UUID
 
 from fastapi import Depends, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from grafik_api.core.config import Settings
-from grafik_api.core.errors import RateLimitedError
+from grafik_api.core.context import user_id_var
+from grafik_api.core.errors import BadCredentialsError, RateLimitedError
 from grafik_api.core.limits import Limit
+from grafik_api.core.security import read_access_token
+from grafik_api.services.auth import AuthService
 
 
 async def get_session(request: Request) -> AsyncIterator[AsyncSession]:
@@ -93,22 +95,89 @@ def get_client_ip(request: Request) -> str | None:
 ClientIpDep = Annotated[str | None, Depends(get_client_ip)]
 
 
+def get_device_id(request: Request) -> str | None:
+    """Идентификатор устройства из заголовка `X-Device-Id`.
+
+    Заводит его браузер, персональных данных в нём нет. Принимается
+    только похожее на идентификатор: иначе в журнал входов попадёт
+    строка на десять килобайт.
+    """
+    значение = request.headers.get("x-device-id", "").strip()
+
+    if not значение or len(значение) > 64:
+        return None
+
+    return значение if set(значение) <= _БЕЗОПАСНЫЕ else None
+
+
+DeviceIdDep = Annotated[str | None, Depends(get_device_id)]
+
+
+def check_rate(request: Request, key: str, limit: Limit) -> None:
+    """Отметить обращение и отказать, если их стало слишком много.
+
+    Прямой вызов нужен там, где ключ зависит от тела запроса: предел
+    входа контракт считает на пару (аккаунт, адрес), а адрес приходит в
+    теле — зависимость его ещё не видит.
+    """
+    retry_after = request.app.state.limiter.hit(key, limit)
+
+    if retry_after is not None:
+        raise RateLimitedError(retry_after)
+
+
 def rate_limit(name: str, limit: Limit) -> Callable[..., Coroutine[Any, Any, None]]:
     """Зависимость, которая считает обращения и отказывает при переборе.
 
     Ключ — имя ручки и адрес клиента: предел у входа свой, у регистрации
-    свой, и мешать их нельзя. Там, где контракт считает на аккаунт
-    (`/sync`), ключ дополнит опознанный пользователь — шаг 8.
+    свой, и мешать их нельзя.
     """
 
     async def dependency(request: Request) -> None:
-        key = f"{name}:{get_client_ip(request) or 'неизвестно'}"
-        retry_after = request.app.state.limiter.hit(key, limit)
-
-        if retry_after is not None:
-            raise RateLimitedError(retry_after)
+        check_rate(request, f"{name}:{get_client_ip(request) or 'неизвестно'}", limit)
 
     return dependency
+
+
+async def get_current_user_id(request: Request, settings: SettingsDep) -> UUID:
+    """Опознать владельца запроса по access-токену.
+
+    Токен ждём в заголовке `Authorization: Bearer …` и только там: в
+    cookie он был бы доступен подделке запросов между сайтами, а в строке
+    запроса — попал бы в журналы.
+
+    Здесь же идентификатор уходит в контекст журналирования: дальше все
+    записи этого запроса несут `user_id`, и не нужно передавать его
+    каждому вызову.
+    """
+    заголовок = request.headers.get("authorization", "")
+    схема, _, значение = заголовок.partition(" ")
+
+    if схема.lower() != "bearer" or not значение.strip():
+        raise BadCredentialsError("нужен access-токен")
+
+    user_id = read_access_token(значение.strip(), settings)
+
+    # Сбрасывать не нужно: каждый запрос обрабатывается своей задачей, а
+    # контекст у задачи свой.
+    user_id_var.set(str(user_id))
+
+    return user_id
+
+
+CurrentUserDep = Annotated[UUID, Depends(get_current_user_id)]
+
+
+def get_auth_service(session: SessionDep, settings: SettingsDep) -> AuthService:
+    """Сервис входа на сессии этого запроса."""
+    return AuthService(session, settings)
+
+
+AuthServiceDep = Annotated[AuthService, Depends(get_auth_service)]
+
+
+#: Что годится в идентификатор, пришедший от клиента.
+_БЕЗОПАСНЫЕ = set("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_.")
 
 
 def _is_loopback(host: str) -> bool:

@@ -338,7 +338,7 @@ Nonce свежий на каждую запись (повтор nonce в GCM л�
 | `bad_credentials` | 401 | Неверная пара адрес/`verifier` |
 | `email_not_verified` | 403 | Действие требует подтверждённого адреса |
 | `token_expired`, `token_revoked` | 401 | Протух или отозван |
-| `consent_required` | 403 | Версия согласия устарела |
+| `consent_required` | 403 | Версия согласия устарела; в теле `current` — действующие версии |
 | `rev_conflict` | 409 | Базовая ревизия не совпала (в теле — нынешний элемент) |
 | `resync_required` | 409 | `since` старше полной истории: выбрать всё с нуля |
 | `item_too_large`, `quota_exceeded` | 413 | Превышены лимиты (раздел 7) |

@@ -102,7 +102,7 @@ jobs:
         run: uv run alembic check
 
       - name: Tests
-        run: uv run pytest --cov --cov-report=term-missing
+        run: uv run pytest --cov --cov-report=term-missing --cov-fail-under=85
 
   image:
     name: Образ и живость

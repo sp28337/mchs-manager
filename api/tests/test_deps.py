@@ -18,7 +18,7 @@ from grafik_api.api.deps import SessionDep, SettingsDep, get_session
 from grafik_api.core.errors import EmailTakenError
 from grafik_api.repositories import UserRepository
 
-АДРЕС = "единица-работы@example.test"
+АДРЕС = "единица-работы@example.com"
 
 
 async def test_успешный_запрос_фиксирует_запись(
@@ -66,12 +66,12 @@ async def test_исключение_доходит_до_сессии_и_та_о�
     поток = cast(AsyncGenerator[AsyncSession], get_session(запрос))
     рабочая = await anext(поток)
 
-    await UserRepository(рабочая).create("откат-напрямую@example.test")
+    await UserRepository(рабочая).create("откат-напрямую@example.com")
 
     with pytest.raises(RuntimeError):
         await поток.athrow(RuntimeError("сбой после записи"))
 
-    assert await UserRepository(сессия).by_email("откат-напрямую@example.test") is None
+    assert await UserRepository(сессия).by_email("откат-напрямую@example.com") is None
 
 
 async def test_настройки_доступны_ручке(

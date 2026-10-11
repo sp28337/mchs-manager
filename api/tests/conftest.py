@@ -37,7 +37,7 @@ import pytest
 from alembic import command
 from alembic.config import Config
 from fastapi import FastAPI
-from sqlalchemy import NullPool
+from sqlalchemy import NullPool, create_engine, text
 from sqlalchemy.ext.asyncio import (
     AsyncConnection,
     AsyncSession,
@@ -46,6 +46,7 @@ from sqlalchemy.ext.asyncio import (
 )
 
 from grafik_api.core.config import Settings, get_settings
+from grafik_api.db import Base
 from grafik_api.main import create_app
 
 КОРЕНЬ = Path(__file__).resolve().parents[1]
@@ -77,6 +78,16 @@ def схема(адрес_базы: str) -> str:
     get_settings.cache_clear()
 
     command.upgrade(Config(toml_file=str(КОРЕНЬ / "pyproject.toml")), "head")
+
+    # И сразу очистить. Транзакция теста откатывается, но базу могли
+    # засеять снаружи — например, ручной пробой через curl, — и тест,
+    # который смотрит «единственную строку в таблице», сломался бы из-за
+    # чужого мусора. Один `TRUNCATE` на прогон дешевле такой загадки.
+    движок = create_engine(адрес_базы)
+    таблицы = ", ".join(таблица.name for таблица in Base.metadata.sorted_tables)
+    with движок.begin() as соединение:
+        соединение.execute(text(f"TRUNCATE {таблицы} CASCADE"))
+    движок.dispose()
 
     return адрес_базы
 
@@ -131,8 +142,14 @@ def приложение(схема: str, фабрика_сессий: async_ses
 
 @pytest.fixture
 async def клиент(приложение: FastAPI) -> AsyncIterator[httpx.AsyncClient]:
-    """Клиент к приложению без сокета и без свободного порта."""
+    """Клиент к приложению без сокета и без свободного порта.
+
+    Адрес с `https`, хотя сокета нет вовсе: cookie с `Secure` по открытому
+    каналу не отправляется, и проверки обновления токена на `http` молча
+    ломались бы — не потому, что код плохой, а потому что клиент ведёт
+    себя правильно.
+    """
     transport = httpx.ASGITransport(app=приложение)
 
-    async with httpx.AsyncClient(transport=transport, base_url="http://api") as клиент:
+    async with httpx.AsyncClient(transport=transport, base_url="https://api") as клиент:
         yield клиент
