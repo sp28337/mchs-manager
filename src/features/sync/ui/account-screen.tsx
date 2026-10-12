@@ -11,7 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Card, Field } from "@/components/ui/panel";
 import { Segmented, SegmentedItem } from "@/components/ui/segmented";
 
-import { LEGAL_URLS } from "../legal";
+import { LEGAL_URLS, LEGAL_VERSIONS } from "../legal";
 import { RecoveryKeyCard } from "./recovery-key-card";
 import { useSync } from "./sync-provider";
 
@@ -134,6 +134,20 @@ export function AccountScreen() {
   );
 }
 
+/** `2026-10-11` → `11 октября 2026 г.` */
+function редакция(версия: string): string {
+  const дата = new Date(`${версия}T00:00:00Z`);
+
+  if (Number.isNaN(дата.getTime())) return версия;
+
+  return дата.toLocaleDateString("ru-RU", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+    timeZone: "UTC",
+  });
+}
+
 const СОСТОЯНИЕ: Record<string, string> = {
   off: "синхронизация не включена",
   "signed-out": "вход не выполнен",
@@ -248,7 +262,15 @@ function SignInForm() {
             <Link href={LEGAL_URLS.policy} className="underline">
               политику обработки данных
             </Link>
-            .
+            .{" "}
+            {/* Редакция названа прямо: согласие должно быть конкретным и
+                информированным (ч. 1 ст. 9 152-ФЗ), а в записи о согласии
+                сервер хранит именно версию текста. Через год человек
+                сможет прочитать ровно ту редакцию, на которую соглашался:
+                опубликованные остаются в архиве. */}
+            <span className="text-ink-faint">
+              Редакция {редакция(LEGAL_VERSIONS.consent)}.
+            </span>
           </span>
         </label>
       )}

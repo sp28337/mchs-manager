@@ -49,7 +49,7 @@ export function ProfileFooter({ profile }: ProfileFooterProps) {
           <Link href="/terms" className="text-ink-muted hover:underline">
             Условия использования
           </Link>
-          <Link href="/terms#data" className="text-ink-muted hover:underline">
+          <Link href="/privacy" className="text-ink-muted hover:underline">
             Данные и приватность
           </Link>
           <span>

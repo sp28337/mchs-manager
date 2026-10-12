@@ -53,6 +53,14 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      # Документы проверяются до сборки: страницы политики, согласия и
+      # условий собираются из `docs/legal/*.md`, а манифест версий и
+      # хэшей, которым сервер отвечает на `GET /legal/documents`, —
+      # оттуда же. Устаревший манифест означал бы, что запись о согласии
+      # ссылается на редакцию, которой нет.
+      - name: Legal documents
+        run: node scripts/legal.mjs
+
       - name: Types
         run: pnpm typecheck
 

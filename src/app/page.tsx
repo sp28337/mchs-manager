@@ -358,7 +358,7 @@ export default function LandingPage() {
               <Link href="/terms" className="text-ink-muted hover:underline">
                 Условия использования
               </Link>
-              <Link href="/terms#data" className="text-ink-muted hover:underline">
+              <Link href="/privacy" className="text-ink-muted hover:underline">
                 Данные и приватность
               </Link>
               <a href={`mailto:${EMAIL}`} className="text-ink-muted hover:underline">
