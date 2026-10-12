@@ -39,6 +39,8 @@ from grafik_api.schemas.auth import (
     KdfParamsOut,
     LoginIn,
     ParamsIn,
+    RecoverClaimIn,
+    RecoverClaimOut,
     RecoverFinishIn,
     RecoverStartIn,
     RegisterIn,
@@ -202,6 +204,26 @@ async def recover_start(
     перебрать адреса, чтобы узнать, кто у нас есть.
     """
     await service.recover_start(email=данные.email, ip=ip)
+
+
+@router.post(
+    "/recover/claim",
+    summary="Обёртка ключа восстановления по ссылке из письма",
+)
+async def recover_claim(
+    данные: RecoverClaimIn, service: AuthServiceDep, ip: ClientIpDep
+) -> RecoverClaimOut:
+    """Отдать то, чем браузер развернёт ключ данных.
+
+    Ссылка при этом не гасится: ею же человек завершит восстановление.
+    Иначе браузер оказался бы в тупике — обёртку получил, а предъявить
+    ссылку второй раз не может.
+    """
+    email, обёртка, параметры = await service.recover_claim(token=данные.token, ip=ip)
+
+    return RecoverClaimOut(
+        email=email, wrapped_dek_rec=обёртка, kdf=KdfParamsOut.of(параметры)
+    )
 
 
 @router.post(

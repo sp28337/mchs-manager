@@ -3,6 +3,8 @@
 import Link from "next/link";
 
 import { ThemeToggle } from "@/components/ui/theme-toggle";
+import { SyncStatus } from "@/features/sync/ui/sync-status";
+
 import type { StoredProfile } from "../storage/profile";
 
 /**
@@ -58,6 +60,12 @@ export function ProfileFooter({ profile }: ProfileFooterProps) {
           })}
           .
           </span>
+          {/* Состояние синхронизации — здесь же, рядом со временем
+              последней правки: вопрос у человека один и тот же («моё
+              сохранено? моё уехало?»), и ответы на него должны стоять
+              рядом. Без учётной записи строка приглашает её завести, при
+              выключенной синхронизации не рисуется вовсе. */}
+          <SyncStatus />
         </p>
       </div>
     </footer>

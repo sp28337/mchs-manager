@@ -795,6 +795,65 @@ async def test_новый_пароль_по_ссылке(
     assert await событий(сессия, "auth.recover.finished") == 1
 
 
+async def test_по_ссылке_отдаётся_обёртка_ключа_восстановления(
+    клиент: httpx.AsyncClient, сессия: AsyncSession, почта: factories.Почта
+) -> None:
+    """Без неё браузеру нечем развернуть ключ данных.
+
+    Отдавать её тому, кто предъявил ссылку из письма, безопасно: без
+    самого ключа восстановления (128 бит на бумаге) обёртка бесполезна, а
+    этого ключа сервер не видел ни разу.
+    """
+    await зарегистрировать(клиент)
+    await клиент.post("/api/v1/auth/recover/start", json={"email": АДРЕС})
+    токен = почта.токен()
+
+    ответ = await клиент.post("/api/v1/auth/recover/claim", json={"token": токен})
+
+    assert ответ.status_code == 200
+
+    тело = ответ.json()
+    assert тело["email"] == АДРЕС
+    assert тело["wrapped_dek_rec"] == factories.ОБЁРТКА_КЛЮЧОМ
+    assert тело["kdf"]["kdf_version"] == "kdf_v1"
+    assert await событий(сессия, "auth.recover.claimed") == 1
+
+    # Ссылка не погашена: ею же восстановление и завершают.
+    завершение = await клиент.post(
+        "/api/v1/auth/recover/finish",
+        json={
+            "token": токен,
+            "verifier": ДРУГОЕ_ЗНАЧЕНИЕ,
+            "wrapped_dek_pwd": ДРУГАЯ_ОБЁРТКА,
+            "kdf_version": "kdf_v1",
+        },
+    )
+    assert завершение.status_code == 204
+
+
+async def test_обёртку_не_отдают_по_негодной_ссылке(клиент: httpx.AsyncClient) -> None:
+    ответ = await клиент.post(
+        "/api/v1/auth/recover/claim", json={"token": "vzyataya-s-potolka-ssylka"}
+    )
+
+    assert ответ.status_code == 401
+    assert ответ.json()["code"] == "token_revoked"
+
+
+async def test_обёртку_не_отдают_по_ссылке_подтверждения(
+    клиент: httpx.AsyncClient, почта: factories.Почта
+) -> None:
+    """Назначения ссылок не взаимозаменяемы — и здесь тоже."""
+    await зарегистрировать(клиент)
+
+    ответ = await клиент.post(
+        "/api/v1/auth/recover/claim", json={"token": почта.токен()}
+    )
+
+    assert ответ.status_code == 401
+    assert ответ.json()["code"] == "token_revoked"
+
+
 async def test_ссылка_восстановления_срабатывает_один_раз(
     клиент: httpx.AsyncClient, почта: factories.Почта
 ) -> None:

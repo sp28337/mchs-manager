@@ -8,6 +8,7 @@ import {
   loadProfile,
   saveProfile,
   type StoredProfile,
+  subscribeToStoredProfile,
 } from "./profile";
 
 /**
@@ -87,6 +88,28 @@ export function useProfile(): UseProfile {
     // монтирования негде.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setState(result);
+  }, []);
+
+  // Чужая правка: профиль в хранилище изменился не нами — его принял
+  // слой синхронизации или правит вторая открытая вкладка. Экран обязан
+  // показать принятое, иначе человек будет смотреть на вчерашние часы, а
+  // его следующая правка ляжет поверх слитого.
+  //
+  // Чтение отложено на микрозадачу нарочно: своё событие приходит
+  // синхронно, ИЗНУТРИ записи, когда ссылка на текущий профиль ещё не
+  // обновлена, — и сравнение времени правки приняло бы нашу же запись за
+  // чужую. К концу микрозадачи запись завершена, и сравнение честное.
+  useEffect(() => {
+    return subscribeToStoredProfile(() => {
+      queueMicrotask(() => {
+        const result = loadProfile();
+        if (result.status !== "ok") return;
+        if (result.profile.savedAt === current.current?.savedAt) return;
+
+        current.current = result.profile;
+        setState(result);
+      });
+    });
   }, []);
 
   const write = useCallback((profile: StoredProfile) => {

@@ -49,6 +49,7 @@ from grafik_api.core.security import (
     CURRENT_KDF,
     KDF_VERSIONS,
     KdfParams,
+    encode_wrapped,
     hash_verifier,
     issue_access_token,
     needs_rehash,
@@ -430,6 +431,50 @@ class AuthService:
                 "письмо для восстановления не ушло",
                 extra={"event": "auth.recover.mail_failed", "user_id": str(user.id)},
             )
+
+    async def recover_claim(
+        self, *, token: str, ip: str | None
+    ) -> tuple[str, str, KdfParams]:
+        """Отдать обёртку ключа восстановления по ссылке из письма.
+
+        Ссылка при этом **не гасится**: ею же человек завершит
+        восстановление (`recover_finish`). Иначе браузер оказался бы в
+        тупике — обёртку он получил, а предъявить ссылку второй раз не
+        может.
+
+        Отдавать обёртку тому, кто предъявил ссылку, безопасно: она
+        бесполезна без самого ключа восстановления — 128 бит, которые
+        человек переписал на бумагу при регистрации. Сервер этого ключа
+        не видел ни разу и развернуть обёртку не может сам.
+
+        Адрес почты в ответе — не разглашение: ссылку из письма держит
+        тот, кто это письмо прочитал, то есть владелец ящика.
+        """
+        ссылка = await self._взять_ссылку(token, purpose="recover")
+        now = datetime.now(UTC)
+
+        user = await self.users.get(ссылка.user_id)
+        if user is None:  # pragma: no cover - каскад уносит ссылки с аккаунтом
+            raise TokenRevokedError()
+
+        обёртки = await self.data_keys.by_user(user.id)
+        обёртка = обёртки.get(KIND_REC)
+        if обёртка is None:  # pragma: no cover - аккаунт без обёрток
+            raise TokenRevokedError()
+
+        credential = await self.credentials.by_user(user.id)
+        параметры = KDF_VERSIONS.get(
+            credential.kdf_version if credential else CURRENT_KDF.kdf_version,
+            CURRENT_KDF,
+        )
+
+        self.audit.record("auth.recover.claimed", user_id=user.id, ip=ip, at=now)
+        logger.info(
+            "обёртка ключа восстановления отдана",
+            extra={"event": "auth.recover.claimed", "user_id": str(user.id)},
+        )
+
+        return user.email, encode_wrapped(обёртка), параметры
 
     async def recover_finish(
         self,

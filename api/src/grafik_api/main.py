@@ -18,6 +18,7 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from grafik_api import __version__
 from grafik_api.api.problems import install_problem_handlers
@@ -95,11 +96,44 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     # первой записи журнала, а длительность — считая разбор запроса.
     app.add_middleware(RequestContextMiddleware)
 
+    _разрешить_разработку(app, settings)
+
     # Префикс версии живёт здесь, а не в роутерах: так при появлении v2
     # меняется одна строка, а не каждый модуль ручек.
     app.include_router(v1_router, prefix="/api/v1")
 
     return app
+
+
+def _разрешить_разработку(app: FastAPI, settings: Settings) -> None:
+    """CORS — только при разработке, и только для своего же фронта.
+
+    В бою его нет и быть не должно: сайт и API стоят на одном домене
+    (nginx отдаёт статику и проксирует `/api/`), а значит запрос не
+    межсайтовый и разрешать нечего. Включённый в бою CORS — это
+    приглашение чужой странице ходить к нашему API с cookie человека.
+
+    При разработке фронт поднят `next dev` на 3000, API на 8000. Переписать
+    `/api/` на себя Next.js не может: при статическом экспорте
+    (`output: "export"`) переписывания не поддерживаются вовсе и валят
+    `next dev` ошибкой. Поэтому браузер ходит к API напрямую, и для
+    cookie это важное «но»: разрешён только **localhost**, не
+    `127.0.0.1`. Для cookie `SameSite=Strict` порт не считается, а имя
+    узла — считается: с `localhost:3000` на `localhost:8000` cookie
+    уходит, а с `127.0.0.1:3000` на `localhost:8000` — нет, это уже другой
+    сайт.
+    """
+    if settings.env != "dev":
+        return
+
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["http://localhost:3000"],
+        allow_credentials=True,
+        allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
+        allow_headers=["Authorization", "Content-Type", "X-Device-Id", "X-Request-Id"],
+        expose_headers=["X-Request-Id", "Retry-After"],
+    )
 
 
 # Настройка журналирования на уровне модуля — то есть позже, чем своя

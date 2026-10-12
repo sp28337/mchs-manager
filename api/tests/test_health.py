@@ -15,6 +15,8 @@ from pathlib import Path
 
 import httpx
 import pytest
+from pydantic import SecretStr
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from grafik_api import __version__
 from grafik_api.core.config import Settings
@@ -81,3 +83,34 @@ async def test_жизненный_цикл_пишет_в_журнал(caplog: py
     messages = [record.getMessage() for record in caplog.records]
     assert any("запускается" in message for message in messages)
     assert any("остановлено" in message for message in messages)
+
+
+async def test_cors_только_при_разработке(
+    фабрика_сессий: async_sessionmaker[AsyncSession], схема: str
+) -> None:
+    """В бою межсайтовых запросов нет: сайт и API на одном домене.
+
+    Включённый в бою CORS — приглашение чужой странице ходить к нашему API
+    с cookie человека, поэтому заголовка там быть не должно вовсе.
+    """
+    for env, ожидается in (("dev", True), ("test", False), ("prod", False)):
+        настройки = Settings(
+            env=env,
+            database_url=схема,
+            pepper=SecretStr("перец-для-проверки-окружения-в-бою-32"),
+            jwt_secret=SecretStr("подпись-для-проверки-окружения-в-бою-32"),
+        )
+        app = create_app(настройки)
+        app.state.sessionmaker = фабрика_сессий
+
+        transport = httpx.ASGITransport(app=app)
+        async with httpx.AsyncClient(
+            transport=transport, base_url="https://api"
+        ) as клиент:
+            ответ = await клиент.get(
+                "/api/v1/healthz", headers={"Origin": "http://localhost:3000"}
+            )
+
+        assert ответ.status_code == 200
+        есть = "access-control-allow-origin" in ответ.headers
+        assert есть is ожидается, env

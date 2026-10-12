@@ -1,0 +1,482 @@
+"use client";
+
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
+
+import { subscribeToLibrary } from "@/features/shift/storage/library";
+import { subscribeToStoredProfile } from "@/features/shift/storage/profile";
+
+import { ApiClient } from "../api/client";
+import { isApiError, isNetworkError } from "../api/errors";
+import type { Account } from "../api/schemas";
+import type { DataKey } from "../crypto";
+import { resolvePending, syncOnce, type SyncReport } from "../engine/sync";
+import * as session from "../session";
+import { readPending, type PendingRow } from "../store/vault";
+import { SyncConflicts } from "./conflict-dialog";
+import { SYNC_ENABLED } from "./enabled";
+import { explain } from "./messages";
+
+/**
+ * Состояние синхронизации на всё приложение.
+ *
+ * Провайдер здесь, а не хук на странице аккаунта, по двум причинам.
+ * Первая: строка состояния стоит в подвале рабочего экрана, а страница
+ * аккаунта — отдельная, и обе должны говорить одно и то же. Вторая: о
+ * расхождении настроек человека спрашивают там, где он в этот миг
+ * находится, — окно живёт в провайдере и всплывает на любой странице.
+ *
+ * --- Что происходит само ---------------------------------------------------
+ *
+ * * при открытии страницы — продолжение сессии по cookie и первый проход;
+ * * после правки профиля или проводника — проход с задержкой: человек
+ *   правит подряд, и отправлять на каждое нажатие незачем;
+ * * при появлении сети и при возвращении на вкладку — проход, если есть
+ *   что отправить или давно не синхронизировались.
+ *
+ * Чего не происходит само: ничего, что требует пароля. Ключ данных
+ * переживает перезагрузку в хранилище слоя, а не выводится заново.
+ *
+ * --- Почему «нет сети» — это не ошибка -------------------------------------
+ *
+ * Приложение остаётся полностью работоспособным без сервера: расчёт,
+ * правки, проводник — всё в браузере, как было до аккаунта. Поэтому
+ * отсутствие связи показывается спокойной строкой, а не красным
+ * сообщением: человеку ничего не нужно делать, синхронизация подождёт.
+ */
+export type SyncPhase =
+  | "off"
+  | "signed-out"
+  | "connecting"
+  | "idle"
+  | "syncing"
+  | "offline"
+  | "error";
+
+export interface SyncState {
+  enabled: boolean;
+  phase: SyncPhase;
+  account: Account | null;
+  /** Когда последний проход закончился удачей. */
+  syncedAt: string | null;
+  /** Есть правки, которые ещё не уехали. */
+  dirty: boolean;
+  /** Что принято в последний проход — для спокойной строки. */
+  report: SyncReport | null;
+  /** Расхождения, о которых надо спросить человека. */
+  pending: PendingRow[];
+  error: string | null;
+  /** Идёт действие, затеянное человеком (вход, регистрация, выгрузка). */
+  busy: boolean;
+  /** Ключ восстановления — показывается один раз, сразу после регистрации. */
+  freshRecoveryKey: string | null;
+}
+
+export interface SyncActions {
+  register: (данные: { email: string; password: string }) => Promise<void>;
+  login: (данные: { email: string; password: string }) => Promise<void>;
+  logout: () => Promise<void>;
+  syncNow: () => Promise<void>;
+  resolve: (itemId: string, choice: "local" | "remote") => Promise<void>;
+  changePassword: (данные: {
+    currentPassword: string;
+    newPassword: string;
+  }) => Promise<void>;
+  exportAll: () => Promise<string>;
+  deleteAccount: (данные: { password: string }) => Promise<void>;
+  recoverStart: (email: string) => Promise<void>;
+  forgetRecoveryKey: () => void;
+  clearError: () => void;
+}
+
+export type SyncValue = SyncState & { actions: SyncActions };
+
+const ПУСТО: SyncState = {
+  enabled: SYNC_ENABLED,
+  phase: SYNC_ENABLED ? "connecting" : "off",
+  account: null,
+  syncedAt: null,
+  dirty: false,
+  report: null,
+  pending: [],
+  error: null,
+  busy: false,
+  freshRecoveryKey: null,
+};
+
+const Контекст = createContext<SyncValue | null>(null);
+
+/** Задержка перед проходом после правки: человек правит подряд. */
+const ЗАДЕРЖКА_МС = 2000;
+
+/** Через столько после удачного прохода возвращение на вкладку вызывает новый. */
+const УСТАРЕЛО_МС = 5 * 60 * 1000;
+
+export function SyncProvider({ children }: { children: ReactNode }) {
+  const [state, setState] = useState<SyncState>(ПУСТО);
+
+  const client = useRef<ApiClient | null>(null);
+  const dataKey = useRef<DataKey | null>(null);
+  /** Обёртка ключа данных паролем — нужна смене пароля, живёт в памяти. */
+  const wrapped = useRef<string | null>(null);
+  const email = useRef<string | null>(null);
+  /** Продолжение сессии затевается один раз на вкладку. */
+  const продолжено = useRef(false);
+  const идёт = useRef(false);
+  /** Просьба, пришедшая во время прохода: проход повторится. */
+  const ждёт = useRef(false);
+  const таймер = useRef<number | null>(null);
+
+  const получить = useCallback((): ApiClient => {
+    client.current ??= new ApiClient();
+    return client.current;
+  }, []);
+
+  const sync = useCallback(async () => {
+    if (!SYNC_ENABLED || dataKey.current === null) return;
+
+    // Просьба во время прохода не теряется, а повторяет его.
+    // ------------------------------------------------------------------
+    // Иначе так: человек правит профиль в тот миг, когда идёт проход,
+    // отложенный вызов натыкается на «уже идём» и пропадает, а признак
+    // «есть изменения» остаётся висеть до следующего события — которого
+    // может не быть часами. Правка при этом никуда не уедет, и человек
+    // узнает об этом на другом устройстве.
+    if (идёт.current) {
+      ждёт.current = true;
+      return;
+    }
+
+    идёт.current = true;
+    setState((было) => ({ ...было, phase: "syncing", error: null }));
+
+    try {
+      const report = await syncOnce({ client: получить(), dataKey: dataKey.current });
+
+      setState((было) => ({
+        ...было,
+        phase: "idle",
+        syncedAt: new Date().toISOString(),
+        dirty: false,
+        report,
+        pending: report.pending.length > 0 ? report.pending : было.pending,
+        error: null,
+      }));
+
+      // Вопросы могли появиться не только в этом проходе: ответ на
+      // прошлый мог не доехать, и строка о нём лежит в хранилище.
+      const вопросы = await readPending();
+      setState((было) => ({ ...было, pending: вопросы }));
+    } catch (error) {
+      if (isNetworkError(error)) {
+        setState((было) => ({ ...было, phase: "offline", dirty: true }));
+      } else if (isApiError(error, "bad_credentials", "token_revoked", "token_expired")) {
+        // Сессия кончилась: ключ данных остаётся, но ходить с ним некуда,
+        // пока человек не войдёт заново.
+        setState((было) => ({
+          ...было,
+          phase: "signed-out",
+          account: null,
+          error: explain(error),
+        }));
+      } else {
+        console.warn("проход синхронизации не удался", error);
+        setState((было) => ({ ...было, phase: "error", error: explain(error) }));
+      }
+    } finally {
+      идёт.current = false;
+    }
+
+    if (ждёт.current) {
+      ждёт.current = false;
+      await sync();
+    }
+  }, [получить]);
+
+  const позже = useCallback(() => {
+    if (таймер.current !== null) window.clearTimeout(таймер.current);
+    таймер.current = window.setTimeout(() => {
+      таймер.current = null;
+      void sync();
+    }, ЗАДЕРЖКА_МС);
+  }, [sync]);
+
+  // --- Продолжение сессии при открытии страницы -----------------------------
+
+  useEffect(() => {
+    if (!SYNC_ENABLED || продолжено.current) return;
+
+    // Один раз на вкладку, а не один раз на монтирование: строгая
+    // проверка React монтирует эффекты дважды, и два продолжения сессии
+    // означали бы два обновления токена — а предъявленный дважды
+    // refresh-токен сервер считает кражей и гасит всю семью.
+    продолжено.current = true;
+
+    // Отмены по размонтированию здесь нет намеренно, и это не
+    // небрежность. Была — и ровно из-за неё продолжение сессии не
+    // доходило до конца: строгая проверка монтирует эффект, сразу
+    // размонтирует и монтирует снова, первый проход помечал себя
+    // «неживым», второй упирался в признак выше, и в итоге обновление
+    // токена уходило, а состояние и первый проход синхронизации — нет.
+    // Запоздавшая запись состояния после размонтирования безвредна:
+    // провайдер живёт столько же, сколько вкладка.
+    void (async () => {
+      try {
+        const открыто = await session.restore(получить());
+
+        if (открыто === null) {
+          setState((было) => ({ ...было, phase: "signed-out" }));
+          return;
+        }
+
+        dataKey.current = открыто.dataKey;
+        email.current = открыто.session.account.email;
+        wrapped.current = открыто.session.wrapped_dek_pwd ?? null;
+
+        setState((было) => ({
+          ...было,
+          phase: "idle",
+          account: открыто.session.account,
+          pending: [],
+        }));
+
+        await sync();
+      } catch (error) {
+        // Молча терять причину нельзя: продолжение сессии ломается
+        // редко, а разбирать такое приходится по одному следу в чужой
+        // консоли.
+        console.warn("не удалось продолжить сессию", error);
+
+        setState((было) => ({
+          ...было,
+          phase: isNetworkError(error) ? "offline" : "signed-out",
+          error: isNetworkError(error) ? null : explain(error),
+        }));
+      }
+    })();
+  }, [sync, получить]);
+
+  // --- Правки, сеть, возвращение на вкладку ---------------------------------
+
+  useEffect(() => {
+    if (!SYNC_ENABLED) return;
+
+    const правка = () => {
+      setState((было) => (было.dirty ? было : { ...было, dirty: true }));
+      позже();
+    };
+
+    const отписки = [subscribeToStoredProfile(правка), subscribeToLibrary(правка)];
+
+    const сеть = () => void sync();
+    const вкладка = () => {
+      if (document.visibilityState !== "visible") return;
+
+      setState((было) => {
+        const давно =
+          было.syncedAt === null || Date.now() - Date.parse(было.syncedAt) > УСТАРЕЛО_МС;
+        if (было.dirty || давно) void sync();
+        return было;
+      });
+    };
+
+    window.addEventListener("online", сеть);
+    document.addEventListener("visibilitychange", вкладка);
+
+    return () => {
+      for (const отписка of отписки) отписка();
+      window.removeEventListener("online", сеть);
+      document.removeEventListener("visibilitychange", вкладка);
+      if (таймер.current !== null) window.clearTimeout(таймер.current);
+    };
+  }, [sync, позже]);
+
+  // --- Действия человека ----------------------------------------------------
+
+  const действие = useCallback(
+    async <T,>(дело: () => Promise<T>): Promise<T> => {
+      setState((было) => ({ ...было, busy: true, error: null }));
+      try {
+        return await дело();
+      } catch (error) {
+        setState((было) => ({ ...было, error: explain(error) }));
+        throw error;
+      } finally {
+        setState((было) => ({ ...было, busy: false }));
+      }
+    },
+    [],
+  );
+
+  const actions = useMemo<SyncActions>(
+    () => ({
+      register: async (данные) =>
+        действие(async () => {
+          const итог = await session.register(получить(), данные);
+
+          dataKey.current = итог.dataKey;
+          email.current = итог.session.account.email;
+          wrapped.current = итог.session.wrapped_dek_pwd ?? null;
+
+          setState((было) => ({
+            ...было,
+            phase: "idle",
+            account: итог.session.account,
+            freshRecoveryKey: итог.recoveryKeyPrinted,
+            dirty: true,
+          }));
+
+          await sync();
+        }),
+
+      login: async (данные) =>
+        действие(async () => {
+          const итог = await session.login(получить(), данные);
+
+          dataKey.current = итог.dataKey;
+          email.current = итог.session.account.email;
+          wrapped.current = итог.session.wrapped_dek_pwd ?? null;
+
+          setState((было) => ({
+            ...было,
+            phase: "idle",
+            account: итог.session.account,
+            dirty: true,
+          }));
+
+          await sync();
+        }),
+
+      logout: async () =>
+        действие(async () => {
+          await session.logout(получить());
+
+          dataKey.current = null;
+          wrapped.current = null;
+          email.current = null;
+
+          setState(() => ({
+            ...ПУСТО,
+            phase: "signed-out",
+          }));
+        }),
+
+      syncNow: sync,
+
+      resolve: async (itemId, choice) => {
+        if (dataKey.current === null) return;
+
+        await действие(async () => {
+          await resolvePending({
+            client: получить(),
+            dataKey: dataKey.current as DataKey,
+            itemId,
+            choice,
+          });
+
+          setState((было) => ({
+            ...было,
+            pending: было.pending.filter((строка) => строка.itemId !== itemId),
+          }));
+        });
+      },
+
+      changePassword: async (данные) =>
+        действие(async () => {
+          if (email.current === null || wrapped.current === null) {
+            throw new Error("нет сведений о сессии");
+          }
+
+          await session.changePassword(получить(), {
+            email: email.current,
+            currentPassword: данные.currentPassword,
+            newPassword: данные.newPassword,
+            wrappedDekPwd: wrapped.current,
+          });
+
+          // Прочие сессии сервер погасил; эта осталась, и ключ данных тот
+          // же — перешифровалась только обёртка.
+        }),
+
+      exportAll: async () => действие(() => session.exportAll(получить())),
+
+      deleteAccount: async (данные) =>
+        действие(async () => {
+          if (email.current === null) throw new Error("нет сведений о сессии");
+
+          await session.deleteAccount(получить(), {
+            email: email.current,
+            password: данные.password,
+          });
+
+          dataKey.current = null;
+          wrapped.current = null;
+          email.current = null;
+
+          setState(() => ({ ...ПУСТО, phase: "signed-out" }));
+        }),
+
+      recoverStart: async (адрес) =>
+        действие(() => session.recoverStart(получить(), адрес)),
+
+      forgetRecoveryKey: () => {
+        setState((было) => ({ ...было, freshRecoveryKey: null }));
+      },
+
+      clearError: () => {
+        setState((было) => ({ ...было, error: null }));
+      },
+    }),
+    [действие, получить, sync],
+  );
+
+  const значение = useMemo<SyncValue>(() => ({ ...state, actions }), [state, actions]);
+
+  return (
+    <Контекст.Provider value={значение}>
+      {children}
+      {/* Вопрос о расхождении встаёт там, где человек в этот миг
+          находится: окно живёт здесь, а не на странице аккаунта, куда он
+          может не зайти неделю. */}
+      <SyncConflicts />
+    </Контекст.Provider>
+  );
+}
+
+/**
+ * Состояние синхронизации.
+ *
+ * Без провайдера возвращает выключенное состояние, а не бросает: страница
+ * условий и посадочная рисуются без него, а подвал у них общий.
+ */
+export function useSync(): SyncValue {
+  const значение = useContext(Контекст);
+
+  return (
+    значение ?? {
+      ...ПУСТО,
+      phase: "off",
+      actions: {
+        register: async () => undefined,
+        login: async () => undefined,
+        logout: async () => undefined,
+        syncNow: async () => undefined,
+        resolve: async () => undefined,
+        changePassword: async () => undefined,
+        exportAll: async () => "",
+        deleteAccount: async () => undefined,
+        recoverStart: async () => undefined,
+        forgetRecoveryKey: () => undefined,
+        clearError: () => undefined,
+      },
+    }
+  );
+}
