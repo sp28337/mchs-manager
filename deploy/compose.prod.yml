@@ -175,8 +175,9 @@ services:
       - tools
     env_file: api.env
     # Сроки хранения — обязанность оператора, а не пожелание: надгробия
-    # живут 180 дней, история версий — 30. Запускает таймер systemd
-    # (deploy/systemd/grafik-gc.timer).
+    # живут 180 дней, история версий — 30, журнал событий — 180, хэши
+    # токенов — до своего срока, брошенная регистрация без данных — 30.
+    # Запускает таймер systemd (deploy/systemd/grafik-gc.timer).
     command: ["python", "-m", "grafik_api.cli", "gc"]
     depends_on:
       postgres:

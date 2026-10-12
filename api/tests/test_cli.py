@@ -60,9 +60,10 @@ def своё_окружение(monkeypatch: pytest.MonkeyPatch) -> Iterator[Non
 
 async def test_уборка_на_пустой_базе_ничего_не_находит(схема: str) -> None:
     """Пустая база — не повод для ошибки: уборке просто нечего делать."""
-    отчёт = await cli.collect_garbage(Settings(env="test", database_url=схема))
+    мусор, сроки = await cli.collect_garbage(Settings(env="test", database_url=схема))
 
-    assert (отчёт.accounts, отчёт.tombstones, отчёт.revisions) == (0, 0, 0)
+    assert (мусор.accounts, мусор.tombstones, мусор.revisions) == (0, 0, 0)
+    assert сроки.total == 0
 
 
 def test_команда_сообщает_об_успехе(
@@ -85,6 +86,12 @@ def test_команда_сообщает_об_успехе(
     # не просто завершается.
     assert запись["revisions"] == 0
     assert запись["tombstones"] == 0
+    # Сроки, которые исполняет вторая служба, — в той же записи: по одной
+    # строке журнала должно быть видно всё, что убрала задача.
+    assert запись["audit"] == 0
+    assert запись["sessions"] == 0
+    assert запись["links"] == 0
+    assert запись["drafts"] == 0
 
 
 def test_недоступная_база_это_код_один(

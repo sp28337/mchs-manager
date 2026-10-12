@@ -11,7 +11,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from sqlalchemy import select, update
+from sqlalchemy import delete, select, update
 
 from grafik_api.models import OneTimeToken, RefreshToken
 from grafik_api.repositories.base import Repository
@@ -47,6 +47,25 @@ class RefreshTokenRepository(Repository[RefreshToken]):
                 expires_at=expires_at,
             )
         )
+
+    async def purge_expired(self, before: datetime) -> int:
+        """Убрать токены, срок которых истёк.
+
+        Протухший токен бесполезен: предъявленный, он отвергается по
+        сроку. А хранить его хэш дольше обещанного нельзя — контракт и
+        политика говорят «30 дней или до выхода», и это обещание
+        исполняет вот эта строка.
+
+        Отозванные, но ещё не протухшие токены не трогаются намеренно:
+        именно по ним обнаруживается кража (предъявили то, что уже
+        погашено). Запись живёт до своего срока, не дольше.
+        """
+        строки = await self.session.scalars(
+            delete(RefreshToken)
+            .where(RefreshToken.expires_at < before)
+            .returning(RefreshToken.id)
+        )
+        return len(строки.all())
 
     async def revoke_family(self, family_id: uuid.UUID, at: datetime) -> int:
         """Погасить всю семью. Возвращает число погашенных токенов.
@@ -121,6 +140,20 @@ class OneTimeTokenRepository(Repository[OneTimeToken]):
                 expires_at=expires_at,
             )
         )
+
+    async def purge_expired(self, before: datetime) -> int:
+        """Убрать ссылки, срок которых истёк.
+
+        Ссылка живёт сутки и срабатывает один раз; после срока её хэш не
+        нужен ни для чего. Обещанные в политике «24 часа» означают, что
+        хэша в базе через сутки быть не должно.
+        """
+        строки = await self.session.scalars(
+            delete(OneTimeToken)
+            .where(OneTimeToken.expires_at < before)
+            .returning(OneTimeToken.id)
+        )
+        return len(строки.all())
 
     async def by_digest(self, digest: bytes) -> OneTimeToken | None:
         return await self.session.scalar(

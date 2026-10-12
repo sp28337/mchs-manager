@@ -15,7 +15,7 @@
  */
 
 export const LEGAL_VERSIONS = {
-  policy: "2026-10-11",
+  policy: "2026-10-12",
   consent: "2026-10-11",
   terms: "2026-10-11",
 } as const;

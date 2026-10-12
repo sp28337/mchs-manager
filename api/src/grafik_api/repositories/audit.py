@@ -50,6 +50,18 @@ class AuditRepository(Repository[AuditEntry]):
         )
         return len(строки.scalars().all())
 
+    async def purge_older_than(self, before: datetime) -> int:
+        """Убрать записи журнала старше срока.
+
+        Срок — 180 дней, он обещан и в политике, и в контракте
+        (раздел 8). Записи удаляются целиком, включая обезличенные строки
+        об удалённых аккаунтах: по истечении срока они тоже не нужны.
+        """
+        строки = await self.session.scalars(
+            delete(AuditEntry).where(AuditEntry.at < before).returning(AuditEntry.id)
+        )
+        return len(строки.all())
+
     def record(
         self,
         event: str,

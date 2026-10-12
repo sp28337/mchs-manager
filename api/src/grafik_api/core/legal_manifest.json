@@ -1,11 +1,11 @@
 {
   "policy": {
     "title": "Политика в отношении обработки персональных данных",
-    "version": "2026-10-11",
+    "version": "2026-10-12",
     "effective_from": null,
     "status": "draft",
     "url": "/privacy",
-    "sha256": "09950c73b81ba2a81e08c57203379d7e8229e6415c1a80b0a7d16f31a9c407de"
+    "sha256": "af7e0db5afeedc050e7d7b5b080c0fff13cfb7566dd3c10186b0204a45830997"
   },
   "consent": {
     "title": "Согласие на обработку персональных данных",

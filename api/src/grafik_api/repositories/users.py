@@ -8,10 +8,11 @@
 from __future__ import annotations
 
 import uuid
+from datetime import datetime
 
-from sqlalchemy import select
+from sqlalchemy import delete, exists, select
 
-from grafik_api.models import User
+from grafik_api.models import Blob, User
 from grafik_api.repositories.base import Repository
 
 
@@ -35,6 +36,30 @@ class UserRepository(Repository[User]):
         return await self.session.scalar(
             select(User).where(User.id == user_id).with_for_update()
         )
+
+    async def purge_unverified(self, before: datetime) -> int:
+        """Убрать брошенные регистрации: адрес не подтверждён и данных нет.
+
+        Контракт и политика обещают «неподтверждённый аккаунт без данных —
+        30 дней». Два условия, и второе важнее первого: подтверждение
+        адреса для работы не обязательно, и человек, который им не
+        воспользовался, но уже ведёт график, аккаунт не бросил. Удалить
+        его значило бы стереть ему данные по формальному признаку.
+
+        Поэтому удаляются только те, у кого **нет ни одного элемента** —
+        ни живого, ни надгробия. Остальное (обёртки ключа, проверочное
+        значение, запись о согласии) уходит каскадом.
+        """
+        строки = await self.session.scalars(
+            delete(User)
+            .where(
+                User.email_verified_at.is_(None),
+                User.created_at < before,
+                ~exists().where(Blob.user_id == User.id),
+            )
+            .returning(User.id)
+        )
+        return len(строки.all())
 
     async def create(self, email: str) -> User:
         """Добавить аккаунт.
