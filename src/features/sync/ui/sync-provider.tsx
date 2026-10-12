@@ -23,7 +23,7 @@ import * as session from "../session";
 import { readPending, type PendingRow } from "../store/vault";
 import { SyncConflicts } from "./conflict-dialog";
 import { SYNC_ENABLED } from "./enabled";
-import { explain } from "./messages";
+import { explain, СЕССИЯ_КОНЧИЛАСЬ } from "./messages";
 
 /**
  * Состояние синхронизации на всё приложение.
@@ -74,6 +74,16 @@ export interface SyncState {
   /** Расхождения, о которых надо спросить человека. */
   pending: PendingRow[];
   error: string | null;
+  /**
+   * Синхронизация встала и ждёт человека.
+   *
+   * Отличает беду, случившуюся САМУ (сессия кончилась в фоне, сервер
+   * отказал на проходе), от неудачи того, что человек затеял сам
+   * (не тот пароль в форме входа). Вторая объясняется там, где он её
+   * затеял; первой он не видел вовсе, и сказать о ней надо на том
+   * экране, где он стоит (`sync-notice.tsx`).
+   */
+  stalled: boolean;
   /** Идёт действие, затеянное человеком (вход, регистрация, выгрузка). */
   busy: boolean;
   /** Ключ восстановления — показывается один раз, сразу после регистрации. */
@@ -108,6 +118,7 @@ const ПУСТО: SyncState = {
   report: null,
   pending: [],
   error: null,
+  stalled: false,
   busy: false,
   freshRecoveryKey: null,
 };
@@ -169,6 +180,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
         report,
         pending: report.pending.length > 0 ? report.pending : было.pending,
         error: null,
+        stalled: false,
       }));
 
       // Вопросы могли появиться не только в этом проходе: ответ на
@@ -185,11 +197,19 @@ export function SyncProvider({ children }: { children: ReactNode }) {
           ...было,
           phase: "signed-out",
           account: null,
-          error: explain(error),
+          // Не `explain`: он перевёл бы код отказа словами про ссылку из
+          // письма, а здесь кончился вход.
+          error: СЕССИЯ_КОНЧИЛАСЬ,
+          stalled: true,
         }));
       } else {
         console.warn("проход синхронизации не удался", error);
-        setState((было) => ({ ...было, phase: "error", error: explain(error) }));
+        setState((было) => ({
+          ...было,
+          phase: "error",
+          error: explain(error),
+          stalled: true,
+        }));
       }
     } finally {
       идёт.current = false;
@@ -258,7 +278,10 @@ export function SyncProvider({ children }: { children: ReactNode }) {
         setState((было) => ({
           ...было,
           phase: isNetworkError(error) ? "offline" : "signed-out",
-          error: isNetworkError(error) ? null : explain(error),
+          error: isNetworkError(error) ? null : СЕССИЯ_КОНЧИЛАСЬ,
+          // Нет сети — не беда и не повод: правки уедут сами. Всё
+          // остальное человек не увидит, пока ему не скажут.
+          stalled: !isNetworkError(error),
         }));
       }
     })();
@@ -303,7 +326,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
 
   const действие = useCallback(
     async <T,>(дело: () => Promise<T>): Promise<T> => {
-      setState((было) => ({ ...было, busy: true, error: null }));
+      setState((было) => ({ ...было, busy: true, error: null, stalled: false }));
       try {
         return await дело();
       } catch (error) {
@@ -432,7 +455,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
       },
 
       clearError: () => {
-        setState((было) => ({ ...было, error: null }));
+        setState((было) => ({ ...было, error: null, stalled: false }));
       },
     }),
     [действие, получить, sync],

@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 
 import { Hint } from "@/components/ui/hint";
 import { BrandLabel, SiteHeader } from "@/components/shared/site-header";
+import { SyncNotice } from "@/features/sync/ui/sync-notice";
 import { cn } from "@/lib/utils/cn";
 import { todayIso, type IsoDate } from "../domain/plain-date";
 import {
@@ -521,6 +522,15 @@ export function Workspace({
           WORKSPACE_PAD,
         )}
       >
+      {/* Полоса о синхронизации — первым делом и только если встала.
+          -----------------------------------------------------------------
+          В обычной жизни её нет вовсе (`attention.ts`): появляется она,
+          когда сессия кончилась сама или сервер отказал на проходе, то
+          есть когда правки перестали уезжать, а человек об этом не знает.
+          Стоит выше имени профиля намеренно — это единственное на экране,
+          что требует действия, а не чтения. */}
+      <SyncNotice />
+
       {/* Имя и числа — о профиле, который ОТКРЫТ. В проводнике открытого
           профиля на экране нет: там список из всех, и один из них — этот.
           -----------------------------------------------------------------

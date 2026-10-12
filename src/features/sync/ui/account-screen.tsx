@@ -23,8 +23,8 @@ import { useSync } from "./sync-provider";
  * В настройках лежат ответы анкеты — то, из чего считается норма. Аккаунт
  * к расчёту не относится вовсе: он о том, где лежит копия данных. Рядом с
  * «датой смены» он сбивал бы с толку, а главное — здесь же, по тому же
- * адресу, появится «мои данные» (шаг 12): выгрузка, удаление, отзыв
- * согласия. Это страница про данные и права, а не про график.
+ * адресу, стоят «мои данные»: выгрузка, удаление, отзыв согласия. Это
+ * страница про данные и права, а не про график.
  *
  * --- Чего здесь нет --------------------------------------------------------
  *
@@ -34,7 +34,18 @@ import { useSync } from "./sync-provider";
  * человека, и место им не на экране, а на диске.
  */
 export function AccountScreen() {
-  const { enabled, phase, account, error, busy, freshRecoveryKey, actions, report } = useSync();
+  const {
+    enabled,
+    phase,
+    account,
+    error,
+    busy,
+    dirty,
+    syncedAt,
+    freshRecoveryKey,
+    actions,
+    report,
+  } = useSync();
 
   if (!enabled) {
     return (
@@ -96,6 +107,27 @@ export function AccountScreen() {
             </Field>
             <Field label="Состояние">
               <span className="text-sm text-ink">{СОСТОЯНИЕ[phase]}</span>
+            </Field>
+            {/* Время последнего удачного прохода — единственный ответ на
+                вопрос «а точно уехало?», который можно проверить. Слово
+                «синхронизировано» без времени его не даёт: оно говорит,
+                что сейчас нечего отправлять, а не когда отправляли. */}
+            <Field
+              label="Последняя синхронизация"
+              note={
+                dirty
+                  ? "Есть правки, которые ещё не уехали — уедут через мгновение."
+                  : undefined
+              }
+            >
+              <span className="text-sm text-ink">
+                {syncedAt === null
+                  ? "в этом сеансе ещё не было"
+                  : new Date(syncedAt).toLocaleString("ru-RU", {
+                      dateStyle: "long",
+                      timeStyle: "short",
+                    })}
+              </span>
             </Field>
             {report !== null && report.skipped > 0 && (
               <Field
@@ -419,7 +451,7 @@ function MyData() {
 
       <div className="flex flex-col gap-2 sm:flex-row">
         <Button variant="outline" disabled={busy} onClick={() => void выгрузить()}>
-          <Download aria-hidden /> Выгрузить всё, что о мне есть
+          <Download aria-hidden /> Выгрузить всё, что обо мне есть
         </Button>
         <Button variant="ghost" disabled={busy} onClick={() => setСпросить(true)}>
           <Trash2 aria-hidden /> Удалить учётную запись

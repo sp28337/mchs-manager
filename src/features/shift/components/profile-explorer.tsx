@@ -5,6 +5,7 @@ import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "re
 
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Input } from "@/components/ui/input";
+import { useSync } from "@/features/sync/ui/sync-provider";
 import { useMediaQuery } from "@/lib/hooks/use-media-query";
 import { cn } from "@/lib/utils/cn";
 
@@ -203,6 +204,9 @@ export function ProfileExplorer({
   onOpenEntry: (entry: LibraryEntry) => void;
 }) {
   const { library, activeId } = useLibrary();
+  // Только затем, чтобы честно сказать в диалоге удаления, куда ещё
+  // доедет удаление: с учётной записью — на сервер и на другие устройства.
+  const { account } = useSync();
   const list = useRef<HTMLUListElement>(null);
   const [renaming, setRenaming] = useState<Rename | null>(null);
   const [removing, setRemoving] = useState<Removal | null>(null);
@@ -539,10 +543,21 @@ export function ProfileExplorer({
             поднимется на ступень выше. Данные не пропадут.
           </p>
         ) : (
-          <p>
-            Профиль «{removing?.name}» и все его данные будут удалены. Это
-            действие нельзя отменить.
-          </p>
+          <>
+            <p>
+              Профиль «{removing?.name}» и все его данные будут удалены. Это
+              действие нельзя отменить.
+            </p>
+            {/* С учётной записью удаление уезжает на сервер надгробием и
+                оттуда — на остальные устройства. Человек, убирающий лишнюю
+                копию на телефоне, должен знать, что убирает её везде. */}
+            {account === null ? null : (
+              <p className="text-ink-muted">
+                Профиль пропадёт и на других ваших устройствах: он удалится из
+                учётной записи.
+              </p>
+            )}
+          </>
         )}
       </ConfirmDialog>
 

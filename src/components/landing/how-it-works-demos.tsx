@@ -16,6 +16,7 @@ import {
   type IsoDate,
 } from "@/features/shift/domain/plain-date";
 import { SHIFT_CYCLE_DAYS } from "@/features/shift/domain/value-objects";
+import { SYNC_ENABLED } from "@/features/sync/ui/enabled";
 import { cn } from "@/lib/utils/cn";
 
 /**
@@ -888,7 +889,13 @@ export function DemoStorage() {
 
           <span className="flex items-center gap-1.5 text-ink-faint">
             <span className="demo-uplink font-display text-[0.7em] font-bold uppercase tracking-wide">
-              в сеть не уходит
+              {/* Показ — про выгрузку В ФАЙЛ, и подпись говорит о файле.
+                  «В сеть не уходит» было правдой, пока сети не было вовсе;
+                  рядом с шагом, где сказано про зашифрованную копию на
+                  сервере, та же подпись читалась бы как спор с ним. Файл
+                  при этом и правда остаётся на устройстве — в обеих
+                  сборках. */}
+              {SYNC_ENABLED ? "остаётся на устройстве" : "в сеть не уходит"}
             </span>
             {/* Перечёркивание двумя линиями: под красной идёт линия цвета
                 страницы вчетверо толще — она вырезает в стрелке просвет, и
