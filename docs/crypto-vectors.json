@@ -1,0 +1,69 @@
+{
+  "kdf": {
+    "kdf_version": "kdf_v1",
+    "algorithm": "argon2id",
+    "memory_kib": 65536,
+    "iterations": 3,
+    "parallelism": 1,
+    "length": 32
+  },
+  "cases": [
+    {
+      "email": "petrov@example.com",
+      "email_norm": "petrov@example.com",
+      "password": "pravilnyj-parol-7",
+      "salt_master": "dbc79545b53b2f34f5be043647bedb1e",
+      "salt_rec": "e5833f9aa822eea77e9313b8563b6878",
+      "verifier": "VztHbRvPa-QzurGdAC5kBn_M5iDzwjEBHJ0eh6Px51g",
+      "recovery_key": "193JT7KXAG9CE30A55RR84RB4MS",
+      "recovery_key_printed": "193JT-7KXAG-9CE30-A55RR-84RB4-MS",
+      "recovery_key_bytes": "0a472d1e7d5412c70c0a297184130b25",
+      "wrapped_dek_pwd": "capGTpzNulBIvk_KoSlb9U9w9fUlsj1RhNiqYL9itXpMat-TeILtot0C0nH4PedAXimlhIGBKBXgWOrA",
+      "wrapped_dek_rec": "icUUF98amRDbJOOY22zUa4Aw_9kiwsRr4DiW3YSbXg160nPCLXmB2SWHZ52O6eU2HebMwvfp8312J4G8",
+      "item": {
+        "kind": "profile",
+        "id": "6f1e0000-0000-0000-0000-0000000000a1",
+        "plaintext": {
+          "fmt": 1,
+          "kind": "profile",
+          "id": "6f1e0000-0000-0000-0000-0000000000a1",
+          "updatedAt": "2026-10-11T07:21:03.512Z",
+          "body": {
+            "name": "Петров И. С.",
+            "hours": 172.5,
+            "vacations": []
+          }
+        },
+        "blob": "S2nPgRnF9z0kZBzyz_uKR33iTsBS58mGwi7U5-GAFZnNr5b9JhhZTa_ZhAOcVp751U1OwCDW7kOP0YOs7eJbOkmKAs7xkp_QySZRc2XsPTGt_AEzwqB7LxuEBUv786154ly1z1Sa1bGjcEyw1otZAGcTbPuPzFgHWii1uJKKi6okZyuuHXJcR4nocxi6pfSmZiJlOEp6G3IqCr3VSeuDDeQKpFt6EFA2wrgt23sPhxvAi6NbsmTEVVTSmE5piYEzAj7OuiBQEVkZePRQUA"
+      }
+    },
+    {
+      "email": "  Петров@Example.COM ",
+      "email_norm": "петров@example.com",
+      "password": "мой длинный пароль 42",
+      "salt_master": "ccbe43f3acafd1b64e10c7343fdafba1",
+      "salt_rec": "b9f16fef20610243ae6789cc37823567",
+      "verifier": "_ZXol-OF41R9sveL1hgggoF6GVnzsdSs5MoXJZOYzK8",
+      "recovery_key": "HBAKTCXD3X4S1K03HFB4JWTK2CG",
+      "recovery_key_printed": "HBAKT-CXD3X-4S1K0-3HFB4-JWTK2-CG",
+      "recovery_key_bytes": "8ad53d33ad1f4990cc038bd649735313",
+      "wrapped_dek_pwd": "IQFPSSBKRkUiVhTBhltsFDbn3q3nLFwd9x30PW_k0PjoycD9xEr4xDLqFO3Dr_3-Wme9dzoPvlHVIT2N",
+      "wrapped_dek_rec": "21FnRjrO8EOEmD-LxSjT2Gryfw0sOhD6nu7SjLSX7untyMY16ufsXyrq6-0d_YSaVDjkcZZGDsJK5281",
+      "item": {
+        "kind": "index",
+        "id": "index",
+        "plaintext": {
+          "fmt": 1,
+          "kind": "index",
+          "id": "index",
+          "updatedAt": "2026-10-11T07:21:03.512Z",
+          "body": {
+            "folders": [],
+            "entries": []
+          }
+        },
+        "blob": "W4mu3R_Lo64ga0UGJ-rxtWO5aChMh9yiqw33i7FG8kALcVDVM8F9ZjIRP65OBJilfzDI-_rG5NfzxmzBKuAwuh4NiiRa49kpY1V0kPhL4V7RTn8BzchmqdPJ2uZGoMWkw9wg4YUpHtqtSL-b3zcN0eIEWRJHrhvrKNHnmil9eF2Km8fZJg3vde7NtA"
+      }
+    }
+  ]
+}
