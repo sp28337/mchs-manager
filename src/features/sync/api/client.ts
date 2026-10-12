@@ -36,8 +36,14 @@ import { ApiError, NetworkError, type ProblemCode } from "./errors";
  * статику и проксирует `/api/`. В разработке адрес другой, потому что
  * фронт и сервер подняты отдельно, и задаётся он переменной окружения
  * сборки (`NEXT_PUBLIC_API_URL`, см. README).
+ *
+ * `||`, а не `??`: пустая строка — это тоже «не задано». Переменная
+ * приходит из настроек сборки (в CI — `vars.API_URL`), а незаданная
+ * переменная репозитория подставляется пустой строкой, и с `??` адресом
+ * API стала бы пустота: все обращения ушли бы в корень сайта и получили
+ * бы в ответ разметку страницы вместо JSON.
  */
-export const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "/api/v1";
+export const API_BASE = process.env.NEXT_PUBLIC_API_URL || "/api/v1";
 
 const DEVICE_KEY = "shift-schedule.sync.device";
 
