@@ -7,6 +7,8 @@
 
 from __future__ import annotations
 
+import logging
+
 import httpx
 import pytest
 from fastapi import Depends, FastAPI
@@ -116,11 +118,16 @@ def test_сброс_забывает_всё() -> None:
 # --- Через HTTP ------------------------------------------------------------
 
 
-@pytest.fixture
-def приложение_с_пределом() -> FastAPI:
+def собрать(**настройки: object) -> FastAPI:
+    """Приложение с двумя пробными ручками: предел и собственный адрес.
+
+    Функцией, а не только фикстурой: часть проверок смотрит на поведение
+    при ДРУГИХ настройках (доверенные прокси), и двум таким проверкам
+    нужна не одна готовая сборка, а возможность собрать свою.
+    """
     from grafik_api.api.deps import get_client_ip, rate_limit
 
-    app = create_app(Settings(env="test"))
+    app = create_app(Settings(env="test", **настройки))  # type: ignore[arg-type]
 
     @app.post(
         "/api/v1/вход-проба", dependencies=[Depends(rate_limit("вход", ТРИ_В_МИНУТУ))]
@@ -135,6 +142,11 @@ def приложение_с_пределом() -> FastAPI:
         return {"ip": адрес}
 
     return app
+
+
+@pytest.fixture
+def приложение_с_пределом() -> FastAPI:
+    return собрать()
 
 
 async def test_четвёртая_попытка_отвергается(приложение_с_пределом: FastAPI) -> None:
@@ -188,3 +200,92 @@ async def test_мусор_в_заголовке_игнорируется(при�
         )
 
     assert ответ.json()["ip"] == "127.0.0.1"
+
+
+async def test_доверенному_прокси_верим_и_не_с_петли() -> None:
+    """В бою nginx приходит со шлюза docker-сети, а не с петли.
+
+    Без этого доверия в журнал и в счётчик попыток попадал бы один и тот
+    же адрес шлюза — то есть попытки всего мира считались бы в одну кучу.
+    """
+    app = собрать(trusted_proxies="172.28.0.0/24")
+
+    transport = httpx.ASGITransport(app=app, client=("172.28.0.1", 1))
+
+    async with httpx.AsyncClient(transport=transport, base_url="http://api") as client:
+        ответ = await client.get(
+            "/api/v1/мой-адрес", headers={"X-Forwarded-For": "198.51.100.7"}
+        )
+
+    assert ответ.json()["ip"] == "198.51.100.7"
+
+
+async def test_недоверенному_соседу_из_той_же_сети_не_верим() -> None:
+    """Доверие адресное: сосед по сети — ещё не прокси."""
+    app = собрать(trusted_proxies="172.28.0.1")
+
+    transport = httpx.ASGITransport(app=app, client=("172.28.0.2", 1))
+
+    async with httpx.AsyncClient(transport=transport, base_url="http://api") as client:
+        ответ = await client.get(
+            "/api/v1/мой-адрес", headers={"X-Forwarded-For": "198.51.100.7"}
+        )
+
+    assert ответ.json()["ip"] == "172.28.0.2"
+
+
+# --- Деление предела между процессами --------------------------------------
+
+
+def test_предел_делится_между_процессами() -> None:
+    """Три попытки на три процесса — по одной каждому, а не по три."""
+    счётчик = RateLimiter(clock=Часы(), процессов=3)
+
+    assert счётчик.hit("ключ", ТРИ_В_МИНУТУ) is None
+    assert счётчик.hit("ключ", ТРИ_В_МИНУТУ) is not None
+
+
+def test_доля_не_падает_до_нуля() -> None:
+    """Предел в ноль обращений — это не «строже», а «ручка закрыта»."""
+    счётчик = RateLimiter(clock=Часы(), процессов=10)
+
+    assert счётчик.hit("ключ", Limit(requests=2, seconds=60)) is None
+    assert счётчик.hit("ключ", Limit(requests=2, seconds=60)) is not None
+
+
+def test_один_процесс_ничего_не_делит() -> None:
+    счётчик = RateLimiter(clock=Часы(), процессов=1)
+
+    assert [счётчик.hit("ключ", ТРИ_В_МИНУТУ) for _ in range(3)] == [None] * 3
+
+
+def test_число_процессов_не_меньше_единицы() -> None:
+    """Ноль процессов — это опечатка, и делить на неё нельзя."""
+    счётчик = RateLimiter(clock=Часы(), процессов=0)
+
+    assert [счётчик.hit("ключ", ТРИ_В_МИНУТУ) for _ in range(3)] == [None] * 3
+
+
+def test_опечатка_в_доверенных_прокси_падает_при_старте() -> None:
+    """Опечатка в адресе шлюза не должна выясняться в бою.
+
+    А выяснилась бы она в самый неподходящий момент: когда в журнале
+    понадобился настоящий адрес клиента.
+    """
+    with pytest.raises(ValueError, match="GRAFIK_TRUSTED_PROXIES"):
+        Settings(env="test", trusted_proxies="почти-адрес")
+
+
+def test_о_делении_предела_сказано_в_журнале(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Иначе «почему-то 429 на третьей попытке» будет загадкой."""
+    with caplog.at_level(logging.WARNING, logger="grafik.api.main"):
+        create_app(Settings(env="test", workers=2))
+
+    запись = next(
+        запись for запись in caplog.records if запись.name == "grafik.api.main"
+    )
+
+    assert запись.__dict__["event"] == "app.limits_split"
+    assert запись.__dict__["workers"] == 2

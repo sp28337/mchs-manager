@@ -1,0 +1,203 @@
+name: API CD
+
+# Выкладка сервера синхронизации. Отдельно от выкладки сайта (`cd.yml`) по
+# той же причине, по которой разделены проверки: сайт — это статика на
+# nginx, API — контейнер с базой и миграциями. Упавший шаг одного не должен
+# задерживать другое.
+#
+# Запускается после успешной сборки workflow «API» на `main` — то есть в бой
+# уезжает образ, который уже собрался и ответил на /healthz в контейнере.
+# Второй сборки здесь нет намеренно: пересборка из тех же исходников даёт
+# ДРУГОЙ образ (базовый образ и колёса с PyPI могли обновиться между
+# сборками), и проверенным оказался бы не тот, что поехал.
+
+on:
+  workflow_run:
+    workflows:
+      - API
+    branches:
+      - main
+    types:
+      - completed
+  # Руками — когда событие до Actions не дошло или нужно выложить тот же
+  # образ заново.
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: Номер запуска workflow «API», у которого взять образ
+        required: true
+
+concurrency:
+  # Своя группа, не общая с сайтом: выкладки независимы. Но две выкладки
+  # API подряд — нет: вторая началась бы, пока первая применяет миграции.
+  group: deploy-api
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: Образ на сервер
+    if: >
+      github.event_name == 'workflow_dispatch' || (
+        github.event.workflow_run.conclusion == 'success' &&
+        github.event.workflow_run.event == 'push'
+      )
+    runs-on: ubuntu-24.04
+
+    environment:
+      name: production
+      url: ${{ vars.SITE_URL }}/api/v1/healthz
+
+    steps:
+      # Исходники нужны не для сборки, а для того, что едет рядом с
+      # образом: состав, скрипты обслуживания, README для юнитов.
+      # Берётся ТОТ ЖЕ коммит, что собрал образ, а не голова ветки: за
+      # минуту между сборкой и выкладкой в `main` мог приехать следующий.
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+
+      - name: Download image artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: api-image
+          path: .
+          run-id: ${{ inputs.run_id || github.event.workflow_run.id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Key and server's fingerprint
+        run: |
+          install -m 700 -d ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          echo "${{ secrets.SSH_KNOWN_HOSTS }}" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Deploy
+        env:
+          HOST: ${{ secrets.SSH_HOST }}
+          USER: ${{ secrets.SSH_USER }}
+          PORT: ${{ vars.SSH_PORT || 22 }}
+          # Каталог боевого состава на сервере. Отдельно от каталога сайта
+          # (`DEPLOY_ROOT`): у сайта там выпуски статики, здесь секреты,
+          # состав и резервные копии.
+          ROOT: ${{ vars.API_DEPLOY_ROOT || '/opt/grafik13' }}
+          # Тег образа — короткий хэш коммита, тот же, что поставила
+          # сборка.
+          SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+        run: |
+          set -euo pipefail
+          TAG="${SHA:0:7}"
+          echo "Выкладываем grafik-api:$TAG"
+
+          SSH="ssh -p $PORT $USER@$HOST"
+          RSYNC_SSH="ssh -p $PORT"
+
+          # Образ — во временный каталог: в боевом ему делать нечего, он
+          # нужен ровно до `docker load`.
+          rsync -a -e "$RSYNC_SSH" api-image.tar.gz "$USER@$HOST:/tmp/"
+
+          # Рядом едут состав и скрипты: иначе на сервере осталась бы
+          # прошлогодняя версия compose.prod.yml, и правка в репозитории
+          # ничего бы не значила. Секреты (`api.env`, `postgres.env`,
+          # `.env`) не трогаются — они существуют только на сервере.
+          rsync -az --chmod=F755 -e "$RSYNC_SSH" \
+            deploy/backup.sh \
+            deploy/backup-verify.sh \
+            deploy/restore-check.sh \
+            deploy/notify-failure.sh \
+            "$USER@$HOST:$ROOT/"
+          rsync -az --chmod=F644 -e "$RSYNC_SSH" \
+            deploy/compose.prod.yml \
+            deploy/README.md \
+            "$USER@$HOST:$ROOT/"
+
+          $SSH bash -euo pipefail -s <<EOF
+            cd '$ROOT'
+
+            # Подготовку сервера выкладка не делает и делать не должна:
+            # секреты, таймеры и правила экрана — разовая работа руками
+            # (deploy/README.md). Но сказать об этом внятно она обязана,
+            # иначе первая выкладка упадёт на чём-то невнятном.
+            # Имена переменных латиницей: кириллических имён переменных
+            # bash не допускает — присваивание превращается в попытку
+            # запустить команду.
+            for NEED in api.env postgres.env; do
+              test -f "\$NEED" || {
+                echo "нет $ROOT/\$NEED — сервер не подготовлен, см. deploy/README.md" >&2
+                exit 1
+              }
+            done
+
+            gunzip -c /tmp/api-image.tar.gz | docker load
+            rm -f /tmp/api-image.tar.gz
+
+            # Тег в .env читает compose. Прежний остаётся рядом: это и есть
+            # откат — вписать его обратно и поднять.
+            if [ -f .env ]; then cp .env .env.previous; fi
+            echo 'GRAFIK_IMAGE_TAG=$TAG' > .env
+
+            # Миграции — до подъёма нового контейнера, то есть на ещё
+            # работающем старом. Значит, миграция обязана быть совместимой
+            # с предыдущей версией кода на те секунды, что они живут
+            # вместе: добавить столбец можно, переименовать или удалить —
+            # только в два выпуска.
+            docker compose -f compose.prod.yml run --rm migrate
+
+            docker compose -f compose.prod.yml up -d api
+
+            # Что на самом деле запущено. Без этой проверки выкладка
+            # «успешна» и тогда, когда поднялся прежний образ — например,
+            # потому что .env не перечитался.
+            IMAGE=\$(docker inspect --format '{{.Config.Image}}' \
+                      "\$(docker compose -f compose.prod.yml ps -q api)")
+            echo "запущен образ: \$IMAGE"
+            test "\$IMAGE" = 'grafik-api:$TAG'
+
+            # Старые образы: docker перечисляет их от новых к старым, три
+            # первых остаются на откат, остальные убираются — иначе диск
+            # кончится к концу года.
+            docker image ls --filter reference='grafik-api' --format '{{.Tag}}' \
+              | tail -n +4 \
+              | xargs -r -I@ docker image rm 'grafik-api:@' || true
+          EOF
+
+      - name: Check result
+        env:
+          URL: ${{ vars.SITE_URL }}
+        run: |
+          set -euo pipefail
+
+          # Проверяется снаружи и через nginx, а не изнутри сервера: знать
+          # надо, что работает вся цепочка — TLS, прокси, приложение,
+          # база, — а не только контейнер.
+          #
+          # Про /docs и /openapi.json проверки нет и быть не может: nginx
+          # проксирует только `/api/`, а они живут в корне приложения, то
+          # есть снаружи недостижимы в любом случае. Что окружение
+          # поднялось как `prod`, проверено раньше и строже: с
+          # разработческим секретом приложение не стартует вовсе.
+          echo "→ живость"
+          ALIVE="$(curl -fsS "$URL/api/v1/healthz")"
+          echo "$ALIVE"
+          grep -q '"status":"ok"' <<< "$ALIVE"
+
+          echo "→ готовность (она же проверка базы)"
+          READY="$(curl -fsS "$URL/api/v1/readyz")"
+          echo "$READY"
+          grep -q '"status":"ready"' <<< "$READY"
+
+          # Версии документов — то, с чем человек согласится при
+          # регистрации. Ручка читает манифест из образа, то есть заодно
+          # отвечает на вопрос, доехал ли образ целиком.
+          echo "→ версии документов"
+          LEGAL="$(curl -fsS "$URL/api/v1/legal/documents")"
+          echo "$LEGAL"
+          for ID in policy consent terms; do
+            grep -q "\"id\":\"$ID\"" <<< "$LEGAL"
+          done
+
+          echo "✓ API отвечает: $URL/api/v1/healthz"

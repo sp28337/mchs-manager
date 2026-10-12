@@ -1,0 +1,10 @@
+[Unit]
+Description=График 1 3: резервная копия раз в сутки
+
+[Timer]
+OnCalendar=*-*-* 02:40:00
+RandomizedDelaySec=20m
+Persistent=true
+
+[Install]
+WantedBy=timers.target

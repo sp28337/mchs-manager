@@ -1,0 +1,213 @@
+# Боевой состав: база и API. Кладётся на сервер в /opt/grafik13/.
+#
+# Рядом с этим файлом на сервере должны лежать (и в git их нет, потому что
+# это секреты):
+#
+#   api.env        переменные приложения — см. deploy/env.prod.example
+#   postgres.env   POSTGRES_PASSWORD, тот же пароль, что в GRAFIK_DATABASE_URL
+#   .env           GRAFIK_IMAGE_TAG=<тег выложенного образа>
+#
+# Порядок установки, бэкапы, таймеры и правила межсетевого экрана —
+# `deploy/README.md`. Запуск: `docker compose -f compose.prod.yml up -d`.
+#
+# --- Чего здесь нет и почему --------------------------------------------
+#
+# **nginx.** Он уже стоит на хозяине машины и отдаёт статику сайта
+# (`deploy/nginx-site.conf`), а сертификатом управляет certbot. Второй
+# nginx в контейнере спорил бы за 443-й порт с первым и потребовал бы
+# второго сертификата на то же имя. Поэтому API проксирует тот же nginx,
+# для чего в его настройке появился `location ^~ /api/`.
+#
+# **Мониторинг и сборщик логов.** Журналы пишутся в stdout и достаются
+# `docker compose logs`; хранение ограничено драйвером (см. ниже). Что-то
+# большее имеет смысл, когда есть кому смотреть, — не раньше.
+#
+# **Ключ `version`.** Compose считает его устаревшим и ругается.
+
+name: grafik13
+
+# Правило хранения журналов — одно для всех служб. Без ограничения
+# json-file растёт, пока не кончится диск; на маленьком сервере это
+# вопрос недель, а не лет. Пять файлов по десять мегабайт — это примерно
+# неделя при обычной нагрузке и запас на разбор аварии.
+# Имя метки латиницей не из вредности: разборщик YAML допускает в якорях
+# только латинские буквы и цифры, а на кириллическом якоре падает
+# сообщением про «anchor» — не самым понятным.
+x-log-rule: &log-rule
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "5"
+
+services:
+  postgres:
+    image: postgres:18.6-trixie
+    restart: unless-stopped
+
+    # Порта нет вовсе, и это главное отличие от окружения разработки: с
+    # базой говорит только API по внутренней сети. `psql` и `pg_dump`
+    # запускаются внутри контейнера (`docker compose exec`), им порт не
+    # нужен.
+    env_file: postgres.env
+    environment:
+      POSTGRES_USER: grafik
+      POSTGRES_DB: grafik
+      # Локаль задаётся при инициализации кластера: от неё зависит
+      # сортировка, а на сортировке стоят индексы. Разная локаль на
+      # разных машинах — это разный порядок строк при восстановлении
+      # бэкапа.
+      POSTGRES_INITDB_ARGS: "--locale=C.UTF-8 --encoding=UTF8"
+
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U grafik -d grafik"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 30s
+
+    # База должна успеть записать буферы и закрыть журнал. Десяти секунд
+    # по умолчанию может не хватить, а недописанный буфер — это
+    # восстановление из бэкапа вместо перезапуска.
+    stop_grace_period: 1m
+
+    security_opt:
+      - no-new-privileges:true
+
+    logging: *log-rule
+
+    networks:
+      - grafik
+
+  api:
+    # Тег обязателен: образ приезжает выкладкой (`docker load`), и тег ему
+    # даёт она же, записывая его в `.env` рядом. Значения по умолчанию нет
+    # намеренно — «latest», которого никто не выкладывал, поднимал бы
+    # вчерашний образ молча.
+    image: grafik-api:${GRAFIK_IMAGE_TAG:?нужен GRAFIK_IMAGE_TAG в .env}
+    restart: unless-stopped
+
+    env_file: api.env
+
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+    # Только на петлю хозяина машины: к API ходит nginx с этой же машины,
+    # и больше никто. Открытый наружу порт означал бы API без TLS и без
+    # защитных заголовков рядом с тем же API за TLS.
+    ports:
+      - "127.0.0.1:8001:8000"
+
+    # Приложение не пишет на диск ничего: журнал — в stdout, данные — в
+    # базе. Файловая система только для чтения снимает целый класс
+    # последствий: записать себе веб-шелл в образ некуда.
+    read_only: true
+    tmpfs:
+      # psycopg и ssl могут захотеть временный файл; мегабайта хватит, а
+      # исполнять оттуда нельзя.
+      - /tmp:size=1m,mode=1777,noexec,nosuid,nodev
+
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+
+    healthcheck:
+      # curl в образе нет и не нужен: интерпретатор уже на месте.
+      # Проверяется живость, а не готовность: контейнер, помеченный
+      # нездоровым из-за недоступной базы, вводил бы в заблуждение — база
+      # от перезапуска приложения не лечится.
+      test:
+        - CMD
+        - python
+        - -c
+        - import urllib.request; urllib.request.urlopen("http://127.0.0.1:8000/api/v1/healthz")
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+    # Больше, чем `graceful_timeout` у gunicorn (30 с): иначе мягкая
+    # остановка превращается в обрыв запросов на каждой выкладке.
+    stop_grace_period: 40s
+
+    logging: *log-rule
+
+    networks:
+      - grafik
+
+  # --- Одноразовые службы ---------------------------------------------
+  #
+  # Профиль `tools` означает «не поднимается вместе с остальными»:
+  # `docker compose up -d` их не трогает, они запускаются поимённо через
+  # `docker compose run --rm`. Так миграции и сборка мусора используют тот
+  # же образ и то же окружение, что и приложение, но не висят процессами.
+
+  migrate:
+    image: grafik-api:${GRAFIK_IMAGE_TAG:?нужен GRAFIK_IMAGE_TAG в .env}
+    profiles:
+      - tools
+    env_file: api.env
+    # Своего alembic.ini у проекта нет: настройки в pyproject.toml, адрес
+    # базы — из GRAFIK_DATABASE_URL.
+    command: ["alembic", "upgrade", "head"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+    read_only: true
+    tmpfs:
+      - /tmp:size=1m,mode=1777,noexec,nosuid,nodev
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    logging: *log-rule
+    networks:
+      - grafik
+
+  gc:
+    image: grafik-api:${GRAFIK_IMAGE_TAG:?нужен GRAFIK_IMAGE_TAG в .env}
+    profiles:
+      - tools
+    env_file: api.env
+    # Сроки хранения — обязанность оператора, а не пожелание: надгробия
+    # живут 180 дней, история версий — 30. Запускает таймер systemd
+    # (deploy/systemd/grafik-gc.timer).
+    command: ["python", "-m", "grafik_api.cli", "gc"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+    read_only: true
+    tmpfs:
+      - /tmp:size=1m,mode=1777,noexec,nosuid,nodev
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    logging: *log-rule
+    networks:
+      - grafik
+
+volumes:
+  pgdata:
+
+networks:
+  grafik:
+    driver: bridge
+    # Подсеть задана, а не отдана docker на усмотрение, по одной причине:
+    # приложению нужно знать адрес, с которого к нему приходит nginx с
+    # хозяина машины (это шлюз моста), чтобы доверять его
+    # `X-Forwarded-For`. Адрес шлюза при автоматическом выборе подсети
+    # меняется от состава сетей на машине — то есть настройка
+    # GRAFIK_TRUSTED_PROXIES разъезжалась бы с действительностью молча,
+    # а в журнале и в счётчике попыток оказывался бы адрес шлюза вместо
+    # адреса человека.
+    ipam:
+      config:
+        - subnet: 172.28.0.0/24
+          gateway: 172.28.0.1

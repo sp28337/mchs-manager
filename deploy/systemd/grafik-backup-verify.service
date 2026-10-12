@@ -1,0 +1,12 @@
+# Проверка копий — та, что возможна без закрытого ключа: есть ли копия,
+# свежая ли, не пустая ли, зашифрована ли. Настоящее восстановление
+# проверяется руками и на другой машине (`restore-check.sh`).
+
+[Unit]
+Description=График 1 3: проверка свежести копий
+Documentation=file:///opt/grafik13/README.md
+OnFailure=grafik-notify-failure@%n.service
+
+[Service]
+Type=oneshot
+ExecStart=/opt/grafik13/backup-verify.sh

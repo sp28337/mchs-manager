@@ -11,6 +11,7 @@ on:
     paths:
       - 'api/**'
       - 'docker-compose.yml'
+      - 'deploy/**'
       - '.github/workflows/api.yml'
   push:
     branches:
@@ -18,6 +19,9 @@ on:
     paths:
       - 'api/**'
       - 'docker-compose.yml'
+      # Боевой состав и скрипты обслуживания едут на сервер выкладкой
+      # (api-cd.yml), значит их правка — повод и проверить, и выложить.
+      - 'deploy/**'
       - '.github/workflows/api.yml'
 
 # Отдельный workflow, а не вторая джоба в CI, намеренно: CD слушает
@@ -115,13 +119,40 @@ jobs:
       # Сборка образа — единственная настоящая проверка Dockerfile, и
       # делается она здесь: в контейнере разработки, где пишется код,
       # демона Docker нет.
+      #
+      # Тег — короткий хэш коммита, а не `ci`: этот же образ уезжает в бой
+      # (см. api-cd.yml), и по тегу на сервере должно быть видно, что
+      # именно там работает.
+      # Состав проверяется разборщиком самого compose, а не только нашими
+      # тестами: тесты смотрят на смысл (порт базы, журналы, права), а
+      # здесь проверяется, что файл вообще принимается — с подстановками,
+      # якорями и профилями.
+      #
+      # Файлы окружения создаются пустыми во временном каталоге: без них
+      # `config` отказывается читать состав, а настоящие живут только на
+      # сервере.
+      - name: Validate production compose
+        run: |
+          set -euo pipefail
+          WORK=$(mktemp -d)
+          cp deploy/compose.prod.yml "$WORK/"
+          : > "$WORK/api.env"
+          : > "$WORK/postgres.env"
+          GRAFIK_IMAGE_TAG=ci docker compose -f "$WORK/compose.prod.yml" config \
+            > /dev/null
+          GRAFIK_IMAGE_TAG=ci docker compose -f "$WORK/compose.prod.yml" \
+            --profile tools config --services
+          rm -rf "$WORK"
+
       - name: Build image
-        run: docker build --tag grafik-api:ci api
+        run: |
+          echo "TAG=${GITHUB_SHA::7}" >> "$GITHUB_ENV"
+          docker build --tag "grafik-api:${GITHUB_SHA::7}" api
 
       - name: Health check in container
         run: |
           set -euo pipefail
-          docker run --detach --name grafik-api-ci --publish 8000:8000 grafik-api:ci
+          docker run --detach --name grafik-api-ci --publish 8000:8000 "grafik-api:$TAG"
 
           # Первый запрос может прийти раньше, чем поднимется uvicorn:
           # ждём до 30 секунд и только потом считаем это отказом.
@@ -139,3 +170,32 @@ jobs:
         # Журналы нужны именно тогда, когда шаг выше упал.
         if: always()
         run: docker logs grafik-api-ci || true
+
+      # В бой уезжает ровно тот образ, который только что собрался и ответил
+      # на /healthz, — а не собранный заново на сервере или здесь второй
+      # раз. Пересборка из тех же исходников дала бы другой образ: базовый
+      # образ и колёса с PyPI могли обновиться между сборками, и
+      # проверенным оказался бы не тот, что поехал.
+      #
+      # Складывается образ файлом, а не отправляется в реестр: своего
+      # реестра у нас нет, а ghcr.io на пути к российскому серверу — ещё
+      # одна внешняя зависимость в момент выкладки.
+      #
+      # Только для push в main: на каждом PR это сто мегабайт впустую.
+      - name: Pack image for deployment
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          set -euo pipefail
+          docker save "grafik-api:$TAG" | gzip -6 > api-image.tar.gz
+          ls -lh api-image.tar.gz
+
+      - name: Upload image artifact
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@v7
+        with:
+          name: api-image
+          path: api-image.tar.gz
+          # Храним недолго: артефакт нужен только выкладке, которая
+          # начинается через минуту после сборки.
+          retention-days: 3
+          compression-level: 0

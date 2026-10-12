@@ -85,8 +85,16 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.settings = settings
 
     # Счётчик обращений — в памяти процесса, поэтому создаётся вместе с
-    # приложением, а не в жизненном цикле: закрывать его не нужно.
-    app.state.limiter = RateLimiter()
+    # приложением, а не в жизненном цикле: закрывать его не нужно. Число
+    # процессов он знает затем, чтобы поделить между ними заявленный
+    # предел, — почему так, написано в `core/limits.py`.
+    app.state.limiter = RateLimiter(процессов=settings.workers)
+
+    if settings.workers > 1:
+        logger.warning(
+            "рабочих процессов больше одного: предел обращений делится",
+            extra={"event": "app.limits_split", "workers": settings.workers},
+        )
 
     # Все ошибки — одним форматом (problem+json), включая те, что поднимает
     # сам веб-сервер.

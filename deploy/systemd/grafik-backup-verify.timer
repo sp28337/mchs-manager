@@ -1,0 +1,13 @@
+# Через час после копирования: к этому времени копия либо есть, либо её
+# уже не будет.
+
+[Unit]
+Description=График 1 3: проверка копий раз в сутки
+
+[Timer]
+OnCalendar=*-*-* 03:40:00
+RandomizedDelaySec=10m
+Persistent=true
+
+[Install]
+WantedBy=timers.target

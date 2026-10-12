@@ -1,0 +1,26 @@
+# Сборка мусора: надгробия старше 180 дней и версии старше 30.
+#
+# Это обязанность оператора, а не уборка для красоты: политика обещает
+# сроки хранения, и «удалено» должно означать «не лежит в базе». Команда
+# живёт в приложении (`python -m grafik_api.cli gc`), расписание — снаружи,
+# в таймере рядом: так срок виден, не читая кода, а о неудаче узнаёт
+# systemd.
+
+[Unit]
+Description=График 1 3: сборка мусора в базе
+Documentation=file:///opt/grafik13/README.md
+# Запускать нечего, если docker ещё не поднялся: служба одноразовая и
+# повторять её сама не станет.
+After=docker.service
+Requires=docker.service
+OnFailure=grafik-notify-failure@%n.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/grafik13
+# `run --rm` с профилем `tools`: образ и окружение те же, что у
+# приложения, а процесса после себя не остаётся.
+ExecStart=/usr/bin/docker compose -f /opt/grafik13/compose.prod.yml run --rm gc
+# Уборка не спешит: пусть уступает дорогу запросам людей.
+Nice=10
+IOSchedulingClass=idle

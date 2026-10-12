@@ -75,17 +75,24 @@ SettingsDep = Annotated[Settings, Depends(get_settings_of)]
 def get_client_ip(request: Request) -> str | None:
     """Адрес клиента — с поправкой на то, что перед нами nginx.
 
-    Прямой адрес (`request.client`) за прокси всегда наш же `127.0.0.1`,
-    поэтому настоящий берётся из `X-Forwarded-For`. Но берётся **только
-    если обратился сосед по петле**: иначе любой, кто дотянулся до нас
+    Прямой адрес (`request.client`) за прокси — это сам прокси, поэтому
+    настоящий берётся из `X-Forwarded-For`. Но берётся **только если
+    обратился доверенный сосед**: иначе любой, кто дотянулся до нас
     напрямую, подставил бы в журнал и в счётчик попыток чужой адрес.
+
+    Доверенные — петля (её не подделать снаружи) и то, что перечислено в
+    `GRAFIK_TRUSTED_PROXIES`. Второе нужно в бою: nginx стоит на хозяине
+    машины, а приложение в контейнере, и его обращения приходят не с
+    `127.0.0.1`, а со шлюза docker-сети. Без этой настройки в журнал
+    попал бы адрес шлюза — один и тот же для всех, то есть защита от
+    перебора считала бы попытки всего мира в одну кучу.
 
     Из списка берётся правый элемент: nginx дописывает к заголовку того,
     кого увидел сам, — то есть последним стоит настоящий клиент.
     """
     peer = request.client.host if request.client else None
 
-    if peer is None or not _is_loopback(peer):
+    if peer is None or not _доверенный(peer, get_settings_of(request)):
         return peer
 
     forwarded = request.headers.get("x-forwarded-for")
@@ -214,12 +221,18 @@ AccountServiceDep = Annotated[AccountService, Depends(get_account_service)]
 _БЕЗОПАСНЫЕ = set("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_.")
 
 
-def _is_loopback(host: str) -> bool:
+def _доверенный(host: str, settings: Settings) -> bool:
+    """Можно ли верить заголовкам от этого соседа."""
     try:
-        return ipaddress.ip_address(host).is_loopback
+        адрес = ipaddress.ip_address(host)
     except ValueError:
         # Не адрес вовсе — например, unix-сокет. Доверять нечему.
         return False
+
+    if адрес.is_loopback:
+        return True
+
+    return any(адрес in сеть for сеть in settings.trusted_networks)
 
 
 def _is_address(value: str) -> bool:

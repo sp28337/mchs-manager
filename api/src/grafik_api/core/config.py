@@ -12,11 +12,15 @@ Python, и `ENV` или `DEBUG` без префикса однажды совп�
 
 from __future__ import annotations
 
+import ipaddress
 from functools import lru_cache
 from typing import Literal
 
-from pydantic import SecretStr, field_validator, model_validator
+from pydantic import Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+#: Разобранный перечень доверенных прокси: адреса или сети.
+Networks = tuple[ipaddress.IPv4Network | ipaddress.IPv6Network, ...]
 
 Env = Literal["dev", "test", "prod"]
 
@@ -47,6 +51,26 @@ class Settings(BaseSettings):
     # пароль `grafik` в нём — заведомо разработческий (см. комментарий в
     # самом compose-файле).
     database_url: str = "postgresql+psycopg://grafik:grafik@postgres:5432/grafik"
+
+    # --- Боевой запуск ---------------------------------------------------
+
+    #: Сколько рабочих процессов поднимает gunicorn (шаг 13).
+    #:
+    #: Единица — не экономия, а условие работы счётчика обращений: он
+    #: живёт в памяти процесса, и при нескольких процессах заявленный
+    #: предел пришлось бы делить между ними (см. `core/limits.py`).
+    #: Нагрузка у приложения почти целиком на ожидании базы, а оно
+    #: асинхронное: один процесс справляется с ней весь.
+    workers: int = Field(default=1, ge=1)
+
+    #: Кому верить, когда он говорит, что обратился не он, а другой
+    #: (`X-Forwarded-For`). Адреса или сети через запятую.
+    #:
+    #: Петля доверена всегда — её не подделать снаружи. В бою сюда
+    #: добавляется адрес шлюза docker-сети: nginx стоит на хозяине
+    #: машины, и контейнер видит его обращения не с `127.0.0.1`, а со
+    #: шлюза моста.
+    trusted_proxies: str = ""
 
     # --- Секреты ---------------------------------------------------------
     #
@@ -130,6 +154,28 @@ class Settings(BaseSettings):
 
         return self
 
+    @model_validator(mode="after")
+    def _прокси_разбираются(self) -> Settings:
+        """Проверить перечень доверенных прокси при старте.
+
+        Опечатка в адресе шлюза не должна выясняться в тот момент, когда
+        в журнале понадобился настоящий адрес клиента.
+        """
+        # Вызовом, а не обращением к свойству: результат не нужен,
+        # нужен разбор — он и падает.
+        trusted_networks(self.trusted_proxies)
+        return self
+
+    @property
+    def trusted_networks(self) -> Networks:
+        """Доверенные прокси сетями.
+
+        Отдельный адрес — это сеть из одного адреса, поэтому всё
+        приводится к сетям: сравнение одно, а в настройке можно написать
+        и `172.28.0.1`, и `172.28.0.0/24`.
+        """
+        return trusted_networks(self.trusted_proxies)
+
     @property
     def docs_enabled(self) -> bool:
         """Отдавать ли /docs и /openapi.json.
@@ -140,6 +186,32 @@ class Settings(BaseSettings):
         лежит в репозитории.
         """
         return self.env != "prod"
+
+
+@lru_cache(maxsize=8)
+def trusted_networks(перечень: str) -> Networks:
+    """Разобрать перечень доверенных прокси.
+
+    Кэш — потому что вызывается на каждый запрос, а строка настройки за
+    время жизни процесса не меняется. Размер кэша мал осознанно: разных
+    строк в процессе бывает одна, в тестах — несколько.
+    """
+    сети: list[ipaddress.IPv4Network | ipaddress.IPv6Network] = []
+
+    for кусок in перечень.split(","):
+        кусок = кусок.strip()
+        if not кусок:
+            continue
+        try:
+            # `strict=False` — чтобы `172.28.0.1/24` не было ошибкой:
+            # человек имел в виду сеть, а не придирку к битам.
+            сети.append(ipaddress.ip_network(кусок, strict=False))
+        except ValueError as error:
+            raise ValueError(
+                f"GRAFIK_TRUSTED_PROXIES: {кусок!r} — не адрес и не сеть"
+            ) from error
+
+    return tuple(сети)
 
 
 @lru_cache
