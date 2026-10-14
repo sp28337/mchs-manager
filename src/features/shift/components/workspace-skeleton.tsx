@@ -22,7 +22,6 @@ import { CalendarIcon, PeriodIcon, ShiftsIcon } from "./grid-icons";
 import { LiveSignal, LIVE_ROW_CAPTION, LIVE_ROW_CELL } from "./live-mode";
 import { MetaSep, MonthGrid, YEAR_BOX, YEAR_GRID } from "./month-grid";
 import { MONTH_NAMES } from "./month-names";
-import { ShiftLegend } from "./shift-strip";
 
 /**
  * Рабочий экран, пока читается профиль.
@@ -43,7 +42,7 @@ import { ShiftLegend } from "./shift-strip";
  *
  * Отсюда способ: заглушка не «похожа» на рабочий экран, а повторяет его
  * разметку — те же контейнеры с теми же классами, та же сетка месяцев
- * (`MonthGrid`) и та же легенда (`ShiftLegend` в режиме заглушки). Там,
+ * (`MonthGrid`). Там,
  * где место задаёт СТРОКА, в разметке лежит настоящая строка — те же
  * слова тем же кеглем, только прозрачные и на плашке (`BoneText`): высота
  * строки тогда не подбирается на глаз, а получается сама.
@@ -236,8 +235,6 @@ export function WorkspaceSkeleton() {
                 ))}
               </div>
               </div>
-
-              <ShiftLegend skeleton />
             </div>
           </div>
         </section>

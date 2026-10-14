@@ -19,6 +19,7 @@ import {
   HEADER_WORD,
   MenuMark,
 } from "@/components/shared/header-action";
+import { Materialize } from "@/components/ui/materialize";
 import { SYNC_ENABLED } from "@/features/sync/ui/enabled";
 import { useSync } from "@/features/sync/ui/sync-provider";
 import { cn } from "@/lib/utils/cn";
@@ -46,6 +47,22 @@ import { cn } from "@/lib/utils/cn";
  * действий у страницы. Плата известна и названа вслух: до настроек теперь
  * два нажатия вместо одного.
  *
+ * --- Как оно называет открытый раздел --------------------------------------
+ *
+ * Пока на месте графика показаны настройки, статистика или проводник, на
+ * месте слова «МЕНЮ» стоит имя раздела, а три полосы складываются в
+ * крестик — и нажатие закрывает раздел, а не открывает список. Так кнопка
+ * называет то, что нажатие СЕЙЧАС сделает, а не то, чем она была минуту
+ * назад.
+ *
+ * Прежде имя раздела подменяло название сайта слева. Это было неверно по
+ * существу: раздел называла ссылка ДОМОЙ, и человек, нажав по слову
+ * «НАСТРОЙКИ», уходил на посадочную страницу.
+ *
+ * Пока раздел открыт, список не открыть вовсе, и это намеренно: у
+ * настроек и статистики своих действий в нём нет, а три действия
+ * проводника переехали в сам проводник (`profile-explorer.tsx`).
+ *
  * --- Почему словом, а не значком -------------------------------------------
  *
  * Кружок с человечком здесь был, и был понятен, но в строке с «ГРАФИК 1|3»
@@ -61,11 +78,22 @@ import { cn } from "@/lib/utils/cn";
 /** Закрыть меню — любому пункту внутри него, без передачи обратного вызова. */
 const Закрыть = createContext<() => void>(() => undefined);
 
+/** Открытый раздел: чем он называется и чем закрывается. */
+export interface OpenSection {
+  /** Имя раздела — встаёт вместо слова «Меню». */
+  label: string;
+  /** Закрыть раздел: это и делает нажатие, пока он открыт. */
+  close: () => void;
+}
+
 export function HeaderMenu({
   items,
+  section,
   tight,
 }: {
   items?: ReactNode;
+  /** Раздел, показанный вместо страницы. */
+  section?: OpenSection;
   /**
    * В шапке уже стоит широкое действие страницы, и места на слово нет.
    *
@@ -83,7 +111,22 @@ export function HeaderMenu({
   // закрывает меню сам, и сторожить это эффектом (то есть вторым проходом
   // отрисовки) не нужно.
   const [открытоНа, setОткрытоНа] = useState<string | null>(null);
-  const открыто = открытоНа === путь;
+  const открыто = открытоНа === путь && section === undefined;
+
+  /**
+   * Имя раздела держится и после закрытия — ради растворения.
+   *
+   * Слова лежат в одной ячейке грида и проступают друг в друга
+   * (`Materialize`). Забудь мы имя в тот же миг, когда раздел закрыт, —
+   * гаснуть было бы нечему: вместо растворения вышло бы мигание.
+   *
+   * Правка состояния во время отрисовки — приём из документации React
+   * («adjusting state when props change»): React тут же отрисовывает
+   * заново, ничего не показав человеку, и обходится без эффекта.
+   */
+  const [прежнее, setПрежнее] = useState("Меню");
+
+  if (section !== undefined && section.label !== прежнее) setПрежнее(section.label);
   const гнездо = useRef<HTMLDivElement>(null);
   const id = useId();
 
@@ -141,18 +184,45 @@ export function HeaderMenu({
     <div ref={гнездо} className="relative shrink-0">
       <button
         type="button"
-        onClick={() => setОткрытоНа(открыто ? null : путь)}
-        aria-expanded={открыто}
-        aria-controls={id}
-        // Имя кнопки — то же слово, что на ней написано; адрес уходит в
-        // подсказку, а не в имя: диктор прочитает его в первой же строке
-        // открытого меню.
-        title={account?.email ?? "Меню"}
+        onClick={() => {
+          if (section !== undefined) section.close();
+          else setОткрытоНа(открыто ? null : путь);
+        }}
+        aria-expanded={section === undefined ? открыто : undefined}
+        aria-controls={section === undefined ? id : undefined}
+        // Имя кнопки, пока открыт раздел, называет действие целиком:
+        // видимое слово — это имя раздела, и одного его мало, чтобы
+        // понять, что нажатие закроет. Само слово в имя входит
+        // (WCAG 2.5.3): «Закрыть: настройки».
+        aria-label={section === undefined ? undefined : `Закрыть: ${section.label}`}
+        // Адрес уходит в подсказку, а не в имя: диктор прочитает его в
+        // первой же строке открытого меню.
+        title={section !== undefined ? `Закрыть: ${section.label}` : (account?.email ?? "Меню")}
         className={HEADER_ACTION}
         data-account-entry
       >
-        <span className={HEADER_WORD}>Меню</span>
-        <MenuMark />
+        {/* Оба слова лежат в одной ячейке грида: ширина считается по
+            большему из них, и подмена не дёргает знак рядом. Прижаты к
+            правому краю — туда же, где стоит знак. */}
+        <span className="grid justify-items-end">
+          <Materialize
+            show={section === undefined}
+            ariaHidden={section !== undefined}
+            durationClassName="duration-200"
+            className={cn("col-start-1 row-start-1", HEADER_WORD)}
+          >
+            Меню
+          </Materialize>
+          <Materialize
+            show={section !== undefined}
+            ariaHidden={section === undefined}
+            durationClassName="duration-200"
+            className={cn("col-start-1 row-start-1", HEADER_WORD)}
+          >
+            {прежнее}
+          </Materialize>
+        </span>
+        <MenuMark cross={section !== undefined} />
       </button>
 
       {открыто && (

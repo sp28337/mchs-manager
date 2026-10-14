@@ -1,6 +1,16 @@
 "use client";
 
-import { ChevronLeft, ChevronRight, GripVertical, Pencil, Trash2 } from "lucide-react";
+import {
+  ChevronLeft,
+  ChevronRight,
+  FolderPlus,
+  GripVertical,
+  Pencil,
+  Plus,
+  Trash2,
+  Upload,
+  type LucideIcon,
+} from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -76,17 +86,16 @@ import { useEntryDrag } from "./use-entry-drag";
  */
 
 /**
- * Состояние трёх действий проводника, вынесенных в меню шапки.
+ * Состояние трёх действий проводника.
  *
- * Живёт отдельным крючком, потому что нажимают на них в ОДНОМ месте
- * (шапка), а происходит от них другое — в ДРУГОМ (проводник): поле имени
- * новой папки встаёт в сетку папок, окно создания открывается поверх
- * списка, выбор файла прячется в нём же. Держать это состояние в шапке
- * значило бы поселить там половину проводника, а в проводнике — узнавать о
- * нажатиях кнопок, которых он не рисует.
+ * Живёт отдельным крючком с тех пор, как кнопки стояли в шапке: нажимали
+ * на них в одном месте, а происходило от них другое — в проводнике. Теперь
+ * кнопки переехали в сам проводник (строка пути), но состояние осталось
+ * здесь: его читает и рабочий экран — по нему он знает, что проводник
+ * занят созданием папки или профиля.
  */
 export interface ExplorerTools {
-  /** Три действия — для кнопок шапки. */
+  /** Три действия — для кнопок в строке пути. */
   newFolder: () => void;
   newProfile: () => void;
   importFile: () => void;
@@ -108,6 +117,45 @@ export interface ExplorerTools {
    * одной и той же плашке над списком, а не в двух разных местах.
    */
   say: (message: string | null) => void;
+}
+
+/**
+ * Действие проводника: плашка со значком, а на широком экране ещё и слово.
+ *
+ * Вид тот же, что у плашек пути слева в этой же строке и что был у кнопок
+ * прежней шапки: поднятая бумага, свет лампы по кромке, скругление в
+ * четырнадцать точек. Ниже 640 точек от кнопки остаётся значок — три
+ * слова рядом с именем папки на телефоне в строку не встают, — а имя
+ * действия достаётся программе чтения.
+ */
+function ExplorerAction({
+  icon: Icon,
+  title,
+  onClick,
+  children,
+}: {
+  icon: LucideIcon;
+  /** Имя действия целиком: его читает программа чтения и показывает подсказка. */
+  title: string;
+  onClick: () => void;
+  children: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={title}
+      title={title}
+      className={cn(
+        "lit inline-flex h-8 shrink-0 cursor-pointer items-center gap-2 rounded-xl",
+        "bg-paper-raised px-2 sm:px-3 text-sm font-medium text-ink",
+        "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink",
+      )}
+    >
+      <Icon aria-hidden className="size-4.5 shrink-0 text-ink-muted" />
+      <span className="max-sm:sr-only">{children}</span>
+    </button>
+  );
 }
 
 export function useExplorerTools(): ExplorerTools {
@@ -347,10 +395,26 @@ export function ProfileExplorer({
           Ступени между верхом и открытой папкой — плашки помельче, и
           разделяет их галочка, а не косая черта: та же стрелка, что и
           слева, только повёрнутая, — одним знаком меньше в строке. */}
+      {/* Путь и три действия — одной строкой.
+          -------------------------------------------------------------
+          Действия («Папка», «Профиль», «Из файла») стояли в шапке, пока
+          шапка была рядом кнопок. С меню их туда не вернуть: пока открыт
+          проводник, кнопка в шапке закрывает его, и список не открыть
+          вовсе (`shared/header-menu.tsx`).
+
+          Отдельной полосы они при этом не получили: встали в ту же
+          строку, где и путь до открытой папки, — справа, за именем. Своя
+          полоса была бы ещё одной строкой сверху и отодвинула бы список
+          ещё ниже на экране, где его и так немного.
+
+          Строка стоит всегда, даже когда пути нет (в самом верху
+          проводника): иначе три действия прыгали бы с места на место при
+          заходе в папку. */}
+      <div className="flex min-h-8 flex-wrap items-center gap-x-4 gap-y-3">
       {path.length > 1 ? (
         <nav
           aria-label="Где мы в проводнике"
-          className="flex min-h-8 flex-wrap items-center gap-2"
+          className="flex min-w-0 flex-wrap items-center gap-2"
         >
           {path.map((folder, index) =>
             index === path.length - 1 ? (
@@ -394,6 +458,23 @@ export function ProfileExplorer({
           )}
         </nav>
       ) : null}
+
+      <div className="ml-auto flex shrink-0 items-center gap-2">
+        <ExplorerAction icon={FolderPlus} title="Создать папку" onClick={tools.newFolder}>
+          Папка
+        </ExplorerAction>
+        <ExplorerAction icon={Plus} title="Создать профиль" onClick={tools.newProfile}>
+          Профиль
+        </ExplorerAction>
+        <ExplorerAction
+          icon={Upload}
+          title="Загрузить профиль из файла"
+          onClick={tools.importFile}
+        >
+          Из файла
+        </ExplorerAction>
+      </div>
+      </div>
 
       {(tools.error ?? taken) !== null ? (
         <p className="rounded-xl bg-signal-soft px-4 py-3 text-sm">{tools.error ?? taken}</p>

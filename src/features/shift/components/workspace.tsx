@@ -1,10 +1,9 @@
 "use client";
 
-import { ChartColumn, FolderOpen, Settings } from "lucide-react";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 
 import { Hint } from "@/components/ui/hint";
-import { BrandLabel, SiteHeader } from "@/components/shared/site-header";
+import { SiteHeader } from "@/components/shared/site-header";
 import { SyncNotice } from "@/features/sync/ui/sync-notice";
 import { cn } from "@/lib/utils/cn";
 import { todayIso, type IsoDate } from "../domain/plain-date";
@@ -22,6 +21,7 @@ import type { StoredProfile } from "../storage/profile";
 import { ChangesList } from "./changes-list";
 import { DayRing } from "./day-ring";
 import { GridDeck, WORKSPACE_PAD } from "./grid-deck";
+import { LegendButton } from "./legend-button";
 import { WorkspaceMenuItems } from "./header-tools";
 import { scrollMonthUnderBar, topmostVisibleMonth } from "./month-anchor";
 import { useConfirmSwitch } from "./open-profile";
@@ -477,6 +477,21 @@ export function Workspace({
    */
   const saveToFile = useSaveToFile(profile);
 
+  /**
+   * Какой раздел показан вместо расчёта — и чем он закрывается.
+   *
+   * Имя отсюда встаёт в шапке на место слова «МЕНЮ», а закрытие достаётся
+   * той же кнопке. Порядок ветвей тот же, в каком разделы перекрывают друг
+   * друга на экране.
+   */
+  const раздел = explorerOpen
+    ? { label: "Профили", close: toggleExplorer }
+    : showSettings
+      ? { label: "Настройки", close: toggleSettings }
+      : statsOpen
+        ? { label: "Статистика", close: toggleStats }
+        : undefined;
+
   return (
     <>
       {/* Шапка рисуется отсюда, а не с экрана вокруг: в ней стоят
@@ -484,29 +499,17 @@ export function Workspace({
           выбранным периодом — он живёт здесь. Тянуть его наверх значило бы
           поднять туда и выбор периода, то есть половину этого экрана. */}
       <SiteHeader
-        // Знак называет «Настройки» вместо «График 1|3», пока показаны
-        // они, а не сам расчёт: страница та же, читает она о себе другое.
-        // Значок у каждого — тот же, что на кнопке, которой раздел открыли
-        // (`header-tools.tsx`): на узком экране слово не влезает и уступает
-        // ему место (`BrandLabel`).
-        brandLabel={
-          explorerOpen ? (
-            <BrandLabel icon={FolderOpen}>Профили</BrandLabel>
-          ) : showSettings ? (
-            <BrandLabel icon={Settings}>Настройки</BrandLabel>
-          ) : statsOpen ? (
-            <BrandLabel icon={ChartColumn}>Статистика</BrandLabel>
-          ) : undefined
-        }
+        // Открытый раздел называет кнопка меню, а не знак сайта: там же
+        // его и закрывают — три полосы в этот миг складываются в крестик
+        // (`shared/header-menu.tsx`). Знак сайта при этом всегда называет
+        // сайт: прежде он читал «НАСТРОЙКИ», оставаясь ссылкой домой, и
+        // нажатие по слову уводило с расчёта на посадочную страницу.
+        section={раздел}
         menu={
           <WorkspaceMenuItems
-            settingsOpen={settingsOpen}
             onToggleSettings={toggleSettings}
-            statsOpen={statsOpen}
             onToggleStats={toggleStats}
-            explorerOpen={explorerOpen}
             onToggleExplorer={toggleExplorer}
-            explorerTools={explorerTools}
             onSave={saveToFile.ask}
           />
         }
@@ -822,6 +825,11 @@ export function Workspace({
 
           Пока показаны настройки, панели тоже нет: управлять ей нечем —
           сетки на экране в этот момент нет вовсе. */}
+      {/* Легенда — кнопкой в левом нижнем углу. Прячется вместе с панелью
+          сеток и по той же причине: пока вместо расчёта показан раздел,
+          сеток на экране нет, и рассказывать легенде не о чем. */}
+      {showSettings || explorerOpen || statsOpen ? null : <LegendButton />}
+
       {showSettings || explorerOpen || statsOpen ? null : (
         <GridDeck
           profile={profile}
