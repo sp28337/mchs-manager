@@ -1,10 +1,12 @@
 "use client";
 
+import { MailCheck } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 
 import { ApiClient } from "../api/client";
 import { verifyEmail } from "../session";
+import { AuthFrame } from "./auth-screen";
 import { SYNC_ENABLED } from "./enabled";
 import { explain } from "./messages";
 
@@ -51,39 +53,44 @@ export function VerifyEmailScreen() {
     return <Line>Синхронизация в этой сборке не включена.</Line>;
   }
 
+  // Страница собрана той же рамой, что вход (`auth-screen.tsx`): человек
+  // приходит сюда из письма, то есть мимо приложения, и первое, что он
+  // должен узнать, — что это то самое приложение.
   return (
-    <div className="space-y-4">
-      <h1 className="text-xl font-medium text-ink">Подтверждение адреса</h1>
+    <AuthFrame icon={MailCheck} title="Подтверждение адреса">
+      <div className="space-y-3 text-center">
+        {состояние === "идёт" && <Line>Проверяем ссылку…</Line>}
 
-      {состояние === "идёт" && <Line>Проверяем ссылку…</Line>}
+        {состояние === "готово" && (
+          <>
+            <p className="text-sm text-ink">
+              Адрес подтверждён. Больше ничего делать не нужно.
+            </p>
+            <Line>
+              <Link href="/account" className="underline hover:no-underline">
+                Вернуться к учётной записи
+              </Link>
+            </Line>
+          </>
+        )}
 
-      {состояние === "готово" && (
-        <>
-          <p className="text-sm text-ink">Адрес подтверждён. Больше ничего делать не нужно.</p>
-          <Line>
-            <Link href="/account" className="underline">
-              Вернуться к учётной записи
-            </Link>
-          </Line>
-        </>
-      )}
-
-      {состояние === "отказ" && (
-        <>
-          <p role="alert" className="text-sm text-ink">
-            {сообщение}
-          </p>
-          <Line>
-            Ссылка действует сутки и срабатывает один раз. Если она устарела,
-            войдите и запросите письмо заново на{" "}
-            <Link href="/account" className="underline">
-              странице учётной записи
-            </Link>
-            .
-          </Line>
-        </>
-      )}
-    </div>
+        {состояние === "отказ" && (
+          <>
+            <p role="alert" className="text-sm text-ink">
+              {сообщение}
+            </p>
+            <Line>
+              Ссылка действует сутки и срабатывает один раз. Если она устарела,
+              войдите и запросите письмо заново на{" "}
+              <Link href="/account" className="underline hover:no-underline">
+                странице учётной записи
+              </Link>
+              .
+            </Line>
+          </>
+        )}
+      </div>
+    </AuthFrame>
   );
 }
 

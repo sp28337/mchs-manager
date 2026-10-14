@@ -1,32 +1,60 @@
 "use client";
 
-import { Download, LogOut, RefreshCw, Trash2 } from "lucide-react";
+import {
+  CircleCheck,
+  CircleDashed,
+  Download,
+  FolderSync,
+  KeyRound,
+  LogOut,
+  RefreshCw,
+  ShieldCheck,
+  Trash2,
+  type LucideIcon,
+} from "lucide-react";
 import Link from "next/link";
-import { useId, useState } from "react";
+import { useId, useState, type ReactNode } from "react";
 
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, Field } from "@/components/ui/panel";
-import { Segmented, SegmentedItem } from "@/components/ui/segmented";
+import { cn } from "@/lib/utils/cn";
 
-import { LEGAL_URLS, LEGAL_VERSIONS } from "../legal";
+import { LEGAL_URLS } from "../legal";
+import { Avatar } from "./account-entry";
+import { AuthScreen, PasswordField } from "./auth-screen";
+import { когда, короткоОСинхронизации, огонёк } from "./presence";
 import { RecoveryKeyCard } from "./recovery-key-card";
 import { useSync } from "./sync-provider";
 
 /**
- * Страница аккаунта: вход, состояние, права субъекта.
+ * Страница учётной записи: кто вошёл, что с синхронизацией, права субъекта.
  *
  * --- Почему отдельная страница, а не третья закладка настроек ----------------
  *
- * В настройках лежат ответы анкеты — то, из чего считается норма. Аккаунт
- * к расчёту не относится вовсе: он о том, где лежит копия данных. Рядом с
- * «датой смены» он сбивал бы с толку, а главное — здесь же, по тому же
- * адресу, стоят «мои данные»: выгрузка, удаление, отзыв согласия. Это
- * страница про данные и права, а не про график.
+ * В настройках лежат ответы анкеты — то, из чего считается норма. Учётная
+ * запись к расчёту не относится вовсе: она о том, где лежит копия данных.
+ * Рядом с «датой смены» она сбивала бы с толку, а главное — здесь же, по
+ * тому же адресу, стоят «мои данные»: выгрузка и удаление. Это страница
+ * про данные и права, а не про график.
  *
- * --- Чего здесь нет --------------------------------------------------------
+ * --- Как она собрана ---------------------------------------------------------
+ *
+ * Не вошедшему — только вход (`auth-screen.tsx`): одно действие, узкая
+ * колонка, никаких разделов про чужие данные.
+ *
+ * Вошедшему — три раздела в том порядке, в каком о них спрашивают:
+ * синхронизация (моё уехало?), доступ (сменить пароль), мои данные
+ * (забрать и удалить). У каждого свой заголовок со значком: без них
+ * страница была лентой из карточек и кнопок, где удаление учётной записи
+ * стояло в том же ряду, что и «синхронизировать сейчас».
+ *
+ * Наверху — знак учётной записи с адресом: тот же кружок, что в шапке, и
+ * та же точка состояния. Человек, нажавший в шапке на себя, попадает на
+ * страницу, которая начинается с него же.
+ *
+ * --- Чего здесь нет ----------------------------------------------------------
  *
  * Пароль не хранится и не показывается; ключ восстановления показывается
  * один раз и больше никогда (`recovery-key-card.tsx`). Выгрузка уходит
@@ -42,6 +70,7 @@ export function AccountScreen() {
     busy,
     dirty,
     syncedAt,
+    stalled,
     freshRecoveryKey,
     actions,
     report,
@@ -49,34 +78,30 @@ export function AccountScreen() {
 
   if (!enabled) {
     return (
-      <Note>
+      <p className="mx-auto max-w-prose text-center text-sm text-ink-muted">
         Синхронизация в этой сборке не включена: сервер появится позже.
         Приложение работает полностью — данные лежат в этом браузере, перенос
         между устройствами пока файлом.
-      </Note>
+      </p>
     );
   }
 
-  return (
-    <div className="mx-auto w-full max-w-[44rem] space-y-6">
-      <header className="space-y-1">
-        <h1 className="text-xl font-medium text-ink">Учётная запись</h1>
-        <p className="text-sm text-ink-muted">
-          Нужна одному: чтобы правка, сделанная на телефоне, оказалась на
-          компьютере. Данные уходят на сервер{" "}
-          <strong className="font-medium text-ink">зашифрованными</strong> — ключ
-          выводится из пароля в этом браузере и на сервер не попадает.
-        </p>
-      </header>
+  if (account === null) {
+    return (
+      <div className="space-y-6">
+        {error !== null && <Отказ>{error}</Отказ>}
+        <AuthScreen />
+      </div>
+    );
+  }
 
-      {error !== null && (
-        <p
-          role="alert"
-          className="rounded-xl border border-signal/40 bg-paper-raised px-4 py-3 text-sm text-ink"
-        >
-          {error}
-        </p>
-      )}
+  const принято = report === null ? 0 : report.received + report.deleted;
+
+  return (
+    <div className="mx-auto w-full max-w-[44rem] space-y-8">
+      <h1 className="text-xl font-medium text-ink">Учётная запись</h1>
+
+      {error !== null && <Отказ>{error}</Отказ>}
 
       {freshRecoveryKey !== null && (
         <RecoveryKeyCard
@@ -85,253 +110,202 @@ export function AccountScreen() {
         />
       )}
 
-      {account === null ? (
-        <SignInForm />
-      ) : (
-        <>
-          <Card>
-            <Field label="Адрес почты">
-              <span className="text-sm text-ink">{account.email}</span>
-            </Field>
-            <Field
-              label="Адрес подтверждён"
-              note={
-                account.email_verified
-                  ? undefined
-                  : "Письмо отправлено при регистрации: перейдите по ссылке из него."
-              }
-            >
-              <span className="text-sm text-ink">
-                {account.email_verified ? "да" : "нет"}
-              </span>
-            </Field>
-            <Field label="Состояние">
-              <span className="text-sm text-ink">{СОСТОЯНИЕ[phase]}</span>
-            </Field>
-            {/* Время последнего удачного прохода — единственный ответ на
-                вопрос «а точно уехало?», который можно проверить. Слово
-                «синхронизировано» без времени его не даёт: оно говорит,
-                что сейчас нечего отправлять, а не когда отправляли. */}
-            <Field
-              label="Последняя синхронизация"
-              note={
-                dirty
-                  ? "Есть правки, которые ещё не уехали — уедут через мгновение."
-                  : undefined
-              }
-            >
-              <span className="text-sm text-ink">
-                {syncedAt === null
-                  ? "в этом сеансе ещё не было"
-                  : new Date(syncedAt).toLocaleString("ru-RU", {
-                      dateStyle: "long",
-                      timeStyle: "short",
-                    })}
-              </span>
-            </Field>
-            {report !== null && report.skipped > 0 && (
-              <Field
-                label="Не удалось прочесть"
-                note="Записи, сделанные другой версией приложения или другим ключом."
-              >
-                <span className="text-sm text-ink">{report.skipped}</span>
-              </Field>
-            )}
-          </Card>
+      {/* Кто вошёл — первой строкой и теми же знаками, что в шапке. */}
+      <div className="lit flex flex-wrap items-center gap-4 rounded-xl bg-paper-raised px-5 py-4">
+        <Avatar
+          email={account.email}
+          state={огонёк({ phase, dirty, syncedAt, stalled })}
+          big
+        />
+        <div className="min-w-0 flex-1 space-y-0.5">
+          <p className="truncate text-md font-medium text-ink">{account.email}</p>
+          <p className="text-xs text-ink-muted">
+            {короткоОСинхронизации({ phase, dirty, syncedAt, принято })}
+          </p>
+        </div>
+        <Значок
+          icon={account.email_verified ? CircleCheck : CircleDashed}
+          tone={account.email_verified ? "ok" : "wait"}
+        >
+          {account.email_verified ? "Адрес подтверждён" : "Адрес не подтверждён"}
+        </Значок>
+      </div>
 
-          <div className="flex flex-col gap-2 sm:flex-row">
-            <Button variant="outline" disabled={busy} onClick={() => void actions.syncNow()}>
-              <RefreshCw aria-hidden /> Синхронизировать сейчас
-            </Button>
-            <Button variant="ghost" disabled={busy} onClick={() => void actions.logout()}>
-              <LogOut aria-hidden /> Выйти
-            </Button>
-          </div>
-
-          <PasswordChange />
-          <MyData />
-        </>
+      {/* Та же беда, что в метке выше, но сказанная не теми же словами:
+          метка называет состояние, а строка отвечает на вопрос «и что
+          теперь». Повтор слово в слово читался бы как сбой разметки. */}
+      {!account.email_verified && (
+        <p className="text-xs leading-5 text-ink-muted">
+          Письмо со ссылкой отправлено при регистрации. Синхронизация работает
+          и до подтверждения; без него нельзя восстановить доступ письмом, если
+          забудется пароль.
+        </p>
       )}
 
-      <Note>
+      <Раздел
+        icon={FolderSync}
+        title="Синхронизация"
+        note="Проход случается сам: после правки, при появлении связи и при возвращении на вкладку."
+      >
+        <Card>
+          {/* Время последнего удачного прохода — единственный ответ на
+              вопрос «а точно уехало?», который можно проверить. Слово
+              «синхронизировано» без времени его не даёт: оно говорит,
+              что сейчас нечего отправлять, а не когда отправляли. */}
+          <Field
+            label="Последняя синхронизация"
+            note={
+              dirty
+                ? "Есть правки, которые ещё не уехали — уедут через мгновение."
+                : undefined
+            }
+          >
+            <span className="text-sm text-ink">
+              {syncedAt === null ? "в этом сеансе ещё не было" : когда(syncedAt)}
+            </span>
+          </Field>
+          {принято > 0 && (
+            <Field label="Принято с другого устройства">
+              <span className="text-sm text-ink">{принято}</span>
+            </Field>
+          )}
+          {report !== null && report.skipped > 0 && (
+            <Field
+              label="Не удалось прочесть"
+              note="Записи, сделанные другой версией приложения или другим ключом."
+            >
+              <span className="text-sm text-ink">{report.skipped}</span>
+            </Field>
+          )}
+        </Card>
+
+        <Кнопки>
+          <Button variant="outline" disabled={busy} onClick={() => void actions.syncNow()}>
+            <RefreshCw aria-hidden /> Синхронизировать сейчас
+          </Button>
+          <Button variant="ghost" disabled={busy} onClick={() => void actions.logout()}>
+            <LogOut aria-hidden /> Выйти
+          </Button>
+        </Кнопки>
+      </Раздел>
+
+      <Раздел
+        icon={KeyRound}
+        title="Доступ"
+        note="Пароль защищает ключ, которым шифруются данные, а не сами записи: при смене перешифровывается только обёртка ключа."
+      >
+        <PasswordChange />
+      </Раздел>
+
+      <Раздел icon={ShieldCheck} title="Мои данные">
+        <MyData />
+      </Раздел>
+
+      <p className="border-t border-rule pt-4 text-xs leading-5 text-ink-faint">
         Приложение работает и без учётной записи — как работало раньше: расчёт
         и данные живут в этом браузере. Учётная запись добавляет копию на
         сервере и перенос между устройствами, и ничего не забирает.{" "}
-        <Link href={LEGAL_URLS.policy} className="underline">
+        <Link href={LEGAL_URLS.policy} className="underline hover:no-underline">
           Политика обработки данных
         </Link>
         .
-      </Note>
+      </p>
     </div>
   );
 }
 
-/** `2026-10-11` → `11 октября 2026 г.` */
-function редакция(версия: string): string {
-  const дата = new Date(`${версия}T00:00:00Z`);
-
-  if (Number.isNaN(дата.getTime())) return версия;
-
-  return дата.toLocaleDateString("ru-RU", {
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-    timeZone: "UTC",
-  });
-}
-
-const СОСТОЯНИЕ: Record<string, string> = {
-  off: "синхронизация не включена",
-  "signed-out": "вход не выполнен",
-  connecting: "подключение…",
-  idle: "синхронизировано",
-  syncing: "синхронизация…",
-  offline: "нет связи — правки уедут позже",
-  error: "синхронизация отложена",
-};
-
-function Note({ children }: { children: React.ReactNode }) {
-  return <p className="text-xs text-ink-faint">{children}</p>;
+/** Отказ сервера или неудача действия — одной рамкой на всю страницу. */
+function Отказ({ children }: { children: ReactNode }) {
+  return (
+    <p
+      role="alert"
+      className="rounded-xl border border-signal/40 bg-paper-raised px-4 py-3 text-sm text-ink"
+    >
+      {children}
+    </p>
+  );
 }
 
 /**
- * Вход и регистрация — одной формой на два случая.
+ * Раздел страницы: заголовок со значком, под ним содержимое.
  *
- * Поля те же, разница в одном: при регистрации человек соглашается на
- * обработку данных, и это отдельная отметка со ссылками на документы
- * (ч. 1 ст. 9 152-ФЗ: согласие должно быть конкретным и информированным).
+ * Значок здесь не украшение, а то, чем раздел отличается от соседнего на
+ * бегу: страница читается сверху вниз один раз, а возвращаются на неё за
+ * чем-то одним — сменить пароль, забрать данные, посмотреть, уехало ли.
  */
-function SignInForm() {
-  const { busy, actions } = useSync();
-  const [вид, setВид] = useState<"login" | "register">("login");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [согласен, setСогласен] = useState(false);
-  const [письмо, setПисьмо] = useState(false);
-
-  const emailId = useId();
-  const passwordId = useId();
-
-  const регистрация = вид === "register";
-  const нельзя = busy || email.trim() === "" || password.length < 8 || (регистрация && !согласен);
-
-  const отправить = async (event: React.FormEvent) => {
-    event.preventDefault();
-    if (нельзя) return;
-
-    const данные = { email: email.trim(), password };
-
-    if (регистрация) {
-      await actions.register(данные).catch(() => undefined);
-    } else {
-      await actions.login(данные).catch(() => undefined);
-    }
-  };
-
+function Раздел({
+  icon: Icon,
+  title,
+  note,
+  children,
+}: {
+  icon: LucideIcon;
+  title: string;
+  note?: string;
+  children: ReactNode;
+}) {
   return (
-    <form onSubmit={(event) => void отправить(event)} className="space-y-4">
-      <Segmented label="Вход или регистрация">
-        {/* Названия разделов, а не действий: кнопка действия стоит ниже
-            и называется «Войти». Два «Войти» рядом — это две одинаково
-            названные кнопки для программы чтения, и человек с экранным
-            диктором не отличил бы переключатель от отправки формы. */}
-        <SegmentedItem active={!регистрация} onClick={() => setВид("login")}>
-          Вход
-        </SegmentedItem>
-        <SegmentedItem active={регистрация} onClick={() => setВид("register")}>
-          Регистрация
-        </SegmentedItem>
-      </Segmented>
+    <section className="space-y-3">
+      <div className="space-y-1">
+        <h2 className="flex items-center gap-2 text-sm font-medium text-ink">
+          <Icon aria-hidden className="size-4 shrink-0 text-ink-muted" />
+          {title}
+        </h2>
+        {note !== undefined && (
+          <p className="text-xs leading-5 text-ink-muted">{note}</p>
+        )}
+      </div>
+      {children}
+    </section>
+  );
+}
 
-      <Card>
-        <Field id={emailId} label="Адрес почты" stack>
-          <Input
-            id={emailId}
-            type="email"
-            autoComplete="email"
-            value={email}
-            onChange={(event) => setEmail(event.target.value)}
-          />
-        </Field>
-        <Field
-          id={passwordId}
-          label="Пароль"
-          stack
-          note={
-            регистрация
-              ? "Не меньше восьми знаков. Из пароля выводится ключ, которым шифруются данные, — восстановить его нельзя, поэтому при регистрации выдаётся ключ восстановления."
-              : undefined
-          }
-        >
-          <Input
-            id={passwordId}
-            type="password"
-            autoComplete={регистрация ? "new-password" : "current-password"}
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-          />
-        </Field>
-      </Card>
+/**
+ * Ряд кнопок раздела.
+ *
+ * Кнопки в приложении растянуты по ширине своего места (`ui/button.tsx`),
+ * и строкой это значило бы «выгрузить всё» и «удалить» во всю страницу —
+ * два пятна по пол-экрана, одинаково громких. Поэтому сетка, где доля
+ * каждой кнопки равна её собственной надписи: ряд получается такой
+ * длины, какой требуют слова, и кончается там, где кончаются они.
+ *
+ * На телефоне доля одна, и кнопки встают столбцом во всю ширину — там
+ * иначе и нельзя: в строку они не встанут, а половинчатая кнопка на
+ * трёхстах точках это обрезанная надпись.
+ */
+function Кнопки({ children }: { children: ReactNode }) {
+  return (
+    <div className="grid gap-2 sm:grid-flow-col sm:auto-cols-max sm:justify-start">
+      {children}
+    </div>
+  );
+}
 
-      {регистрация && (
-        <label className="flex items-start gap-2 text-sm text-ink-muted">
-          <input
-            type="checkbox"
-            checked={согласен}
-            onChange={(event) => setСогласен(event.target.checked)}
-            className="mt-0.5 size-4 shrink-0 cursor-pointer accent-signal"
-          />
-          <span>
-            Даю{" "}
-            <Link href={LEGAL_URLS.consent} className="underline">
-              согласие на обработку персональных данных
-            </Link>{" "}
-            и принимаю{" "}
-            <Link href={LEGAL_URLS.terms} className="underline">
-              условия использования
-            </Link>
-            . Прочитал{" "}
-            <Link href={LEGAL_URLS.policy} className="underline">
-              политику обработки данных
-            </Link>
-            .{" "}
-            {/* Редакция названа прямо: согласие должно быть конкретным и
-                информированным (ч. 1 ст. 9 152-ФЗ), а в записи о согласии
-                сервер хранит именно версию текста. Через год человек
-                сможет прочитать ровно ту редакцию, на которую соглашался:
-                опубликованные остаются в архиве. */}
-            <span className="text-ink-faint">
-              Редакция {редакция(LEGAL_VERSIONS.consent)}.
-            </span>
-          </span>
-        </label>
+/** Метка состояния: значок и слово, без заливки. */
+function Значок({
+  icon: Icon,
+  tone,
+  children,
+}: {
+  icon: LucideIcon;
+  tone: "ok" | "wait";
+  children: string;
+}) {
+  return (
+    <span
+      className={cn(
+        "inline-flex shrink-0 items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs",
+        tone === "ok"
+          ? "border-verify/40 text-ink"
+          : "border-rule-strong text-ink-muted",
       )}
-
-      <Button type="submit" disabled={нельзя}>
-        {регистрация ? "Создать учётную запись" : "Войти"}
-      </Button>
-
-      {!регистрация && (
-        <div className="space-y-1">
-          <Button
-            type="button"
-            variant="link"
-            disabled={busy || email.trim() === ""}
-            onClick={() => {
-              void actions.recoverStart(email.trim()).then(() => setПисьмо(true));
-            }}
-          >
-            Забыли пароль? Пришлём ссылку на почту
-          </Button>
-          {письмо && (
-            <p className="text-xs text-ink-faint">
-              Если такая запись есть, письмо уже отправлено. Понадобится ключ
-              восстановления — те знаки, что вы записали при регистрации.
-            </p>
-          )}
-        </div>
-      )}
-    </form>
+    >
+      <Icon
+        aria-hidden
+        className={cn("size-3.5 shrink-0", tone === "ok" ? "text-verify" : "text-ink-faint")}
+      />
+      {children}
+    </span>
   );
 }
 
@@ -348,9 +322,11 @@ function PasswordChange() {
 
   if (!открыто) {
     return (
-      <Button variant="ghost" onClick={() => setОткрыто(true)}>
-        Сменить пароль
-      </Button>
+      <Кнопки>
+        <Button variant="outline" onClick={() => setОткрыто(true)}>
+          <KeyRound aria-hidden /> Сменить пароль
+        </Button>
+      </Кнопки>
     );
   }
 
@@ -374,26 +350,24 @@ function PasswordChange() {
     >
       <Card>
         <Field id={текущийId} label="Нынешний пароль" stack>
-          <Input
+          <PasswordField
             id={текущийId}
-            type="password"
             autoComplete="current-password"
             value={текущий}
-            onChange={(event) => setТекущий(event.target.value)}
+            onChange={setТекущий}
           />
         </Field>
         <Field
           id={новыйId}
           label="Новый пароль"
           stack
-          note="Данные не перешифровываются: пароль защищает ключ, а не сами записи. Ключ восстановления остаётся прежним."
+          note="Не меньше восьми знаков. Ключ восстановления остаётся прежним."
         >
-          <Input
+          <PasswordField
             id={новыйId}
-            type="password"
             autoComplete="new-password"
             value={новый}
-            onChange={(event) => setНовый(event.target.value)}
+            onChange={setНовый}
           />
         </Field>
       </Card>
@@ -404,14 +378,14 @@ function PasswordChange() {
         </p>
       )}
 
-      <div className="flex flex-col gap-2 sm:flex-row">
+      <Кнопки>
         <Button type="submit" disabled={нельзя}>
           Сменить пароль
         </Button>
         <Button type="button" variant="ghost" onClick={() => setОткрыто(false)}>
           Отмена
         </Button>
-      </div>
+      </Кнопки>
     </form>
   );
 }
@@ -446,19 +420,17 @@ function MyData() {
   };
 
   return (
-    <div className="space-y-3 border-t border-rule pt-4">
-      <h2 className="text-sm font-medium text-ink">Мои данные</h2>
-
-      <div className="flex flex-col gap-2 sm:flex-row">
+    <div className="space-y-3">
+      <Кнопки>
         <Button variant="outline" disabled={busy} onClick={() => void выгрузить()}>
           <Download aria-hidden /> Выгрузить всё, что обо мне есть
         </Button>
         <Button variant="ghost" disabled={busy} onClick={() => setСпросить(true)}>
           <Trash2 aria-hidden /> Удалить учётную запись
         </Button>
-      </div>
+      </Кнопки>
 
-      <p className="text-xs text-ink-faint">
+      <p className="text-xs leading-5 text-ink-muted">
         Удаление уничтожает на сервере всё: копии графиков, их историю,
         обёртки ключа, адрес почты, журнал входов. Отзыв согласия — это оно
         же: без адреса и ключа учётной записи не существует. Графики на этом
@@ -490,12 +462,11 @@ function MyData() {
           </p>
           <div className="space-y-1">
             <Label htmlFor={парольId}>Пароль — чтобы это были точно вы</Label>
-            <Input
+            <PasswordField
               id={парольId}
-              type="password"
               autoComplete="current-password"
               value={пароль}
-              onChange={(event) => setПароль(event.target.value)}
+              onChange={setПароль}
             />
           </div>
         </div>
