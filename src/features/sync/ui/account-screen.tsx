@@ -23,7 +23,8 @@ import { cn } from "@/lib/utils/cn";
 
 import { LEGAL_URLS } from "../legal";
 import { Avatar } from "./account-entry";
-import { AuthScreen, PasswordField } from "./auth-screen";
+import { AuthScreen, PasswordField, PasswordStrength } from "./auth-screen";
+import { оценить } from "./password-strength";
 import { когда, короткоОСинхронизации, огонёк } from "./presence";
 import { RecoveryKeyCard } from "./recovery-key-card";
 import { useSync } from "./sync-provider";
@@ -194,7 +195,7 @@ export function AccountScreen() {
         title="Доступ"
         note="Пароль защищает ключ, которым шифруются данные, а не сами записи: при смене перешифровывается только обёртка ключа."
       >
-        <PasswordChange />
+        <PasswordChange email={account.email} />
       </Раздел>
 
       <Раздел icon={ShieldCheck} title="Мои данные">
@@ -310,7 +311,7 @@ function Значок({
 }
 
 /** Смена пароля: перешифровывается обёртка ключа, данные не трогаются. */
-function PasswordChange() {
+function PasswordChange({ email }: { email: string }) {
   const { busy, actions } = useSync();
   const [открыто, setОткрыто] = useState(false);
   const [текущий, setТекущий] = useState("");
@@ -330,7 +331,11 @@ function PasswordChange() {
     );
   }
 
-  const нельзя = busy || текущий === "" || новый.length < 8;
+  // Новый пароль проверяется так же, как при регистрации: это тот же
+  // придуманный пароль, и слабеть при смене ему незачем. Нынешний не
+  // проверяется вовсе — он уже существует.
+  const оценка = оценить(новый, { email });
+  const нельзя = busy || текущий === "" || !оценка.годится;
 
   return (
     <form
@@ -361,14 +366,17 @@ function PasswordChange() {
           id={новыйId}
           label="Новый пароль"
           stack
-          note="Не меньше восьми знаков. Ключ восстановления остаётся прежним."
+          note="Ключ восстановления остаётся прежним."
         >
-          <PasswordField
-            id={новыйId}
-            autoComplete="new-password"
-            value={новый}
-            onChange={setНовый}
-          />
+          <div className="w-full space-y-2">
+            <PasswordField
+              id={новыйId}
+              autoComplete="new-password"
+              value={новый}
+              onChange={setНовый}
+            />
+            <PasswordStrength оценка={оценка} />
+          </div>
         </Field>
       </Card>
 

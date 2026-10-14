@@ -55,7 +55,7 @@ export const ПОЧТА_НЕ_ПОДТВЕРЖДЕНА = "Адрес почты �
 /** Человеческое объяснение любой нашей ошибки. */
 export function explain(error: unknown): string {
   if (isNetworkError(error)) {
-    return "Нет связи с сервером. Приложение работает как обычно, синхронизация подождёт.";
+    return "Нет связи с сервером.";
   }
 
   if (error instanceof RecoveryKeyError) return error.message;

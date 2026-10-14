@@ -10,7 +10,8 @@ import { Card, Field } from "@/components/ui/panel";
 
 import { ApiClient } from "../api/client";
 import { recoverClaim, recoverFinish, type RecoveryClaim } from "../session";
-import { AuthFrame, PasswordField } from "./auth-screen";
+import { AuthFrame, PasswordField, PasswordStrength } from "./auth-screen";
+import { оценить } from "./password-strength";
 import { SYNC_ENABLED } from "./enabled";
 import { explain } from "./messages";
 
@@ -88,7 +89,12 @@ export function RecoverScreen() {
     );
   }
 
-  const нельзя = идёт || ссылка === null || токен === null || ключ.trim() === "" || пароль.length < 8;
+  // Пароль здесь придумывают заново, и проверяется он так же, как при
+  // регистрации (`password-strength.ts`). Адрес берётся из ссылки: пароль
+  // со своим же адресом внутри подбирают первым.
+  const оценка = оценить(пароль, { email: ссылка?.email ?? "" });
+  const нельзя =
+    идёт || ссылка === null || токен === null || ключ.trim() === "" || !оценка.годится;
 
   return (
     <AuthFrame
@@ -150,13 +156,16 @@ export function RecoverScreen() {
               onChange={(event) => setКлюч(event.target.value)}
             />
           </Field>
-          <Field id={парольId} label="Новый пароль" stack note="Не меньше восьми знаков.">
-            <PasswordField
-              id={парольId}
-              autoComplete="new-password"
-              value={пароль}
-              onChange={setПароль}
-            />
+          <Field id={парольId} label="Новый пароль" stack>
+            <div className="w-full space-y-2">
+              <PasswordField
+                id={парольId}
+                autoComplete="new-password"
+                value={пароль}
+                onChange={setПароль}
+              />
+              <PasswordStrength оценка={оценка} />
+            </div>
           </Field>
         </Card>
 
