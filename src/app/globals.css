@@ -3620,7 +3620,9 @@
   animation: demo-tap var(--demo-cycle) cubic-bezier(0.22, 1, 0.36, 1) infinite both;
 }
 
-/* Кнопка проседает под нажатием и отпускает. */
+/* Строка меню подсвечивается под нажатием и отпускает. Заливка покоя —
+   та же, что у наведённой строки в приложении: указатель стоит на ней всё
+   время показа, и пустая строка под ним читалась бы как промах. */
 @keyframes demo-pressed {
   0%,
   12%,
@@ -3631,13 +3633,40 @@
   }
 
   14% {
-    transform: scale(0.95);
+    transform: scale(0.98);
     background-color: var(--color-rule);
   }
 }
 
 .demo[data-play="on"] .demo-save-button {
   animation: demo-pressed var(--demo-cycle) ease-out infinite both;
+}
+
+/* Меню гаснет ровно тогда, когда открывается окно: в приложении нажатие
+   по строке и закрывает меню, и открывает окно. Доли те же, что у окна
+   (15), только наоборот. */
+@keyframes demo-menu {
+  0%,
+  13% {
+    opacity: 1;
+    transform: none;
+  }
+
+  17%,
+  93% {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.98);
+  }
+
+  98%,
+  100% {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.demo[data-play="on"] .demo-menu {
+  animation: demo-menu var(--demo-cycle) cubic-bezier(0.22, 1, 0.36, 1) infinite both;
 }
 
 /* Окно выгрузки. Открывается тем же движением, что и настоящее: приходит
@@ -3812,7 +3841,9 @@
 
   /* Прежнее — нет. Средний график и его полоса стоят здесь же: показу с
      отключённой анимацией достаётся ПОСЛЕДНИЙ кадр, а «два через два» в
-     нём такое же прежнее, как и «сутки через трое». */
+     нём такое же прежнее, как и «сутки через трое». Меню в последнем
+     кадре закрыто — его закрыло то же нажатие, что открыло окно. */
+  .demo .demo-menu,
   .demo .demo-swap-out,
   .demo .demo-swap-mid,
   .demo .demo-strip-prev,

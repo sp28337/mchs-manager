@@ -7,9 +7,9 @@ import {
   FolderSync,
   KeyRound,
   LogOut,
-  RefreshCw,
   ShieldCheck,
   Trash2,
+  UserRound,
   type LucideIcon,
 } from "lucide-react";
 import Link from "next/link";
@@ -22,10 +22,9 @@ import { Card, Field } from "@/components/ui/panel";
 import { cn } from "@/lib/utils/cn";
 
 import { LEGAL_URLS } from "../legal";
-import { Avatar } from "./account-entry";
 import { AuthScreen, PasswordField, PasswordStrength } from "./auth-screen";
 import { оценить } from "./password-strength";
-import { когда, короткоОСинхронизации, огонёк } from "./presence";
+import { когда, короткоОСинхронизации } from "./presence";
 import { RecoveryKeyCard } from "./recovery-key-card";
 import { useSync } from "./sync-provider";
 
@@ -71,7 +70,6 @@ export function AccountScreen() {
     busy,
     dirty,
     syncedAt,
-    stalled,
     freshRecoveryKey,
     actions,
     report,
@@ -113,11 +111,12 @@ export function AccountScreen() {
 
       {/* Кто вошёл — первой строкой и теми же знаками, что в шапке. */}
       <div className="lit flex flex-wrap items-center gap-4 rounded-xl bg-paper-raised px-5 py-4">
-        <Avatar
-          email={account.email}
-          state={огонёк({ phase, dirty, syncedAt, stalled })}
-          big
-        />
+        {/* Тот же кружок с человечком, что в шапке (`header-menu.tsx`):
+            человек, нажавший там на себя, попадает на страницу, которая
+            начинается с того же знака. */}
+        <span className="grid size-12 shrink-0 place-items-center rounded-full bg-paper-sunken">
+          <UserRound aria-hidden className="size-6 text-ink-muted" />
+        </span>
         <div className="min-w-0 flex-1 space-y-0.5">
           <p className="truncate text-md font-medium text-ink">{account.email}</p>
           <p className="text-xs text-ink-muted">
@@ -180,10 +179,13 @@ export function AccountScreen() {
           )}
         </Card>
 
+        {/* Кнопки «синхронизировать сейчас» здесь нет и не должно быть:
+            проход случается сам — после правки, при появлении связи и при
+            возвращении на вкладку, — и кнопка предлагала бы человеку
+            делать работу, которую приложение уже делает. Хуже того, она
+            заставляла бы сомневаться: раз кнопка есть, может, без неё не
+            уедет? */}
         <Кнопки>
-          <Button variant="outline" disabled={busy} onClick={() => void actions.syncNow()}>
-            <RefreshCw aria-hidden /> Синхронизировать сейчас
-          </Button>
           <Button variant="ghost" disabled={busy} onClick={() => void actions.logout()}>
             <LogOut aria-hidden /> Выйти
           </Button>

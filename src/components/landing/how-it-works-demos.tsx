@@ -4,6 +4,7 @@ import {
   FolderOpen,
   Save,
   Settings,
+  UserRound,
   X,
 } from "lucide-react";
 
@@ -42,8 +43,9 @@ import { cn } from "@/lib/utils/cn";
  *   легенде расчёта, `CALLOUT_MARK`), «В» — свободные сутки;
  * * несомая смена повторяет `renderGhost` из `use-shift-drag` вплоть до
  *   слова «смена» под числом, наклона и тени;
- * * шапка и окно выгрузки — те же кнопки и то же поле «Имя файла», что в
- *   `HeaderTools` и `SaveToFile`.
+ * * шапка, меню и окно выгрузки — тот же кружок, те же строки действий и
+ *   то же поле «Имя файла», что в `HeaderMenu`, `WorkspaceMenuItems` и
+ *   `SaveToFile`.
  *
  * --- Почему разметкой, а не роликом ---------------------------------------
  *
@@ -798,12 +800,12 @@ export function DemoEvents() {
 
    Утверждение «данные никуда не уходят» проверяемое, и показать его нужно
    так же — не замком с надписью «безопасно», а тем, что происходит на
-   самом деле: человек нажимает «Сохранить» в шапке, называет файл, и файл
-   ложится на то же устройство.
+   самом деле: человек выбирает «Сохранить в файл» в меню шапки, называет
+   файл, и файл ложится на то же устройство.
 
-   Шапка и окно здесь настоящие: те же две кнопки со значками, тот же
-   заголовок «Сохранить профиль в файл», то же поле «Имя файла» с той же
-   подсказкой про расширение.
+   Шапка, меню и окно здесь настоящие: тот же кружок, те же четыре строки
+   действий, тот же заголовок «Сохранить профиль в файл» и то же поле
+   «Имя файла».
 
    Перечёркнутая стрелка в конце обязательна: без неё «сохранить в файл»
    читалось бы как «отправить». Это единственное место на странице, где
@@ -814,23 +816,33 @@ export function DemoStorage() {
   return (
     <Panel>
       <div className="w-full max-w-104">
-        {/* Шапка приложения: те же четыре кнопки, что стоят там на самом
-            деле, и в том же порядке (`header-tools.tsx`). Подписей у них
-            нет — ровно как в приложении на телефоне, где ширины на слово
-            не хватает; показ здесь той же ширины.
-
-            Полосы под кнопками нет: в приложении шапка прозрачна, а
-            поднята каждая кнопка сама по себе. Плашка под ними делала бы
-            из четырёх предметов один. */}
-        <div className="relative flex items-center justify-end gap-2 pb-4">
-          <HeaderButton icon={Settings} label="Настройки" />
-          <HeaderButton icon={ChartColumn} label="Статистика" />
-          <HeaderButton icon={FolderOpen} label="Открыть" />
-          <HeaderButton icon={Save} label="Сохранить" className="demo-save-button" />
-          <Pointer className="demo-tap-save right-2 top-6" />
+        {/* Шапка приложения: тот самый кружок, что стоит в ней на самом
+            деле (`shared/header-menu.tsx`). Полосы под ним нет — в
+            приложении шапка прозрачна, а поднят сам кружок. */}
+        <div className="flex items-center justify-end pb-3">
+          <span className="lit inline-flex size-9 shrink-0 items-center justify-center rounded-full bg-paper-raised">
+            <UserRound aria-hidden className="size-4.5 shrink-0 text-ink-muted" />
+            <span className="sr-only">Меню</span>
+          </span>
         </div>
 
-        {/* Окно выгрузки — то самое, что открывается по этой кнопке, и
+        {/* Меню и окно стоят в одной ячейке: меню гаснет ровно тогда,
+            когда открывается окно, и показу незачем подпрыгивать на
+            высоту одного из них. Высоту держит окно — оно выше. */}
+        <div className="relative">
+        {/* Меню — то самое, что открывает кружок: четыре действия
+            рабочего экрана. Нажимают здесь по последнему. */}
+        <div className="demo-menu modal-lift absolute right-0 top-0 w-60 rounded-xl bg-paper-raised p-1.5">
+          <MenuRow icon={Settings}>Настройки</MenuRow>
+          <MenuRow icon={ChartColumn}>Статистика за год</MenuRow>
+          <MenuRow icon={FolderOpen}>Открыть профиль</MenuRow>
+          <MenuRow icon={Save} className="demo-save-button">
+            Сохранить в файл
+          </MenuRow>
+          <Pointer className="demo-tap-save bottom-1 right-6" />
+        </div>
+
+        {/* Окно выгрузки — то самое, что открывается этой строкой, и
             собрано оно как настоящее (`save-to-file.tsx`): поднятая бумага
             со светом и тенью окна, заголовок прописными и крестик в углу,
             под ними вопрос с полем, а внизу две кнопки. */}
@@ -871,6 +883,7 @@ export function DemoStorage() {
               </span>
             </div>
           </div>
+        </div>
         </div>
 
         {/* Что вышло и чего не произошло — одной строкой под окном. */}
@@ -928,27 +941,26 @@ export function DemoStorage() {
   );
 }
 
-function HeaderButton({
+function MenuRow({
   icon: Icon,
-  label,
   className,
+  children,
 }: {
   icon: typeof Save;
-  label: string;
   className?: string;
+  children: string;
 }) {
   return (
-    // Та же кнопка, что в шапке приложения: поднятая бумага, свет по
-    // кромке, скругление в четырнадцать точек (`TOOL_BUTTON`). Подпись
-    // остаётся программе чтения — на телефоне приложение прячет её так же.
+    // Та же строка, что в меню приложения (`shared/header-menu.tsx`):
+    // значок слева, слово за ним, во всю ширину.
     <span
       className={cn(
-        "lit inline-flex size-9 shrink-0 items-center justify-center rounded-xl bg-paper-raised",
+        "flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-[0.8em] text-ink",
         className,
       )}
     >
-      <Icon aria-hidden className="size-4.5 shrink-0 text-ink-muted" />
-      <span className="sr-only">{label}</span>
+      <Icon aria-hidden className="size-4 shrink-0 text-ink-muted" />
+      {children}
     </span>
   );
 }

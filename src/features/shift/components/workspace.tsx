@@ -22,13 +22,14 @@ import type { StoredProfile } from "../storage/profile";
 import { ChangesList } from "./changes-list";
 import { DayRing } from "./day-ring";
 import { GridDeck, WORKSPACE_PAD } from "./grid-deck";
-import { HeaderTools } from "./header-tools";
+import { WorkspaceMenuItems } from "./header-tools";
 import { scrollMonthUnderBar, topmostVisibleMonth } from "./month-anchor";
 import { useConfirmSwitch } from "./open-profile";
 import { PeriodSummary, REVEAL_DELAY_MS } from "./period-summary";
 import { ProfileExplorer, useExplorerTools } from "./profile-explorer";
 import { ProfileFooter } from "./profile-footer";
 import { ProfileName } from "./profile-name";
+import { useSaveToFile } from "./save-to-file";
 import { DangerActions, SettingsPanel } from "./settings-panel";
 import { SETTINGS_TAB_LABEL, type SettingsTab } from "./settings-tabs";
 import { Statistics } from "./statistics";
@@ -467,6 +468,15 @@ export function Workspace({
    */
   const [ringDay, setRingDay] = useState<IsoDate | null>(null);
 
+  /**
+   * Окно «сохранить профиль в файл».
+   *
+   * Живёт здесь, а не рядом со своей строкой меню: меню закрывается тем
+   * же нажатием, которым окно открывают, и окно, нарисованное внутри
+   * него, исчезло бы, не успев показаться.
+   */
+  const saveToFile = useSaveToFile(profile);
+
   return (
     <>
       {/* Шапка рисуется отсюда, а не с экрана вокруг: в ней стоят
@@ -488,9 +498,8 @@ export function Workspace({
             <BrandLabel icon={ChartColumn}>Статистика</BrandLabel>
           ) : undefined
         }
-        tools={
-          <HeaderTools
-            profile={profile}
+        menu={
+          <WorkspaceMenuItems
             settingsOpen={settingsOpen}
             onToggleSettings={toggleSettings}
             statsOpen={statsOpen}
@@ -498,6 +507,7 @@ export function Workspace({
             explorerOpen={explorerOpen}
             onToggleExplorer={toggleExplorer}
             explorerTools={explorerTools}
+            onSave={saveToFile.ask}
           />
         }
       />
@@ -790,6 +800,9 @@ export function Workspace({
       {/* Вопрос «сначала сохранить нынешний в файл?» — он один на все пути
           смены профиля, поэтому и стоит здесь, а не в проводнике. */}
       {switchProfile.dialogs}
+
+      {/* Окно выгрузки в файл: его открывает строка меню в шапке. */}
+      {saveToFile.dialog}
 
       {/* Нижняя панель телефона — здесь, а не внутри `YearView`, где
           стоят те же органы управления строкой над сеткой.

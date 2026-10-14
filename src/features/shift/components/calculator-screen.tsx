@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { SiteHeader } from "@/components/shared/site-header";
 import { RegisterForm } from "./register-form";
 import { Workspace } from "./workspace";
-import { HeaderToolsBones, WorkspaceSkeleton } from "./workspace-skeleton";
+import { WorkspaceSkeleton } from "./workspace-skeleton";
 import { useProfile } from "../storage/use-profile";
 
 /**
@@ -84,7 +84,7 @@ export function CalculatorScreen() {
           разом, читается как рывок ровно так же, как пустое поле под ней.
           Без профиля (анкета) кнопкам браться неоткуда — им нечего
           настраивать и нечего выгружать. */}
-      <SiteHeader tools={state.status === "corrupt" ? undefined : <HeaderToolsBones />} />
+      <SiteHeader menuBone={state.status !== "corrupt"} />
 
       {state.status === "corrupt" ? (
         <RegisterForm
