@@ -59,7 +59,13 @@ services:
       POSTGRES_INITDB_ARGS: "--locale=C.UTF-8 --encoding=UTF8"
 
     volumes:
-      - pgdata:/var/lib/postgresql/data
+      # В /var/lib/postgresql, а не в .../data: с версии 18 образ держит
+      # данные в каталоге с номером выпуска
+      # (`PGDATA=/var/lib/postgresql/18/docker`) и объявляет том на уровень
+      # выше. Прежний путь роняет контейнер при старте — образ считает его
+      # забытым томом от старой версии, даже когда том пуст. Подробности —
+      # в `docker-compose.yml` для разработки.
+      - pgdata:/var/lib/postgresql
 
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U grafik -d grafik"]

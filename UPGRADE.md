@@ -345,7 +345,11 @@ Actions → **API CD** → Run workflow → в поле `run_id` укажите 
 1. `docker compose up` поднимает контейнер `postgres` из образа
    `postgres:18.6-trixie`;
 2. при первом запуске он создаёт кластер в томе `grafik13_pgdata` с
-   пользователем `grafik`, базой `grafik` и паролем из `postgres.env`;
+   пользователем `grafik`, базой `grafik` и паролем из `postgres.env`.
+   Том монтируется в `/var/lib/postgresql`, а сами данные ложатся в
+   подкаталог с номером выпуска — `/var/lib/postgresql/18/docker`: так
+   устроен образ с версии 18, и так `pg_upgrade --link` потом не упрётся в
+   границу монтирования;
 3. `docker compose run --rm migrate` применяет миграции Alembic — таблицы
    появляются здесь;
 4. контейнер `api` стартует и начинает отвечать.
@@ -579,6 +583,7 @@ git push origin main
 | В журнале адрес `172.28.0.1` вместо адреса человека | не задан `GRAFIK_TRUSTED_PROXIES` | шаг 5.2, перезапустить `api` |
 | `429` у человека на ровном месте | `GRAFIK_WORKERS` больше единицы | вернуть `1` |
 | Сайт собрался, а синхронизации нет | переменная `SYNC_ENABLED` не задана или сборка старая | шаг 15, пересобрать |
+| `postgres` не стартует: «in 18+, these Docker images are configured to store database data …», «(unused mount/volume)» | том смонтирован по старому пути `/var/lib/postgresql/data` — так было в составе до 14.10.2026 | обновить `compose.prod.yml` (том идёт в `/var/lib/postgresql`); если база ещё пустая — убрать том: `docker compose -f compose.prod.yml down -v`. С данными — сначала снять копию `backup.sh`, потом пересоздавать |
 | Нужно откатить API | — | `cd /opt/grafik13 && cp .env.previous .env && docker compose -f compose.prod.yml up -d api` |
 | Нужно откатить сайт | — | переключить симлинк `current` на прошлый выпуск (`DEPLOYMENT.md`) |
 
@@ -631,3 +636,12 @@ pnpm dev
 
 Остановить: `make down`. Данные останутся в томе; удалить их целиком —
 `docker compose down -v`.
+
+> **Если `postgres` не поднимается** и пишет про «unused mount/volume» —
+> значит остался том от состава, где он монтировался в
+> `/var/lib/postgresql/data` (так было до 14.10.2026). Лечится одной
+> командой, данных для разработки не жалко:
+>
+> ```bash
+> docker compose down -v && make up
+> ```

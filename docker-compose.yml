@@ -28,7 +28,20 @@ services:
       # приглашение всем, кто в той же кофейне.
       - "127.0.0.1:5432:5432"
     volumes:
-      - pgdata:/var/lib/postgresql/data
+      # Том монтируется в /var/lib/postgresql, а НЕ в .../data.
+      # -----------------------------------------------------------------
+      # С версии 18 официальный образ держит данные в каталоге с номером
+      # выпуска (`PGDATA=/var/lib/postgresql/18/docker`) и объявляет том на
+      # уровень выше — так же, как это делает сам PostgreSQL с
+      # `pg_ctlcluster`, и так `pg_upgrade --link` не упирается в границу
+      # монтирования.
+      #
+      # Прежний путь не просто бесполезен: точка монтирования в
+      # `/var/lib/postgresql/data` роняет контейнер при старте. Образ
+      # считает её забытым томом от старой версии и отказывается работать
+      # («there appears to be PostgreSQL data in … (unused mount/volume)»)
+      # — даже если том пустой.
+      - pgdata:/var/lib/postgresql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U grafik -d grafik"]
       interval: 5s
