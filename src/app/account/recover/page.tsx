@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 
 import { SiteHeader } from "@/components/shared/site-header";
-import { ToCalculator } from "@/components/landing/to-calculator";
+import { OpenSchedule } from "@/components/shared/header-action";
 import { RecoverScreen } from "@/features/sync/ui/recover-screen";
 
 export const metadata: Metadata = {
@@ -20,7 +20,7 @@ export const metadata: Metadata = {
 export default function RecoverPage() {
   return (
     <>
-      <SiteHeader action={<ToCalculator>Открыть график</ToCalculator>} />
+      <SiteHeader action={<OpenSchedule />} />
       <main className="mx-auto w-full max-w-[44rem] px-6 pt-24 pb-16">
         <RecoverScreen />
       </main>

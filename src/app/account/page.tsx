@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 
 import { SiteHeader } from "@/components/shared/site-header";
-import { ToCalculator } from "@/components/landing/to-calculator";
+import { OpenSchedule } from "@/components/shared/header-action";
 import { AccountScreen } from "@/features/sync/ui/account-screen";
 
 export const metadata: Metadata = {
@@ -24,7 +24,7 @@ export const metadata: Metadata = {
 export default function AccountPage() {
   return (
     <>
-      <SiteHeader action={<ToCalculator>Открыть график</ToCalculator>} />
+      <SiteHeader action={<OpenSchedule />} />
       <main className="mx-auto w-full max-w-[2000px] px-6 pt-24 pb-16">
         <AccountScreen />
       </main>

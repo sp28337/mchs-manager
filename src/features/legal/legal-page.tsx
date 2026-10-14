@@ -2,7 +2,7 @@ import Link from "next/link";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
-import { ToCalculator } from "@/components/landing/to-calculator";
+import { OpenSchedule } from "@/components/shared/header-action";
 import { SiteHeader } from "@/components/shared/site-header";
 
 import type { LegalDocument } from "./documents";
@@ -36,7 +36,7 @@ import type { LegalDocument } from "./documents";
 export function LegalPage({ document: документ }: { document: LegalDocument }) {
   return (
     <>
-      <SiteHeader action={<ToCalculator size="sm">Открыть расчёт</ToCalculator>} />
+      <SiteHeader action={<OpenSchedule tail="расчёт" />} tight />
 
       <main className="mx-auto w-full max-w-3xl px-6 pb-16 pt-26">
         {/* Своей строки о редакции у страницы нет: первым абзацем это

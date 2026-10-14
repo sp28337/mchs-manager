@@ -13,6 +13,12 @@ import {
   type ReactNode,
 } from "react";
 
+import {
+  DoorMark,
+  HEADER_ACTION,
+  HEADER_WORD,
+  MenuMark,
+} from "@/components/shared/header-action";
 import { SYNC_ENABLED } from "@/features/sync/ui/enabled";
 import { useSync } from "@/features/sync/ui/sync-provider";
 import { cn } from "@/lib/utils/cn";
@@ -40,33 +46,36 @@ import { cn } from "@/lib/utils/cn";
  * действий у страницы. Плата известна и названа вслух: до настроек теперь
  * два нажатия вместо одного.
  *
- * --- Почему кружок, когда всё остальное скруглено прямоугольниками ---------
+ * --- Почему словом, а не значком -------------------------------------------
  *
- * Круглый знак с человечком означает «это вы» — так он читается на любом
- * сайте, где есть вход, и спорить с этим ожиданием ради единообразия
- * скруглений значило бы сделать знак непонятным. Всё прочее у него общее
- * с кнопками приложения: та же поднятая бумага, тот же свет лампы по
- * кромке и тот же блик под курсором (`lit` в `globals.css`).
+ * Кружок с человечком здесь был, и был понятен, но в строке с «ГРАФИК 1|3»
+ * читался чужим: слева узкие прописные буквы и квадраты знака, справа
+ * кругляш с иконкой из набора. Теперь справа то же самое, что слева, —
+ * слово тем же шрифтом и знак того же размера (`header-action.tsx`):
+ * «МЕНЮ» с тремя полосами вошедшему, «ВХОД» с дверью остальным.
+ *
+ * Заодно отпал вопрос, что рисовать на знаке не вошедшему: человечек
+ * обещал учётную запись там, где её ещё нет.
  */
 
 /** Закрыть меню — любому пункту внутри него, без передачи обратного вызова. */
 const Закрыть = createContext<() => void>(() => undefined);
 
-/** Общий вид кнопки в шапке: кружок цвета поднятой бумаги под лампой. */
-const КРУГ = cn(
-  "lit inline-flex size-9 shrink-0 cursor-pointer items-center justify-center",
-  "rounded-full bg-paper-raised text-ink",
-  "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink",
-);
-
-/** Кнопка «Войти» — для страниц, у которых своих действий нет. */
-const КНОПКА = cn(
-  "lit inline-flex h-9 shrink-0 cursor-pointer items-center gap-2 rounded-xl",
-  "bg-paper-raised px-2 min-[360px]:px-3 text-sm font-medium text-ink",
-  "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink",
-);
-
-export function HeaderMenu({ items }: { items?: ReactNode }) {
+export function HeaderMenu({
+  items,
+  tight,
+}: {
+  items?: ReactNode;
+  /**
+   * В шапке уже стоит широкое действие страницы, и места на слово нет.
+   *
+   * Так на страницах документов: «ОТКРЫТЬ РАСЧЁТ» и «ВХОД» рядом — это
+   * двести шестьдесят точек, и на телефоне от названия сайта оставалось
+   * обрезанное «ГРАФИ». Ниже 640 точек от входа остаётся дверь, имя
+   * действия достаётся программе чтения.
+   */
+  tight?: boolean;
+}) {
   const { account, actions } = useSync();
   const путь = usePathname();
 
@@ -105,18 +114,25 @@ export function HeaderMenu({ items }: { items?: ReactNode }) {
 
   const пусто = items === undefined;
 
+  // На самой странице учётной записи меню не рисуется вовсе — ни вошедшему,
+  // ни нет. Всё, что оно умеет, на ней и так есть: адрес и выход в разделе
+  // «Синхронизация», вход — формой посреди экрана. Кнопка «Войти» в шапке
+  // вела бы туда, где человек стоит, а «Меню» открывало бы список из двух
+  // строк, обе про эту же страницу.
+  if (путь.startsWith("/account")) return null;
+
   // Страница без своих действий и без учётной записи — меню не из чего
   // собирать. В сборке без синхронизации это все страницы, кроме
   // рабочего экрана.
   if (пусто && (!SYNC_ENABLED || account === null)) {
-    if (!SYNC_ENABLED || путь.startsWith("/account")) return null;
+    if (!SYNC_ENABLED) return null;
 
-    // Одно действие — одна кнопка: меню из единственного пункта «Войти»
-    // пряталo бы за нажатием то, что и так умещается словом.
+    // Одно действие — одно слово: меню из единственного пункта «Войти»
+    // прятало бы за нажатием то, что и так умещается в строке.
     return (
-      <Link href="/account" className={КНОПКА} data-account-entry>
-        <LogIn aria-hidden className="size-4.5 shrink-0 text-ink-muted" />
-        <span className="max-sm:sr-only">Войти</span>
+      <Link href="/account" className={HEADER_ACTION} data-account-entry>
+        <span className={cn(HEADER_WORD, tight === true && "max-sm:sr-only")}>Вход</span>
+        <DoorMark />
       </Link>
     );
   }
@@ -128,12 +144,15 @@ export function HeaderMenu({ items }: { items?: ReactNode }) {
         onClick={() => setОткрытоНа(открыто ? null : путь)}
         aria-expanded={открыто}
         aria-controls={id}
-        aria-label="Меню"
+        // Имя кнопки — то же слово, что на ней написано; адрес уходит в
+        // подсказку, а не в имя: диктор прочитает его в первой же строке
+        // открытого меню.
         title={account?.email ?? "Меню"}
-        className={КРУГ}
+        className={HEADER_ACTION}
         data-account-entry
       >
-        <UserRound aria-hidden className="size-4.5 text-ink-muted" />
+        <span className={HEADER_WORD}>Меню</span>
+        <MenuMark />
       </button>
 
       {открыто && (
@@ -237,7 +256,23 @@ const ПУНКТ = cn(
   "[&_svg]:size-4 [&_svg]:shrink-0 [&_svg]:text-ink-muted",
 );
 
-/** Кость меню для заглушки: тот же кружок, пока читается профиль. */
+/**
+ * Кость меню для заглушки: то же слово и тот же знак, пока читается
+ * профиль, — прозрачные и на плашке. Место, которое займёт меню,
+ * отмеряется им самим, а не подобранным прямоугольником.
+ */
 export function HeaderMenuBone() {
-  return <span className={cn(КРУГ, "skeleton-bone")} />;
+  return (
+    <span
+      aria-hidden
+      className={cn(
+        HEADER_ACTION,
+        "skeleton-bone pointer-events-none rounded-sm bg-paper-raised",
+        "[&_*]:text-transparent [&_svg]:opacity-0",
+      )}
+    >
+      <span className={HEADER_WORD}>Меню</span>
+      <MenuMark />
+    </span>
+  );
 }
