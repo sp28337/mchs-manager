@@ -56,6 +56,7 @@ const ДОКУМЕНТЫ = {
   policy: "docs/legal/privacy-policy.md",
   consent: "docs/legal/consent.md",
   terms: "docs/legal/terms.md",
+  cookies: "docs/legal/cookies.md",
 };
 
 /** Внутренние документы: публикации нет, проверка есть. */

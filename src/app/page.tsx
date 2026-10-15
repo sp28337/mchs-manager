@@ -1,13 +1,12 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { ChevronDown } from "lucide-react";
 
 import { LandingHero } from "@/components/landing/hero";
 import { HeroCta } from "@/components/landing/hero-cta";
 import { HOW_STEPS, HowItWorks } from "@/components/landing/how-it-works";
-import { SyncInvite } from "@/components/landing/sync-invite";
 import { SYNC_ENABLED } from "@/features/sync/ui/enabled";
 import { cn } from "@/lib/utils/cn";
+import { SiteFooter } from "@/components/shared/site-footer";
 import { SiteHeader } from "@/components/shared/site-header";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 
@@ -44,16 +43,6 @@ import { ThemeToggle } from "@/components/ui/theme-toggle";
 
 const NAME = "График 1 3";
 
-/**
- * Почта для связи.
- *
- * Стоит в подвале открытым адресом, а не за формой: формы у сервиса нет и
- * не будет — она означала бы приём и хранение чужих данных, то есть ровно
- * то, чего здесь нет. Открытый адрес собирают спам-роботы, и это
- * известная плата; прятать его скриптом значило бы спрятать и от того,
- * кто читает страницу без сценариев.
- */
-const EMAIL = "grafik1-3@yandex.ru";
 /**
  * Чем сервис называет себя поиску.
  *
@@ -304,18 +293,24 @@ export default function LandingPage() {
           одном разделе не имеет. В подвале она была — то есть за
           прокруткой всей страницы; человеку, которому режет глаза, идти
           туда через четыре экрана. */}
-      <SiteHeader action={<ThemeToggle />} className="items-center" />
+      {/* На телефоне переключатель темы встаёт в середину строки: справа
+          от него «ВХОД», слева знак сайта, и середина — единственное
+          место, где он не жмётся ни к тому, ни к другому. На широком
+          экране он возвращается вправо, к входу, с полем между ними
+          (`site-header.tsx`). */}
+      <SiteHeader
+        action={
+          <div className="max-md:mx-auto">
+            <ThemeToggle />
+          </div>
+        }
+        className="items-center"
+      />
 
       <main className="mx-auto w-full max-w-4xl px-6 xl:max-w-6xl 2xl:max-w-7xl">
         <LandingHero cta={<HeroCta />} />
 
         <HowItWorks />
-
-        {/* Приглашение к учётной записи — только в той сборке, где её
-            вообще можно завести (`enabled.ts`). В сборке без сервера
-            предложение «заведите учётную запись» вело бы на страницу,
-            которая честно отвечает, что синхронизации тут нет. */}
-        {SYNC_ENABLED ? <SyncInvite /> : null}
 
         {/* ------------------------------------------------------------ основания */}
         {/* Поля по вертикали у всех разделов одни: раздел «Как работает»
@@ -411,36 +406,19 @@ export default function LandingPage() {
 
       </main>
 
-      <footer className="border-t border-rule">
-        <div className="mx-auto flex w-full max-w-4xl flex-col gap-6 px-6 py-8 sm:flex-row sm:items-end sm:justify-between xl:max-w-6xl 2xl:max-w-7xl">
-          <div className="max-w-prose space-y-2 text-xs text-ink-muted">
-            <p>
-              {NAME} не заменяет табель или другие документы работодателя.
-              Приложение показывает, как норма и переработка получаются из
-              производственного календаря и вашего графика.
-            </p>
-            <p>
-              Точность зависит от введённого: даты смены, недельной нормы и
-              периодов отсутствия.
-            </p>
-            {/* Условия, раздел о данных и почта — одной строкой. Это не
-                навигация, а ответ на три вопроса, которые сервис вызывает
-                у всех: на каких условиях, что с моими данными и кому
-                написать, если число посчиталось неверно. */}
-            <p className="flex flex-wrap gap-x-4 gap-y-1 pt-1">
-              <Link href="/terms" className="text-ink-muted hover:underline">
-                Условия использования
-              </Link>
-              <Link href="/privacy" className="text-ink-muted hover:underline">
-                Данные и приватность
-              </Link>
-              <a href={`mailto:${EMAIL}`} className="text-ink-muted hover:underline">
-                {EMAIL}
-              </a>
-            </p>
-          </div>
+      <SiteFooter>
+        <div className="max-w-prose space-y-2 text-xs text-ink-muted">
+          <p>
+            {NAME} не заменяет табель или другие документы работодателя.
+            Приложение показывает, как норма и переработка получаются из
+            производственного календаря и вашего графика.
+          </p>
+          <p>
+            Точность зависит от введённого: даты смены, недельной нормы и
+            периодов отсутствия.
+          </p>
         </div>
-      </footer>
+      </SiteFooter>
 
       {/* Разметка для поиска. Тот же текст, что и на странице: ответы,
           расходящиеся с видимым содержимым, поисковики считают обманом. */}

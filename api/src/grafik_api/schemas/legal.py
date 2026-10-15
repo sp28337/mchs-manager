@@ -32,11 +32,18 @@ class LegalDocumentOut(BaseModel):
 
 
 class LegalDocumentsOut(BaseModel):
-    """Все три документа сразу: их читают вместе, при регистрации."""
+    """Все документы сайта сразу: их читают вместе.
+
+    Первые три человек принимает при регистрации, и их версии уходят в
+    запись о согласии. Четвёртый — про cookie и счётчик посещений: его
+    согласие даётся отдельно и до всякой регистрации, но редакция и хэш
+    нужны так же, иначе у документа не будет доказуемой истории.
+    """
 
     policy: LegalDocumentOut
     consent: LegalDocumentOut
     terms: LegalDocumentOut
+    cookies: LegalDocumentOut
 
     @classmethod
     def current(cls) -> Self:
@@ -44,4 +51,5 @@ class LegalDocumentsOut(BaseModel):
             policy=LegalDocumentOut.of(LEGAL_DOCUMENTS["policy"]),
             consent=LegalDocumentOut.of(LEGAL_DOCUMENTS["consent"]),
             terms=LegalDocumentOut.of(LEGAL_DOCUMENTS["terms"]),
+            cookies=LegalDocumentOut.of(LEGAL_DOCUMENTS["cookies"]),
         )

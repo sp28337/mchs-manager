@@ -1,8 +1,10 @@
 import Link from "next/link";
 import Markdown from "react-markdown";
+import type { ReactNode } from "react";
 import remarkGfm from "remark-gfm";
 
 import { OpenSchedule } from "@/components/shared/header-action";
+import { SiteFooter } from "@/components/shared/site-footer";
 import { SiteHeader } from "@/components/shared/site-header";
 
 import type { LegalDocument } from "./documents";
@@ -33,12 +35,25 @@ import type { LegalDocument } from "./documents";
  * незаполненные поля. Человек, попавший на такую страницу, должен видеть
  * это первой строкой, а не вычитывать из текста.
  */
-export function LegalPage({ document: документ }: { document: LegalDocument }) {
+export function LegalPage({
+  document: документ,
+  before,
+}: {
+  document: LegalDocument;
+  /**
+   * Что встаёт над текстом документа.
+   *
+   * Нужно одному документу из четырёх — тому, что про cookie: им не только
+   * читают, им ещё и управляют, и выбор должен стоять до текста, а не
+   * после него.
+   */
+  before?: ReactNode;
+}) {
   return (
-    <>
+    <div className="flex min-h-dvh flex-col">
       <SiteHeader action={<OpenSchedule tail="расчёт" />} tight />
 
-      <main className="mx-auto w-full max-w-3xl px-6 pb-16 pt-26">
+      <main className="mx-auto w-full max-w-3xl flex-1 px-6 pb-16 pt-26">
         {/* Своей строки о редакции у страницы нет: первым абзацем это
             говорит сам документ («Редакция от … Вступает в силу с …»), а
             два одинаковых утверждения подряд читаются как ошибка. */}
@@ -52,6 +67,8 @@ export function LegalPage({ document: документ }: { document: LegalDocum
           </p>
         )}
 
+        {before !== undefined && <div className="mt-8">{before}</div>}
+
         {/* Текст документа. Заголовок первого уровня приходит из самого
             файла, поэтому своего заголовка у страницы нет: двух `h1`
             подряд не бывает. */}
@@ -61,38 +78,17 @@ export function LegalPage({ document: документ }: { document: LegalDocum
           </Markdown>
         </div>
 
-        <p className="mt-14 border-t border-rule pt-6 text-xs text-ink-faint">
-          Остальные документы:{" "}
-          <ПрочиеДокументы id={документ.id} />.
-        </p>
       </main>
-    </>
+
+      {/* Остальные документы — в общем подвале, том же, что на всех
+          страницах (`shared/site-footer.tsx`). Своей строки «остальные
+          документы» у страницы больше нет: два перечня подряд, один под
+          другим, читались бы как недосмотр. */}
+      <SiteFooter />
+    </div>
   );
 }
 
-/** Ссылки на два других документа: их читают вместе. */
-function ПрочиеДокументы({ id }: { id: LegalDocument["id"] }) {
-  const все = [
-    { id: "policy", url: "/privacy", label: "политика обработки данных" },
-    { id: "consent", url: "/consent", label: "согласие" },
-    { id: "terms", url: "/terms", label: "условия использования" },
-  ] as const;
-
-  const прочие = все.filter((документ) => документ.id !== id);
-
-  return (
-    <>
-      {прочие.map((документ, i) => (
-        <span key={документ.id}>
-          {i > 0 ? ", " : ""}
-          <Link href={документ.url} className="underline hover:text-ink">
-            {документ.label}
-          </Link>
-        </span>
-      ))}
-    </>
-  );
-}
 
 /**
  * Оформление элементов Markdown.

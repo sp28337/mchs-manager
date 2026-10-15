@@ -1,11 +1,11 @@
 {
   "policy": {
     "title": "Политика в отношении обработки персональных данных",
-    "version": "2026-10-12",
+    "version": "2026-10-15",
     "effective_from": null,
     "status": "draft",
     "url": "/privacy",
-    "sha256": "af7e0db5afeedc050e7d7b5b080c0fff13cfb7566dd3c10186b0204a45830997"
+    "sha256": "fae05e15c0920f480a3aa0dc068de7bd646a522314b3d3966e4e50cc249de505"
   },
   "consent": {
     "title": "Согласие на обработку персональных данных",
@@ -22,5 +22,13 @@
     "status": "draft",
     "url": "/terms",
     "sha256": "b2547d93f7f31304a35977ffcd66c50e6def326f954a7c1e7e652c49cc4192a2"
+  },
+  "cookies": {
+    "title": "Файлы cookie и счётчик посещений",
+    "version": "2026-10-15",
+    "effective_from": null,
+    "status": "draft",
+    "url": "/cookies",
+    "sha256": "00ed26dd1f10ec8e70a649837addb47a29cfeb9ea99929339d79646b1aafbd78"
   }
 }

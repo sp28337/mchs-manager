@@ -1,7 +1,6 @@
 "use client";
 
-import Link from "next/link";
-
+import { FooterDocuments } from "@/components/shared/site-footer";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { SyncStatus } from "@/features/sync/ui/sync-status";
 
@@ -26,8 +25,9 @@ import type { StoredProfile } from "../storage/profile";
  * и та же мысль «начать заново» на двух глубинах, и выбирать между ними,
  * не видя обеих, было нельзя.
  *
- * Остаётся то, чему место действительно внизу: переключатель темы, ссылки
- * на условия и строка о том, когда профиль сохранялся в последний раз.
+ * Остаётся то, чему место действительно внизу: переключатель темы,
+ * перечень документов (он один на все страницы сайта) и строка о том,
+ * когда профиль сохранялся в последний раз.
  */
 
 export interface ProfileFooterProps {
@@ -46,12 +46,11 @@ export function ProfileFooter({ profile }: ProfileFooterProps) {
         </div>
 
         <p className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-xs text-ink-muted">
-          <Link href="/terms" className="text-ink-muted hover:underline">
-            Условия использования
-          </Link>
-          <Link href="/privacy" className="text-ink-muted hover:underline">
-            Данные и приватность
-          </Link>
+          {/* Документы — тем же перечнем, что на остальных страницах
+              (`shared/site-footer.tsx`): политика обязана быть доступна с
+              любой страницы, а рабочий экран — та, с которой человек
+              уходит реже всего. */}
+          <FooterDocuments className="max-sm:justify-items-center" />
           <span>
           Последнее изменение:{" "}
           {new Date(profile.savedAt).toLocaleString("ru-RU", {

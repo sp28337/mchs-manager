@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 
+import { SiteFooter } from "@/components/shared/site-footer";
 import { SiteHeader } from "@/components/shared/site-header";
 import { OpenSchedule } from "@/components/shared/header-action";
 import { AccountScreen } from "@/features/sync/ui/account-screen";
@@ -23,11 +24,15 @@ export const metadata: Metadata = {
  */
 export default function AccountPage() {
   return (
-    <>
+    // Колонка во весь экран: на короткой странице подвал уходит к нижней
+    // кромке окна, а не висит под содержимым посреди бумаги.
+    <div className="flex min-h-dvh flex-col">
       <SiteHeader action={<OpenSchedule />} />
-      <main className="mx-auto w-full max-w-[2000px] px-6 pt-24 pb-16">
+      <main className="mx-auto w-full max-w-[2000px] flex-1 px-6 pt-24 pb-16">
         <AccountScreen />
       </main>
-    </>
+
+      <SiteFooter />
+    </div>
   );
 }

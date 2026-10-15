@@ -15,9 +15,18 @@
  */
 
 export const LEGAL_VERSIONS = {
-  policy: "2026-10-12",
+  policy: "2026-10-15",
   consent: "2026-10-11",
   terms: "2026-10-11",
+  /**
+   * Документ о cookie — в перечне, но не в согласии при регистрации.
+   *
+   * Согласие на аналитику человек даёт отдельно и до всякой регистрации
+   * (полосой внизу страницы), и подшивать его к записи о регистрации
+   * нельзя: это разные согласия, их дают в разное время и отзывают
+   * порознь.
+   */
+  cookies: "2026-10-15",
 } as const;
 
 /** Адреса документов на сайте. Страницы появятся на шаге 12. */
@@ -25,9 +34,15 @@ export const LEGAL_URLS = {
   policy: "/privacy",
   consent: "/consent",
   terms: "/terms",
+  cookies: "/cookies",
 } as const;
 
-/** То, что уходит в `POST /auth/register`. */
+/**
+ * То, что уходит в `POST /auth/register`.
+ *
+ * Три документа, а не четыре: согласие на аналитику к учётной записи
+ * отношения не имеет.
+ */
 export function consentPayload() {
   return {
     policy_version: LEGAL_VERSIONS.policy,

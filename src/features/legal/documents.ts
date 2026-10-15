@@ -32,6 +32,7 @@ export const LEGAL_FILES = {
   policy: "privacy-policy.md",
   consent: "consent.md",
   terms: "terms.md",
+  cookies: "cookies.md",
 } as const;
 
 export type LegalId = keyof typeof LEGAL_FILES;

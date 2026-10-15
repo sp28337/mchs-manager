@@ -78,10 +78,12 @@ describe("чтение документов", () => {
     expect(соглашение.body).toContain("[почтовый адрес]");
   });
 
-  it("у всех трёх документов свой адрес", () => {
+  it("у каждого документа свой адрес", () => {
     const адреса = ВИДЫ.map((вид) => loadLegalDocument(вид).url);
 
-    expect(new Set(адреса).size).toBe(3);
-    expect(адреса).toEqual(expect.arrayContaining(["/privacy", "/consent", "/terms"]));
+    expect(new Set(адреса).size).toBe(ВИДЫ.length);
+    expect(адреса).toEqual(
+      expect.arrayContaining(["/privacy", "/consent", "/terms", "/cookies"]),
+    );
   });
 });

@@ -108,6 +108,7 @@ jobs:
           # обязанность.
           expect "Политика"              "/privacy"     "<title>Политика обработки персональных данных — График 1 3</title>"
           expect "Согласие"              "/consent"     "<title>Согласие на обработку персональных данных — График 1 3</title>"
+          expect "Cookie"                "/cookies"     "<title>Файлы cookie и счётчик посещений — График 1 3</title>"
           expect "robots.txt"            "/robots.txt"  "^Sitemap: $URL/sitemap.xml$"
 
           echo "✓ Выложено: $URL"

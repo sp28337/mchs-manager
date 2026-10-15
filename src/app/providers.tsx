@@ -2,6 +2,8 @@
 
 import { ThemeProvider } from "next-themes";
 
+import { CookieBanner } from "@/components/shared/cookie-banner";
+import { Metrika } from "@/components/shared/metrika";
 import { SyncProvider } from "@/features/sync/ui/sync-provider";
 
 /**
@@ -38,7 +40,15 @@ import { SyncProvider } from "@/features/sync/ui/sync-provider";
 export function Providers({ children }: { children: React.ReactNode }) {
   return (
     <ThemeProvider attribute="class" defaultTheme="dark" enableSystem disableTransitionOnChange>
-      <SyncProvider>{children}</SyncProvider>
+      <SyncProvider>
+        {children}
+        {/* Счётчик и вопрос о нём — на каждой странице и в самом конце
+            разметки: полоса с вопросом последняя и для клавиатуры, и для
+            программы чтения, а счётчик до ответа не загружается вовсе
+            (`shared/metrika.tsx`). */}
+        <Metrika />
+        <CookieBanner />
+      </SyncProvider>
     </ThemeProvider>
   );
 }

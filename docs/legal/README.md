@@ -20,6 +20,7 @@
 | [`privacy-policy.md`](privacy-policy.md) | Политика в отношении обработки персональных данных | `/privacy` |
 | [`consent.md`](consent.md) | Согласие, которое человек даёт при регистрации | `/consent` |
 | [`terms.md`](terms.md) | Пользовательское соглашение | `/terms` |
+| [`cookies.md`](cookies.md) | Файлы cookie и счётчик посещений | `/cookies` |
 | [`internal/`](internal/) | Внутренние документы оператора: положение, акт об уровне защищённости, модель угроз, перечень мер, оценка вреда, порядок уничтожения, регламент инцидента, формы журналов | не публикуются |
 
 Контракт, на котором всё это держится технически, — [`../sync-contract.md`](../sync-contract.md).
@@ -37,7 +38,7 @@
 
 ```yaml
 ---
-id: privacy            # policy | consent | terms — ключи в LegalDocuments
+id: privacy            # policy | consent | terms | cookies — ключи в LegalDocuments
 title: Политика в отношении обработки персональных данных
 version: "2026-10-11"  # дата редакции; она же пишется в запись о согласии
 effective_from: null   # дата вступления в силу; заполняется при публикации

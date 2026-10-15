@@ -28,6 +28,7 @@ from grafik_api.main import create_app
     "policy": "privacy-policy.md",
     "consent": "consent.md",
     "terms": "terms.md",
+    "cookies": "cookies.md",
 }
 
 
@@ -108,7 +109,7 @@ async def test_ручка_отдаёт_версии_и_хэши() -> None:
     assert ответ.status_code == 200
 
     тело_ответа = ответ.json()
-    assert set(тело_ответа) == {"policy", "consent", "terms"}
+    assert set(тело_ответа) == {"policy", "consent", "terms", "cookies"}
 
     for вид, документ in тело_ответа.items():
         assert документ["version"] == CURRENT_VERSIONS[вид]
