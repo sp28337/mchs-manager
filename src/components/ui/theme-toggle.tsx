@@ -110,9 +110,16 @@ export function ThemeToggle() {
  * положений выбрано — сказано в окошке, где об этом и спрашивают.
  */
 export function ThemeCorner({
+  side = "right",
   aboveDeck = false,
   className,
 }: {
+  /**
+   * Угол, в котором стоит знак. На рабочем экране левый нижний занят
+   * легендой, и тема уходит в правый; на посадочной легенды нет, и знак
+   * встаёт слева — там же, где человек привык его искать на расчёте.
+   */
+  side?: "left" | "right";
   /**
    * Снизу на телефоне стоит панель сеток (`grid-deck.tsx`) — знак
    * поднимается над ней. Пока вместо расчёта показан раздел, панели нет,
@@ -168,7 +175,8 @@ export function ThemeCorner({
         // панели сеток и безопасной зоны — теми же числами, что у
         // легенды, иначе два знака в одном ряду стояли бы на разной
         // высоте.
-        "fixed right-6 z-90 bottom-[calc(1.5rem+var(--safe-bottom))]",
+        "fixed z-90 bottom-[calc(1.5rem+var(--safe-bottom))]",
+        side === "left" ? "left-6" : "right-6",
         aboveDeck && "max-md:bottom-[calc(5.5rem+var(--safe-bottom))]",
         className,
       )}
@@ -178,7 +186,12 @@ export function ThemeCorner({
           id={id}
           aria-label="Тема оформления"
           className={cn(
-            "modal-lift absolute bottom-full right-0 mb-2 w-52 max-w-[calc(100vw-3rem)]",
+            // Вверх, а не вниз: знак стоит у нижней кромки, и раскрытое
+            // вниз окошко уехало бы за экран целиком. Прижато к тому же
+            // краю, у которого стоит знак, — иначе оно вылезало бы за
+            // кромку окна.
+            "modal-lift absolute bottom-full mb-2 w-52 max-w-[calc(100vw-3rem)]",
+            side === "left" ? "left-0" : "right-0",
             "overflow-hidden rounded-xl bg-paper-raised p-1.5",
           )}
         >
@@ -189,7 +202,13 @@ export function ThemeCorner({
                 key={value}
                 type="button"
                 aria-pressed={mounted ? active : undefined}
-                onClick={() => setTheme(value)}
+                onClick={() => {
+                  setTheme(value);
+                  // Выбрали — и спрашивать больше нечего: окошко
+                  // открывали ради одного этого нажатия, а оставшись
+                  // висеть, оно заставляло бы закрывать его отдельно.
+                  setОткрыто(false);
+                }}
                 className={cn(
                   "flex w-full cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-2",
                   "text-left text-sm transition-colors hover:bg-paper-sunken",

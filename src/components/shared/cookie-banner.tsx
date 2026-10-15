@@ -49,11 +49,17 @@ export function CookieBanner() {
         // раз, и пока его нет, полоса — самое нижнее, что есть на экране.
         "fixed inset-x-0 bottom-0 z-110 p-3",
         "pb-[calc(0.75rem+var(--safe-bottom))]",
+        // Обёртка растянута во всю ширину, а карточка в ней — узкая и по
+        // середине. Поля по бокам пусты на вид, но нажатия ловили именно
+        // они: в этих полях стоят знаки по углам окна (легенда и тема), и
+        // пока на полосу не ответили, они не нажимались вовсе. Поэтому
+        // обёртка нажатий не берёт, а карточка берёт.
+        "pointer-events-none",
       )}
     >
       <div
         className={cn(
-          "modal-lift mx-auto flex w-full max-w-3xl flex-col gap-4 rounded-xl",
+          "pointer-events-auto modal-lift mx-auto flex w-full max-w-3xl flex-col gap-4 rounded-xl",
           "bg-paper-raised px-5 py-4 sm:flex-row sm:items-center",
         )}
       >
