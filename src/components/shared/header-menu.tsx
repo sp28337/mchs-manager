@@ -89,20 +89,10 @@ export interface OpenSection {
 export function HeaderMenu({
   items,
   section,
-  tight,
 }: {
   items?: ReactNode;
   /** Раздел, показанный вместо страницы. */
   section?: OpenSection;
-  /**
-   * В шапке уже стоит широкое действие страницы, и места на слово нет.
-   *
-   * Так на страницах документов: «ОТКРЫТЬ РАСЧЁТ» и «ВХОД» рядом — это
-   * двести шестьдесят точек, и на телефоне от названия сайта оставалось
-   * обрезанное «ГРАФИ». Ниже 640 точек от входа остаётся дверь, имя
-   * действия достаётся программе чтения.
-   */
-  tight?: boolean;
 }) {
   const { account, actions } = useSync();
   const путь = usePathname();
@@ -174,7 +164,7 @@ export function HeaderMenu({
     // прятало бы за нажатием то, что и так умещается в строке.
     return (
       <Link href="/account" className={HEADER_ACTION} data-account-entry>
-        <span className={cn(HEADER_WORD, tight === true && "max-sm:sr-only")}>Вход</span>
+        <span className={HEADER_WORD}>Вход</span>
         <DoorMark />
       </Link>
     );

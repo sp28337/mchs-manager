@@ -85,14 +85,6 @@ export interface SiteHeaderProps {
    * складываются в крестик. Нажатие тогда закрывает раздел.
    */
   section?: OpenSection;
-  /**
-   * Действие страницы широкое, и меню рядом с ним жмётся.
-   *
-   * Ставят это страницы документов: у них справа «ОТКРЫТЬ РАСЧЁТ», и
-   * вторая надпись рядом не оставляет места названию сайта. Что именно
-   * уступает — в `HeaderMenu`.
-   */
-  tight?: boolean;
   className?: string;
 }
 
@@ -101,7 +93,6 @@ export function SiteHeader({
   menu,
   menuBone,
   section,
-  tight,
   className,
 }: SiteHeaderProps) {
   return (
@@ -143,12 +134,6 @@ export function SiteHeader({
                   и встаёт рядом с меню, но упирается в него впритык, а
                   поле у края экрана читается лучше лишнего слова.
 
-                  На страницах документов порог свой, 480 (`tight`): там
-                  справа стоят две надписи, «ОТКРЫТЬ РАСЧЁТ» и «ВХОД», и
-                  замером на 400 точках названию не хватает четырнадцати —
-                  ровно ширины полосы прокрутки, которую легко забыть в
-                  расчёте на бумаге.
-
                   Уходит слово только с глаз: `sr-only` оставляет его
                   программе чтения, и ссылка домой не превращается в «1 3».
                   Пробел спрятан вместе со словом — иначе цифры отъезжали
@@ -157,9 +142,7 @@ export function SiteHeader({
                   Пробел перед цифрами намеренный и там, где слово видно: в
                   тексте строки склеиваются, и программа чтения произносит
                   «График13». */}
-              <span className={tight === true ? "max-[479px]:sr-only" : "max-[399px]:sr-only"}>
-                {"График "}
-              </span>
+              <span className="max-[399px]:sr-only">{"График "}</span>
               <ScheduleMark />
             </span>
           </span>
@@ -189,7 +172,7 @@ export function SiteHeader({
           {menuBone === true ? (
             <HeaderMenuBone />
           ) : (
-            <HeaderMenu items={menu} section={section} tight={tight} />
+            <HeaderMenu items={menu} section={section} />
           )}
         </div>
       </div>

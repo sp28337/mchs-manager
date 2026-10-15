@@ -3,7 +3,6 @@ import Markdown from "react-markdown";
 import type { ReactNode } from "react";
 import remarkGfm from "remark-gfm";
 
-import { OpenSchedule } from "@/components/shared/header-action";
 import { SiteFooter } from "@/components/shared/site-footer";
 import { SiteHeader } from "@/components/shared/site-header";
 
@@ -51,7 +50,12 @@ export function LegalPage({
 }) {
   return (
     <div className="flex min-h-dvh flex-col">
-      <SiteHeader action={<OpenSchedule tail="расчёт" />} tight />
+      {/* Своего действия у страницы документа нет: читать его приходят со
+          стороны — из подвала другой страницы, из письма, из выдачи, — и
+          возвращаться человеку нужно туда, откуда он пришёл, а не в
+          расчёт. Домой ведёт знак сайта слева, в остальные документы —
+          подвал внизу. */}
+      <SiteHeader />
 
       <main className="mx-auto w-full max-w-3xl flex-1 px-6 pb-16 pt-26">
         {/* Своей строки о редакции у страницы нет: первым абзацем это

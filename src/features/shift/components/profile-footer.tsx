@@ -45,7 +45,11 @@ export function ProfileFooter({ profile }: ProfileFooterProps) {
           <ThemeToggle/>
         </div>
 
-        <p className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-xs text-ink-muted">
+        {/* Строка собрана `div`, а не `p`: внутри перечень документов, а
+            это `nav`. Блочный узел внутри абзаца — недопустимая разметка:
+            браузер закрывает `p` сам, разметка после гидратации не
+            совпадает с разметкой сборки, и React сообщает об ошибке. */}
+        <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-xs text-ink-muted">
           {/* Документы — тем же перечнем, что на остальных страницах
               (`shared/site-footer.tsx`): политика обязана быть доступна с
               любой страницы, а рабочий экран — та, с которой человек
@@ -65,7 +69,7 @@ export function ProfileFooter({ profile }: ProfileFooterProps) {
               рядом. Без учётной записи строка приглашает её завести, при
               выключенной синхронизации не рисуется вовсе. */}
           <SyncStatus />
-        </p>
+        </div>
       </div>
     </footer>
   );
