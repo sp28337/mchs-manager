@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 
 import { Hint } from "@/components/ui/hint";
+import { ThemeCorner } from "@/components/ui/theme-toggle";
 import { SiteHeader } from "@/components/shared/site-header";
 import { SyncNotice } from "@/features/sync/ui/sync-notice";
 import { cn } from "@/lib/utils/cn";
@@ -826,8 +827,22 @@ export function Workspace({
           сетки на экране в этот момент нет вовсе. */}
       {/* Легенда — кнопкой в левом нижнем углу. Прячется вместе с панелью
           сеток и по той же причине: пока вместо расчёта показан раздел,
-          сеток на экране нет, и рассказывать легенде не о чем. */}
-      {showSettings || explorerOpen || statsOpen ? null : <LegendButton />}
+          сеток на экране нет, и рассказывать легенде не о чем.
+
+          Какая из двух легенд в окошке, решает показанная сетка: о
+          графике смен и о производственном календаре клетки говорят
+          разное. */}
+      {showSettings || explorerOpen || statsOpen ? null : (
+        <LegendButton view={yearView} profile={profile} onChange={onChange} />
+      )}
+
+      {/* Тема — знаком в правом нижнем углу, зеркально легенде. В отличие
+          от неё не прячется ни в одном разделе: легенда говорит о сетке,
+          а тема о самом окне, и в настройках она нужна ровно так же, как
+          на сетке. Опускается в самый угол вместе с панелью сеток: пока
+          раздел открыт, панели на телефоне нет, и подниматься знаку не
+          над чем. */}
+      <ThemeCorner aboveDeck={!(showSettings || explorerOpen || statsOpen)} />
 
       {showSettings || explorerOpen || statsOpen ? null : (
         <GridDeck

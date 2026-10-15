@@ -246,7 +246,9 @@ export function ShiftStrip({
   });
 
   return (
-    <div className="space-y-6 xl:flex xl:gap-4 xl:flex-row-reverse">
+    // Одна колонка: легенда уехала в окошко у кнопки в левом нижнем углу
+    // (`legend-button.tsx`), и делить ширину года больше не с кем.
+    <div className="space-y-6">
       {/* Мерная коробка вокруг сетки: из её ширины таблица стилей считает
           ширину месяца, а из той — кегль в клетке. Подробности у самих
           классов (`month-grid.tsx`) и правил (`globals.css`). */}

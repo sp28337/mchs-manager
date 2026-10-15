@@ -512,7 +512,7 @@ function SegmentBone({
 }
 
 /**
- * Подвал профиля: переключатель темы, ссылки и время последней правки.
+ * Подвал профиля: плитки документов и время последней правки.
  *
  * Ровно то, что стоит в `ProfileFooter`, и ничего сверх того. Здесь долго
  * лежал прежний подвал — рассказ «Где лежат ваши данные» на три абзаца,
@@ -521,32 +521,57 @@ function SegmentBone({
  * Заглушка обещала блок, которого через мгновение не оказывалось, и
  * страница на двести тридцать точек короче — то есть врала ровно о том, ради
  * чего она существует.
+ *
+ * Переключателя темы здесь больше нет по той же причине: он уехал в правый
+ * нижний угол окна (`ui/theme-toggle.tsx`), и в потоке страницы его место
+ * ничем не занято.
  */
 function ProfileFooterBones() {
   return (
     <footer className="space-y-4 border-t border-rule py-6 text-sm">
-      <div className="flex flex-col items-center justify-between md:flex-row-reverse">
-        <div className="flex justify-center pt-8 pb-12 md:ml-auto md:pb-8 ">
-          {/* Переключатель темы: рамка, поле в полточки и три кнопки по
-              двадцать восемь — тридцать четыре точки в высоту, а не
-              «примерно тридцать два». */}
-          <span className="flex w-fit items-center gap-0.5 rounded-xl p-0.5">
-            <Bone className="size-7 rounded-xl" />
-            <Bone className="size-7 rounded-xl" />
-            <Bone className="size-7 rounded-xl" />
+      {/* Плитки документов: та же сетка и та же начинка, что в подвале
+          расчёта (`shared/site-footer.tsx`), — высота плитки и переносы
+          названия получаются сами, а не подобраны числом. */}
+      <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+        {ДОКУМЕНТЫ_КОСТИ.map((документ) => (
+          <span
+            key={документ.label}
+            className="flex items-start gap-2.5 rounded-xl bg-paper-raised px-3 py-2.5"
+          >
+            <Bone className="mt-px size-4 shrink-0 rounded-xs" />
+            <span className="min-w-0">
+              <BoneText skeleton className="block text-xs leading-snug">
+                {документ.label}
+              </BoneText>
+              <BoneText skeleton className="mt-0.5 block text-[11px] leading-snug">
+                {документ.note}
+              </BoneText>
+            </span>
           </span>
-        </div>
-
-        {/* Строка ссылок и времени — теми же словами и тем же кеглем, что в
-            подвале расчёта: её высота и переносы получаются сами. */}
-        <p className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-xs text-ink-muted">
-          <BoneText skeleton>Условия использования</BoneText>
-          <BoneText skeleton>Данные и приватность</BoneText>
-          <BoneText skeleton>
-            Последнее изменение: 20 августа 2026 г., 19:04.
-          </BoneText>
-        </p>
+        ))}
       </div>
+
+      {/* Строка времени — теми же словами и тем же кеглем, что в подвале
+          расчёта: её высота и переносы получаются сами. */}
+      <p className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-ink-muted">
+        <BoneText skeleton>
+          Последнее изменение: 20 августа 2026 г., 19:04.
+        </BoneText>
+      </p>
     </footer>
   );
 }
+
+/**
+ * Названия документов для плиток заглушки.
+ *
+ * Своей копией, а не ввозом из подвала: заглушке нужна только длина строк,
+ * а знаки и адреса ссылок — нет. Разойдутся в длине — разойдётся высота
+ * плитки, и это видно глазом; разойдутся в словах — не видно ничего.
+ */
+const ДОКУМЕНТЫ_КОСТИ = [
+  { label: "Пользовательское соглашение", note: "На каких условиях работает приложение" },
+  { label: "Политика конфиденциальности", note: "Какие данные обрабатываются и зачем" },
+  { label: "Согласие на обработку данных", note: "Что принимается при регистрации" },
+  { label: "Настройки cookie", note: "Счётчик посещений: разрешить или отказать" },
+] as const;

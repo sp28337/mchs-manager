@@ -1,3 +1,4 @@
+import { Cookie, FileSignature, Handshake, ShieldCheck, type LucideIcon } from "lucide-react";
 import Link from "next/link";
 import type { ReactNode } from "react";
 
@@ -19,12 +20,19 @@ import { cn } from "@/lib/utils/cn";
  * баннер после ответа исчезает, и другого входа к этому выбору у человека
  * нет.
  *
- * --- Почему списком, а не строкой --------------------------------------
+ * --- Почему плитками, а не строкой ссылок ----------------------------------
  *
- * Документов четыре, и названия у них длинные: сплошной строкой они
- * читаются как одна фраза с непонятными границами. Разложенные сеткой в
- * две колонки (на мониторе — в один ряд), они читаются перечнем, чем и
- * являются.
+ * Документов четыре, и названия у них одинаковой длины и одинакового вида:
+ * «Пользовательское соглашение», «Политика конфиденциальности», «Согласие
+ * на обработку данных». Строкой подряд они читаются как одна длинная фраза
+ * с непонятными границами, а по отдельности не отвечают на единственный
+ * вопрос, который у человека есть: в каком из четырёх искать своё.
+ *
+ * Поэтому у каждого свой знак и своя строка о том, что внутри. Знаки
+ * выбраны по смыслу документа, а не по виду файла: четыре одинаковых
+ * листка бумаги различали бы документы ровно так же, как ничего, —
+ * рукопожатие, щит, подпись и печенье различимы с одного взгляда и
+ * называют именно свой документ.
  */
 
 /** Почта для связи. */
@@ -36,36 +44,79 @@ export const EMAIL = "grafik1-3@yandex.ru";
  *
  * Названия короче заголовков самих документов: «Политика в отношении
  * обработки персональных данных» в подвале занимает строку целиком, а
- * человек ищет глазами слово «политика».
+ * человек ищет глазами слово «политика». Строка под названием — не
+ * пересказ документа, а ответ на вопрос «мне сюда?».
  */
-const ДОКУМЕНТЫ = [
-  { href: "/terms", label: "Пользовательское соглашение" },
-  { href: "/privacy", label: "Политика конфиденциальности" },
-  { href: "/consent", label: "Согласие на обработку данных" },
-  { href: "/cookies", label: "Настройки cookie" },
-] as const;
+const ДОКУМЕНТЫ: readonly {
+  href: string;
+  label: string;
+  note: string;
+  Icon: LucideIcon;
+}[] = [
+  {
+    href: "/terms",
+    label: "Пользовательское соглашение",
+    note: "На каких условиях работает приложение",
+    Icon: Handshake,
+  },
+  {
+    href: "/privacy",
+    label: "Политика конфиденциальности",
+    note: "Какие данные обрабатываются и зачем",
+    Icon: ShieldCheck,
+  },
+  {
+    href: "/consent",
+    label: "Согласие на обработку данных",
+    note: "Что принимается при регистрации",
+    Icon: FileSignature,
+  },
+  {
+    href: "/cookies",
+    label: "Настройки cookie",
+    note: "Счётчик посещений: разрешить или отказать",
+    Icon: Cookie,
+  },
+];
 
 /** Перечень документов — для тех подвалов, что собраны своими руками. */
 export function FooterDocuments({ className }: { className?: string }) {
   return (
     <nav
       aria-label="Документы сайта"
-      className={cn(
-        "grid gap-x-6 gap-y-2 text-xs text-ink-muted",
-        "grid-cols-2 sm:flex sm:flex-wrap",
-        className,
-      )}
+      // Одна колонка на телефоне, две на планшете, четыре на мониторе: в
+      // две колонки на узком экране название ломалось бы на четыре строки,
+      // а в четыре на `max-w-4xl` — на три.
+      className={cn("grid gap-2 sm:grid-cols-2 xl:grid-cols-4", className)}
     >
-      {ДОКУМЕНТЫ.map((документ) => (
+      {ДОКУМЕНТЫ.map(({ href, label, note, Icon }) => (
         <Link
-          key={документ.href}
-          href={документ.href}
-          // Цвет на самой ссылке, а не на перечне: наследования тут не
-          // происходит — у `a` свой цвет по умолчанию, синий, и он
-          // перебивает цвет родителя.
-          className="text-ink-muted hover:underline"
+          key={href}
+          href={href}
+          // `lit` — та же кайма от лампы и от курсора, что у остальных
+          // плашек приложения: плитка документа ничем не особеннее кнопки
+          // в проводнике.
+          //
+          // Цвет на самой ссылке: наследования тут не происходит — у `a`
+          // свой цвет по умолчанию, синий, и он перебивает цвет родителя.
+          className={cn(
+            "lit group flex items-start gap-2.5 rounded-xl bg-paper-raised px-3 py-2.5",
+            "text-ink no-underline",
+            "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ink",
+          )}
         >
-          {документ.label}
+          <Icon
+            aria-hidden
+            // Знак гаснет вместе с подписью под названием и загорается от
+            // курсора — так же, как значки в строках меню.
+            className="mt-px size-4 shrink-0 text-ink-muted transition-colors group-hover:text-ink"
+          />
+          <span className="min-w-0">
+            <span className="block text-xs font-medium leading-snug">{label}</span>
+            <span className="mt-0.5 block text-[11px] leading-snug text-ink-muted">
+              {note}
+            </span>
+          </span>
         </Link>
       ))}
     </nav>
@@ -87,15 +138,16 @@ export function SiteFooter({
     <footer className={cn("border-t border-rule", className)}>
       <div className="mx-auto w-full max-w-4xl space-y-6 px-6 py-8 xl:max-w-6xl 2xl:max-w-7xl">
         {children}
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-          <FooterDocuments />
-          <a
-            href={`mailto:${EMAIL}`}
-            className="shrink-0 text-xs text-ink-muted hover:underline"
-          >
+        <FooterDocuments />
+        {/* Почта — отдельной строкой под плитками, а не пятой плиткой:
+            это не документ, и в ряду из четырёх он стоял бы пятым
+            лишним. */}
+        <p className="text-xs text-ink-muted">
+          Вопросы и обращения:{" "}
+          <a href={`mailto:${EMAIL}`} className="text-ink-muted hover:underline">
             {EMAIL}
           </a>
-        </div>
+        </p>
       </div>
     </footer>
   );

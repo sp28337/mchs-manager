@@ -5,7 +5,10 @@ import { useEffect, useId, useRef, useState } from "react";
 import { LegendMark } from "@/components/shared/header-action";
 import { cn } from "@/lib/utils/cn";
 
+import type { StoredProfile } from "../storage/profile";
 import { ShiftLegend } from "./shift-strip";
+import { CalendarLegend } from "./year-calendar-editor";
+import type { YearViewKind } from "./year-view";
 
 /**
  * Легенда — кнопкой в левом нижнем углу рабочего экрана.
@@ -35,11 +38,32 @@ import { ShiftLegend } from "./shift-strip";
  *
  * Кнопка стоит у нижней кромки, и место под ней кончается. Раскрытое вниз
  * окошко уехало бы за экран целиком.
+ *
+ * --- Почему легенда зависит от сетки ---------------------------------------
+ *
+ * На месте года по очереди стоят две разные сетки — график смен и
+ * производственный календарь, — и размечены они по-разному: в одной клетка
+ * говорит о смене, в другой о виде дня по закону. Одна кнопка на обе и
+ * показывает ту легенду, которая поясняет то, что человек видит прямо
+ * сейчас. Обе разом означали бы перечень из двух с лишним десятков
+ * значков, половина которых на экране не встречается.
  */
-export function LegendButton({ className }: { className?: string }) {
+export function LegendButton({
+  view,
+  profile,
+  onChange,
+  className,
+}: {
+  /** Показанная сетка: она же решает, какая легенда в окошке. */
+  view: YearViewKind;
+  profile: StoredProfile;
+  onChange: (change: (previous: StoredProfile) => StoredProfile) => void;
+  className?: string;
+}) {
   const [открыто, setОткрыто] = useState(false);
   const гнездо = useRef<HTMLDivElement>(null);
   const id = useId();
+  const календарь = view === "calendar";
 
   // Закрывается всеми способами, какими обязано: `Esc`, нажатие мимо, уход
   // фокуса. Те же три, что у меню в шапке (`shared/header-menu.tsx`).
@@ -84,13 +108,19 @@ export function LegendButton({ className }: { className?: string }) {
         <div
           id={id}
           role="group"
-          aria-label="Легенда графика"
+          aria-label={
+            календарь ? "Легенда производственного календаря" : "Легенда графика"
+          }
           className={cn(
             "modal-lift absolute bottom-full left-0 mb-2 w-72 max-w-[calc(100vw-3rem)]",
             "max-h-[70svh] overflow-y-auto rounded-xl bg-paper-raised p-4",
           )}
         >
-          <ShiftLegend />
+          {календарь ? (
+            <CalendarLegend profile={profile} onChange={onChange} />
+          ) : (
+            <ShiftLegend />
+          )}
         </div>
       )}
 
@@ -99,7 +129,11 @@ export function LegendButton({ className }: { className?: string }) {
         onClick={() => setОткрыто((было) => !было)}
         aria-expanded={открыто}
         aria-controls={id}
-        aria-label="Легенда: чем помечены клетки"
+        aria-label={
+          календарь
+            ? "Легенда: чем помечены дни календаря"
+            : "Легенда: чем помечены клетки графика"
+        }
         title="Легенда"
         className={cn(
           // Ни плашки, ни кромки — один знак, как и надписи в шапке.

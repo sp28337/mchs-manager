@@ -204,7 +204,6 @@ function MonthMeta({ facts, edited }: { facts: MonthFacts; edited: number }) {
 
 export interface YearCalendarEditorProps {
   profile: StoredProfile;
-  onChange: (change: (previous: StoredProfile) => StoredProfile) => void;
   /**
    * Показанный отрезок — тот же, что у графика смен. Правая граница
    * исключающая, как во всём домене.
@@ -229,7 +228,6 @@ export interface YearCalendarEditorProps {
 
 export function YearCalendarEditor({
   profile,
-  onChange,
   periodStart,
   periodEnd,
   upcoming,
@@ -263,7 +261,6 @@ export function YearCalendarEditor({
   // но не в другой, читалась бы как разница между самими сетками.
   const today = todayIso();
 
-  const overrideCount = Object.keys(overrides).length;
   const pending = pendingTransfers(year).filter((day) => overrides[day] === undefined);
 
   // Месяцы отрезка — по тем же правилам, что в графике смен: подряд
@@ -284,7 +281,10 @@ export function YearCalendarEditor({
   }
 
   return (
-    <section aria-labelledby="calendar" className="space-y-4 xl:flex xl:flex-row-reverse xl:gap-4">
+    // Одна колонка, без боковой: легенда уехала в окошко у кнопки в левом
+    // нижнем углу (`CalendarLegend` ниже, `legend-button.tsx`), и делить
+    // ширину года больше не с кем.
+    <section aria-labelledby="calendar" className="space-y-4">
       {/* Сетка идёт ПЕРВОЙ и ничего над собой не имеет — в этом весь
           смысл. Календарь показывается на месте графика по нажатию
           кнопки, и всё, что стояло бы выше сетки, сдвигало бы её вниз:
@@ -327,54 +327,89 @@ export function YearCalendarEditor({
       </div>
 
       {pending.length > 0 ? <PendingNotice pending={pending} /> : null}
-
-      {/* Легенда держится на месте вместе с числами: тот же приём, что в
-          графике смен, — `sticky` под полосой итога и `self-start`, иначе
-          растянутому элементу прилипать некуда. */}
-      <div className="lit xl:max-w-70 xl:w-full xl:sticky xl:top-[calc(8rem+var(--safe-top))] xl:self-start translate-y-1
-                      bg-paper-raised/70 p-4 rounded-xl lg:min-w-92.5">
-        <dl className="flex flex-wrap gap-x-6 gap-y-2 text-xs xl:flex-col">
-          {DAY_TYPES.map((type) => (
-            <div key={type} className="flex items-center gap-2">
-              <dt
-                className={cn(
-                  "flex size-6 shrink-0 items-center justify-center rounded-sm border font-mono text-[10px]",
-                  DAY_TYPE_TONE[type],
-                )}
-              >
-                {DAY_TYPE_MARK[type]}
-              </dt>
-              <dd>
-                <span className="font-medium">{DAY_TYPE_LABELS[type]}</span>
-              </dd>
-            </div>
-          ))}
-          <div className="flex items-center gap-2">
-            <dt className="relative flex size-6 shrink-0 items-center justify-center rounded-sm border border-rule">
-              <span aria-hidden className="absolute -left-px -top-px size-1.5 rounded-full bg-ink" />
-            </dt>
-            <dd className="text-ink-muted">Изменено вами</dd>
-          </div>
-        </dl>
-
-        <div className="flex flex-wrap items-center gap-4 border-t border-rule pt-4 mt-4">
-          <p className="text-sm text-ink-muted" aria-live="polite">
-            Ваших правок: {overrideCount}
-          </p>
-          {overrideCount > 0 ? (
-            <button
-              type="button"
-              className="text-xs text-ink-muted underline underline-offset-2 hover:text-signal"
-              onClick={() =>
-                onChange((previous) => ({ ...previous, calendarOverrides: {} }))
-              }
-            >
-              Вернуть календарь по закону
-            </button>
-          ) : null}
-        </div>
-      </div>
     </section>
+  );
+}
+
+/**
+ * Легенда производственного календаря.
+ *
+ * --- Где она живёт ---------------------------------------------------------
+ *
+ * В том же окошке, что легенда графика, — у кнопки в левом нижнем углу
+ * (`legend-button.tsx`). Какая из двух показана, решает выбранная сетка: у
+ * графика и календаря клетки размечены по-разному, и легенда, говорящая о
+ * другой сетке, не поясняет, а сбивает.
+ *
+ * Прежде она стояла боковой колонкой справа от года и повторяла судьбу
+ * легенды графика: на мониторе отнимала у двенадцати сеток почти восемь
+ * рем, на телефоне оказывалась под ними — то есть за тремя экранами
+ * прокрутки от клетки, из-за которой человек её и искал.
+ *
+ * --- Почему в ней есть кнопка ----------------------------------------------
+ *
+ * Строка «Изменено вами» называет метку, а «Ваших правок: 3» и возврат к
+ * календарю по закону — это та же мысль на следующем шаге: сколько их и
+ * как их не стало. Разъедься они по экрану, человек, увидевший точку в
+ * клетке, не нашёл бы, где от неё избавиться.
+ *
+ * Счёт правок при этом живой: окошко остаётся открытым, и нажатие на
+ * возврат видно в той же строке, где и считалось.
+ */
+export function CalendarLegend({
+  profile,
+  onChange,
+}: {
+  profile: StoredProfile;
+  onChange: (change: (previous: StoredProfile) => StoredProfile) => void;
+}) {
+  const overrideCount = Object.keys(profile.calendarOverrides).length;
+
+  return (
+    // Ни плашки, ни света: их даёт окошко, в котором легенда стоит
+    // (`legend-button.tsx`). Здесь только порядок строк и просветы.
+    <div>
+      <dl className="flex flex-col gap-y-2 text-xs">
+        {DAY_TYPES.map((type) => (
+          <div key={type} className="flex items-center gap-2">
+            <dt
+              className={cn(
+                "flex size-6 shrink-0 items-center justify-center rounded-sm border font-mono text-[10px]",
+                DAY_TYPE_TONE[type],
+              )}
+            >
+              {DAY_TYPE_MARK[type]}
+            </dt>
+            <dd>
+              <span className="font-medium">{DAY_TYPE_LABELS[type]}</span>
+            </dd>
+          </div>
+        ))}
+        <div className="flex items-center gap-2">
+          <dt className="relative flex size-6 shrink-0 items-center justify-center rounded-sm border border-rule">
+            <span aria-hidden className="absolute -left-px -top-px size-1.5 rounded-full bg-ink" />
+          </dt>
+          <dd className="text-ink-muted">Изменено вами</dd>
+        </div>
+      </dl>
+
+      <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-rule pt-4">
+        <p className="text-sm text-ink-muted" aria-live="polite">
+          Ваших правок: {overrideCount}
+        </p>
+        {overrideCount > 0 ? (
+          <button
+            type="button"
+            className="cursor-pointer text-xs text-ink-muted underline underline-offset-2 hover:text-signal"
+            onClick={() =>
+              onChange((previous) => ({ ...previous, calendarOverrides: {} }))
+            }
+          >
+            Вернуть календарь по закону
+          </button>
+        ) : null}
+      </div>
+    </div>
   );
 }
 
