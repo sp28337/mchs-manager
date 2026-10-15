@@ -4,6 +4,7 @@ import { Check, Monitor, Moon, Sun } from "lucide-react";
 import { useTheme } from "next-themes";
 import { useEffect, useId, useRef, useState } from "react";
 
+import { MARK_EMPTY_CLASS } from "@/components/shared/header-action";
 import { cn } from "@/lib/utils/cn";
 
 /**
@@ -224,16 +225,21 @@ export function ThemeCorner({
           //
           // Место под палец при этом 44 точки: цель размером со значок —
           // промах через раз.
-          "grid size-11 cursor-pointer place-items-center rounded-xl text-ink",
+          "grid size-11 cursor-pointer place-items-center rounded-xl",
           "transition-opacity hover:opacity-80",
           "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink",
         )}
       >
         {/* Обе картинки стоят в разметке, а показывает одну таблица
             стилей по классу темы на `html`: ни гидратации, ни подмены
-            через миг после открытия страницы. */}
-        <Sun aria-hidden className="size-7 dark:hidden" />
-        <Moon aria-hidden className="hidden size-7 dark:block" />
+            через миг после открытия страницы.
+
+            Цвет — ровно тот, которым нарисованы пустые квадраты логотипа
+            (`shared/header-action.tsx`, `MARK_EMPTY`): знаки по углам
+            окна стоят одним набором, и любое расхождение в полутоне
+            читается как значки, собранные из разных мест. */}
+        <Sun aria-hidden className={cn("size-7 dark:hidden", MARK_EMPTY_CLASS)} />
+        <Moon aria-hidden className={cn("hidden size-7 dark:block", MARK_EMPTY_CLASS)} />
       </button>
     </div>
   );

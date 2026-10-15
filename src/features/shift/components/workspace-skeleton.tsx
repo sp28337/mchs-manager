@@ -3,6 +3,7 @@ import { ZoomIn, ZoomOut } from "lucide-react";
 import type { ReactNode } from "react";
 
 import { Bone, BoneText } from "@/components/ui/bone";
+import { SYNC_ENABLED } from "@/features/sync/ui/enabled";
 import { cn } from "@/lib/utils/cn";
 
 import { datesOfMonth, dayOfMonth } from "../domain/plain-date";
@@ -512,7 +513,7 @@ function SegmentBone({
 }
 
 /**
- * Подвал профиля: плитки документов и время последней правки.
+ * Подвал профиля: плитки документов и обращение к оператору.
  *
  * Ровно то, что стоит в `ProfileFooter`, и ничего сверх того. Здесь долго
  * лежал прежний подвал — рассказ «Где лежат ваши данные» на три абзаца,
@@ -551,13 +552,28 @@ function ProfileFooterBones() {
         ))}
       </div>
 
-      {/* Строка времени — теми же словами и тем же кеглем, что в подвале
-          расчёта: её высота и переносы получаются сами. */}
-      <p className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-ink-muted">
-        <BoneText skeleton>
-          Последнее изменение: 20 августа 2026 г., 19:04.
+      {/* Обращение: заголовок, поле и кнопка — теми же размерами, что в
+          подвале расчёта (`shared/footer-contact.tsx`), иначе подвал
+          подпрыгнул бы в тот самый миг, ради которого заглушка и
+          существует. Строка под кнопкой — словами оттуда же. */}
+      <div className="mx-auto w-full max-w-md space-y-3 pt-2 text-center">
+        <BoneText skeleton className="mx-auto block w-fit text-xs uppercase tracking-wide">
+          Вопросы и обращения
         </BoneText>
-      </p>
+        <Bone className="h-24 w-full rounded-xl" />
+        <Bone className="mx-auto h-9 w-full rounded-xl sm:w-36" />
+        {/* Теми же словами целиком: строка переносится на три, и короткая
+            подпись дала бы подвал на две строки ниже настоящего. */}
+        <BoneText skeleton className="block text-xs">
+          Откроется ваша почта с готовым письмом на grafik1-3@yandex.ru —
+          отправите его вы, и копия останется у вас.
+        </BoneText>
+      </div>
+
+      {/* Место под строку состояния синхронизации — пустое и ровно там,
+          где её держит настоящий подвал: слов в ней заглушка не знает
+          (их знает только сервер), а высоту обязана занять ту же. */}
+      {SYNC_ENABLED && <div className="text-xs" />}
     </footer>
   );
 }

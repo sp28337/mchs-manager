@@ -784,7 +784,7 @@ export function Workspace({
         </FadeIn>
       )}
 
-      <ProfileFooter profile={profile} />
+      <ProfileFooter />
       </div>
 
       {/* Кольцо видов вокруг клетки — весь разговор о сутках целиком.

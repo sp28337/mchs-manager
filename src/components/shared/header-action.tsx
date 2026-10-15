@@ -61,7 +61,15 @@ const ЗНАК = "size-7 shrink-0";
  * с логотипом, и любое расхождение в полутоне читается как разные
  * наборы значков, собранные из разных мест.
  */
-const ПУСТОЕ = { stroke: "#8a8578", opacity: 0.45 } as const;
+export const MARK_EMPTY = { stroke: "#8a8578", opacity: 0.45 } as const;
+
+/**
+ * То же самое классами — для значков из набора (`lucide`), которые берут
+ * цвет из `currentColor` и своих атрибутов не имеют.
+ */
+export const MARK_EMPTY_CLASS = "text-[#8a8578] opacity-45";
+
+const ПУСТОЕ = MARK_EMPTY;
 
 /**
  * Дверь — у входа.
