@@ -20,7 +20,7 @@ import { openEntry, type LibraryEntry } from "../storage/library";
 import type { StoredProfile } from "../storage/profile";
 import { ChangesList } from "./changes-list";
 import { DayRing } from "./day-ring";
-import { GridDeck, WORKSPACE_PAD } from "./grid-deck";
+import { GridDeck } from "./grid-deck";
 import { LegendButton } from "./legend-button";
 import { WorkspaceMenuItems } from "./header-tools";
 import { scrollMonthUnderBar, topmostVisibleMonth } from "./month-anchor";
@@ -531,8 +531,7 @@ export function Workspace({
       <main
         className={cn(
           "mx-auto flex w-full flex-col px-6 pt-26 2xl:max-w-[2000px]",
-          "min-h-[calc(100dvh-var(--safe-top)-var(--safe-bottom))]",
-          WORKSPACE_PAD,
+          "min-h-[var(--page-min-h)]",
         )}
       >
       {/* Полоса о синхронизации — первым делом и только если встала.

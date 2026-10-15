@@ -16,7 +16,6 @@ import {
   DECK_RAISED,
   DECK_SHELL,
   DECK_ROW,
-  WORKSPACE_PAD,
 } from "./grid-deck";
 import { CalendarIcon, PeriodIcon, ShiftsIcon } from "./grid-icons";
 import { LiveSignal, LIVE_ROW_CAPTION, LIVE_ROW_CELL } from "./live-mode";
@@ -94,7 +93,6 @@ export function WorkspaceSkeleton() {
         // Та же высота, что у рабочего экрана: иначе страница дёрнулась бы
         // ровно в тот миг, ради которого заглушка и существует.
         "min-h-[calc(100dvh-var(--safe-top)-var(--safe-bottom))]",
-        WORKSPACE_PAD,
       )}
     >
       {/* Имя человека — водяным знаком: по центру и почти прозрачное.

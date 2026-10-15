@@ -26,7 +26,7 @@ export default function AccountPage() {
   return (
     // Колонка во весь экран: на короткой странице подвал уходит к нижней
     // кромке окна, а не висит под содержимым посреди бумаги.
-    <div className="flex min-h-dvh flex-col">
+    <div className="flex min-h-[var(--page-min-h)] flex-col">
       <SiteHeader action={<OpenSchedule />} />
       <main className="mx-auto w-full max-w-[2000px] flex-1 px-6 pt-24 pb-16">
         <AccountScreen />

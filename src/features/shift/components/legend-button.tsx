@@ -102,10 +102,15 @@ export function LegendButton({ className }: { className?: string }) {
         aria-label="Легенда: чем помечены клетки"
         title="Легенда"
         className={cn(
-          // Плашка здесь нужна — в отличие от надписей в шапке: кнопка
-          // лежит поверх сеток, и без своей поверхности она читалась бы
-          // как часть календаря под ней.
-          "lit grid size-11 cursor-pointer place-items-center rounded-xl bg-paper-raised",
+          // Ни плашки, ни кромки — один знак, как и надписи в шапке.
+          // Держится он не на своей поверхности, а на том, что под ним:
+          // у нижней кромки содержимое растворено дымкой (`globals.css`,
+          // `.veil-bottom`), и знак стоит на почти чистой бумаге.
+          //
+          // Место под палец при этом остаётся прежним, 44 точки: цель
+          // размером со значок — промах через раз.
+          "grid size-11 cursor-pointer place-items-center rounded-xl",
+          "transition-opacity hover:opacity-80",
           "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink",
         )}
       >

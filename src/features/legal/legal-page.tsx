@@ -49,7 +49,7 @@ export function LegalPage({
   before?: ReactNode;
 }) {
   return (
-    <div className="flex min-h-dvh flex-col">
+    <div className="flex min-h-[var(--page-min-h)] flex-col">
       {/* Своего действия у страницы документа нет: читать его приходят со
           стороны — из подвала другой страницы, из письма, из выдачи, — и
           возвращаться человеку нужно туда, откуда он пришёл, а не в
