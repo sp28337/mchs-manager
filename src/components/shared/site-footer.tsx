@@ -2,7 +2,6 @@ import { Cookie, FileSignature, Handshake, ShieldCheck, type LucideIcon } from "
 import Link from "next/link";
 import type { ReactNode } from "react";
 
-import { FooterContact } from "@/components/shared/footer-contact";
 import { cn } from "@/lib/utils/cn";
 
 /**
@@ -125,6 +124,31 @@ export function FooterDocuments({ className }: { className?: string }) {
 }
 
 /**
+ * Адрес для обращений — строкой под документами.
+ *
+ * По середине, а не у края: под плитками документов, выстроенными в
+ * ряд, прижатая вправо строка читалась как подпись к последней из них.
+ * Середина не принадлежит ни одной плитке, и строка снова читается сама
+ * по себе.
+ */
+export function FooterEmail({ className }: { className?: string }) {
+  return (
+    <p className={cn("text-center text-xs text-ink-muted", className)}>
+      Вопросы и обращения:{" "}
+      <a
+        href={`mailto:${EMAIL}`}
+        // Адрес не переносится по дефису: разорванный на «grafik1-» и
+        // «3@yandex.ru» он читается как два куска и не копируется
+        // двойным нажатием.
+        className="whitespace-nowrap text-ink-muted hover:underline"
+      >
+        {EMAIL}
+      </a>
+    </p>
+  );
+}
+
+/**
  * Готовый подвал: перечень документов, почта и то, что страница допишет
  * сама (`children`) — оговорки посадочной, время правки на рабочем экране.
  */
@@ -140,10 +164,7 @@ export function SiteFooter({
       <div className="mx-auto w-full max-w-4xl space-y-6 px-6 py-8 xl:max-w-6xl 2xl:max-w-7xl">
         {children}
         <FooterDocuments />
-        {/* Обращение — формой и по середине: это единственное на странице
-            место, где человек говорит, а не читает, и прижимать его к
-            краю наравне со служебной строкой было нечестно. */}
-        <FooterContact email={EMAIL} className="pt-2" />
+        <FooterEmail />
       </div>
     </footer>
   );

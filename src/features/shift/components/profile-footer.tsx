@@ -1,7 +1,6 @@
 "use client";
 
-import { FooterContact } from "@/components/shared/footer-contact";
-import { EMAIL, FooterDocuments } from "@/components/shared/site-footer";
+import { FooterDocuments, FooterEmail } from "@/components/shared/site-footer";
 import { SYNC_ENABLED } from "@/features/sync/ui/enabled";
 import { SyncStatus } from "@/features/sync/ui/sync-status";
 
@@ -36,8 +35,9 @@ import { SyncStatus } from "@/features/sync/ui/sync-status";
  * приложение работает. Ответ на настоящий вопрос («моё уехало на
  * сервер?») даёт строка состояния синхронизации, и она осталась.
  *
- * Остаётся то, чему место действительно внизу: перечень документов (он
- * один на все страницы сайта) и обращение к оператору.
+ * Остаётся то, чему место действительно внизу: перечень документов и
+ * адрес для обращений — то же самое и теми же словами, что в подвале
+ * остальных страниц.
  */
 
 export function ProfileFooter() {
@@ -52,11 +52,10 @@ export function ProfileFooter() {
           реже всего. */}
       <FooterDocuments />
 
-      {/* Обращение — тем же блоком и теми же словами, что на остальных
-          страницах (`shared/footer-contact.tsx`): спрашивают с той
-          страницы, на которой застал вопрос, а не с той, которую для
-          этого полагается найти. */}
-      <FooterContact email={EMAIL} className="pt-2" />
+      {/* Адрес — той же строкой, что на остальных страницах: спрашивают
+          с той страницы, на которой застал вопрос, а не с той, которую
+          для этого полагается найти. */}
+      <FooterEmail />
 
       {/* Состояние синхронизации: вопрос у человека один («моё
           уехало?»), и отвечать на него должно там, где заканчивается
