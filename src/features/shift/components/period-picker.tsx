@@ -198,11 +198,6 @@ export function PeriodPicker({
               })}
             </Fragment>
           ))}
-
-          <p className="mt-1.5 border-t border-rule px-2.5 pt-2 pb-1 text-xs leading-snug text-ink-muted">
-            По итогу учётного периода определяется переработка (ч. 3 ст. 104 ТК РФ).
-            Какой он у вас — устанавливает работодатель.
-          </p>
         </div>
       )}
     </div>
