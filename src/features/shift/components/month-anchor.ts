@@ -33,7 +33,7 @@
  */
 export function anchorCurrentMonth(): void {
   try {
-    // Только телефон: порог тот же, что у нижней панели (`grid-deck.tsx`).
+    // Только телефон: порог `md`, тот же, что везде в приложении.
     // На широком экране год виден почти весь, и прыжок при открытии
     // читался бы как сбой.
     if (!window.matchMedia("(max-width: 767px)").matches) return;

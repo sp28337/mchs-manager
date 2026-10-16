@@ -1,60 +1,41 @@
 "use client";
 
-import { useId, useState } from "react";
+import { Check } from "lucide-react";
+import { Fragment, useId, useRef, useState } from "react";
 
-import { Button } from "@/components/ui/button";
-import { Modal } from "@/components/ui/modal";
-import { Card, Field } from "@/components/ui/panel";
-import { Select } from "@/components/ui/select";
+import { KNOB, KNOB_ICON, KNOB_NEST, KNOB_POPOVER, KnobLabel, knobOption } from "@/components/ui/knob";
+import { useDismiss } from "@/components/ui/use-dismiss";
 import { cn } from "@/lib/utils/cn";
 
 import { todayIso, year as yearOf } from "../domain/plain-date";
 import type { AccountingPeriodKind } from "../domain/value-objects";
 import { ACCOUNTING_PERIODS } from "../domain/value-objects";
-import { PeriodIcon } from "./grid-icons";
-import { MONTH_NAMES } from "./month-names";
+import { PeriodIcon, YearMark } from "./grid-icons";
 
 /**
- * Выбор периода — кнопкой и окном с тремя списками.
+ * Выбор периода — двумя кнопками: доля года в шапке и сам год в нижнем
+ * ряду.
  *
- * --- Три вопроса, а не девятнадцать ответов -------------------------------
+ * --- Почему двумя, а не одним окном ---------------------------------------
  *
- * Отрезков и правда девятнадцать: год, два полугодия, четыре квартала и
- * двенадцать месяцев. Разложенные плитками, все сразу, они и выглядели как
- * девятнадцать: окно на три экрана прокрутки, по которому нужно искать
- * глазами, где стоишь.
+ * Вопросов здесь два, и они разной природы. КАКАЯ ЧАСТЬ ГОДА — главный
+ * вопрос экрана: по итогу учётного периода определяется переработка
+ * (ч. 3 ст. 104 ТК РФ), и ответ на него стоит посередине шапки, над
+ * цифрами и сеткой разом. КАКОЙ ГОД — вопрос другого рода: его меняют
+ * редко, чтобы заглянуть в прошлый расчёт, и место ему среди органов
+ * управления сеткой, внизу.
  *
- * Но вопросов здесь три, и они разной природы: КАКОЙ ГОД, КАКАЯ ЕГО ЧАСТЬ
- * и НЕ СУЗИТЬ ЛИ ДО МЕСЯЦА. Три списка отвечают ровно на них: каждый
- * показывает свой выбор строкой, не разворачиваясь, и окно умещается в
- * ладонь. Плитки хороши, когда вариантов немного и они равноправны;
- * здесь ни того, ни другого.
+ * Прежде оба вопроса и третий — «не сузить ли до месяца» — сидели в одном
+ * окне тремя списками. Месяц убран вовсе: он отвечал не на вопрос учёта, а
+ * на «посмотреть поближе», а поближе показывает сама сетка — у каждого
+ * месяца над ним стоят норма, отработанное и разница.
  *
- * --- Почему именно в таком порядке ----------------------------------------
+ * --- Почему списком, а не окном --------------------------------------------
  *
- * Учётный период первым: это главный вопрос экрана — именно по его итогу
- * определяется переработка (ч. 3 ст. 104 ТК РФ). Год вторым: он объемлет
- * период, но меняют его реже. Месяц последним, потому что он не про
- * учёт, а про «посмотреть поближе».
- *
- * --- Почему месяц и период — один выбор -----------------------------------
- *
- * Это два ответа на один вопрос «что показать», и держать оба значило бы
- * показывать одно, а считать другое. Поэтому у месяца есть пункт «Весь
- * период»: выбрать его — то же самое, что снять месяц, и человеку не
- * нужно догадываться, как вернуться к кварталу.
- *
- * --- Почему без кнопки «Применить» ----------------------------------------
- *
- * По той же причине, что и везде в приложении: выбор применяется сразу,
- * и его видно за окном. «Готово» внизу только закрывает окно — на телефоне
- * иначе пришлось бы целиться в крестик.
- *
- * --- Что показывает сама кнопка -------------------------------------------
- *
- * Выбранный отрезок словами: «2026 год», «2-е полугодие», «Август». Не
- * «Период» и не даты — человек нажимает её, чтобы СМЕНИТЬ отрезок, и ему
- * нужно знать, на каком он стоит сейчас. Даты стоят в полосе с числами.
+ * Вариантов немного — семь долей года, восемь-девять лет, — и они
+ * помещаются в окошко под кнопкой целиком. Окно во весь экран со списком
+ * внутри требовало трёх нажатий там, где хватает двух, и закрывало то, что
+ * от выбора меняется. Выбор применяется сразу, окошко закрывается само.
  */
 
 export interface StatutoryChoice {
@@ -63,7 +44,7 @@ export interface StatutoryChoice {
 }
 
 /**
- * Порядок отрезков — от широкого к узкому: год, полугодия, кварталы.
+ * Порядок долей — от широкой к узкой: год, полугодия, кварталы.
  *
  * Первым стоит год: это самый частый учётный период и умолчание экрана.
  * Дальше сужение — список читается как «насколько мелко смотрим».
@@ -86,17 +67,22 @@ export function partLabel(
 }
 
 /**
- * Подпись отрезка ВНУТРИ окна — без года.
+ * Подпись доли в списке — без года.
  *
  * Снаружи, на кнопке, год нужен: она отвечает на вопрос «что я сейчас
- * вижу», и «Год» без числа на него не отвечает. Внутри окна год стоит
- * своим списком строкой ниже, поэтому «2026 год» рядом с выбранным
- * 2026-м — это одно и то же число дважды, и второй раз оно читается как
- * ещё один выбор.
+ * вижу», и «Год» без числа на него не отвечает. В списке же год один на
+ * все строки, и «2026 год» в первой из них читался бы ещё одним выбором.
  */
 function partChoiceLabel(kind: AccountingPeriodKind, index: number): string {
   if (kind === "year") return "Весь год";
   return `${index + 1}-${kind === "quarter" ? "й квартал" : "е полугодие"}`;
+}
+
+/** Доли года, сгруппированные по виду: год, два полугодия, четыре квартала. */
+function partGroups(): StatutoryChoice[][] {
+  return PERIOD_ORDER.map((kind) =>
+    Array.from({ length: 12 / monthsIn(kind) }, (_, index) => ({ kind, index })),
+  );
 }
 
 /**
@@ -111,7 +97,7 @@ function partChoiceLabel(kind: AccountingPeriodKind, index: number): string {
  * дня, когда сумма должна была быть выплачена, и запас к нему нужен.
  * Один вперёд — потому что график на следующий год известен заранее.
  *
- * Год из профиля добавляется, даже если в окно не попал: иначе человек,
+ * Год из профиля добавляется, даже если в список не попал: иначе человек,
  * вернувшийся к давнему расчёту, увидел бы список, в котором не отмечено
  * ничего.
  */
@@ -122,180 +108,176 @@ function yearChoices(accountingYear: number): number[] {
   return [...years].sort((left, right) => left - right);
 }
 
-/** Все учётные отрезки списком: год, два полугодия, четыре квартала. */
-function allParts(): StatutoryChoice[] {
-  return PERIOD_ORDER.flatMap((kind) =>
-    Array.from({ length: 12 / monthsIn(kind) }, (_, index) => ({ kind, index })),
-  );
-}
-
+/**
+ * Доля года — кнопкой посередине шапки и списком под ней.
+ *
+ * Кнопка — плашка того же рода, что итоги под шапкой: бумага, скругление,
+ * свет лампы по кромке (`lit`). На ней знак — часы, чей круг показывает
+ * выбранную долю (`PeriodIcon`), — и та же доля словами: «2026 год»,
+ * «2-е полугодие». Не «Период» и не даты: кнопку нажимают, чтобы СМЕНИТЬ
+ * долю, и сначала нужно знать, на какой стоишь.
+ */
 export function PeriodPicker({
   accountingYear,
-  onAccountingYear,
   statutory,
   onStatutory,
-  month,
-  onMonth,
-  cellClassName,
-  captionClassName,
 }: {
   accountingYear: number;
-  /** Учётный год — такой же ответ на «что смотрим», как отрезок и месяц. */
-  onAccountingYear: (year: number) => void;
   statutory: StatutoryChoice;
   onStatutory: (choice: StatutoryChoice) => void;
-  /** Месяц года или `null` — выбран учётный отрезок. */
-  month: number | null;
-  onMonth: (month: number | null) => void;
-  /**
-   * Кнопка ячейкой нижней панели телефона: знак, под ним отрезок.
-   *
-   * Меняется только КНОПКА — окно за ней то же самое. Оно и есть весь
-   * выбор периода, и заводить ему двойника ради другой формы кнопки
-   * значило бы однажды получить два разных списка отрезков.
-   *
-   * Мера ячейки приходит СНАРУЖИ, из самой панели (`grid-deck.tsx`), а не
-   * берётся оттуда ссылкой: панель уже зависит от этого файла — ей нужна и
-   * кнопка, и тип выбранного отрезка, — и встречная ссылка замкнула бы их
-   * друг на друга.
-   */
-  cellClassName?: string;
-  captionClassName?: string;
 }) {
   const [open, setOpen] = useState(false);
-  const partId = useId();
-  const yearId = useId();
-  const monthId = useId();
+  const nest = useRef<HTMLDivElement>(null);
+  const id = useId();
+  useDismiss(open, setOpen, nest);
 
-  const current =
-    month === null
-      ? partLabel(statutory.kind, statutory.index, accountingYear)
-      : `${MONTH_NAMES[month]} ${accountingYear}`;
-
-  function pickPart(value: string) {
-    const [kind, index] = value.split(":");
-    onStatutory({ kind: kind as AccountingPeriodKind, index: Number(index) });
-    // Месяц снимается: он и отрезок — два ответа на один вопрос, и
-    // держать оба выбранными значило бы показывать один, а считать другой.
-    onMonth(null);
-  }
+  const current = partLabel(statutory.kind, statutory.index, accountingYear);
 
   return (
-    <>
-      {cellClassName ? (
-        // Ячейка панели: та же мера и та же подпись, что у соседей
-        // (`grid-deck.tsx`). Поднята всегда — период не выбор из двух
-        // положений, а название того, что человек сейчас видит.
-        <button
-          type="button"
-          onClick={() => setOpen(true)}
-          aria-label={`Период: ${current}. Выбрать другой`}
-          className={cn(cellClassName, "text-ink")}
-        >
-          <PeriodIcon className="text-ink-muted" />
-          <span className={captionClassName}>{current}</span>
-        </button>
-      ) : (
-        <button
-          type="button"
-          onClick={() => setOpen(true)}
-          aria-label={`Период: ${current}. Выбрать другой`}
+    <div ref={nest} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        aria-expanded={open}
+        aria-controls={id}
+        aria-label={`Учётный период: ${current}. Выбрать другой`}
+        className={cn(
+          "lit inline-flex h-9 shrink-0 cursor-pointer items-center gap-2 rounded-xl",
+          "bg-paper-raised px-3 text-sm font-medium whitespace-nowrap text-ink",
+          "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink",
+        )}
+      >
+        {/* Чернилами, а не серым: выбранная доля кольца должна читаться
+            рядом с тусклыми, а на сером всё кольцо сливалось в одно. */}
+        <PeriodIcon kind={statutory.kind} index={statutory.index} />
+        {current}
+      </button>
+
+      {open && (
+        <div
+          id={id}
+          role="group"
+          aria-label="Учётный период"
           className={cn(
-            // Кнопка посередине шапки (`SiteHeader`, `center`) — плашкой
-            // того же рода, что итоги под ней: бумага, скругление, свет
-            // лампы с бликом по кромке (`lit`). Слова шапки по краям
-            // набраны крупными прописными, но они — знаки сайта и меню, а
-            // это ответ «за какой срок»: он того же рода, что числа.
-            "lit inline-flex h-9 shrink-0 cursor-pointer items-center gap-2 rounded-xl",
-            "bg-paper-raised px-3 text-sm font-medium whitespace-nowrap",
-            "text-ink",
-            "focus-visible:outline-2 focus-visible:outline-offset-2",
-            "focus-visible:outline-ink",
+            // Под кнопкой и по её оси: кнопка стоит посередине шапки, и
+            // окошко, прижатое к одному её краю, съезжало бы с середины.
+            "modal-lift absolute left-1/2 top-full z-100 mt-2 w-64 max-w-[calc(100vw-3rem)]",
+            "-translate-x-1/2 rounded-xl bg-paper-raised p-1.5",
           )}
         >
-          <PeriodIcon className="shrink-0 text-ink-muted" />
-          {current}
-        </button>
-      )}
+          {partGroups().map((group, at) => (
+            <Fragment key={group[0]?.kind}>
+              {/* Черта между видами: год, полугодия, кварталы читаются
+                  тремя ступенями сужения, а не семью строками подряд. */}
+              {at > 0 ? <div aria-hidden className="mx-2.5 my-1 border-t border-rule" /> : null}
+              {group.map((part) => {
+                const active = part.kind === statutory.kind && part.index === statutory.index;
+                return (
+                  <button
+                    key={`${part.kind}:${part.index}`}
+                    type="button"
+                    aria-pressed={active}
+                    onClick={() => {
+                      onStatutory(part);
+                      // Выбрали — и спрашивать больше нечего.
+                      setOpen(false);
+                    }}
+                    className={knobOption(active)}
+                  >
+                    <PeriodIcon
+                      kind={part.kind}
+                      index={part.index}
+                      className={active ? "text-ink" : undefined}
+                    />
+                    {partChoiceLabel(part.kind, part.index)}
+                    {/* Галочка, а не только цвет: выбранное названо знаком,
+                        который читается и на чёрно-белом экране. */}
+                    {active ? <Check aria-hidden className="ml-auto text-ink" /> : null}
+                  </button>
+                );
+              })}
+            </Fragment>
+          ))}
 
-      <Modal open={open} onClose={() => setOpen(false)} title="За какой период">
-        <div className="space-y-4">
-          <Card>
-          <Field
-            id={partId}
-            label="Учётный период"
-            hint="По его итогу и определяется переработка (ч. 3 ст. 104 ТК РФ).
-                  Какой он у вас — устанавливает работодатель."
-          >
-            <Select
-              id={partId}
-              value={`${statutory.kind}:${statutory.index}`}
-              onChange={(event) => pickPart(event.target.value)}
-            >
-              {allParts().map((part) => (
-                <option key={`${part.kind}:${part.index}`} value={`${part.kind}:${part.index}`}>
-                  {partChoiceLabel(part.kind, part.index)}
-                </option>
-              ))}
-            </Select>
-          </Field>
-
-          {/* Год живёт здесь, а не в настройках, где стоял списком «Учётный
-              год». Там это выглядело свойством человека, тогда как год —
-              то, ЗА ЧТО смотрим: тот же вопрос, что и «полугодие или
-              март», и место у него то же. */}
-          <Field id={yearId} label="Год">
-            <Select
-              id={yearId}
-              value={String(accountingYear)}
-              onChange={(event) => onAccountingYear(Number(event.target.value))}
-            >
-              {yearChoices(accountingYear).map((option) => (
-                <option key={option} value={option}>
-                  {option}
-                </option>
-              ))}
-            </Select>
-          </Field>
-
-          <Field
-            id={monthId}
-            label="Месяц"
-            hint="Сузить показанное до одного месяца. «Весь период» —
-                  вернуться к выбранному отрезку целиком."
-          >
-            <Select
-              id={monthId}
-              value={month === null ? "" : String(month)}
-              onChange={(event) => {
-                const value = event.target.value;
-                onMonth(value === "" ? null : Number(value));
-              }}
-            >
-              <option value="">Весь период</option>
-              {MONTH_NAMES.map((name, index) => (
-                <option key={name} value={index}>
-                  {name}
-                </option>
-              ))}
-            </Select>
-          </Field>
-          </Card>
-
-          <div className="pt-1">
-            <Button type="button" onClick={() => setOpen(false)}>
-              Готово
-            </Button>
-          </div>
+          <p className="mt-1.5 border-t border-rule px-2.5 pt-2 pb-1 text-xs leading-snug text-ink-muted">
+            По итогу учётного периода определяется переработка (ч. 3 ст. 104 ТК РФ).
+            Какой он у вас — устанавливает работодатель.
+          </p>
         </div>
-      </Modal>
-    </>
+      )}
+    </div>
   );
 }
 
 /**
- * Подпись и поле.
+ * Учётный год — знаком нижнего ряда (`grid-dock.tsx`) и списком над ним.
  *
- * Знак вопроса стоит у подписи, а не под полем: пояснение отвечает на
- * вопрос «что здесь выбрать», и читают его до выбора, а не после.
+ * Год записывается прямо в профиль, а не хранится состоянием экрана:
+ * человек, вернувшийся к прошлогоднему расчёту через день, должен найти
+ * его там же, где оставил.
  */
+export function YearPicker({
+  accountingYear,
+  onAccountingYear,
+}: {
+  accountingYear: number;
+  onAccountingYear: (year: number) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const nest = useRef<HTMLDivElement>(null);
+  const id = useId();
+  useDismiss(open, setOpen, nest);
+
+  return (
+    <div ref={nest} className={KNOB_NEST}>
+      {open && (
+        <div
+          id={id}
+          role="group"
+          aria-label="Учётный год"
+          className={cn(
+            KNOB_POPOVER,
+            // На телефоне знак стоит посередине ряда, и окошко — по его
+            // оси; на широком экране ряд прижат к левому краю, и окошко
+            // встаёт от левого края знака, как у легенды.
+            "left-1/2 w-36 -translate-x-1/2 p-1.5 md:left-0 md:translate-x-0",
+            "max-h-[60svh]",
+          )}
+        >
+          {yearChoices(accountingYear).map((option) => {
+            const active = option === accountingYear;
+            return (
+              <button
+                key={option}
+                type="button"
+                aria-pressed={active}
+                onClick={() => {
+                  onAccountingYear(option);
+                  setOpen(false);
+                }}
+                className={knobOption(active)}
+              >
+                {option}
+                {active ? <Check aria-hidden className="ml-auto text-ink" /> : null}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        aria-expanded={open}
+        aria-controls={id}
+        aria-label={`Учётный год: ${accountingYear}. Выбрать другой`}
+        className={KNOB}
+      >
+        <span className={cn(KNOB_ICON, "text-ink-muted")}>
+          <YearMark year={accountingYear} />
+        </span>
+        <KnobLabel>{accountingYear} год</KnobLabel>
+      </button>
+    </div>
+  );
+}

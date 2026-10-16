@@ -13,7 +13,6 @@ import {
   calculateFor,
   countedBounds,
   liveBounds,
-  monthBounds,
   statutoryBounds,
   withShiftMoved,
 } from "../model/derive";
@@ -21,8 +20,7 @@ import { openEntry, type LibraryEntry } from "../storage/library";
 import type { StoredProfile } from "../storage/profile";
 import { ChangesList } from "./changes-list";
 import { DayRing } from "./day-ring";
-import { GridDeck } from "./grid-deck";
-import { LegendButton } from "./legend-button";
+import { GridDock } from "./grid-dock";
 import { WorkspaceMenuItems } from "./header-tools";
 import { scrollMonthUnderBar, topmostVisibleMonth } from "./month-anchor";
 import { useConfirmSwitch } from "./open-profile";
@@ -143,20 +141,16 @@ export function Workspace({
     kind: widest,
     index: 0,
   });
-  // Месяц хранится отдельно от периода, а не вместо него: это уточнение
-  // поверх выбранного периода, и `null` значит «весь период». Раньше это
-  // было одно поле с двумя режимами, и выбор месяца стирал выбранный
-  // период — вернуться к нему можно было, только вспомнив, какой он был.
-  const [month, setMonth] = useState<number | null>(null);
+  // Месяца отдельно больше нет: учётный период — год, полугодие или
+  // квартал, а месяц поближе показывает сама сетка — у каждого над ним
+  // норма, отработанное и разница.
 
   // Выбранный отрезок — и сразу обрезанный началом отсчёта: до него
   // человек в этом графике не работал, и часы за те дни не его. Обрезка
   // стоит здесь, выше обоих расчётов, потому что отрезок у них общий: один
   // считает числа наверху, другой рисует сетку, и разойтись им нельзя.
   const chosen = countedBounds(
-    month === null
-      ? statutoryBounds(profile.accountingYear, statutory.kind, statutory.index)
-      : monthBounds(profile.accountingYear, month),
+    statutoryBounds(profile.accountingYear, statutory.kind, statutory.index),
     profile.countFrom,
   );
 
@@ -385,14 +379,12 @@ export function Workspace({
   const previewCalculation = useMemo(() => {
     if (preview === null) return null;
     const bounds = countedBounds(
-      month === null
-        ? statutoryBounds(preview.accountingYear, statutory.kind, statutory.index)
-        : monthBounds(preview.accountingYear, month),
+      statutoryBounds(preview.accountingYear, statutory.kind, statutory.index),
       preview.countFrom,
     );
     const shown = preview.liveMode ? liveBounds(bounds, todayIso()) : bounds;
     return calculateFor(preview, shown.periodStart, shown.periodEnd);
-  }, [preview, month, statutory]);
+  }, [preview, statutory]);
 
   const headProfile = preview ?? profile;
 
@@ -535,22 +527,19 @@ export function Workspace({
         // при одной. В проводнике его нет, как нет там и имени: ни цифр,
         // ни сетки одного профиля там не показано.
         //
+        // Здесь выбирается только доля года — год, полугодие, квартал;
+        // сам год — знаком нижнего ряда (`GridDock`).
+        //
         // Год в подписи — того профиля, чьи числа под шапкой
         // (`headProfile`): показанный из статистики профиль считается по
         // СВОЕМУ учётному году, и подпись открытого назвала бы срок, за
-        // который эти числа не считались. Выбор же пишется в открытый
-        // профиль — показанный не открыт, и править его отсюда нельзя.
+        // который эти числа не считались.
         center={
           explorerOpen ? undefined : (
             <PeriodPicker
               accountingYear={headProfile.accountingYear}
-              onAccountingYear={(accountingYear) =>
-                onChange((previous) => ({ ...previous, accountingYear }))
-              }
               statutory={statutory}
               onStatutory={setStatutory}
-              month={month}
-              onMonth={setMonth}
             />
           )
         }
@@ -564,10 +553,6 @@ export function Workspace({
         }
       />
 
-      {/* Поле снизу — под нижнюю панель телефона (`grid-deck.tsx`). Она
-          закреплена у кромки окна и места в потоке не занимает, поэтому
-          подвал уезжал бы под неё, и последняя строка страницы была бы
-          нечитаемой. С `md` панели нет, и поля тоже. */}
       {/* Страница — колонка во весь экран, и подвал в ней прижат книзу
           (`mt-auto` ниже). Без этого на мониторе с коротким содержимым —
           пустой проводник, папка на две плитки — подвал вставал сразу под
@@ -668,9 +653,8 @@ export function Workspace({
         </FadeIn>
       ) : showSettings ? (
         // Настройки на месте графика — не поверх страницы, а вместо той
-        // его части, что сейчас не нужна: панель управления сеткой
-        // (`GridDeck`, ниже) при этом тоже скрыта — управлять ей больше
-        // нечем.
+        // его части, что сейчас не нужна: нижний ряд знаков (`GridDock`,
+        // ниже) при этом тоже скрыт — управлять им больше нечем.
         // Ключ не зависит от закладки нарочно: проявление здесь — про
         // ОТКРЫТИЕ настроек, за которым гаснут цифры наверху. Переход с
         // одной закладки на другую — не открытие, и заново проигранное
@@ -763,8 +747,8 @@ export function Workspace({
         </FadeIn>
       ) : statsOpen ? (
         // Статистика на месте графика — тем же порядком, что настройки и
-        // проводник: страница подменяется, панель управления сеткой
-        // (`GridDeck`, ниже) при этом скрыта — управлять ей нечем.
+        // проводник: страница подменяется, нижний ряд знаков
+        // (`GridDock`, ниже) при этом скрыт — управлять им нечем.
         <FadeIn key="stats" instant={!switched}>
           {/* Во всю ширину страницы — ровно как полоса цифр над ней и как
               сетка, которую статистика собой заменила. Предел в 64 рема тут
@@ -811,8 +795,6 @@ export function Workspace({
               calculation={shown ?? calculation}
               upcoming={upcoming}
               view={yearView}
-              onViewChange={changeYearView}
-              onChange={onChange}
               // Нажатие по дню раскрывает кольцо видов вокруг клетки, и
               // этим дело кончается: закрывает его нажатие по тому же дню,
               // по любому погасшему месту или Esc — всё это кольцо делает
@@ -851,53 +833,30 @@ export function Workspace({
       {/* Окно выгрузки в файл: его открывает строка меню в шапке. */}
       {saveToFile.dialog}
 
-      {/* Нижняя панель телефона — здесь, а не внутри `YearView`, где
-          стоят те же органы управления строкой над сеткой.
+      {/* Нижний ряд знаков — здесь, а не внутри `YearView`.
           -----------------------------------------------------------------
           Причина не в порядке разметки, а в том, как работает закрепление.
           Элемент `position: fixed` считает своё место от окна ТОЛЬКО пока
           над ним нет предка со сдвигом: любой `transform` заводит новую
           систему отсчёта, и закреплённый потомок начинает ездить вместе со
           страницей. Раздел с сеткой поднят на восемь точек
-          (`-translate-y-2`) — и панель, стоявшая внутри него, оказывалась
-          не у нижней кромки экрана, а в трёх с половиной тысячах точек от
-          верха страницы, то есть за краем.
+          (`-translate-y-2`) — и ряд, стоящий внутри него, оказался бы не у
+          нижней кромки экрана, а в трёх с половиной тысячах точек от верха
+          страницы, то есть за краем.
 
-          Здесь, в самом низу разметки, панель ещё и встречается последней —
-          и обходу клавишей, и чтению вслух. Управление, названное до
-          двенадцати сеток, человек с клавиатурой встречал бы дважды.
-
-          Пока показаны настройки, панели тоже нет: управлять ей нечем —
-          сетки на экране в этот момент нет вовсе. */}
-      {/* Легенда — кнопкой в левом нижнем углу. Прячется вместе с панелью
-          сеток и по той же причине: пока вместо расчёта показан раздел,
-          сеток на экране нет, и рассказывать легенде не о чем.
-
-          Какая из двух легенд в окошке, решает показанная сетка: о
-          графике смен и о производственном календаре клетки говорят
-          разное. */}
-      {showSettings || explorerOpen || statsOpen ? null : (
-        <LegendButton view={yearView} profile={profile} onChange={onChange} />
-      )}
-
-      {/* Тема — знаком в правом нижнем углу, зеркально легенде. В отличие
-          от неё не прячется ни в одном разделе: легенда говорит о сетке,
-          а тема о самом окне, и в настройках она нужна ровно так же, как
-          на сетке. Опускается в самый угол вместе с панелью сеток: пока
-          раздел открыт, панели на телефоне нет, и подниматься знаку не
-          над чем. */}
-      <ThemeCorner aboveDeck={!(showSettings || explorerOpen || statsOpen)} />
-
-      {showSettings || explorerOpen || statsOpen ? null : (
-        <GridDeck
+          Пока вместо расчёта показан раздел, ряда нет: управлять им нечем —
+          сетки на экране в этот момент нет вовсе. Остаётся один знак темы:
+          тема — о самом окне, и в настройках она нужна ровно так же, как
+          на сетке. Стоит он там же, где кончается ряд, и при открытии
+          раздела не сдвигается ни на точку. */}
+      {showSettings || explorerOpen || statsOpen ? (
+        <ThemeCorner />
+      ) : (
+        <GridDock
           profile={profile}
           onChange={onChange}
           view={yearView}
           onViewChange={changeYearView}
-          statutory={statutory}
-          onStatutory={setStatutory}
-          month={month}
-          onMonth={setMonth}
         />
       )}
       </main>

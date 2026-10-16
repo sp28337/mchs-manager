@@ -1,5 +1,7 @@
 "use client";
 
+import { MARK_EMPTY_CLASS } from "@/components/shared/header-action";
+import { KNOB, KNOB_ICON, KNOB_NEST, KnobLabel } from "@/components/ui/knob";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils/cn";
 
@@ -19,7 +21,7 @@ import type { StoredProfile } from "../storage/profile";
  *
  * --- Почему один компонент на два места ----------------------------------
  *
- * Тумблер нужен и в панели над сеткой (он меняет то, что в ней
+ * Тумблер нужен и в нижнем ряду знаков (он меняет то, что в сетке
  * нарисовано), и в настройках (человек, настраивающий профиль впервые,
  * ищет его там). Две копии разошлись бы подписью или пояснением, а хуже
  * подписи, обещающей не то, что делает переключатель, нет ничего.
@@ -31,12 +33,11 @@ import type { StoredProfile } from "../storage/profile";
  * ряду — такой же ответ, как они. Подпись там обычным текстом, как у
  * соседних вопросов.
  *
- * Над сеткой и в нижней панели — знак (`LiveSignal`): это ряд не текста, а
- * ОРГАНОВ УПРАВЛЕНИЯ, и стоят в нём кнопки — переключатель сеток, период,
- * масштаб. Дорожка была там единственной деталью своего рода: широкая,
- * лежащая поперёк, с состоянием, которое читается положением кружка. Теперь
- * на её месте такая же кнопка, как соседние, и состояние показывает сам
- * знак — цветом и формой.
+ * В нижнем ряду — знак (`LiveSignal`): это ряд не текста, а ОРГАНОВ
+ * УПРАВЛЕНИЯ, и стоят в нём знаки — легенда, сетки, год, тема. Дорожка
+ * была бы там единственной деталью своего рода: широкая, лежащая поперёк,
+ * с состоянием, которое читается положением кружка. На её месте такой же
+ * знак, как соседние, и состояние показывает он сам — цветом и формой.
  */
 
 export function LiveModeSwitch({
@@ -67,11 +68,10 @@ export function LiveModeSwitch({
  *
  * --- Почему знак, а не дорожка с кружком ----------------------------------
  *
- * В нижней панели телефона стоят четыре ячейки одного вида: знак и подпись
- * под ним. Тумблер — деталь другого рода: он широкий, лежит поперёк и
- * состояние показывает ПОЛОЖЕНИЕМ кружка, которое читается только вблизи.
- * В ряду с тремя знаками он выглядел вставкой из настроек, а на ширине
- * ячейки отнимал у подписи половину места.
+ * В нижнем ряду стоят знаки одного вида — без плашек и подписей. Тумблер
+ * — деталь другого рода: он широкий, лежит поперёк и состояние показывает
+ * ПОЛОЖЕНИЕМ кружка, которое читается только вблизи. В ряду знаков он
+ * выглядел бы вставкой из настроек.
  *
  * Здесь состояние показывает сам знак, и показывает двумя способами разом:
  * цветом (тихий серый против зелёного — того же, каким на сетке отмечены
@@ -91,7 +91,7 @@ export function LiveModeSwitch({
  * на месте — правило `prefers-reduced-motion` в начале таблицы стилей
  * гасит и разбег, и переход, а конечный кадр у них полный.
  */
-export function LiveSignal({ on }: { on: boolean }) {
+export function LiveSignal({ on, className }: { on: boolean; className?: string }) {
   return (
     <svg
       aria-hidden
@@ -100,7 +100,7 @@ export function LiveSignal({ on }: { on: boolean }) {
       stroke="currentColor"
       strokeWidth={2}
       strokeLinecap="round"
-      className="signal size-5.5"
+      className={cn("signal size-5.5", className)}
       data-on={on ? "" : undefined}
     >
       {/* Ближняя пара волн и дальняя. Разбегаются они по очереди, и порядок
@@ -118,67 +118,38 @@ export function LiveSignal({ on }: { on: boolean }) {
 }
 
 /**
- * Мера кнопки «Онлайн» в строке над сеткой.
+ * Режим «Онлайн» знаком нижнего ряда (`grid-dock.tsx`).
  *
- * Та же, что у кнопки периода рядом и у кнопок шапки: девять десятых рема
- * высотой, то же скругление, то же поле. Подпись — узкой гарнитурой
- * прописными, как «Масштаб» в конце той же строки.
- *
- * Поднятая поверхность написана словами (`lit bg-paper-raised`), а не взята
- * из панели: панель зависит от этого файла, и встречная ссылка замкнула бы
- * их друг на друга. Теми же двумя словами она написана и в шапке, и у
- * кнопки периода, и в переключателе сеток — это первичная деталь языка, а
- * не общая величина.
+ * `role="switch"` остаётся тем же, что у дорожки в настройках: для
+ * программы чтения это по-прежнему переключатель со включённым и
+ * выключенным положением. Меняется только то, чем состояние показано
+ * глазу: выключено — точка цветом пустых клеток знака сайта, как у
+ * соседей по ряду; включено — зелёные волны, тем же цветом, каким на сетке
+ * отмечены смены.
  */
-export const LIVE_ROW_CELL = cn(
-  "inline-flex h-9 shrink-0 cursor-pointer items-center gap-2 rounded-xl px-3",
-  "transition-colors focus-visible:outline-2 focus-visible:outline-offset-2",
-  "focus-visible:outline-ink",
-  // Знак здесь того же размера, что у соседей по строке; в панели он
-  // крупнее, и там свой размер задаёт она (`DECK_CELL`).
-  "[&_svg]:size-4.5 [&_svg]:shrink-0",
-);
-
-export const LIVE_ROW_CAPTION =
-  "font-display text-[11px] font-bold uppercase tracking-wide";
-
-/** Поднятая кнопка — включённый режим. */
-export const LIVE_ON = "lit bg-paper-raised";
-
-/**
- * Режим «Онлайн» кнопкой со знаком: и в строке над сеткой, и в нижней
- * панели телефона.
- *
- * `role="switch"` остаётся тем же, что у дорожки: для программы чтения это
- * по-прежнему переключатель со включённым и выключенным положением, и
- * произносится он так же. Меняется только то, чем состояние показано
- * глазу.
- *
- * Форму задаёт вызывающий: в панели знак стоит НАД подписью, в строке —
- * перед ней. Всё остальное — состояние, цвет, знак — здесь.
- */
-export function LiveModeCell({
+export function LiveModeKnob({
   profile,
   onChange,
-  className,
-  captionClassName,
 }: {
   profile: StoredProfile;
   onChange: (change: (previous: StoredProfile) => StoredProfile) => void;
-  className?: string;
-  captionClassName?: string;
 }) {
   const on = profile.liveMode;
   return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={on}
-      onClick={() => onChange((previous) => ({ ...previous, liveMode: !on }))}
-      className={cn(className, on ? "text-verify" : "text-ink-muted")}
-    >
-      <LiveSignal on={on} />
-      <span className={captionClassName}>Онлайн</span>
-    </button>
+    <div className={KNOB_NEST}>
+      <button
+        type="button"
+        role="switch"
+        aria-checked={on}
+        aria-label="Онлайн: считать по сегодняшний день"
+        onClick={() => onChange((previous) => ({ ...previous, liveMode: !on }))}
+        className={KNOB}
+      >
+        <span className={KNOB_ICON}>
+          <LiveSignal on={on} className={on ? "text-verify" : MARK_EMPTY_CLASS} />
+        </span>
+        <KnobLabel>Онлайн</KnobLabel>
+      </button>
+    </div>
   );
 }

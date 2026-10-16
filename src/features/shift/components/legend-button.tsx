@@ -1,8 +1,10 @@
 "use client";
 
-import { useEffect, useId, useRef, useState } from "react";
+import { useId, useRef, useState } from "react";
 
 import { LegendMark } from "@/components/shared/header-action";
+import { KNOB, KNOB_ICON, KNOB_NEST, KNOB_POPOVER, KnobLabel } from "@/components/ui/knob";
+import { useDismiss } from "@/components/ui/use-dismiss";
 import { cn } from "@/lib/utils/cn";
 
 import type { StoredProfile } from "../storage/profile";
@@ -11,7 +13,7 @@ import { CalendarLegend } from "./year-calendar-editor";
 import type { YearViewKind } from "./year-view";
 
 /**
- * Легенда — кнопкой в левом нижнем углу рабочего экрана.
+ * Легенда — первым знаком нижнего ряда (`grid-dock.tsx`).
  *
  * --- Почему кнопка, а не колонка -------------------------------------------
  *
@@ -25,14 +27,12 @@ import type { YearViewKind } from "./year-view";
  * Кнопка решает оба случая разом: легенда в одном нажатии с любого места
  * года и не занимает ничего, пока её не спросили.
  *
- * --- Почему в левом нижнем углу --------------------------------------------
+ * --- Почему в нижнем ряду, первой ----------------------------------------
  *
- * Правый верхний занят меню, правый нижний на телефоне — панелью сеток
- * (`grid-deck.tsx`). Левый нижний — единственный свободный угол, и он же
- * ближайший к сеткам, о которых легенда и рассказывает.
- *
- * Над панелью, а не под ней: на телефоне панель закреплена у самой кромки
- * окна, и кнопка, поставленная туда же, легла бы ей на ячейку «График».
+ * Правый верхний угол занят меню, а нижний ряд — органами управления
+ * сеткой: что показать, за какой год, по сегодня ли. Легенда рассказывает
+ * о той же сетке и стоит с ними одним рядом — первой, у левого края, где
+ * стояла и раньше одна.
  *
  * --- Почему окошко раскрывается вверх --------------------------------------
  *
@@ -52,58 +52,20 @@ export function LegendButton({
   view,
   profile,
   onChange,
-  className,
 }: {
   /** Показанная сетка: она же решает, какая легенда в окошке. */
   view: YearViewKind;
   profile: StoredProfile;
   onChange: (change: (previous: StoredProfile) => StoredProfile) => void;
-  className?: string;
 }) {
   const [открыто, setОткрыто] = useState(false);
   const гнездо = useRef<HTMLDivElement>(null);
   const id = useId();
   const календарь = view === "calendar";
-
-  // Закрывается всеми способами, какими обязано: `Esc`, нажатие мимо, уход
-  // фокуса. Те же три, что у меню в шапке (`shared/header-menu.tsx`).
-  useEffect(() => {
-    if (!открыто) return;
-
-    const закрыть = () => setОткрыто(false);
-    const мимо = (событие: PointerEvent) => {
-      if (!гнездо.current?.contains(событие.target as Node)) закрыть();
-    };
-    const клавиша = (событие: KeyboardEvent) => {
-      if (событие.key === "Escape") закрыть();
-    };
-    const фокус = (событие: FocusEvent) => {
-      if (!гнездо.current?.contains(событие.target as Node)) закрыть();
-    };
-
-    document.addEventListener("pointerdown", мимо);
-    document.addEventListener("keydown", клавиша);
-    document.addEventListener("focusin", фокус);
-
-    return () => {
-      document.removeEventListener("pointerdown", мимо);
-      document.removeEventListener("keydown", клавиша);
-      document.removeEventListener("focusin", фокус);
-    };
-  }, [открыто]);
+  useDismiss(открыто, setОткрыто, гнездо);
 
   return (
-    <div
-      ref={гнездо}
-      className={cn(
-        // Отсчёт от безопасной зоны телефона — той же, от которой считает
-        // себя панель сеток: без неё кнопка на телефоне с вырезом внизу
-        // оказалась бы под системной полосой.
-        "fixed left-6 z-90 bottom-[calc(5.5rem+var(--safe-bottom))]",
-        "md:bottom-[calc(1.5rem+var(--safe-bottom))]",
-        className,
-      )}
-    >
+    <div ref={гнездо} className={KNOB_NEST}>
       {открыто && (
         <div
           id={id}
@@ -111,10 +73,7 @@ export function LegendButton({
           aria-label={
             календарь ? "Легенда производственного календаря" : "Легенда графика"
           }
-          className={cn(
-            "modal-lift absolute bottom-full left-0 mb-2 w-72 max-w-[calc(100vw-3rem)]",
-            "max-h-[70svh] overflow-y-auto rounded-xl bg-paper-raised p-4",
-          )}
+          className={cn(KNOB_POPOVER, "left-0 w-72 max-h-[70svh] p-4")}
         >
           {календарь ? (
             <CalendarLegend profile={profile} onChange={onChange} />
@@ -126,7 +85,7 @@ export function LegendButton({
 
       <button
         type="button"
-        onClick={() => setОткрыто((было) => !было)}
+        onClick={() => setОткрыто(!открыто)}
         aria-expanded={открыто}
         aria-controls={id}
         aria-label={
@@ -134,21 +93,12 @@ export function LegendButton({
             ? "Легенда: чем помечены дни календаря"
             : "Легенда: чем помечены клетки графика"
         }
-        title="Легенда"
-        className={cn(
-          // Ни плашки, ни кромки — один знак, как и надписи в шапке.
-          // Держится он не на своей поверхности, а на том, что под ним:
-          // у нижней кромки содержимое растворено дымкой (`globals.css`,
-          // `.veil-bottom`), и знак стоит на почти чистой бумаге.
-          //
-          // Место под палец при этом остаётся прежним, 44 точки: цель
-          // размером со значок — промах через раз.
-          "grid size-11 cursor-pointer place-items-center rounded-xl",
-          "transition-opacity hover:opacity-80",
-          "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink",
-        )}
+        className={KNOB}
       >
-        <LegendMark />
+        <span className={KNOB_ICON}>
+          <LegendMark />
+        </span>
+        <KnobLabel>Легенда</KnobLabel>
       </button>
     </div>
   );

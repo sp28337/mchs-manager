@@ -1,17 +1,21 @@
-import { CalendarDays, ClockFading } from "lucide-react";
+import { CalendarDays } from "lucide-react";
 
+import { MARK_EMPTY } from "@/components/shared/header-action";
 import { Logo } from "@/components/ui/logo";
 import { cn } from "@/lib/utils/cn";
 
+import type { AccountingPeriodKind } from "../domain/value-objects";
+import { arcPath, ringSegments } from "./period-ring";
+
 /**
- * Три знака управления сеткой: график, календарь, период.
+ * Знаки управления сеткой: график, календарь, период и год.
  *
  * --- Зачем они собраны в одном месте ---------------------------------------
  *
- * Мест, где стоят эти три, ровно четыре: строка над сеткой на широком
- * экране, нижняя панель телефона, заглушка рабочего экрана и кнопка выбора
- * периода со своим окном. Разъедься они хоть одним значком — и человек,
- * повернувший телефон, увидел бы на том же месте другую картинку.
+ * Мест, где они стоят, несколько: нижний ряд знаков (`grid-dock.tsx`),
+ * его кости в заглушке рабочего экрана, кнопка периода в шапке и список
+ * долей года под ней. Разъедься они хоть одним значком — и человек увидел
+ * бы на соседнем месте другую картинку того же самого.
  *
  * --- Почему они такие -----------------------------------------------------
  *
@@ -28,9 +32,10 @@ import { cn } from "@/lib/utils/cn";
  *   тем же цветом, что подпись под ним, и гаснет вместе с ней;
  * * производственный календарь — листок с числами, тот самый, что раньше
  *   стоял у графика: календарь здесь ровно то, чем кажется;
- * * период — часы с тающим следом: отрезок времени, а не день. Единственный
- *   из трёх, у кого нет ни клеток, ни листка, — потому и не путается с
- *   ними.
+ * * период — часы, чей круг поделен на доли года: целый — год, половины —
+ *   полугодия, четверти — кварталы, и выбранная доля горит
+ *   (`period-ring.ts`). Единственный из трёх, у кого нет ни клеток, ни
+ *   листка, — потому и не путается с ними.
  *
  * --- Почему у двух из трёх стоит поправка размера --------------------------
  *
@@ -68,8 +73,84 @@ export function CalendarIcon({ className }: { className?: string }) {
   );
 }
 
-export function PeriodIcon({ className }: { className?: string }) {
+/** Тусклость невыбранных долей кольца: видны, но не спорят с выбранной. */
+const RING_DIM = 0.25;
+
+/**
+ * Знак периода: часы, чей круг показывает выбранную долю года.
+ *
+ * Линия — та же, что у значков lucide рядом: толщина 2, круглые концы,
+ * окружность радиусом 10 в клетке 24. Стрелки — те же, что у прежних часов.
+ */
+export function PeriodIcon({
+  kind,
+  index,
+  className,
+}: {
+  kind: AccountingPeriodKind;
+  index: number;
+  className?: string;
+}) {
   return (
-    <ClockFading aria-hidden className={cn("size-4.5 shrink-0", PERIOD_FIT, className)} />
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+      className={cn("size-4.5 shrink-0", PERIOD_FIT, className)}
+    >
+      {kind === "year" ? (
+        <circle cx="12" cy="12" r="10" />
+      ) : (
+        ringSegments(kind, index).map((segment) => (
+          <path
+            key={segment.from}
+            d={arcPath(segment.from, segment.to)}
+            opacity={segment.on ? 1 : RING_DIM}
+          />
+        ))
+      )}
+      <path d="M12 6v6l4 2" />
+    </svg>
+  );
+}
+
+/**
+ * Знак учётного года: клетка, как у знака сайта, и в ней две последние
+ * цифры года.
+ *
+ * Год — не вид сетки и не режим, а значение, и прятать его за картинкой
+ * без числа значило бы заставлять человека нажимать, чтобы узнать, какой
+ * год он смотрит. Две цифры, а не четыре: в клетке размером со знак сайта
+ * четыре стали бы нечитаемо мелкими, а век здесь не спутать.
+ *
+ * Клетка — того же цвета и толщины, что пустые клетки знака сайта
+ * (`MARK_EMPTY`): знаки нижнего ряда стоят одним набором.
+ */
+export function YearMark({ year, className }: { year: number; className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" aria-hidden className={cn("size-7 shrink-0", className)}>
+      <rect
+        x="1.75"
+        y="1.75"
+        width="20.5"
+        height="20.5"
+        rx="3.25"
+        strokeWidth="1.5"
+        {...MARK_EMPTY}
+      />
+      <text
+        x="12"
+        y="12.6"
+        textAnchor="middle"
+        dominantBaseline="middle"
+        className="fill-current font-display text-[11px] font-bold"
+      >
+        {String(year % 100).padStart(2, "0")}
+      </text>
+    </svg>
   );
 }

@@ -5,6 +5,7 @@ import { useTheme } from "next-themes";
 import { useEffect, useId, useRef, useState } from "react";
 
 import { MARK_EMPTY_CLASS } from "@/components/shared/header-action";
+import { useDismiss } from "@/components/ui/use-dismiss";
 import { cn } from "@/lib/utils/cn";
 
 /**
@@ -114,16 +115,17 @@ export function ThemeToggle() {
  * положений выбрано — сказано в окошке, где об этом и спрашивают.
  */
 export function ThemeCorner({
-  aboveDeck = false,
+  docked = false,
   className,
 }: {
   /**
-   * Снизу на телефоне стоит панель сеток (`grid-deck.tsx`) — знак
-   * поднимается над ней. Пока вместо расчёта показан раздел, панели нет,
-   * и поднимать знак не над чем: он опускается в самый угол, как на
-   * мониторе. Иначе он висел бы посреди анкеты настроек.
+   * Знак стоит в нижнем ряду рабочего экрана (`grid-dock.tsx`) — последним,
+   * у правого края, — и место ему задаёт ряд. Без ряда (посадочная,
+   * открытый раздел) знак закреплён в правом нижнем углу сам — ровно там
+   * же, где кончается ряд: при открытии раздела он не сдвигается ни на
+   * точку.
    */
-  aboveDeck?: boolean;
+  docked?: boolean;
   className?: string;
 }) {
   const { theme, setTheme } = useTheme();
@@ -136,44 +138,19 @@ export function ThemeCorner({
   useEffect(() => setMounted(true), []);
 
   // Закрывается всеми способами, какими обязано: `Esc`, нажатие мимо,
-  // уход фокуса. Те же три, что у легенды (`legend-button.tsx`) и у меню
-  // в шапке (`shared/header-menu.tsx`).
-  useEffect(() => {
-    if (!открыто) return;
-
-    const закрыть = () => setОткрыто(false);
-    const мимо = (событие: PointerEvent) => {
-      if (!гнездо.current?.contains(событие.target as Node)) закрыть();
-    };
-    const клавиша = (событие: KeyboardEvent) => {
-      if (событие.key === "Escape") закрыть();
-    };
-    const фокус = (событие: FocusEvent) => {
-      if (!гнездо.current?.contains(событие.target as Node)) закрыть();
-    };
-
-    document.addEventListener("pointerdown", мимо);
-    document.addEventListener("keydown", клавиша);
-    document.addEventListener("focusin", фокус);
-
-    return () => {
-      document.removeEventListener("pointerdown", мимо);
-      document.removeEventListener("keydown", клавиша);
-      document.removeEventListener("focusin", фокус);
-    };
-  }, [открыто]);
+  // уход фокуса. Те же три, что у легенды и у меню в шапке.
+  useDismiss(открыто, setОткрыто, гнездо);
 
   return (
     <div
       ref={гнездо}
       className={cn(
-        // Зеркало легенды: та же высота от нижней кромки и то же поле от
-        // боковой, только у другого края. На телефоне отсчёт идёт от
-        // панели сеток и безопасной зоны — теми же числами, что у
-        // легенды, иначе два знака в одном ряду стояли бы на разной
-        // высоте.
-        "fixed right-6 z-90 bottom-[calc(1.5rem+var(--safe-bottom))]",
-        aboveDeck && "max-md:bottom-[calc(5.5rem+var(--safe-bottom))]",
+        // Сам по себе — в углу: та же высота от нижней кромки и то же поле
+        // от боковой, что у нижнего ряда рабочего экрана, иначе знак
+        // прыгал бы, когда ряд появляется и уходит.
+        docked
+          ? "pointer-events-auto relative shrink-0"
+          : "fixed right-6 z-90 bottom-[calc(1.5rem+var(--safe-bottom))]",
         className,
       )}
     >
