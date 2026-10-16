@@ -345,3 +345,59 @@ describe("статистика года", () => {
     expect(stats.parts.every((it) => it.empty)).toBe(true);
   });
 });
+
+/**
+ * Статистика выбранной доли года.
+ *
+ * Обещание то же, что у года, — итог сходится с полосой наверху, — но
+ * полоса теперь считает выбранный квартал или полугодие, и статистика
+ * обязана считать ровно его: месяцы только его, баланс от его начала,
+ * вложенные доли только его.
+ */
+describe("статистика выбранного периода", () => {
+  it("квартал — три своих месяца и итог его отрезка", () => {
+    const it = profile();
+    const stats = statisticsOf(it, TODAY, { kind: "quarter", index: 1 });
+    const { periodStart, periodEnd } = statutoryBounds(2026, "quarter", 1);
+    const same = calculateFor(it, periodStart, periodEnd);
+
+    expect(stats.months.map((month) => month.month)).toEqual([3, 4, 5]);
+    expect(stats.total.normHours.toString()).toBe(same.normHours.toString());
+    expect(stats.total.actualHours.toString()).toBe(same.actualHours.toString());
+    // Внутри квартала мельче долей нет — таблица периодов пуста.
+    expect(stats.parts).toEqual([]);
+  });
+
+  it("полугодие — шесть месяцев и два его квартала", () => {
+    const stats = statisticsOf(profile(), TODAY, { kind: "half_year", index: 1 });
+
+    expect(stats.months.map((month) => month.month)).toEqual([6, 7, 8, 9, 10, 11]);
+    expect(stats.parts.map((part) => `${part.kind}:${part.index}`)).toEqual([
+      "quarter:2",
+      "quarter:3",
+    ]);
+  });
+
+  it("баланс копится от начала выбранной доли, а не от января", () => {
+    const stats = statisticsOf(profile(), TODAY, { kind: "quarter", index: 2 });
+    const [first] = stats.months;
+    expect(stats.running[0]!.toString()).toBe(first!.balance.toString());
+    // Последняя точка — сумма балансов месяцев доли, а не итог отрезка:
+    // норма по отрезку не обязана совпадать с суммой месячных норм.
+    const sum = stats.months.reduce((total, month) => total.plus(month.balance), first!.balance.times(0));
+    expect(stats.running.at(-1)!.toString()).toBe(sum.toString());
+  });
+
+  it("свод считает каждому ту же долю его собственного года", () => {
+    const totals = totalsOf(profile({ accountingYear: 2025 }), TODAY, {
+      kind: "quarter",
+      index: 0,
+    });
+    const { periodStart, periodEnd } = statutoryBounds(2025, "quarter", 0);
+    const same = calculateFor(profile({ accountingYear: 2025 }), periodStart, periodEnd);
+
+    expect(totals.year).toBe(2025);
+    expect(totals.part).toEqual({ kind: "quarter", index: 0 });
+    expect(totals.total.normHours.toString()).toBe(same.normHours.toString());
+  });
+});

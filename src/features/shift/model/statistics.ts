@@ -16,21 +16,22 @@ import {
 } from "./derive";
 
 /**
- * Год, разложенный по месяцам, — то, из чего собрана статистика.
+ * Учётный период, разложенный по месяцам, — то, из чего собрана статистика.
  *
- * --- Почему год, а не выбранный период ------------------------------------
+ * --- Почему выбранный период, а не всегда год ----------------------------
  *
- * На рабочем экране период выбирается — квартал, полугодие, месяц, — и
- * первое желание было считать статистику по нему же. Но статистика
- * отвечает на другой вопрос, чем полоса с числами наверху. Полоса говорит
- * «сколько СЕЙЧАС», и период у неё — то, за что человек в эту минуту
- * спорит. Статистика говорит «как ШЛО», и меньше года ей нечего показать:
- * ход переработки по трём точкам квартала — это не ход, а три числа,
- * которые и так стоят в таблице.
+ * Сначала статистика считала год всегда, какой бы период ни стоял на
+ * экране: казалось, что ход переработки по трём точкам квартала — не ход.
+ * На деле человек, выбравший квартал, спрашивает статистику о квартале —
+ * о том же отрезке, за который полоса наверху показывает норму и
+ * переработку, — и годовые числа под квартальной полосой читались как
+ * ошибка: два ответа на один вопрос, и разные.
  *
- * Год здесь тот же, что у профиля (`accountingYear`), — то есть тот, за
- * который человек ведёт учёт. Второго выбора года заводить не пришлось: он
- * уже есть в окне периода и меняется там.
+ * Поэтому отрезок у статистики тот же, что у полосы: доля года из шапки
+ * (`part`) в учётном году профиля (`accountingYear`). Месяцы — только те,
+ * что в неё входят, накопленный баланс — от её начала, а кварталы и
+ * полугодия — только вложенные в неё и меньше её самой: у квартала их
+ * нет вовсе, у полугодия это два его квартала.
  *
  * --- Почему месяцы считаются каждый сам по себе ---------------------------
  *
@@ -41,7 +42,7 @@ import {
  * приложение существует ради того, чтобы числа сходились с приказом.
  *
  * Поэтому каждый месяц — свой вызов расчёта, ровно тот же, каким считается
- * полоса наверху при выбранном месяце. Тринадцать вызовов на открытие окна
+ * полоса наверху. За год это тринадцать вызовов на открытие окна
  * — и они на нём не сказываются: замером окно статистики открывается
  * БЫСТРЕЕ окна настроек (230 мс против 287 на обычной скорости и 1084
  * против 1399 при вчетверо замедленном процессоре). Всё это время — само
@@ -49,12 +50,29 @@ import {
  *
  * --- Что делает «Онлайн» --------------------------------------------------
  *
- * Обрезает год сегодняшним днём — тем же `liveBounds`, что и везде. Месяцы
+ * Обрезает период сегодняшним днём — тем же `liveBounds`, что и везде. Месяцы
  * после сегодняшнего от этого становятся пустыми отрезками, и это не
  * «ноль часов», а «ещё не наступил»: столбца у них нет вовсе, а ход
  * накопления на них обрывается. Показать будущему месяцу норму без факта
  * значило бы нарисовать провал там, где просто не наступило время.
  */
+
+/**
+ * Доля учётного года — год, полугодие или квартал — с номером внутри года.
+ * Та же пара, что выбирается кнопкой периода в шапке.
+ */
+export interface PeriodPart {
+  readonly kind: AccountingPeriodKind;
+  readonly index: number;
+}
+
+/** Год целиком — то, что статистика считает, пока долю не выбрали. */
+export const WHOLE_YEAR: PeriodPart = { kind: "year", index: 0 };
+
+/** Сколько месяцев в доле такого вида. */
+function monthsOf(kind: AccountingPeriodKind): number {
+  return kind === "quarter" ? 3 : kind === "half_year" ? 6 : 12;
+}
 
 /** Один месяц года: всё, что о нём знает расчёт. */
 export interface MonthStat {
@@ -199,7 +217,9 @@ export interface AbsenceEntry {
  */
 export interface ProfileTotals {
   readonly year: number;
-  /** Год целиком — тем же расчётом, а не суммой месяцев. */
+  /** Доля года, за которую посчитано всё остальное. */
+  readonly part: PeriodPart;
+  /** Период целиком — тем же расчётом, а не суммой месяцев. */
   readonly total: PeriodCalculation;
   readonly absences: readonly AbsenceStat[];
   readonly callouts: readonly CalloutStat[];
@@ -448,23 +468,27 @@ function bounds(
 }
 
 /**
- * Итог года одного профиля — одним расчётом.
+ * Итог периода одного профиля — одним расчётом.
  *
  * Год берётся у самого профиля (`accountingYear`), а не задаётся снаружи:
  * у каждого профиля он свой, и перечень, посчитавший их все по году
- * открытого, показал бы шесть чужих лет под одной шапкой.
+ * открытого, показал бы шесть чужих лет под одной шапкой. Доля года
+ * (`part`) — общая: её выбирают кнопкой в шапке, и свод по всем
+ * профилям считает каждому ту же долю его собственного года.
  */
 export function totalsOf(
   profile: StoredProfile,
   today = todayIso(),
+  part: PeriodPart = WHOLE_YEAR,
 ): ProfileTotals {
   const year = profile.accountingYear;
-  const whole = bounds(profile, statutoryBounds(year, "year", 0), today);
+  const whole = bounds(profile, statutoryBounds(year, part.kind, part.index), today);
   const total = calculateFor(profile, whole.periodStart, whole.periodEnd);
   const callouts = calloutsOf(total);
 
   return {
     year,
+    part,
     total,
     absences: absencesOf(total),
     callouts,
@@ -476,15 +500,21 @@ export function totalsOf(
   };
 }
 
-export function statisticsOf(profile: StoredProfile, today = todayIso()): Statistics {
+export function statisticsOf(
+  profile: StoredProfile,
+  today = todayIso(),
+  part: PeriodPart = WHOLE_YEAR,
+): Statistics {
   const year = profile.accountingYear;
-  const totals = totalsOf(profile, today);
+  const totals = totalsOf(profile, today, part);
 
   const months: MonthStat[] = [];
   const running: Decimal[] = [];
   let carried = ZERO;
 
-  for (let month = 0; month < 12; month += 1) {
+  // Только месяцы выбранной доли, и баланс копится от её начала.
+  const first = part.index * monthsOf(part.kind);
+  for (let month = first; month < first + monthsOf(part.kind); month += 1) {
     const span = bounds(profile, monthBounds(year, month), today);
     if (span.periodStart >= span.periodEnd) {
       months.push({ month, ...EMPTY_MONTH });
@@ -512,7 +542,7 @@ export function statisticsOf(profile: StoredProfile, today = todayIso()): Statis
     running.push(carried);
   }
 
-  return { ...totals, months, parts: partsOf(profile, year, today), running };
+  return { ...totals, months, parts: partsOf(profile, year, today, part), running };
 }
 
 /**
@@ -528,19 +558,31 @@ export function statisticsOf(profile: StoredProfile, today = todayIso()): Statis
  * в один.
  *
  * Пустой период — не ноль, а «ещё не наступил»: то же правило, что у месяца.
+ *
+ * Берутся только доли, вложенные в выбранную (`within`) и меньше её самой:
+ * у года — все шесть, у полугодия — два его квартала, у квартала — ни
+ * одной. Доля, равная выбранной, повторила бы итог, который уже стоит в
+ * таблице месяцев.
  */
 function partsOf(
   profile: StoredProfile,
   year: number,
   today: IsoDate,
+  within: PeriodPart,
 ): PartStat[] {
   const parts: PartStat[] = [];
+  const from = within.index * monthsOf(within.kind);
+  const to = from + monthsOf(within.kind);
 
   for (const [kind, count] of [
     ["quarter", 4],
     ["half_year", 2],
   ] as const) {
+    if (monthsOf(kind) >= monthsOf(within.kind)) continue;
     for (let index = 0; index < count; index += 1) {
+      const start = index * monthsOf(kind);
+      if (start < from || start + monthsOf(kind) > to) continue;
+
       const span = bounds(profile, statutoryBounds(year, kind, index), today);
       if (span.periodStart >= span.periodEnd) {
         parts.push({ kind, index, ...EMPTY_PART });

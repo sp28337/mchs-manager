@@ -24,6 +24,7 @@ import type { AbsenceKind } from "../domain/value-objects";
 import {
   statisticsOf,
   totalsOf,
+  type PeriodPart,
   type AbsenceEntry,
   type AbsenceStat,
   type CalloutEntry,
@@ -45,7 +46,8 @@ import { BalanceChart, ColumnChart, ShareBar, type Column } from "./charts";
 import { useLibrary } from "./profile-explorer";
 
 /**
- * Статистика года — разделом страницы, на месте графика.
+ * Статистика выбранного учётного периода — разделом страницы, на месте
+ * графика.
  *
  * Показывает её `workspace.tsx` тем же порядком, что настройки и
  * проводник: кнопка в шапке подменяет содержимое страницы и сама же его
@@ -93,6 +95,26 @@ import { useLibrary } from "./profile-explorer";
 
 /** Короткое имя месяца для оси: «янв». Из общего списка, а не второй копией. */
 const SHORT = MONTH_NAMES.map((name) => name.slice(0, 3).toLowerCase());
+
+/**
+ * Период словами — для заголовков после «за»: «2026 год», «2-й квартал
+ * 2026 года». Год назван всегда: в своде у профилей он бывает разный, а у
+ * квартала без года не понять, о каком годе речь.
+ */
+function periodPhrase(part: PeriodPart, year: number): string {
+  if (part.kind === "year") return `${year} год`;
+  return `${partLabel(part.kind, part.index, year)} ${year} года`;
+}
+
+/**
+ * «За год», «За полугодие», «За квартал» — по виду периода: итоговая строка
+ * таблицы месяцев и пустые ответы разделов.
+ */
+const WHOLE_PERIOD = {
+  year: "За год",
+  half_year: "За полугодие",
+  quarter: "За квартал",
+} as const;
 
 /**
  * Цвета рисунков — переменными темы, а не значениями.
@@ -366,9 +388,16 @@ function within(library: Library, folderId: string, rootId: string): boolean {
 
 export function Statistics({
   profile,
+  part,
   onShow,
 }: {
   profile: StoredProfile;
+  /**
+   * Доля учётного года, выбранная кнопкой в шапке: за неё считается всё —
+   * и один профиль, и свод. Отрезок тот же, что у полосы цифр наверху, и
+   * два ответа на один вопрос на одном экране не расходятся.
+   */
+  part: PeriodPart;
   /**
    * Чей профиль показан сейчас — чтобы полоса цифр и имя наверху
    * перестроились под него.
@@ -458,11 +487,11 @@ export function Statistics({
       ) : null}
 
       {group !== null ? (
-        <Summary sheets={group} onPick={(id) => choose({ kind: "one", id })} />
+        <Summary sheets={group} part={part} onPick={(id) => choose({ kind: "one", id })} />
       ) : one === null ? (
-        <Summary sheets={sheets} onPick={(id) => choose({ kind: "one", id })} />
+        <Summary sheets={sheets} part={part} onPick={(id) => choose({ kind: "one", id })} />
       ) : (
-        <OneProfile profile={one.profile} />
+        <OneProfile profile={one.profile} part={part} />
       )}
     </div>
   );
@@ -779,19 +808,24 @@ function ScopeDeck({
   );
 }
 
-/** Статистика одного профиля: год, разложенный на вопросы. */
-function OneProfile({ profile }: { profile: StoredProfile }) {
-  // Расчётов тринадцать — год и двенадцать месяцев, — и делать их заново
-  // на каждую отрисовку незачем: пока профиль тот же, и числа те же.
-  const stats = useMemo(() => statisticsOf(profile), [profile]);
+/** Статистика одного профиля: период, разложенный на вопросы. */
+function OneProfile({ profile, part }: { profile: StoredProfile; part: PeriodPart }) {
+  // Расчётов до девятнадцати — период, его месяцы и вложенные доли, — и
+  // делать их заново на каждую отрисовку незачем: пока профиль и период те
+  // же, и числа те же. Зависимость — от вида и номера доли, а не от объекта:
+  // тот же выбор, пришедший новым объектом, считать заново незачем.
+  const stats = useMemo(
+    () => statisticsOf(profile, undefined, { kind: part.kind, index: part.index }),
+    [profile, part.kind, part.index],
+  );
 
   if (!stats.any) {
     return (
       // Пустой ответ — такой же плашкой, как у пустой папки в проводнике:
       // страница не должна выглядеть недогрузившейся.
       <p className={cn(PLATE, "text-center text-sm text-ink-muted")}>
-        За {stats.year} год считать нечего: выбранный год ещё не начался или
-        целиком раньше начала отсчёта.
+        За {periodPhrase(stats.part, stats.year)} считать нечего: выбранный
+        период ещё не начался или целиком раньше начала отсчёта.
       </p>
     );
   }
@@ -847,10 +881,7 @@ function OneProfile({ profile }: { profile: StoredProfile }) {
  * том же порядке — это одни и те же числа, просто показанные там, где для
  * них нашлось место.
  *
- * Разница одна, и она в отрезке: полоса считает ВЫБРАННЫЙ период, а
- * статистика — год целиком. По умолчанию это одно и то же, а если человек
- * сузил период до месяца, годовые числа стоят в строке «За год» таблицы по
- * месяцам.
+ * Отрезок у них тоже один — выбранная в шапке доля года.
  */
 function Figures({ stats }: { stats: Statistics }) {
   const { total } = stats;
@@ -858,7 +889,7 @@ function Figures({ stats }: { stats: Statistics }) {
   return (
     <section className={cn(PLATE, "space-y-2 lg:hidden")}>
       <h3 className="font-display text-sm font-bold uppercase tracking-wide">
-        За {stats.year} год
+        За {periodPhrase(stats.part, stats.year)}
       </h3>
 
       <dl className="grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-3">
@@ -1049,7 +1080,8 @@ function Callouts({ stats }: { stats: Statistics }) {
           Сверх графика
         </h3>
         <p className="text-xs text-ink-muted">
-          За год не отмечено ни одного выхода помимо своих смен.
+          {WHOLE_PERIOD[stats.part.kind]} не отмечено ни одного выхода помимо
+          своих смен.
         </p>
       </section>
     );
@@ -1409,7 +1441,7 @@ function Absences({ stats }: { stats: Statistics }) {
             котором говорит соседний раздел, и «норма не уменьшалась» было
             бы прямой неправдой. */}
         <p className="text-xs text-ink-muted">
-          За год не отмечено ни одного отпуска.
+          {WHOLE_PERIOD[stats.part.kind]} не отмечено ни одного отпуска.
         </p>
       </section>
     );
@@ -1492,8 +1524,8 @@ function MonthTable({ stats }: { stats: Statistics }) {
       <div className="overflow-x-auto">
         <table className="w-full min-w-[34rem] border-collapse text-sm">
           <caption className="sr-only">
-            Норма, отработанные, ночные и праздничные часы по месяцам {stats.year}{" "}
-            года
+            Норма, отработанные, ночные и праздничные часы по месяцам: за{" "}
+            {periodPhrase(stats.part, stats.year)}
           </caption>
           <thead>
             <tr className="text-[11px] uppercase tracking-wide text-ink-faint">
@@ -1516,7 +1548,7 @@ function MonthTable({ stats }: { stats: Statistics }) {
           <tfoot>
             <tr className="border-t border-rule-strong font-medium">
               <th scope="row" className="py-2 pr-3 text-left">
-                За год
+                {WHOLE_PERIOD[stats.part.kind]}
               </th>
               <Cell>{hoursTrim(stats.total.normHours)}</Cell>
               <Cell>{hoursTrim(stats.total.actualHours)}</Cell>
@@ -1630,17 +1662,20 @@ function Row({ month }: { month: MonthStat }) {
 function PartTable({ stats }: { stats: Statistics }) {
   const shown = stats.parts.filter((it) => !it.empty);
   if (shown.length === 0) return null;
+  // У полугодия вложены одни кварталы — так и названо.
+  const quartersOnly = shown.every((it) => it.kind === "quarter");
 
   return (
     <section className={cn(PLATE, "space-y-2")}>
       <h3 className="font-display text-sm font-bold uppercase tracking-wide">
-        По учётным периодам
+        {quartersOnly ? "По кварталам" : "По учётным периодам"}
       </h3>
       <div className="overflow-x-auto">
         <table className="w-full min-w-[34rem] border-collapse text-sm">
           <caption className="sr-only">
-            Норма, отработанные, ночные и праздничные часы по кварталам и
-            полугодиям {stats.year} года
+            Норма, отработанные, ночные и праздничные часы по{" "}
+            {quartersOnly ? "кварталам" : "кварталам и полугодиям"}: за{" "}
+            {periodPhrase(stats.part, stats.year)}
           </caption>
           <thead>
             <tr className="text-[11px] uppercase tracking-wide text-ink-faint">
@@ -1749,13 +1784,26 @@ function PartRow({ part }: { part: PartStat }) {
  * заставить выучить второй способ читать одни и те же числа. Меняются
  * только заголовок и то, из каких профилей сложена сумма.
  */
-function Summary({ sheets, onPick }: { sheets: readonly Sheet[]; onPick: (id: string) => void }) {
+function Summary({
+  sheets,
+  part,
+  onPick,
+}: {
+  sheets: readonly Sheet[];
+  part: PeriodPart;
+  onPick: (id: string) => void;
+}) {
   // По расчёту на профиль, а не по тринадцать: месяцы в своде не показаны,
   // и считать их значило бы потратить дюжину вызовов на каждого ради
-  // чисел, которых на экране нет (`totalsOf`).
+  // чисел, которых на экране нет (`totalsOf`). Доля года — общая, год у
+  // каждого свой.
   const lines = useMemo(
-    () => sheets.map((sheet) => ({ sheet, totals: totalsOf(sheet.profile) })),
-    [sheets],
+    () =>
+      sheets.map((sheet) => ({
+        sheet,
+        totals: totalsOf(sheet.profile, undefined, { kind: part.kind, index: part.index }),
+      })),
+    [sheets, part.kind, part.index],
   );
 
   const live = lines.filter((line) => line.totals.any);

@@ -834,7 +834,7 @@ export function DemoStorage() {
             рабочего экрана. Нажимают здесь по последнему. */}
         <div className="demo-menu modal-lift absolute right-0 top-0 w-60 rounded-xl bg-paper-raised p-1.5">
           <MenuRow icon={Settings}>Настройки</MenuRow>
-          <MenuRow icon={ChartColumn}>Статистика за год</MenuRow>
+          <MenuRow icon={ChartColumn}>Статистика</MenuRow>
           <MenuRow icon={FolderOpen}>Открыть профиль</MenuRow>
           <MenuRow icon={Save} className="demo-save-button">
             Сохранить в файл

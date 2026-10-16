@@ -63,7 +63,7 @@ export function WorkspaceMenuItems({
         Настройки
       </MenuItem>
       <MenuItem icon={ChartColumn} onClick={onToggleStats}>
-        Статистика за год
+        Статистика
       </MenuItem>
       <MenuItem icon={FolderOpen} onClick={onToggleExplorer}>
         Открыть профиль
