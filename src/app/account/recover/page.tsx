@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 
 import { SiteFooter } from "@/components/shared/site-footer";
 import { SiteHeader } from "@/components/shared/site-header";
-import { OpenSchedule } from "@/components/shared/header-action";
+import { OpenScheduleItem } from "@/components/shared/header-menu";
 import { RecoverScreen } from "@/features/sync/ui/recover-screen";
 
 export const metadata: Metadata = {
@@ -23,7 +23,9 @@ export default function RecoverPage() {
     // Колонка во весь экран: на короткой странице подвал уходит к нижней
     // кромке окна, а не висит под содержимым посреди бумаги.
     <div className="flex min-h-[var(--page-min-h)] flex-col">
-      <SiteHeader action={<OpenSchedule />} />
+      {/* Переход к расчёту — строкой в меню, а не словом в шапке:
+          справа на всех страницах одно и то же «МЕНЮ». */}
+      <SiteHeader menu={<OpenScheduleItem />} />
       <main className="mx-auto w-full max-w-[44rem] flex-1 px-6 pt-24 pb-16">
         <RecoverScreen />
       </main>

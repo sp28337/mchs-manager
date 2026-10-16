@@ -46,6 +46,13 @@ export const EMAIL = "grafik1-3@yandex.ru";
  * обработки персональных данных» в подвале занимает строку целиком, а
  * человек ищет глазами слово «политика». Строка под названием — не
  * пересказ документа, а ответ на вопрос «мне сюда?».
+ *
+ * И названия, и строки под ними обязаны вставать в ОДНУ строку каждое на
+ * самой узкой плитке — около двухсот точек под текст (подвал страницы
+ * документа на мониторе, четыре плитки в ряд, и телефон в 320 точек).
+ * Знак слева ровно в рост двух строк, и третья, перенесённая, оставила бы
+ * его висеть у верхних двух. Отсюда и краткость: «Какие данные
+ * обрабатываются», а не «…и зачем» — «зачем» уже в самом документе.
  */
 const ДОКУМЕНТЫ: readonly {
   href: string;
@@ -56,13 +63,13 @@ const ДОКУМЕНТЫ: readonly {
   {
     href: "/terms",
     label: "Пользовательское соглашение",
-    note: "На каких условиях работает приложение",
+    note: "Условия работы приложения",
     Icon: Handshake,
   },
   {
     href: "/privacy",
     label: "Политика конфиденциальности",
-    note: "Какие данные обрабатываются и зачем",
+    note: "Какие данные обрабатываются",
     Icon: ShieldCheck,
   },
   {
@@ -74,7 +81,7 @@ const ДОКУМЕНТЫ: readonly {
   {
     href: "/cookies",
     label: "Настройки cookie",
-    note: "Счётчик посещений: разрешить или отказать",
+    note: "Разрешить счётчик или отказать",
     Icon: Cookie,
   },
 ];
@@ -100,22 +107,31 @@ export function FooterDocuments({ className }: { className?: string }) {
           // Цвет на самой ссылке: наследования тут не происходит — у `a`
           // свой цвет по умолчанию, синий, и он перебивает цвет родителя.
           className={cn(
-            "lit group flex items-start gap-2.5 rounded-xl bg-paper-raised px-3 py-2.5",
+            "lit group flex items-center gap-3 rounded-xl bg-paper-raised px-3 py-2.5",
             "text-ink no-underline",
             "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ink",
           )}
         >
           <Icon
             aria-hidden
-            // Знак гаснет вместе с подписью под названием и загорается от
-            // курсора — так же, как значки в строках меню.
-            className="mt-px size-4 shrink-0 text-ink-muted transition-colors group-hover:text-ink"
+            // Знак ровно в рост обеих строк — названия и строки под ним:
+            // две строки по шестнадцати точек, знак в тридцать две. Мелкий
+            // значок у верхней строки оставлял под собой пустой угол и
+            // читался пометкой при названии, а не лицом всей плитки.
+            //
+            // Обводка тоньше обычной: в тридцати двух точках значок из
+            // набора рисуется линией в два с половиной пикселя и весит
+            // больше текста рядом. В полторы единицы он ложится в ту же
+            // толщину, что знаки по углам окна.
+            strokeWidth={1.5}
+            className="size-8 shrink-0 text-ink-muted transition-colors group-hover:text-ink"
           />
           <span className="min-w-0">
-            <span className="block text-xs font-medium leading-snug">{label}</span>
-            <span className="mt-0.5 block text-[11px] leading-snug text-ink-muted">
-              {note}
-            </span>
+            {/* Обе строки — ровно по шестнадцать точек (`leading-4`): их
+                сумма и есть рост знака слева, и считать её по
+                межстрочным долям двух разных кеглей было бы гаданием. */}
+            <span className="block text-xs font-medium leading-4">{label}</span>
+            <span className="block text-[11px] leading-4 text-ink-muted">{note}</span>
           </span>
         </Link>
       ))}
@@ -133,7 +149,11 @@ export function FooterDocuments({ className }: { className?: string }) {
  */
 export function FooterEmail({ className }: { className?: string }) {
   return (
-    <p className={cn("text-center text-xs text-ink-muted", className)}>
+    // Отступ от плиток — свой, шестнадцать единиц, и он перекрывает
+    // просвет родителя (поля соседей схлопываются, берётся больший).
+    // Строка вплотную под плитками читалась пятой из них, только без
+    // плашки; на расстоянии она — отдельная вещь, подпись всего подвала.
+    <p className={cn("mt-16 text-center text-xs text-ink-muted", className)}>
       Вопросы и обращения:{" "}
       <a
         href={`mailto:${EMAIL}`}

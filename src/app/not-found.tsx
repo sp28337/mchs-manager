@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
+import { OpenScheduleItem } from "@/components/shared/header-menu";
 import { SiteHeader } from "@/components/shared/site-header";
-import { Calculator } from "lucide-react";
 
 /**
  * Страница несуществующего адреса.
@@ -62,19 +62,11 @@ const ADDRESSES: { href: string; label: string; what: string }[] = [
 export default function NotFound() {
   return (
     <>
-      <SiteHeader
-        action={
-          <Link
-            href="/calculator"
-            className="font-semibold inline-flex gap-2 h-9 items-center rounded-xl bg-ink px-4 text-sm text-paper hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink no-underline"
-          >
-            <span className="hidden xxs:block">График</span>
-            <span className="xxs:hidden xs:block">
-              <Calculator className="size-5" />
-            </span>
-          </Link>
-        }
-      />
+      {/* Переход к расчёту — строкой в меню, как на остальных страницах,
+          а не плашкой «График» в шапке: справа везде одно и то же
+          «МЕНЮ». Сам расчёт к тому же назван ниже, в перечне всего, что
+          на сайте есть. */}
+      <SiteHeader menu={<OpenScheduleItem />} />
 
       <main className="mx-auto flex min-h-lvh w-full max-w-3xl flex-col justify-center gap-6 px-6 pb-16 pt-26">
         <p className="font-mono text-6xl leading-none text-ink-faint sm:text-7xl">404</p>

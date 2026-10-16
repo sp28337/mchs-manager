@@ -72,18 +72,21 @@ const SAMPLE_YEAR = new Date().getUTCFullYear();
 const MONTHS = Array.from({ length: 12 }, (_, index) => index + 1);
 
 /**
- * Мелкие итоги полосы: те же пять, что считает расчёт.
+ * Мелкие итоги полосы — те же четыре, что в расчёте, и по тем же сторонам:
+ * слева смены, справа часы (`period-summary.tsx`, `sideItems`).
  *
- * Образцы четырёхзначные — самый широкий случай из настоящих, чтобы
- * плашка заглушки не оказалась уже той, что встанет на её место.
+ * Образцы — самый широкий случай из настоящих, чтобы плашка заглушки не
+ * оказалась уже той, что встанет на её место.
  */
-const MINOR_FIGURES = [
+const LEFT_FIGURES = [
   { value: "92", caption: "Смен по графику" },
   { value: "92", caption: "Отработано смен" },
-  { value: "0", caption: "Пропущено" },
+] as const;
+
+const RIGHT_FIGURES = [
   { value: "734", unit: "ч", caption: "Ночные часы" },
   { value: "96", unit: "ч", caption: "Праздничные часы" },
-];
+] as const;
 
 export function WorkspaceSkeleton() {
   return (
@@ -116,16 +119,22 @@ export function WorkspaceSkeleton() {
           высоту, и страница дёрнулась бы ровно там, где заглушка и
           существует, чтобы этого не случилось. */}
       <div data-summary className="sticky top-[calc(6rem+var(--safe-top))] z-40 -mx-6 -translate-y-8">
-        <div className="relative flex items-stretch gap-2  px-6 pb-3">
+        {/* Мелкие плашки появляются там же, где в расчёте. Тот меряет
+            строку и открывает их парами — по одной с каждой стороны, —
+            и пороги у него приходятся на 598 точек (первая пара) и на
+            906 (вторая): проверено замером с шагом в точку на профиле с
+            четырёхзначной нормой — самом широком из настоящих. Заглушка
+            мерить не умеет, поэтому держит те же пороги числами. */}
+        <div className="relative flex items-stretch gap-2 px-6 pb-3 min-[598px]:grid min-[598px]:grid-cols-[1fr_auto_1fr]">
           <MainPlateBone />
 
-          {/* Мелкие плашки появляются там же, где в расчёте: тот меряет
-              строку и прячет их, когда не помещаются, и порог у него
-              приходится ровно на 1024 точки — проверено замером. */}
-          <div className="hidden h-14 min-w-0 flex-1 gap-2 lg:flex">
-            {MINOR_FIGURES.map((figure) => (
-              <MinorPlateBone key={figure.caption} {...figure} />
-            ))}
+          <div className="col-start-1 row-start-1 hidden h-14 min-w-0 gap-2 min-[598px]:flex">
+            <MinorPlateBone {...LEFT_FIGURES[0]} />
+            <MinorPlateBone {...LEFT_FIGURES[1]} className="hidden min-[906px]:flex" />
+          </div>
+          <div className="col-start-3 row-start-1 hidden h-14 min-w-0 gap-2 min-[598px]:flex">
+            <MinorPlateBone {...RIGHT_FIGURES[0]} />
+            <MinorPlateBone {...RIGHT_FIGURES[1]} className="hidden min-[906px]:flex" />
           </div>
         </div>
       </div>
@@ -403,7 +412,8 @@ function MonthBones({ month }: { month: number }) {
  * Главное число: та же плашка и то же построение, что в расчёте.
  *
  * Плашка растягивается на всю строку, пока мелких итогов рядом нет, и
- * сжимается по содержимому, когда они появляются, — ровно как настоящая.
+ * сжимается по содержимому и встаёт посередине, когда они появляются, —
+ * ровно как настоящая.
  */
 function MainPlateBone() {
   return (
@@ -413,9 +423,11 @@ function MainPlateBone() {
         // кромке и тень вниз. Без него заглушка была плоской, а на её
         // место вставала поднятая — и в этот миг по всей полосе итога
         // разом зажигался свет.
-        "lit flex h-14 items-center justify-around rounded-xl bg-paper-raised px-4 py-2",
-        "min-w-0 flex-1 gap-x-3",
-        "lg:min-w-92.5 lg:flex-none lg:shrink-0 lg:gap-x-6",
+        "lit flex h-14 items-center justify-around rounded-xl bg-paper-raised py-2",
+        "px-2 min-[360px]:px-4",
+        "min-w-0 flex-1 gap-x-1.5 min-[360px]:gap-x-3",
+        "min-[598px]:col-start-2 min-[598px]:row-start-1 min-[598px]:flex-none",
+        "min-[598px]:shrink-0 min-[598px]:gap-x-5 sm:gap-x-6 lg:min-w-92.5",
       )}
     >
       <FigureBone value="1972" caption="Норма периода" emphatic />
@@ -425,7 +437,13 @@ function MainPlateBone() {
   );
 }
 
-/** Число с подписью внутри главной плашки. */
+/**
+ * Число с подписью внутри главной плашки — всегда столбиком.
+ *
+ * Строчная запись («Норма периода: 1972 ч») у настоящей плашки бывает
+ * только растянутой на всю строку и шире 640 точек, а растянута она лишь
+ * уже 598: на этих двух условиях вместе она не встречается.
+ */
 function FigureBone({
   value,
   caption,
@@ -436,7 +454,7 @@ function FigureBone({
   emphatic?: boolean;
 }) {
   return (
-    <div className="min-w-0 sm:flex sm:flex-row-reverse sm:items-center sm:gap-4 lg:block">
+    <div className="min-w-0">
       <dd
         className={cn(
           "whitespace-nowrap font-mono leading-none text-center",
@@ -448,10 +466,8 @@ function FigureBone({
           <span className="ml-1 text-xs sm:text-sm">ч</span>
         </BoneText>
       </dd>
-      <dt className="flex h-3.5 items-center justify-center gap-1 whitespace-nowrap text-[11px] leading-tight text-ink-muted">
-        <BoneText skeleton>
-          <span className="sm:after:content-[':'] lg:after:content-none">{caption}</span>
-        </BoneText>
+      <dt className="flex h-3.5 items-center justify-center gap-1 whitespace-nowrap text-[10px] min-[360px]:text-[11px] leading-tight text-ink-muted">
+        <BoneText skeleton>{caption}</BoneText>
       </dt>
     </div>
   );
@@ -462,13 +478,20 @@ function MinorPlateBone({
   value,
   unit,
   caption,
+  className,
 }: {
   value: string;
   unit?: string;
   caption: string;
+  className?: string;
 }) {
   return (
-    <div className="lit flex min-w-0 flex-1 flex-col items-center justify-end rounded-xl bg-paper-raised px-3 pb-2">
+    <div
+      className={cn(
+        "lit flex min-w-0 flex-1 flex-col items-center justify-end rounded-xl bg-paper-raised px-3 pb-2",
+        className,
+      )}
+    >
       <dd className="whitespace-nowrap font-mono text-base leading-none">
         <BoneText skeleton>
           {value}
@@ -537,14 +560,14 @@ function ProfileFooterBones() {
         {ДОКУМЕНТЫ_КОСТИ.map((документ) => (
           <span
             key={документ.label}
-            className="flex items-start gap-2.5 rounded-xl bg-paper-raised px-3 py-2.5"
+            className="flex items-center gap-3 rounded-xl bg-paper-raised px-3 py-2.5"
           >
-            <Bone className="mt-px size-4 shrink-0 rounded-xs" />
+            <Bone className="size-8 shrink-0 rounded-lg" />
             <span className="min-w-0">
-              <BoneText skeleton className="block text-xs leading-snug">
+              <BoneText skeleton className="block text-xs leading-4">
                 {документ.label}
               </BoneText>
-              <BoneText skeleton className="mt-0.5 block text-[11px] leading-snug">
+              <BoneText skeleton className="block text-[11px] leading-4">
                 {документ.note}
               </BoneText>
             </span>
@@ -554,7 +577,7 @@ function ProfileFooterBones() {
 
       {/* Строка адреса — теми же словами и тем же кеглем, что в подвале
           расчёта: её высота и переносы получаются сами. */}
-      <p className="text-center text-xs text-ink-muted">
+      <p className="mt-16 text-center text-xs text-ink-muted">
         <BoneText skeleton>Вопросы и обращения: grafik1-3@yandex.ru</BoneText>
       </p>
 
@@ -574,8 +597,8 @@ function ProfileFooterBones() {
  * плитки, и это видно глазом; разойдутся в словах — не видно ничего.
  */
 const ДОКУМЕНТЫ_КОСТИ = [
-  { label: "Пользовательское соглашение", note: "На каких условиях работает приложение" },
-  { label: "Политика конфиденциальности", note: "Какие данные обрабатываются и зачем" },
+  { label: "Пользовательское соглашение", note: "Условия работы приложения" },
+  { label: "Политика конфиденциальности", note: "Какие данные обрабатываются" },
   { label: "Согласие на обработку данных", note: "Что принимается при регистрации" },
-  { label: "Настройки cookie", note: "Счётчик посещений: разрешить или отказать" },
+  { label: "Настройки cookie", note: "Разрешить счётчик или отказать" },
 ] as const;
