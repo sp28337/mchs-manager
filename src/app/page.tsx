@@ -6,6 +6,7 @@ import { HeroCta } from "@/components/landing/hero-cta";
 import { HOW_STEPS, HowItWorks } from "@/components/landing/how-it-works";
 import { SYNC_ENABLED } from "@/features/sync/ui/enabled";
 import { cn } from "@/lib/utils/cn";
+import { OpenScheduleItem } from "@/components/shared/header-menu";
 import { SiteFooter } from "@/components/shared/site-footer";
 import { SiteHeader } from "@/components/shared/site-header";
 import { ThemeCorner } from "@/components/ui/theme-toggle";
@@ -282,13 +283,16 @@ function ExternalMark() {
 export default function LandingPage() {
   return (
     <>
-      {/* В шапке — ничего, кроме знака сайта и входа.
+      {/* В шапке — знак сайта и «МЕНЮ», как на всех страницах.
           -------------------------------------------------------------
           Здесь по очереди стояли две вещи, и обе ушли. Кнопка «Открыть
-          расчёт» была лишней: ровно та же дверь, только крупнее и с
-          объяснением, стоит на первом экране в двух сантиметрах ниже.
-          Две одинаковые кнопки в поле зрения заставляют выбирать между
-          ними, хотя выбора нет.
+          расчёт» стояла словом рядом с меню и была ровно той же дверью,
+          что кнопка на первом экране в двух сантиметрах ниже, — две
+          одинаковые кнопки в поле зрения заставляют выбирать между ними,
+          хотя выбора нет. Теперь переход к расчёту — строкой в меню
+          (`OpenScheduleItem`): он под рукой из любого места страницы,
+          а не только с первого экрана, и при этом не стоит второй
+          кнопкой рядом с первой.
 
           Переключатель темы занял её место и тоже ушёл — в правый нижний
           угол окна (`ThemeCorner` в самом низу). Тема относится не к
@@ -296,7 +300,7 @@ export default function LandingPage() {
           ряд рядом со словом «ВХОД» читались как ещё одно действие
           страницы, а на телефоне занимали ту самую середину строки, из
           которой название сайта и так еле помещается. */}
-      <SiteHeader className="items-center" />
+      <SiteHeader className="items-center" menu={<OpenScheduleItem />} />
 
       <main className="mx-auto w-full max-w-4xl px-6 xl:max-w-6xl 2xl:max-w-7xl">
         <LandingHero cta={<HeroCta />} />

@@ -125,7 +125,15 @@ export function WorkspaceSkeleton() {
             906 (вторая): проверено замером с шагом в точку на профиле с
             четырёхзначной нормой — самом широком из настоящих. Заглушка
             мерить не умеет, поэтому держит те же пороги числами. */}
-        <div className="relative flex items-stretch gap-2 px-6 pb-3 min-[598px]:grid min-[598px]:grid-cols-[1fr_auto_1fr]">
+        <div
+          className={cn(
+            "relative flex items-stretch gap-2 px-6 pb-3",
+            "min-[598px]:grid min-[598px]:grid-cols-[1fr_auto_1fr]",
+            // С двумя парами мелкие плашки растут лишь до 10,5 рем, а дальше
+            // растёт главная — тот же предел колонок, что в расчёте.
+            "min-[906px]:grid-cols-[minmax(0,21.5rem)_minmax(auto,1fr)_minmax(0,21.5rem)]",
+          )}
+        >
           <MainPlateBone />
 
           <div className="col-start-1 row-start-1 hidden h-14 min-w-0 gap-2 min-[598px]:flex">
@@ -428,6 +436,12 @@ function MainPlateBone() {
         "min-w-0 flex-1 gap-x-1.5 min-[360px]:gap-x-3",
         "min-[598px]:col-start-2 min-[598px]:row-start-1 min-[598px]:flex-none",
         "min-[598px]:shrink-0 min-[598px]:gap-x-5 sm:gap-x-6 lg:min-w-92.5",
+        // В сетке со сторонами плашка не уже своего содержимого — как
+        // настоящая. С `min-w-0` средняя колонка (`minmax(auto, 1fr)`)
+        // считала бы её нижней границей ноль, и стороны, растущие до
+        // своего предела первыми, сжимали бы её вдвое: замер на 906
+        // точках — 144 против 291 у расчёта.
+        "min-[598px]:min-w-auto",
       )}
     >
       <FigureBone value="1972" caption="Норма периода" emphatic />
@@ -562,7 +576,7 @@ function ProfileFooterBones() {
             key={документ.label}
             className="flex items-center gap-3 rounded-xl bg-paper-raised px-3 py-2.5"
           >
-            <Bone className="size-8 shrink-0 rounded-lg" />
+            <Bone className="size-7 shrink-0 rounded-lg" />
             <span className="min-w-0">
               <BoneText skeleton className="block text-xs leading-4">
                 {документ.label}
