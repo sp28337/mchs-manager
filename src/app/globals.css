@@ -78,6 +78,10 @@
   --fps-signal-soft: #fbeae3;
   --fps-verify: #45a352;
   --fps-verify-soft: #dfeeeb;
+  /* Знак производственного календаря, когда календарь показан (нижний ряд
+     знаков, `grid-dock.tsx`): охра, а не жёлтый — чистый жёлтый на белой
+     бумаге не читается вовсе. С бумагой — 4,2:1. */
+  --fps-calendar-mark: #9a7712;
   --fps-trace: #4144b0;
   --fps-trace-soft: #e8e8f8;
 
@@ -179,6 +183,9 @@
   --fps-signal-soft: #2a1710;
   --fps-verify: #45a352;
   --fps-verify-soft: #0a2220;
+  /* Приглушённое золото: на тёмной бумаге яркий жёлтый режет глаз
+     сильнее любого другого цвета ряда. С бумагой — 7,3:1. */
+  --fps-calendar-mark: #c4a85c;
   --fps-trace: #9a9df3;
   --fps-trace-soft: #191a2e;
 
@@ -229,6 +236,7 @@
   --color-signal-soft: var(--fps-signal-soft);
   --color-verify: var(--fps-verify);
   --color-verify-soft: var(--fps-verify-soft);
+  --color-calendar-mark: var(--fps-calendar-mark);
   --color-trace: var(--fps-trace);
   --color-trace-soft: var(--fps-trace-soft);
   --color-sick: var(--fps-sick);
@@ -2468,31 +2476,6 @@
      просвечивали клетки сетки. Отсчёт в тех же трёх ремах, что и запас,
      кончает растворение там, где начинаются кнопки, при любой высоте. */
   background: linear-gradient(to bottom, transparent, var(--color-paper) 3rem);
-}
-
-/* Нижний ряд знаков рабочего экрана (`grid-dock.tsx`) на телефоне.
-   ---------------------------------------------------------------------------
-   Знаки стоят без плашек, прямо поверх сетки, и на телефоне ряд занимает
-   всю ширину: клетки, проезжающие под значками, спорили бы с ними — значок
-   легенды на зелёной клетке смены уже не прочесть. Поэтому под рядом та же
-   бумага, что была под прежней панелью (`.deck` выше): растворение в три
-   рема над знаками и сплошная бумага под ними до самой кромки окна.
-
-   С `md` ряд — кучка значков у левого края, и полоса бумаги во всю ширину
-   под ней отрезала бы низ сетки ради пяти значков: там они стоят на общем
-   растворении у нижней кромки (`--veil-fade-bottom`), как стояли легенда
-   и тема. */
-@media (width < 48rem) {
-  .dock::before {
-    content: "";
-    position: absolute;
-    inset-inline: 0;
-    top: -3rem;
-    bottom: calc(-1.5rem - var(--safe-bottom));
-    z-index: -1;
-    pointer-events: none;
-    background: linear-gradient(to bottom, transparent, var(--color-paper) 3rem);
-  }
 }
 
 /* --------------------------------------------------------------------------

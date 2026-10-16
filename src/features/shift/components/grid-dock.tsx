@@ -43,11 +43,16 @@ import type { YearViewKind } from "./year-view";
  *
  * --- Почему выбранное видно цветом, а не плашкой ---------------------------
  *
- * Плашек в ряду нет, и показанную сетку отмечает цвет значка: выбранная —
- * чернилами, как «ГРАФИК» в знаке сайта, другая — тусклым серым пустых
- * клеток того же знака (`MARK_EMPTY`). Так же «Онлайн»: включённый — зелёные
- * волны, выключенный — серая точка. Для программы чтения то же сказано
- * словами (`aria-pressed`, `role="switch"`).
+ * Плашек в ряду нет, и показанную сетку отмечает цвет значка. У графика
+ * загорается залитая клетка — зелёным, тем же, каким на сетке отмечены
+ * смены (`verify`): знак сайта и показывает дежурные сутки залитой
+ * клеткой. Календарь загорается целиком — приглушённой охрой
+ * (`calendar-mark`): жёлтый у ряда свой, ни с одной отметкой сетки он не
+ * спорит, а яркий жёлтый резал бы глаз сильнее любого соседа. Не
+ * показанная сетка — тусклым серым пустых клеток знака сайта
+ * (`MARK_EMPTY`). Так же «Онлайн»: включённый — зелёные волны, выключенный
+ * — серая точка. Для программы чтения то же сказано словами
+ * (`aria-pressed`, `role="switch"`).
  *
  * --- Почему ряд прозрачен для нажатий --------------------------------------
  *
@@ -67,8 +72,9 @@ import type { YearViewKind } from "./year-view";
 
 /** Место ряда: у нижней кромки, с теми же полями, что у страницы. */
 export const DOCK = cn(
-  // `dock` — бумага под рядом на телефоне (`globals.css`).
-  "dock pointer-events-none fixed inset-x-0 z-90 flex items-center justify-between px-6",
+  // Без подложки и на телефоне: ряд стоит на общем растворении у нижней
+  // кромки (`--veil-fade-bottom`), так же, как на широком экране.
+  "pointer-events-none fixed inset-x-0 z-90 flex items-center justify-between px-6",
   "bottom-[calc(1.5rem+var(--safe-bottom))]",
 );
 
@@ -78,8 +84,16 @@ export const DOCK = cn(
  */
 export const DOCK_LEFT = "max-md:contents md:flex md:items-center";
 
-/** Цвет выбранного значка — чернила названия сайта (`HEADER_WORD`). */
-export const KNOB_ON = "text-black/80 dark:text-ink";
+/**
+ * Показанный график: значок чернилами названия сайта (`HEADER_WORD`), а
+ * залитая клетка — зелёным смен. Клетка — первый прямоугольник знака
+ * (`ui/logo.tsx`); заливка у неё атрибутом `currentColor`, и правило
+ * таблицы стилей сильнее атрибута.
+ */
+export const SHIFTS_ON = "text-black/80 dark:text-ink [&_svg>rect:first-child]:fill-verify";
+
+/** Показанный календарь: значок целиком приглушённой охрой. */
+export const CALENDAR_ON = "text-calendar-mark";
 
 export function GridDock({
   profile,
@@ -102,6 +116,7 @@ export function GridDock({
 
         <ViewKnob
           active={view === "shifts"}
+          onClassName={SHIFTS_ON}
           onClick={() => onViewChange("shifts")}
           name="Показать график смен"
           caption="График"
@@ -113,6 +128,7 @@ export function GridDock({
         </ViewKnob>
         <ViewKnob
           active={view === "calendar"}
+          onClassName={CALENDAR_ON}
           onClick={() => onViewChange("calendar")}
           name="Показать производственный календарь"
           caption="Календарь"
@@ -140,12 +156,15 @@ export function GridDock({
 /** Знак одной из двух сеток. */
 function ViewKnob({
   active,
+  onClassName,
   onClick,
   name,
   caption,
   children,
 }: {
   active: boolean;
+  /** Цвет значка, когда эта сетка показана. */
+  onClassName: string;
   onClick: () => void;
   /** Имя для программы чтения — что сделает нажатие. */
   name: string;
@@ -166,7 +185,7 @@ function ViewKnob({
           className={cn(
             KNOB_ICON,
             "transition-[color,opacity] duration-200",
-            active ? KNOB_ON : MARK_EMPTY_CLASS,
+            active ? onClassName : MARK_EMPTY_CLASS,
           )}
         >
           {children}

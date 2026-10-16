@@ -8,7 +8,7 @@ import { KNOB_ICON, KNOB_NEST } from "@/components/ui/knob";
 import { cn } from "@/lib/utils/cn";
 
 import { datesOfMonth, dayOfMonth } from "../domain/plain-date";
-import { DOCK, DOCK_LEFT, KNOB_ON } from "./grid-dock";
+import { DOCK, DOCK_LEFT, SHIFTS_ON } from "./grid-dock";
 import { CalendarIcon, PeriodIcon, ShiftsIcon, YearMark } from "./grid-icons";
 import { LiveSignal } from "./live-mode";
 import { MetaSep, MonthGrid, YEAR_BOX, YEAR_GRID } from "./month-grid";
@@ -263,7 +263,7 @@ export function WorkspaceSkeleton() {
           <KnobBone>
             <LegendMark />
           </KnobBone>
-          <KnobBone className={KNOB_ON}>
+          <KnobBone className={SHIFTS_ON}>
             <ShiftsIcon className="scale-100" />
           </KnobBone>
           <KnobBone className={MARK_EMPTY_CLASS}>
