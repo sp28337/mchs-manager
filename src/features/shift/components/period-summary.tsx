@@ -1,6 +1,6 @@
 "use client";
 
-import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { useLayoutEffect, useRef, useState, type ReactNode, type Ref } from "react";
 
 import { BalanceCaption, BALANCE_SWAP_MS } from "@/components/ui/balance-caption";
 import { CountedNumber } from "@/components/ui/counted-number";
@@ -323,6 +323,14 @@ function SettingsSwitch({
  * что показано. Мерить видимый ряд было бы нельзя — спрятав его, мы
  * получили бы «теперь помещается» и показали снова.
  */
+/**
+ * Запас, с которым главная плашка переходит на строчную запись: сверх
+ * ширины самой строки — по 24 точки на каждый из шести полупросветов
+ * вокруг трёх чисел. Впритык строка читалась бы сжатой, а столбик в
+ * той же плашке ещё выглядит уместно.
+ */
+const INLINE_ROOM = 144;
+
 function FiguresRow({
   calculation,
   inShifts,
@@ -334,8 +342,11 @@ function FiguresRow({
 }) {
   const row = useRef<HTMLDivElement>(null);
   const probe = useRef<HTMLDivElement>(null);
+  const plate = useRef<HTMLDListElement>(null);
   /** Сколько пар мелких итогов помещается: ни одной, одна или обе. */
   const [pairs, setPairs] = useState<0 | 1 | 2>(0);
+  /** Подписи главных чисел — в строку с ними, а не под ними. */
+  const [inline, setInline] = useState(false);
 
   // Замер ДО первой отрисовки, а не после неё.
   //
@@ -358,12 +369,12 @@ function FiguresRow({
     if (!room || !content) return;
 
     const measure = () => {
-      // Эталон — главная плашка и четыре мелких в порядке
-      // `sideItems`: сначала левая сторона, потом правая.
-      const [main = 0, ...minor] = [...content.children].map(
-        (child) => child.getBoundingClientRect().width,
-      );
-      const [planned = 0, worked = 0, night = 0, holiday = 0] = minor;
+      // Эталон — главная плашка, четыре мелких в порядке `sideItems`
+      // (сначала левая сторона, потом правая) и последней та же главная
+      // плашка в строчной записи.
+      const [main = 0, planned = 0, worked = 0, night = 0, holiday = 0, mainInline = 0] = [
+        ...content.children,
+      ].map((child) => child.getBoundingClientRect().width);
       const width = room.clientWidth - 48;
       // Запас на плашку: итог, помещающийся впритык, читается как
       // переполненный, даже когда формально влез.
@@ -379,6 +390,18 @@ function FiguresRow({
       const two = main + 2 * gap + 2 * (2 * widest + gap);
 
       setPairs(two <= width ? 2 : one <= width ? 1 : 0);
+
+      // Строчная запись — когда главной плашке достаётся заметно больше,
+      // чем ей нужно в строку. Мерится настоящая плашка, а не расчёт её
+      // ширины: та зависит от числа пар, и после их смены наблюдатель
+      // приходит сюда ещё раз — уже с новой шириной.
+      //
+      // Порог один, без запаса в обратную сторону, и дрожать здесь нечему:
+      // ширину плашки задаёт сетка полосы, а не её содержимое. Строка
+      // включается, только когда плашка шире строки с запасом, — то есть
+      // её нижняя граница по содержимому до ширины плашки не дотягивает.
+      const plateWidth = plate.current?.getBoundingClientRect().width ?? 0;
+      setInline(plateWidth >= mainInline + INLINE_ROOM);
     };
 
     measure();
@@ -386,6 +409,7 @@ function FiguresRow({
     const observer = new ResizeObserver(measure);
     observer.observe(room);
     observer.observe(content);
+    if (plate.current) observer.observe(plate.current);
     return () => observer.disconnect();
   }, []);
 
@@ -410,10 +434,12 @@ function FiguresRow({
           середине: программа чтения начинает с нормы и переработки, ради
           которых полоса и существует, а не с числа смен. */}
       <MainPlate
+        plateRef={plate}
         calculation={calculation}
         inShifts={inShifts}
         shiftHours={shiftHours}
         grow={pairs === 0}
+        inline={inline}
         className={pairs === 0 ? undefined : "col-start-2 row-start-1"}
       />
 
@@ -450,6 +476,13 @@ function FiguresRow({
         {[...left, ...right].map((item) => (
           <MinorPlate key={item.caption} {...item} tight />
         ))}
+        <MainPlate
+          calculation={calculation}
+          inShifts={inShifts}
+          shiftHours={shiftHours}
+          tight
+          inline
+        />
       </div>
     </div>
   );
@@ -543,13 +576,17 @@ function MinorPlate({
  * строку не с кем.
  */
 function MainPlate({
+  plateRef,
   calculation,
   inShifts,
   shiftHours,
   grow,
   tight,
+  inline = false,
   className,
 }: {
+  /** Сама плашка — для замера её ширины в `FiguresRow`. */
+  plateRef?: Ref<HTMLDListElement>;
   calculation: PeriodCalculation;
   /** Переработку — сменами и часами, а не часами. */
   inShifts: boolean;
@@ -559,25 +596,26 @@ function MainPlate({
   grow?: boolean;
   /** Плашка эталона: по содержимому. */
   tight?: boolean;
+  /**
+   * Подписи в строку с числами, а все три числа — ростом нормы. Решает
+   * `FiguresRow` по замеру: так плашка стоит, когда места в ней заметно
+   * больше, чем нужно строке.
+   */
+  inline?: boolean;
   /** Место в сетке полосы: посередине, когда по сторонам есть итоги. */
   className?: string;
 }) {
   const under = calculation.undertimeHours.greaterThan(0);
   const balance = under ? calculation.undertimeHours : calculation.overtimeHours;
-  // Столбиком — всегда, когда плашка не растянута на всю строку: рядом
-  // стоят мелкие итоги, и подписи всех чисел обязаны лечь на одну линию.
-  // Строчная запись («Норма периода: 1972 ч») остаётся только растянутой
-  // плашке на средних экранах — там ей и место, и делить строку не с кем.
-  //
-  // Без этого полоса мигала при плавном сужении окна: на 600 точках
-  // столбиковая плашка пускала рядом пару итогов, на 640 переходила в
-  // строчную запись, раздувалась вдвое и выталкивала их, а на 848 снова
-  // пускала. Эталон тоже меряется столбиком — иначе он считал бы место
-  // для раскладки, которой при итогах рядом не бывает.
-  const stacked = tight === true || grow !== true;
+  // Столбиком или в строку — решает замер (`FiguresRow`), а не порог
+  // ширины окна. Прежде строчная запись была привязана к средним экранам и
+  // растянутой плашке, и при мелких итогах рядом её не бывало вовсе: на
+  // широком мониторе главная плашка вырастала до тысячи точек, а три
+  // числа столбиком стояли в ней островками с пустыми полями между ними.
 
   return (
     <dl
+      ref={plateRef}
       className={cn(
         // Поля и просветы ужаты на самом узком телефоне: три числа с
         // подписями требуют 267 точек, а на 320-точечном экране полосе
@@ -600,13 +638,13 @@ function MainPlate({
         caption="Норма периода"
         emphatic
         still={tight}
-        stacked={stacked}
+        inline={inline}
       />
       <Figure
         parts={[{ value: hoursTrim(calculation.actualHours), unit: "ч" }]}
         caption="Отработано"
         still={tight}
-        stacked={stacked}
+        inline={inline}
       />
       <Figure
         parts={overtimeParts(balance, inShifts, shiftHours)}
@@ -616,7 +654,7 @@ function MainPlate({
         // разговора с работодателем.
         tone={under ? "signal" : balance.greaterThan(0) ? "verify" : undefined}
         still={tight}
-        stacked={stacked}
+        inline={inline}
       />
     </dl>
   );
@@ -727,7 +765,7 @@ function Figure({
   emphatic,
   tone,
   still,
-  stacked,
+  inline,
 }: {
   parts: readonly FigurePart[];
   caption: ReactNode;
@@ -735,22 +773,22 @@ function Figure({
   tone?: "signal" | "verify";
   /** Плашка эталона: считать по ней ширину, пока число в пути, нельзя. */
   still?: boolean;
-  /** Подпись под числом на любой ширине, без строчной записи. */
-  stacked?: boolean;
+  /**
+   * Строчная запись: «Норма периода: 1972 ч» — подпись слева, по оси
+   * числа, и число ростом нормы, как бы оно ни было выделено столбиком.
+   * Три числа одного роста в строку читаются одной фразой; разный рост
+   * нужен столбиком, где норма — заголовок над остальными.
+   */
+  inline?: boolean;
 }) {
   return (
-    <div
-      className={cn(
-        "min-w-0",
-        !stacked && "sm:flex sm:flex-row-reverse sm:items-center sm:gap-4 lg:block",
-      )}
-    >
+    <div className={cn("min-w-0", inline && "flex flex-row-reverse items-center gap-2.5")}>
       {/* Число и его единица не разрываются переносом: «1796,00» на одной
           строке и «ч» на следующей читается как другое число. */}
       <dd
         className={cn(
           "whitespace-nowrap font-mono leading-none text-center",
-          emphatic ? "text-xl sm:text-2xl" : "text-lg sm:text-xl",
+          emphatic || inline ? "text-xl sm:text-2xl" : "text-lg sm:text-xl",
           // Цвет меняется столько же, сколько едет приставка в подписи:
           // это одно событие, показанное с двух сторон, и разъезжаться им
           // нельзя. Поэтому длительность приходит оттуда же, откуда её
@@ -770,14 +808,17 @@ function Figure({
       </dd>
       {/* Подписи шире самих чисел — «Норма периода» занимает больше, чем
           «1972 ч», — и на 320 точках место экономится именно на них. */}
-      <dt className="flex h-3.5 items-center justify-center gap-1 whitespace-nowrap text-[10px] min-[360px]:text-[11px] leading-tight text-ink-muted">
-        {/* Двоеточие принадлежит строчной записи «Норма периода: 1972 ч»,
-            которая стоит на средних экранах. Там, где подпись снова
-            уходит под число, двоеточию не к чему прицепиться — и оно
-            снимается вместе со строчной раскладкой. */}
-        <span className={stacked ? undefined : "sm:after:content-[':'] lg:after:content-none"}>
-          {caption}
-        </span>
+      <dt
+        className={cn(
+          "flex items-center justify-center gap-1 whitespace-nowrap leading-tight text-ink-muted",
+          // В строку подпись крупнее: рядом с числом в полтора рема
+          // одиннадцать точек читались бы сноской.
+          inline ? "text-sm" : "h-3.5 text-[10px] min-[360px]:text-[11px]",
+        )}
+      >
+        {/* Двоеточие принадлежит строчной записи «Норма периода: 1972 ч».
+            Под числом подписи не к чему прицепиться — двоеточия там нет. */}
+        <span className={inline ? "after:content-[':']" : undefined}>{caption}</span>
       </dt>
     </div>
   );

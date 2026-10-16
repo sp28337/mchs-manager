@@ -426,11 +426,21 @@ function MainPlateBone() {
 }
 
 /**
- * Число с подписью внутри главной плашки — всегда столбиком.
+ * Число с подписью внутри главной плашки: столбиком, а с 1496 точек — в
+ * строку.
  *
- * Строчная запись («Норма периода: 1972 ч») у настоящей плашки бывает
- * только растянутой на всю строку и шире 640 точек, а растянута она лишь
- * уже 598: на этих двух условиях вместе она не встречается.
+ * Расчёт переводит плашку на строчную запись по замеру — когда ей
+ * достаётся заметно больше места, чем нужно строке (`INLINE_ROOM` в
+ * `period-summary.tsx`). Заглушка мерить не умеет и держит порог числом:
+ * с двумя парами мелких итогов ширина главной плашки зависит только от
+ * ширины окна, и на образцовых четырёхзначных числах строка включается с
+ * 1496 точек — замер с шагом в восемь точек.
+ *
+ * Порог записан в ремах (93,5 рема — те же 1496 точек), а не в точках:
+ * `sm:text-xl` задан в ремах, и правило в точках Tailwind ставил перед
+ * ним — число в строке оставалось ростом в 20 точек вместо 24. Классы с
+ * порогом написаны целиком, а не собраны из переменной: Tailwind находит
+ * их в исходнике как строки.
  */
 function FigureBone({
   value,
@@ -442,11 +452,17 @@ function FigureBone({
   emphatic?: boolean;
 }) {
   return (
-    <div className="min-w-0">
+    <div
+      className={cn(
+        "min-w-0",
+        "min-[93.5rem]:flex min-[93.5rem]:flex-row-reverse min-[93.5rem]:items-center min-[93.5rem]:gap-2.5",
+      )}
+    >
       <dd
         className={cn(
           "whitespace-nowrap font-mono leading-none text-center",
-          emphatic ? "text-xl sm:text-2xl" : "text-lg sm:text-xl",
+          // В строку все три числа ростом нормы — как в расчёте.
+          emphatic ? "text-xl sm:text-2xl" : "text-lg sm:text-xl min-[93.5rem]:text-2xl",
         )}
       >
         <BoneText skeleton>
@@ -454,8 +470,15 @@ function FigureBone({
           <span className="ml-1 text-xs sm:text-sm">ч</span>
         </BoneText>
       </dd>
-      <dt className="flex h-3.5 items-center justify-center gap-1 whitespace-nowrap text-[10px] min-[360px]:text-[11px] leading-tight text-ink-muted">
-        <BoneText skeleton>{caption}</BoneText>
+      <dt
+        className={cn(
+          "flex h-3.5 items-center justify-center gap-1 whitespace-nowrap text-[10px] min-[360px]:text-[11px] leading-tight text-ink-muted",
+          "min-[93.5rem]:h-auto min-[93.5rem]:text-sm",
+        )}
+      >
+        <BoneText skeleton>
+          <span className="min-[93.5rem]:after:content-[':']">{caption}</span>
+        </BoneText>
       </dt>
     </div>
   );
