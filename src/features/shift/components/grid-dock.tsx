@@ -107,7 +107,9 @@ export function GridDock({
   onViewChange: (view: YearViewKind) => void;
 }) {
   return (
-    <div role="group" aria-label="Управление сеткой" className={DOCK}>
+    // `data-dock` — примета для перечня видов у дня (`day-ring.tsx`): ряд
+    // стоит над сеткой, и перечень на него не заходит.
+    <div role="group" aria-label="Управление сеткой" data-dock className={DOCK}>
       <div className={DOCK_LEFT}>
         {/* Какая из двух легенд в окошке, решает показанная сетка: о
             графике смен и о производственном календаре клетки говорят
