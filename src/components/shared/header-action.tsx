@@ -63,9 +63,14 @@ export const MARK_EMPTY = { stroke: "#8a8578", opacity: 0.45 } as const;
 
 /**
  * То же самое классами — для значков из набора (`lucide`), которые берут
- * цвет из `currentColor` и своих атрибутов не имеют.
+ * цвет из `currentColor` и своих атрибутов не имеют. Цвет и прозрачность
+ * есть и порознь: тексту с обрезкой многоточием цвет нужен на том же
+ * узле, что рисует многоточие, а прозрачность — там, где её меняет
+ * наведение.
  */
-export const MARK_EMPTY_CLASS = "text-[#8a8578] opacity-45";
+export const MARK_EMPTY_COLOR = "text-[#8a8578]";
+export const MARK_EMPTY_OPACITY = "opacity-45";
+export const MARK_EMPTY_CLASS = `${MARK_EMPTY_COLOR} ${MARK_EMPTY_OPACITY}`;
 
 const ПУСТОЕ = MARK_EMPTY;
 
