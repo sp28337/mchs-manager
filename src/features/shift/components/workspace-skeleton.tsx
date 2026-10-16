@@ -21,7 +21,6 @@ import { CalendarIcon, PeriodIcon, ShiftsIcon } from "./grid-icons";
 import { LiveSignal, LIVE_ROW_CAPTION, LIVE_ROW_CELL } from "./live-mode";
 import { MetaSep, MonthGrid, YEAR_BOX, YEAR_GRID } from "./month-grid";
 import { MONTH_NAMES } from "./month-names";
-import { TAB_SHAPE_STYLE } from "./tab-shape";
 
 /**
  * Рабочий экран, пока читается профиль.
@@ -96,10 +95,33 @@ const RIGHT_FIGURES = [
  */
 export function ProfileNameBone() {
   return (
-    <span aria-hidden className="font-hand text-3xl leading-none">
+    // Одной строкой, как настоящее имя (`truncate` у него): кость в два
+    // слова иначе переносилась, когда шапке тесно, и раздувала строку.
+    <span aria-hidden className="font-hand text-3xl leading-none whitespace-nowrap">
       <BoneText skeleton className="rounded-md">
         Мой график
       </BoneText>
+    </span>
+  );
+}
+
+/**
+ * Кость кнопки периода посередине шапки — той же меры, что настоящая
+ * (`PeriodPicker`): плашка, знак и подпись прозрачными. Подпись — «год»
+ * нынешнего года: учётный период по умолчанию — год целиком, и в
+ * большинстве профилей кнопка встанет ровно на место кости.
+ */
+export function PeriodPickerBone() {
+  return (
+    <span
+      aria-hidden
+      className={cn(
+        "lit inline-flex h-9 shrink-0 items-center gap-2 rounded-xl whitespace-nowrap",
+        "skeleton-bone bg-paper-raised px-3 text-sm font-medium text-transparent",
+      )}
+    >
+      <PeriodIcon className="shrink-0 opacity-0" />
+      {SAMPLE_YEAR} год
     </span>
   );
 }
@@ -151,9 +173,7 @@ export function WorkspaceSkeleton() {
             мерить не умеет, поэтому держит те же пороги числами. */}
         <div
           className={cn(
-            // По низу, как в расчёте: с `md` у главной плашки ушко сверху,
-            // и мелкие встают вровень с её телом.
-            "relative flex items-end gap-2 px-6 pb-3",
+            "relative flex items-stretch gap-2 px-6 pb-3",
             "min-[598px]:grid min-[598px]:grid-cols-[1fr_auto_1fr]",
             // С двумя парами мелкие плашки растут лишь до 10,5 рем, а дальше
             // растёт главная — тот же предел колонок, что в расчёте.
@@ -201,9 +221,6 @@ export function WorkspaceSkeleton() {
                       Календарь
                     </SegmentBone>
                   </div>
-
-                  {/* Кости периода здесь нет — как и кнопки в расчёте: она
-                      в ушке главной плашки (`MainPlateBone`). */}
                 </div>
 
                 {/* Кнопка «Онлайн»: знак и подпись рядом, в той же мере,
@@ -444,20 +461,21 @@ function MonthBones({ month }: { month: number }) {
  *
  * Плашка растягивается на всю строку, пока мелких итогов рядом нет, и
  * сжимается по содержимому и встаёт посередине, когда они появляются, —
- * ровно как настоящая. С `md` у неё то же ушко (`tab-shape.ts`), и в нём
- * кость кнопки периода.
+ * ровно как настоящая.
  */
 function MainPlateBone() {
   return (
-    // Три слоя и те же классы света, что у настоящей (`MainPlate`): без
-    // них заглушка была плоской, а на её место вставала поднятая — и в
-    // этот миг по всей полосе итога разом зажигался свет.
-    <div
+    <dl
       className={cn(
-        "tab-plate lit-aim",
-        "min-w-0 flex-1",
+        // `lit` — тот же свет, что у настоящей плашки: блик по верхней
+        // кромке и тень вниз. Без него заглушка была плоской, а на её
+        // место вставала поднятая — и в этот миг по всей полосе итога
+        // разом зажигался свет.
+        "lit flex h-14 items-center justify-around rounded-xl bg-paper-raised py-2",
+        "px-2 min-[360px]:px-4",
+        "min-w-0 flex-1 gap-x-1.5 min-[360px]:gap-x-3",
         "min-[598px]:col-start-2 min-[598px]:row-start-1 min-[598px]:flex-none",
-        "min-[598px]:shrink-0 lg:min-w-92.5",
+        "min-[598px]:shrink-0 min-[598px]:gap-x-5 sm:gap-x-6 lg:min-w-92.5",
         // В сетке со сторонами плашка не уже своего содержимого — как
         // настоящая. С `min-w-0` средняя колонка (`minmax(auto, 1fr)`)
         // считала бы её нижней границей ноль, и стороны, растущие до
@@ -465,32 +483,11 @@ function MainPlateBone() {
         // точках — 144 против 291 у расчёта.
         "min-[598px]:min-w-auto",
       )}
-      style={TAB_SHAPE_STYLE}
     >
-      <div className="tab-rim lit-edge lit-edge--clipped h-14 rounded-xl bg-paper-raised p-px md:h-[5.5rem]">
-        <div className="tab-face flex size-full flex-col rounded-[11px] bg-paper-raised">
-          <div className="hidden h-[calc(2rem-1px)] shrink-0 items-center justify-center px-3 md:flex">
-            <span className="inline-flex h-7 items-center gap-1.5 px-2.5 text-[13px] font-medium">
-              <BoneText skeleton className="inline-flex items-center gap-1.5">
-                <PeriodIcon className="opacity-0" />
-                {SAMPLE_YEAR} год
-              </BoneText>
-            </span>
-          </div>
-          <dl
-            className={cn(
-              // Поле на точку меньше: точку занимает кайма — как в расчёте.
-              "flex min-h-0 flex-1 items-center justify-around px-[7px] py-2 min-[360px]:px-[15px]",
-              "gap-x-1.5 min-[360px]:gap-x-3 min-[598px]:gap-x-5 sm:gap-x-6",
-            )}
-          >
-            <FigureBone value="1972" caption="Норма периода" emphatic />
-            <FigureBone value="2192" caption="Отработано" />
-            <FigureBone value="220" caption="Переработка" />
-          </dl>
-        </div>
-      </div>
-    </div>
+      <FigureBone value="1972" caption="Норма периода" emphatic />
+      <FigureBone value="2192" caption="Отработано" />
+      <FigureBone value="220" caption="Переработка" />
+    </dl>
   );
 }
 

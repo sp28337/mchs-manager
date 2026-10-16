@@ -90,10 +90,17 @@ export interface OpenSection {
 export function HeaderMenu({
   items,
   section,
+  compact = false,
 }: {
   items?: ReactNode;
   /** Раздел, показанный вместо страницы. */
   section?: OpenSection;
+  /**
+   * На узком экране — без слова, одни три полосы: середину шапки занимает
+   * кнопка периода (`SiteHeader`, `center`), и слово рядом с ней в строку
+   * не встаёт. Слово остаётся программе чтения (`COMPACT_WORD`).
+   */
+  compact?: boolean;
 }) {
   const { account, actions } = useSync();
   const путь = usePathname();
@@ -169,14 +176,18 @@ export function HeaderMenu({
     // прятало бы за нажатием то, что и так умещается в строке.
     return (
       <Link href="/account" className={HEADER_ACTION} data-account-entry>
-        <span className={HEADER_WORD}>Вход</span>
+        <span className={cn(HEADER_WORD, compact && COMPACT_WORD)}>Вход</span>
         <DoorMark />
       </Link>
     );
   }
 
   return (
-    <div ref={гнездо} className="relative shrink-0">
+    // `flex`, а не блок: в блоке кнопка встаёт в строку текста и садится
+    // на её базовую линию. Пока слово видно, это незаметно, но в сжатой
+    // шапке слова нет, и строка обёртки вырастала до 34 точек — три
+    // полосы поднимались на три точки выше знака сайта.
+    <div ref={гнездо} className="relative flex shrink-0">
       <button
         type="button"
         onClick={() => {
@@ -199,7 +210,7 @@ export function HeaderMenu({
         {/* Оба слова лежат в одной ячейке грида: ширина считается по
             большему из них, и подмена не дёргает знак рядом. Прижаты к
             правому краю — туда же, где стоит знак. */}
-        <span className="grid justify-items-end">
+        <span className={cn("grid justify-items-end", compact && COMPACT_WORD)}>
           <Materialize
             show={section === undefined}
             ariaHidden={section !== undefined}
@@ -349,6 +360,20 @@ export function OpenScheduleItem() {
   );
 }
 
+/**
+ * Слово кнопки в сжатой шапке: на узком экране оно уходит с глаз, но не
+ * из разметки — имя кнопки остаётся тем же словом.
+ *
+ * Порог — замер: с 520 точек «ГРАФИК 1|3» (130), кнопка периода с самой
+ * длинной подписью (150) и «СТАТИСТИКА» с крестиком (137) встают в строку
+ * так, что кнопка остаётся точно по оси экрана. Уже — слово сталкивало бы
+ * её с середины, а ещё уже — выталкивало бы из строки.
+ *
+ * `max-[520px]` в Tailwind 4 — это «уже 520» (`not (min-width: 520px)`):
+ * на самих 520 слово уже видно.
+ */
+const COMPACT_WORD = "max-[520px]:sr-only";
+
 const ПУНКТ = cn(
   "flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-sm text-ink",
   "cursor-pointer transition-colors hover:bg-paper-sunken",
@@ -361,7 +386,7 @@ const ПУНКТ = cn(
  * профиль, — прозрачные и на плашке. Место, которое займёт меню,
  * отмеряется им самим, а не подобранным прямоугольником.
  */
-export function HeaderMenuBone() {
+export function HeaderMenuBone({ compact = false }: { compact?: boolean }) {
   return (
     <span
       aria-hidden
@@ -371,7 +396,7 @@ export function HeaderMenuBone() {
         "[&_*]:text-transparent [&_svg]:opacity-0",
       )}
     >
-      <span className={HEADER_WORD}>Меню</span>
+      <span className={cn(HEADER_WORD, compact && COMPACT_WORD)}>Меню</span>
       <MenuMark />
     </span>
   );

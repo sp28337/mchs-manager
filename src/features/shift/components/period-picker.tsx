@@ -138,7 +138,6 @@ export function PeriodPicker({
   onMonth,
   cellClassName,
   captionClassName,
-  flat = false,
 }: {
   accountingYear: number;
   /** Учётный год — такой же ответ на «что смотрим», как отрезок и месяц. */
@@ -162,12 +161,6 @@ export function PeriodPicker({
    */
   cellClassName?: string;
   captionClassName?: string;
-  /**
-   * Кнопка без своей плашки — для ушка главной плашки итога
-   * (`period-summary.tsx`). Ушко уже и есть поднятая бумага с каймой, и
-   * вторая плашка на нём читалась бы кнопкой, положенной на кнопку.
-   */
-  flat?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const partId = useId();
@@ -202,39 +195,25 @@ export function PeriodPicker({
           <PeriodIcon className="text-ink-muted" />
           <span className={captionClassName}>{current}</span>
         </button>
-      ) : flat ? (
-        <button
-          type="button"
-          onClick={() => setOpen(true)}
-          aria-label={`Период: ${current}. Выбрать другой`}
-          className={cn(
-            // Отклик на наведение — заливкой чуть темнее бумаги, как у строк
-            // меню: своей каймы у кнопки нет, кайма у ушка общая.
-            "inline-flex h-7 max-w-full shrink-0 cursor-pointer items-center gap-1.5 rounded-lg",
-            "px-2.5 text-[13px] font-medium text-ink transition-colors hover:bg-paper-sunken",
-            "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ink",
-          )}
-        >
-          <PeriodIcon className="shrink-0 text-ink-muted" />
-          <span className="truncate">{current}</span>
-        </button>
       ) : (
         <button
           type="button"
           onClick={() => setOpen(true)}
           aria-label={`Период: ${current}. Выбрать другой`}
           className={cn(
-            // `lit` — та же поднятая поверхность, что и занятая ячейка
-            // переключателя рядом: кнопка периода стоит с ними в одной
-            // строке и обязана ловить свет так же, иначе из строки выпадает.
+            // Кнопка посередине шапки (`SiteHeader`, `center`) — плашкой
+            // того же рода, что итоги под ней: бумага, скругление, свет
+            // лампы с бликом по кромке (`lit`). Слова шапки по краям
+            // набраны крупными прописными, но они — знаки сайта и меню, а
+            // это ответ «за какой срок»: он того же рода, что числа.
             "lit inline-flex h-9 shrink-0 cursor-pointer items-center gap-2 rounded-xl",
-            "bg-paper-raised px-3 text-sm font-medium",
+            "bg-paper-raised px-3 text-sm font-medium whitespace-nowrap",
             "text-ink",
             "focus-visible:outline-2 focus-visible:outline-offset-2",
             "focus-visible:outline-ink",
           )}
         >
-          <PeriodIcon className="text-ink-muted" />
+          <PeriodIcon className="shrink-0 text-ink-muted" />
           {current}
         </button>
       )}

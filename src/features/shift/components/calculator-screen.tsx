@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { SiteHeader } from "@/components/shared/site-header";
 import { RegisterForm } from "./register-form";
 import { Workspace } from "./workspace";
-import { ProfileNameBone, WorkspaceSkeleton } from "./workspace-skeleton";
+import { PeriodPickerBone, ProfileNameBone, WorkspaceSkeleton } from "./workspace-skeleton";
 import { useProfile } from "../storage/use-profile";
 
 /**
@@ -91,6 +91,8 @@ export function CalculatorScreen() {
         // рядом с названием сайта в тот же миг, когда заглушка сменяется
         // расчётом.
         title={state.status === "corrupt" ? undefined : <ProfileNameBone />}
+        // Посередине — кость кнопки периода, по той же причине.
+        center={state.status === "corrupt" ? undefined : <PeriodPickerBone />}
       />
 
       {state.status === "corrupt" ? (
