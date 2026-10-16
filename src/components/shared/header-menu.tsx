@@ -235,10 +235,12 @@ export function HeaderMenu({
         <Закрыть.Provider value={() => setОткрытоНа(null)}>
           <div
             id={id}
-            // `modal-lift` — та же кайма и тень, что у окон приложения:
-            // меню лежит поверх страницы и поднято на ту же высоту.
+            // `lit modal-lift` — та же кайма и тень, что у окон приложения:
+            // меню лежит поверх страницы и поднято на ту же высоту. Кайма
+            // горит от лампы и разгорается под курсором — как у всех
+            // окошек (`KNOB_POPOVER` в `ui/knob.tsx`).
             className={cn(
-              "modal-lift absolute right-0 top-full z-100 mt-2 w-64 max-w-[calc(100vw-3rem)]",
+              "lit modal-lift absolute right-0 top-full z-100 mt-2 w-64 max-w-[calc(100vw-3rem)]",
               "overflow-hidden rounded-xl bg-paper-raised",
             )}
           >

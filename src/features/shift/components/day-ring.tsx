@@ -752,13 +752,14 @@ function Ring({
 
           {/* Перечень видов — знак и название рядом, как в легенде, только
               нажимаемый. Плашка та же, что у окошек меню и легенды
-              (`modal-lift`): это такое же окошко выбора, раскрытое из того,
-              по чему нажали. */}
+              (`lit modal-lift`): это такое же окошко выбора, раскрытое из
+              того, по чему нажали, — с той же каймой, что горит от лампы и
+              разгорается под курсором. */}
           <div
             data-day-ring
             style={list.style}
             className={cn(
-              "day-list modal-lift fixed z-[115] overflow-y-auto rounded-xl bg-paper-raised p-1.5",
+              "day-list lit modal-lift fixed z-[115] overflow-y-auto rounded-xl bg-paper-raised p-1.5",
             )}
           >
             <ul className={cn("grid gap-0.5", list.columns === 2 ? "grid-cols-2" : "grid-cols-1")}>

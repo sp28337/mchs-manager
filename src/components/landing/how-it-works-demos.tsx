@@ -1,5 +1,6 @@
 import type { CSSProperties, ReactNode } from "react";
 import {
+  CalendarRange,
   ChartColumn,
   FolderOpen,
   Save,
@@ -826,14 +827,18 @@ export function DemoStorage() {
           </span>
         </div>
 
-        {/* Меню и окно стоят в одной ячейке: меню гаснет ровно тогда,
-            когда открывается окно, и показу незачем подпрыгивать на
-            высоту одного из них. Высоту держит окно — оно выше. */}
-        <div className="relative">
-        {/* Меню — то самое, что открывает кружок: четыре действия
-            рабочего экрана. Нажимают здесь по последнему. */}
-        <div className="demo-menu modal-lift absolute right-0 top-0 w-60 rounded-xl bg-paper-raised p-1.5">
+        {/* Меню и окно стоят в одной ячейке сетки: меню гаснет ровно
+            тогда, когда открывается окно, и показу незачем подпрыгивать
+            на высоту одного из них. Высоту держит большее из двух — с
+            пятой строкой меню («События») на широком экране оно стало
+            выше окна, и вынесенное из потока вылезало бы за ячейку. */}
+        <div className="grid">
+        {/* Меню — то самое, что открывает кружок: пять действий
+            рабочего экрана. Нажимают здесь по последнему. Кайма — та же
+            живая, что у меню в приложении (`lit`). */}
+        <div className="demo-menu lit modal-lift relative col-start-1 row-start-1 w-60 self-start justify-self-end rounded-xl bg-paper-raised p-1.5">
           <MenuRow icon={Settings}>Настройки</MenuRow>
+          <MenuRow icon={CalendarRange}>События</MenuRow>
           <MenuRow icon={ChartColumn}>Статистика</MenuRow>
           <MenuRow icon={FolderOpen}>Открыть профиль</MenuRow>
           <MenuRow icon={Save} className="demo-save-button">
@@ -846,7 +851,7 @@ export function DemoStorage() {
             собрано оно как настоящее (`save-to-file.tsx`): поднятая бумага
             со светом и тенью окна, заголовок прописными и крестик в углу,
             под ними вопрос с полем, а внизу две кнопки. */}
-        <div className="demo-dialog lit modal-lift rounded-xl bg-paper-raised">
+        <div className="demo-dialog lit modal-lift col-start-1 row-start-1 self-start rounded-xl bg-paper-raised">
           <div className="flex items-center gap-3 px-4 pt-3 pb-1">
             <p className="min-w-0 flex-1 font-display text-[0.8em] font-bold uppercase leading-6 tracking-wide">
               Сохранить профиль в файл

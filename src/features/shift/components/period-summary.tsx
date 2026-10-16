@@ -4,7 +4,6 @@ import { useLayoutEffect, useRef, useState, type ReactNode, type Ref } from "rea
 
 import { BalanceCaption, BALANCE_SWAP_MS } from "@/components/ui/balance-caption";
 import { CountedNumber } from "@/components/ui/counted-number";
-import { Segmented, SegmentedItem } from "@/components/ui/segmented";
 import { cn } from "@/lib/utils/cn";
 
 import {
@@ -16,7 +15,6 @@ import {
 import { shiftMinutes } from "../domain/shift-hours";
 import { pendingTransfers } from "../domain/production-calendar";
 import type { PeriodCalculation } from "../domain/calculation";
-import { SETTINGS_TABS, type SettingsTab } from "./settings-tabs";
 
 /**
  * Итог периода.
@@ -62,7 +60,6 @@ export function PeriodSummary({
   accountingYear,
   overtimeInShifts,
   shiftDurationHours,
-  settings,
 }: {
   calculation: PeriodCalculation;
   accountingYear: number;
@@ -77,17 +74,7 @@ export function PeriodSummary({
    * отработал сверх нормы.
    */
   shiftDurationHours: string;
-  /**
-   * Настройки вместо итога — только на телефоне (`workspace.tsx`): там
-   * блок цифр не закрывается окном, а сам превращается в закладки.
-   */
-  settings?: {
-    open: boolean;
-    tab: SettingsTab;
-    onTab: (tab: SettingsTab) => void;
-  };
 }) {
-  const settingsOpen = settings?.open ?? false;
   return (
     <>
       {/* `data-summary` — примета для дымки под закреплёнными полосами
@@ -108,139 +95,27 @@ export function PeriodSummary({
         data-summary
         className="sticky top-[calc(6rem+var(--safe-top))] z-40 -mx-6 -translate-y-8 md:-mt-2"
       >
-        {/* Цифры и закладки лежат в одной ячейке грида и гаснут друг в
-            друга: блок занимает на экране одно и то же место, отмечает ли
-            человек день в календаре или открыл настройки, — меняется
-            только то, что внутри него. */}
-        <div className="relative grid">
-          <div
-            aria-hidden={settingsOpen}
-            inert={settingsOpen || undefined}
-            className={cn(
-              // `min-w-0` — не про эту половину, а про общую ячейку грида.
-              // Ячейка `auto` шириной не меньше самого широкого содержимого
-              // ОБЕИХ половин, а у закладок настроек имена длинные и
-              // неразрывные. На 320 точках колонка раздувалась ими до 386, и
-              // цифры, растянутые на ту же ширину, уезжали за правый край —
-              // на экране, где закладок в этот момент нет вовсе.
-              "col-start-1 row-start-1 min-w-0 transition-opacity duration-200",
-              settingsOpen ? "pointer-events-none opacity-0" : "opacity-100",
-            )}
-          >
-            <FiguresRow
-              calculation={calculation}
-              inShifts={overtimeInShifts}
-              shiftHours={shiftDurationHours}
-            />
-          </div>
-
-          {settings ? (
-            <div
-              aria-hidden={!settingsOpen}
-              inert={!settingsOpen || undefined}
-              className={cn(
-                "col-start-1 row-start-1 min-w-0 px-6 pb-3 transition-opacity ease-out",
-                // Дорожка не шире анкеты под ней. Цифр восемь, и им
-                // монитор впору; закладок две, и растянутые на две тысячи
-                // точек они стояли бы двумя плашками поперёк экрана над
-                // формой втрое уже — двумя разными вещами, а не
-                // оглавлением к ней. Предел тот же, что у анкеты
-                // (`workspace.tsx`, 44 рем), плюс поля этой ячейки по
-                // шесть единиц с каждой стороны.
-                "mx-auto w-full max-w-[47rem]",
-                // Дорожка закладок ждёт своей паузы (`REVEAL_DELAY_MS` в
-                // `SettingsSwitch`) — иначе она проступала бы одновременно
-                // с гаснущими цифрами, а не после них.
-                settingsOpen
-                  ? "opacity-100 duration-200 delay-[220ms]"
-                  : "pointer-events-none opacity-0",
-              )}
-            >
-              <SettingsSwitch tab={settings.tab} onTab={settings.onTab} />
-            </div>
-          ) : null}
-        </div>
+        <FiguresRow
+          calculation={calculation}
+          inShifts={overtimeInShifts}
+          shiftHours={shiftDurationHours}
+        />
       </div>
 
-      {settingsOpen ? null : <PendingNotice accountingYear={accountingYear} />}
+      <PendingNotice accountingYear={accountingYear} />
     </>
   );
 }
 
 /**
- * Пауза после того, как цифры погасли и до того, как проступает первая
- * закладка. Число здесь то же, что в задержке появления самой дорожки
- * (`delay-[220ms]` у обёртки в `PeriodSummary`) и что в задержке появления
- * анкеты под ней (`workspace.tsx`, `FadeIn`) — все три обязаны трогаться
- * ОДНИМ моментом, а не по очереди: иначе цифры гаснут, секунду ничего не
- * происходит, потом порознь оживают то закладки, то анкета под ними, и всё
- * вместе читается не одним превращением, а вознёй из нескольких.
+ * Пауза перед тем, как проступает раздел, открытый на месте сетки без
+ * полосы цифр, — проводник и настройки (`workspace.tsx`, `FadeIn`).
+ *
+ * Полоса уходит с экрана, и раздел встаёт не сразу, а через эту паузу:
+ * подменять одно другим внахлёст значило бы показать на миг и то и другое
+ * сразу, а всё вместе читалось бы не одним превращением, а вознёй.
  */
 export const REVEAL_DELAY_MS = 220;
-
-/**
- * Кегль и поля закладок на самом узком телефоне.
- *
- * Имена закладок длинные и неразрывные: «Настройки профиля» и «Внесённые
- * изменения» в обычном кегле требуют 323 точки, а на 320-точечном экране
- * дорожке достаётся 272 — второе имя уезжало за правый край. Уменьшенный
- * кегль и поля укладывают обе в 269.
- *
- * Обрезка многоточием (`truncate` у самих закладок) при этом остаётся
- * страховкой, а не расчётом: на другом наборе шрифтов имя обрежется, но за
- * край не уедет.
- */
-const NARROW_TAB = "px-2 text-xs min-[360px]:px-3 min-[360px]:text-sm";
-
-/**
- * Переключатель закладок настроек — на месте итоговых цифр.
- *
- * --- Почему обе закладки появляются разом -----------------------------------
- *
- * Здесь была лестница из трёх стадий: после паузы проступала одна широкая
- * плашка «Настройки профиля», стояла так, чтобы её успели прочитать, потом
- * съезжала влево, открывая дорожку соседу, и только тогда проявлялось имя
- * «Внесённые изменения». Замысел был показать, что раздела два, но на деле
- * от нажатия до второй закладки проходило больше секунды: человек, нажавший
- * «Настройки», видел сперва одну кнопку во всю строку, а вторую — когда уже
- * смотрел на анкету под ней. Появление читалось не превращением, а
- * задержкой и вознёй.
- *
- * Теперь дорожка встаёт готовой. Единственное, что её отделяет от нажатия,
- * — время, за которое гаснут цифры на её месте (`REVEAL_DELAY_MS` в
- * задержке прозрачности у обёртки снаружи): подменять одно другим внахлёст
- * значило бы показать на миг и то и другое сразу.
- */
-function SettingsSwitch({
-  tab,
-  onTab,
-}: {
-  tab: SettingsTab;
-  onTab: (tab: SettingsTab) => void;
-}) {
-  return (
-    <Segmented label="Разделы настроек" className="relative flex h-14 w-full">
-      {SETTINGS_TABS.map(({ id, label }) => (
-        <SegmentedItem
-          key={id}
-          active={tab === id}
-          onClick={() => onTab(id)}
-          className={cn(
-            // Скругление — как у главной плашки цифр (`MainPlate`,
-            // `rounded-xl`): своё, крупнее обычного у закладок
-            // (`rounded-lg`), и важное — иначе более узкое правило
-            // `SegmentedItem` побеждало бы по порядку в таблице стилей, а
-            // не по месту в разметке.
-            "h-14 min-w-0 shrink grow truncate rounded-xl!",
-            NARROW_TAB,
-          )}
-        >
-          {label}
-        </SegmentedItem>
-      ))}
-    </Segmented>
-  );
-}
 
 /**
  * Мелкие итоги — плашками по обе стороны от главной, если для них есть

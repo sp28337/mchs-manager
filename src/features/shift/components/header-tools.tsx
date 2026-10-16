@@ -1,6 +1,6 @@
 "use client";
 
-import { ChartColumn, FolderOpen, Save, Settings } from "lucide-react";
+import { CalendarRange, ChartColumn, FolderOpen, Save, Settings } from "lucide-react";
 
 import { MenuItem } from "@/components/shared/header-menu";
 
@@ -9,11 +9,17 @@ import { MenuItem } from "@/components/shared/header-menu";
  *
  * --- Что это за действия ---------------------------------------------------
  *
- * Их четыре, и они об одном — о профиле: настроить нынешний, посмотреть,
- * что из заданного вышло, открыть другой, сохранить нынешний в файл.
- * Порядок тот, в каком читается история профиля. «Открыть» стоит третьим
- * намеренно — это единственное действие, уносящее нынешний профиль, и
- * соседство с «Сохранить» тут кстати.
+ * Их пять, и они об одном — о профиле: настроить нынешний, посмотреть, что
+ * в него внесено, посмотреть, что из всего этого вышло, открыть другой,
+ * сохранить нынешний в файл. Порядок тот, в каком читается история
+ * профиля. «Открыть» стоит четвёртым намеренно — это единственное
+ * действие, уносящее нынешний профиль, и соседство с «Сохранить» тут
+ * кстати.
+ *
+ * «События» — отдельной строкой, а не закладкой настроек, где перечень
+ * жил прежде: на него смотрят куда чаще, чем правят анкету, и за другим
+ * (`workspace.tsx`, `eventsOpen`). Значок — отрезок дат на календаре: в
+ * перечне в основном то, что длится, — отпуска, больничные, вызовы.
  *
  * --- Почему в меню, а не кнопками в шапке ----------------------------------
  *
@@ -47,11 +53,13 @@ import { MenuItem } from "@/components/shared/header-menu";
  */
 export function WorkspaceMenuItems({
   onToggleSettings,
+  onToggleEvents,
   onToggleStats,
   onToggleExplorer,
   onSave,
 }: {
   onToggleSettings: () => void;
+  onToggleEvents: () => void;
   onToggleStats: () => void;
   onToggleExplorer: () => void;
   /** Открыть окно выгрузки профиля в файл. */
@@ -61,6 +69,9 @@ export function WorkspaceMenuItems({
     <>
       <MenuItem icon={Settings} onClick={onToggleSettings}>
         Настройки
+      </MenuItem>
+      <MenuItem icon={CalendarRange} onClick={onToggleEvents}>
+        События
       </MenuItem>
       <MenuItem icon={ChartColumn} onClick={onToggleStats}>
         Статистика

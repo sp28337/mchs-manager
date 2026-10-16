@@ -31,7 +31,6 @@ import { ProfileFooter } from "./profile-footer";
 import { ProfileName } from "./profile-name";
 import { useSaveToFile } from "./save-to-file";
 import { DangerActions, SettingsPanel } from "./settings-panel";
-import { SETTINGS_TAB_LABEL, type SettingsTab } from "./settings-tabs";
 import { Statistics } from "./statistics";
 import { CalendarNote } from "./year-calendar-editor";
 import {
@@ -196,9 +195,9 @@ export function Workspace({
    *
    * --- Почему состояние живёт здесь --------------------------------------
    *
-   * Открытие меняет разом три места: шапку (знак называет «Настройки»),
-   * полосу цифр (она становится закладками) и то, что стоит под ней
-   * (анкета вместо графика). Три разных места экрана нельзя привязать к
+   * Открытие меняет разом три места: шапку (кнопка меню называет
+   * «Настройки», выбора периода посередине нет), полосу цифр (её нет) и то,
+   * что стоит под ней (анкета вместо графика). Три разных места экрана нельзя привязать к
    * состоянию одной кнопки в шапке — держать его пришлось бы здесь, откуда
    * видно всех троих.
    *
@@ -231,7 +230,6 @@ export function Workspace({
    */
   const [switched, setSwitched] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [settingsTab, setSettingsTab] = useState<SettingsTab>("profile");
   const showSettings = settingsOpen;
 
   /**
@@ -266,6 +264,7 @@ export function Workspace({
     });
     setExplorerOpen(false);
     setStatsOpen(false);
+    setEventsOpen(false);
     setStatsShown(null);
   }
 
@@ -324,8 +323,42 @@ export function Workspace({
     });
     setSettingsOpen(false);
     setExplorerOpen(false);
+    setEventsOpen(false);
     // И на входе, и на выходе: статистика всегда открывается на том
     // профиле, что открыт, и всегда оставляет после себя его же.
+    setStatsShown(null);
+  }
+
+  /**
+   * События — всё, что внесено в график, одним перечнем
+   * (`changes-list.tsx`), на месте календаря.
+   *
+   * --- Почему своим разделом, а не закладкой настроек -----------------------
+   *
+   * Перечень жил второй закладкой настроек, и это было соседство по
+   * случаю, а не по смыслу. Настройки — ответы о человеке: график, норма,
+   * дата смены. Их правят редко. События — то, что он наотмечал на сетке:
+   * отпуска, больничные, вызовы. На них смотрят куда чаще и за другим — «что
+   * стоит в конце марта», — и искать их за словом «Настройки», а там ещё за
+   * второй закладкой, значило два лишних шага до самого частого вопроса.
+   *
+   * Отдельным разделом он встаёт в один ряд со статистикой: тот же пункт
+   * меню, та же подмена страницы на месте и та же полоса цифр над ним —
+   * отметки меняют числа, и видеть их вместе полезно. Откат прокрутки —
+   * тот же, что у остальных разделов, по той же причине.
+   */
+  const [eventsOpen, setEventsOpen] = useState(false);
+
+  function toggleEvents() {
+    setSwitched(true);
+    setEventsOpen((open) => {
+      const next = !open;
+      if (next) window.scrollTo(0, 0);
+      return next;
+    });
+    setSettingsOpen(false);
+    setExplorerOpen(false);
+    setStatsOpen(false);
     setStatsShown(null);
   }
 
@@ -356,6 +389,7 @@ export function Workspace({
     });
     setSettingsOpen(false);
     setStatsOpen(false);
+    setEventsOpen(false);
     setStatsShown(null);
   }
 
@@ -493,7 +527,9 @@ export function Workspace({
       ? { label: "Настройки", close: toggleSettings }
       : statsOpen
         ? { label: "Статистика", close: toggleStats }
-        : undefined;
+        : eventsOpen
+          ? { label: "События", close: toggleEvents }
+          : undefined;
 
   return (
     <>
@@ -525,7 +561,9 @@ export function Workspace({
         // Выбор учётного периода — посередине шапки: по нему считаются и
         // цифры полосы итога, и сетка, и стоит он над ними обеими, а не
         // при одной. В проводнике его нет, как нет там и имени: ни цифр,
-        // ни сетки одного профиля там не показано.
+        // ни сетки одного профиля там не показано. Нет его и в настройках:
+        // там нет ни полосы цифр, ни сетки — одни ответы о человеке, и
+        // выбор периода над ними ничего бы не менял.
         //
         // Здесь выбирается только доля года — год, полугодие, квартал;
         // сам год — знаком нижнего ряда (`GridDock`).
@@ -535,7 +573,7 @@ export function Workspace({
         // СВОЕМУ учётному году, и подпись открытого назвала бы срок, за
         // который эти числа не считались.
         center={
-          explorerOpen ? undefined : (
+          explorerOpen || showSettings ? undefined : (
             <PeriodPicker
               accountingYear={headProfile.accountingYear}
               statutory={statutory}
@@ -546,6 +584,7 @@ export function Workspace({
         menu={
           <WorkspaceMenuItems
             onToggleSettings={toggleSettings}
+            onToggleEvents={toggleEvents}
             onToggleStats={toggleStats}
             onToggleExplorer={toggleExplorer}
             onSave={saveToFile.ask}
@@ -586,9 +625,11 @@ export function Workspace({
           Человек, зашедший переименовать папку, читал чужую переработку.
 
           Поэтому в проводнике их нет вовсе, и место наверху достаётся
-          спискам. Настройки и статистика их сохраняют: там речь как раз об
+          спискам. Статистика и события их сохраняют: там речь как раз об
           открытом профиле, и числа при нём — ответ на вопрос «что я правлю»
-          (`Statistics` умеет подменять их выбранным профилем сама). */}
+          (`Statistics` умеет подменять их выбранным профилем сама).
+          Настройки сохраняют только имя: полосу цифр там прежде заменяли
+          закладки, а закладок больше нет — анкета встаёт сразу под ним. */}
       {explorerOpen ? null : (
         <>
           {/* Поле под именем — не про воздух: полоса с числами закрывает
@@ -609,19 +650,15 @@ export function Workspace({
               Числа и сетка нужны одновременно: человек отмечает день и тут
               же смотрит, что стало с нормой. Колонкой слева это стоило
               календарю четырёхсот точек ширины, а лентой сверху — прокрутки
-              назад через двенадцать сеток.
-
-              На телефоне та же полоса умеет становиться закладками настроек
-              (`settings`, ниже) — тем же способом, каким шапка выше умеет
-              называть себя «Настройки»: одно место экрана, разное
-              содержимое. */}
-          <PeriodSummary
-            calculation={previewCalculation ?? calculation}
-            accountingYear={headProfile.accountingYear}
-            overtimeInShifts={headProfile.overtimeInDays}
-            shiftDurationHours={headProfile.shiftDurationHours}
-            settings={{ open: showSettings, tab: settingsTab, onTab: setSettingsTab }}
-          />
+              назад через двенадцать сеток. */}
+          {showSettings ? null : (
+            <PeriodSummary
+              calculation={previewCalculation ?? calculation}
+              accountingYear={headProfile.accountingYear}
+              overtimeInShifts={headProfile.overtimeInDays}
+              shiftDurationHours={headProfile.shiftDurationHours}
+            />
+          )}
         </>
       )}
 
@@ -636,8 +673,7 @@ export function Workspace({
         // уходящую полосу, и два движения шли бы одно сквозь другое.
         <FadeIn key="explorer" delayMs={REVEAL_DELAY_MS} instant={!switched}>
           {/* Верхнего поля нет: имя и числа отсюда убраны, и список
-              начинается сразу под шапкой — так же, как под ней начинаются
-              закладки настроек. */}
+              начинается сразу под шапкой. */}
           <section aria-labelledby="explorer-heading" className="space-y-4 pt-2">
             <h2 id="explorer-heading" className="sr-only">
               Профили
@@ -653,11 +689,6 @@ export function Workspace({
         // Настройки на месте графика — не поверх страницы, а вместо той
         // его части, что сейчас не нужна: нижний ряд знаков (`GridDock`,
         // ниже) при этом тоже скрыт — управлять им больше нечем.
-        // Ключ не зависит от закладки нарочно: проявление здесь — про
-        // ОТКРЫТИЕ настроек, за которым гаснут цифры наверху. Переход с
-        // одной закладки на другую — не открытие, и заново проигранное
-        // проявление превращало бы нажатие по соседней закладке в четверть
-        // секунды пустоты, а потом всплытие из размытия.
         <FadeIn key="settings" delayMs={REVEAL_DELAY_MS} instant={!switched}>
           {/* Анкета не растягивается во всю ширину монитора: строка
               «Норма в неделю» с полем у правого края в двух тысячах точек
@@ -671,76 +702,29 @@ export function Workspace({
             className="mx-auto w-full max-w-[44rem] space-y-4"
           >
             <h2 id="settings-heading" className="sr-only">
-              {SETTINGS_TAB_LABEL[settingsTab]}
+              Настройки профиля
             </h2>
-            {/* Обе закладки стоят в одной клетке сетки, одна поверх другой.
-                -----------------------------------------------------------------
-                Показана всегда одна, но высоту клетка берёт по большей из
-                них — и страница от переключения не меняет роста. Иначе
-                выходило так: анкета длиннее экрана, перечень правок
-                короче, — и, нажав соседнюю закладку, человек видел, как
-                подвал прыгает снизу вверх, на середину экрана. Он не
-                трогал подвал; он просто посмотрел, что наотмечал.
-
-                Скрытая закладка не `display: none`: он убрал бы её из
-                раскладки вместе с высотой, ради которой всё и затеяно.
-
-                Прячется она СРАЗУ ТРЕМЯ способами, и это не
-                перестраховка ради красоты. `visibility: hidden` одного
-                оказалось мало: у человека на странице оставались висеть
-                поля анкеты — дата, часы и минуты начала смены,
-                длительность, — без плашек и подписей, посреди пустого
-                места под перечнем. Воспроизвести это в Chromium не
-                удалось, значит дело в движке, который в этой раскладке
-                перерисовывает не всё; спорить с ним бесполезно, а
-                способов спрятать у CSS больше одного:
-
-                * `opacity-0` — прозрачность накладывается на слой
-                  целиком, и родные поля браузера ею тоже гасятся;
-                * `clip-path: inset(50%)` — обрезка до нулевого
-                  прямоугольника: рисовать становится негде, а место в
-                  раскладке остаётся;
-                * `invisible` — та самая `visibility: hidden`, которая
-                  вдобавок исключает из поиска по странице.
-
-                `pointer-events` и `select-none` снимают с неё нажатия и
-                выделение — невидимый текст не должен выделяться протяжкой
-                по пустому месту. `inert` и `aria-hidden` убирают её из
-                обхода табуляцией и от программы чтения: невидимое не
-                должно отвечать ни на фокус, ни на вопрос «что на
-                странице». */}
-            <div className="grid">
-              <div
-                className={cn(
-                  "col-start-1 row-start-1 space-y-4",
-                  settingsTab !== "profile" && HIDDEN_TAB,
-                )}
-                inert={settingsTab !== "profile"}
-                aria-hidden={settingsTab !== "profile" || undefined}
-              >
-                <SettingsPanel profile={profile} onChange={onChange} />
-                <DangerActions onForget={onForget} onChange={onChange} showReset={false} />
-              </div>
-              <div
-                className={cn(
-                  "col-start-1 row-start-1",
-                  settingsTab !== "changes" && HIDDEN_TAB,
-                )}
-                inert={settingsTab !== "changes"}
-                aria-hidden={settingsTab !== "changes" || undefined}
-              >
-                {/* Правка строки перечня со страницы никуда не уводит: окно
-                    события открывается прямо там, поверх перечня
-                    (`changes-list.tsx`). Уводило — на сетку, к тем суткам, и
-                    человек, поправив часы вызова, оказывался в другом месте
-                    приложения, откуда сам не уходил. */}
-                <ChangesList
-                  profile={profile}
-                  onChange={onChange}
-                  onOpenProfile={() => setSettingsTab("profile")}
-                />
-              </div>
-            </div>
+            <SettingsPanel profile={profile} onChange={onChange} />
+            <DangerActions onForget={onForget} onChange={onChange} showReset={false} />
+          </section>
+        </FadeIn>
+      ) : eventsOpen ? (
+        // События на месте графика — тем же порядком, что статистика:
+        // полоса цифр остаётся, страница под ней подменяется, нижний ряд
+        // знаков (`GridDock`, ниже) скрыт — управлять им нечем.
+        <FadeIn key="events" instant={!switched}>
+          {/* Ширина — та же, что у анкеты настроек (44 рем): строка
+              события — что, когда и две кнопки, — растянутая на монитор,
+              разводила бы название и крестик по разным краям экрана. */}
+          <section aria-labelledby="events-heading" className="mx-auto w-full max-w-[44rem]">
+            <h2 id="events-heading" className="sr-only">
+              События
+            </h2>
+            {/* Правка строки никуда не уводит: окно события открывается
+                прямо здесь, поверх перечня (`changes-list.tsx`). Уводит
+                только начало отсчёта — оно задаётся в анкете, и строка с
+                ним открывает настройки. */}
+            <ChangesList profile={profile} onChange={onChange} onOpenProfile={toggleSettings} />
           </section>
         </FadeIn>
       ) : statsOpen ? (
@@ -848,7 +832,7 @@ export function Workspace({
           тема — о самом окне, и в настройках она нужна ровно так же, как
           на сетке. Стоит он там же, где кончается ряд, и при открытии
           раздела не сдвигается ни на точку. */}
-      {showSettings || explorerOpen || statsOpen ? (
+      {showSettings || explorerOpen || statsOpen || eventsOpen ? (
         <ThemeCorner />
       ) : (
         <GridDock
@@ -866,33 +850,23 @@ export function Workspace({
 }
 
 /**
- * Закладка настроек, которая сейчас не показана.
- *
- * Своё место в раскладке она держит (иначе подвал прыгал бы при каждом
- * переключении), а рисоваться не должна ничем и нигде. Доводы, почему
- * способов сразу три, — там, где это стоит в разметке.
- */
-const HIDDEN_TAB =
-  "invisible opacity-0 [clip-path:inset(50%)] pointer-events-none select-none";
-
-/**
  * Появление содержимого — плавным проступанием, а не рывком.
  *
  * Настройки и календарь занимают одно и то же место на экране по очереди,
  * а не разом: у них слишком разная высота, чтобы стоять друг под другом
- * слоем, — свободного места под коротким перечнем правок было бы на весь
+ * слоем, — свободного места под коротким перечнем событий было бы на весь
  * рост несостоявшегося календаря. Поэтому смена — не перекрёстное
  * растворение одного в другое, а простое появление того, что встало на
  * освободившееся место.
  *
  * `key` снаружи (`workspace.tsx`) заставляет пересоздать обёртку при
- * каждой смене раздела — календарь, анкета профиля, перечень правок, — и
+ * каждой смене раздела — календарь, анкета профиля, события, статистика, — и
  * проступание играет заново.
  *
- * `delayMs` — не украшение, а синхронизация: анкета обязана тронуться в
- * тот же миг, что и закладки над ней (`REVEAL_DELAY_MS` в
- * `period-summary.tsx`), иначе цифры гаснут, и дальше два соседних места
- * экрана оживают порознь, каждое в своё время, — а должны одним движением.
+ * `delayMs` — не украшение, а очерёдность: у разделов без полосы цифр
+ * (проводник, настройки) полоса сперва уходит, и только потом проступает
+ * раздел (`REVEAL_DELAY_MS` в `period-summary.tsx`) — иначе одно ехало бы
+ * сквозь другое.
  */
 function FadeIn({
   children,

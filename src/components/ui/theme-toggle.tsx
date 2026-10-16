@@ -166,8 +166,8 @@ export function ThemeCorner({
             // Вверх, а не вниз: знак стоит у нижней кромки, и раскрытое
             // вниз окошко уехало бы за экран целиком. Прижато к правому
             // краю, у которого стоит знак, — иначе оно вылезало бы за
-            // кромку окна.
-            "modal-lift absolute bottom-full right-0 mb-2 w-52 max-w-[calc(100vw-3rem)]",
+            // кромку окна. Кайма — живая, как у всех окошек (`KNOB_POPOVER`).
+            "lit modal-lift absolute bottom-full right-0 mb-2 w-52 max-w-[calc(100vw-3rem)]",
             "overflow-hidden rounded-xl bg-paper-raised p-1.5",
           )}
         >

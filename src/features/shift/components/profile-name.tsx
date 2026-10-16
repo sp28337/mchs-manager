@@ -201,10 +201,11 @@ export function ProfileName({
           role="group"
           aria-label="Другие профили"
           className={cn(
-            // `modal-lift` — та же кайма и тень, что у меню в шапке: окошко
-            // лежит поверх страницы на той же высоте. Выше полосы цифр
-            // (`z-40`), иначе на узком экране оно уходило бы под неё.
-            "modal-lift absolute top-full z-50 mt-2 w-64 max-w-[calc(100vw-3rem)]",
+            // `lit modal-lift` — та же живая кайма и тень, что у меню в
+            // шапке: окошко лежит поверх страницы на той же высоте. Выше
+            // полосы цифр (`z-40`), иначе на узком экране оно уходило бы
+            // под неё.
+            "lit modal-lift absolute top-full z-50 mt-2 w-64 max-w-[calc(100vw-3rem)]",
             "max-h-[60svh] overflow-y-auto rounded-xl bg-paper-raised p-1.5 text-left",
             // В шапке — от левого края имени, вниз; над цифрами — по
             // середине, под самим именем: оно там стоит по центру.
