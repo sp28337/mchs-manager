@@ -27,7 +27,7 @@ import { WorkspaceMenuItems } from "./header-tools";
 import { scrollMonthUnderBar, topmostVisibleMonth } from "./month-anchor";
 import { useConfirmSwitch } from "./open-profile";
 import { PeriodSummary, REVEAL_DELAY_MS } from "./period-summary";
-import { ProfileExplorer, useExplorerTools } from "./profile-explorer";
+import { ProfileExplorer, useExplorerTools, useLibrary } from "./profile-explorer";
 import { ProfileFooter } from "./profile-footer";
 import { ProfileName } from "./profile-name";
 import { useSaveToFile } from "./save-to-file";
@@ -406,6 +406,15 @@ export function Workspace({
    */
   const switchProfile = useConfirmSwitch(profile, touched);
 
+  // Другие профили проводника — на них можно переключиться нажатием по
+  // имени (`ProfileName`). Перечень тот же, что у проводника и статистики
+  // (`useLibrary`): второй подписки на него заводить нельзя.
+  const { library, activeId } = useLibrary();
+  const otherEntries = useMemo(
+    () => library.entries.filter((entry) => entry.id !== activeId),
+    [library, activeId],
+  );
+
   function askOpenEntry(entry: LibraryEntry) {
     switchProfile.ask(() => {
       const next = openEntry(entry.id);
@@ -514,8 +523,8 @@ export function Workspace({
           explorerOpen ? undefined : (
             <ProfileName
               profile={headProfile}
-              onChange={onChange}
-              editable={preview === null}
+              others={otherEntries}
+              onPick={askOpenEntry}
               place="header"
             />
           )
@@ -581,12 +590,10 @@ export function Workspace({
           {/* С `md` имя уезжает в строку шапки (`title` у `SiteHeader`
               выше), и здесь его нет — вместе с полем под ним. */}
           <header className="pb-12 md:hidden">
-            {/* Пока наверху показан ЧУЖОЙ профиль, имя не правится: нажатие
-                по нему правило бы открытый, а человек читает не его. */}
             <ProfileName
               profile={headProfile}
-              onChange={onChange}
-              editable={preview === null}
+              others={otherEntries}
+              onPick={askOpenEntry}
             />
           </header>
 

@@ -1,184 +1,189 @@
 "use client";
 
-import { useRef, useState, type FormEvent, type KeyboardEvent } from "react";
+import { User } from "lucide-react";
+import { useEffect, useId, useRef, useState } from "react";
 
 import { cn } from "@/lib/utils/cn";
 
+import type { LibraryEntry } from "../storage/library";
 import type { StoredProfile } from "../storage/profile";
 
-/** Дальше имя не растёт — то же ограничение, что было у поля в настройках. */
-const MAX_NAME_LENGTH = 200;
-
 /**
- * Имя профиля — водяным знаком над цифрами, правится прямо в нём.
+ * Имя профиля — водяным знаком, и через него же — выбор другого профиля.
  *
- * --- Почему не поле в настройках -------------------------------------------
+ * --- Почему имя больше не правится нажатием --------------------------------
  *
- * Имя — единственное, что человек читает на этом экране первым, ещё до
- * цифр: он и так смотрит на него. Отдельное поле в настройках спрашивало о
- * том же самом словом, но в другом месте экрана, и правка начиналась с
- * поиска этого места. Здесь она начинается нажатием по тому, что уже видно.
+ * Правилось: нажатие превращало водяной знак в поле, и имя менялось прямо
+ * на месте. Удобно, пока на имя нажимают ради правки, — но нажимали на
+ * него и случайно, и чтобы переключиться на другой профиль, и в обоих
+ * случаях получали курсор в чужом слове. Имя — такое же свойство профиля,
+ * как график и норма, и правится оно там же, где они: в настройках.
  *
- * --- Почему правится «текстом», а не полем ввода ----------------------------
+ * --- Что делает нажатие теперь ---------------------------------------------
  *
- * Пробовали `<input>`. У формы это ЧУЖОЙ элемент: браузер рисует
- * содержимое полей своим путём, отдельным от обычного текста, — и на
- * рукописной гарнитуре с её росчерками этот путь ведёт к другому
- * начертанию, заметно мельче настоящего, хотя запрошенный размер шрифта
- * тот же самый (замерено — совпадает). Слово по факту начинает выглядеть
- * иначе ровно в момент нажатия, а должно оставаться тем же самым словом,
- * просто ставшим печатным.
+ * Открывает перечень ДРУГИХ профилей — тех, что лежат в проводнике, — и
+ * выбранный открывается вместо нынешнего. Имя стоит там, где человек и так
+ * смотрит, и «этот график не тот» — ровно тот вопрос, с которым на него
+ * смотрят. Через проводник то же самое стоило трёх нажатий: меню, «Открыть
+ * профиль», строка.
  *
- * `contenteditable` — не поле, а обычный текст, разрешивший себя
- * редактировать: тот же обычный путь отрисовки, что и у кнопки рядом,
- * буква в букву.
+ * Других профилей нет — нажимать незачем, и имя остаётся просто надписью:
+ * без указателя-«пальца» и без отклика на наведение. Кнопка, открывающая
+ * пустой перечень, обещала бы выбор, которого нет.
  *
- * --- Почему ярче только во время правки -------------------------------------
+ * Открытие идёт тем же путём, что из проводника (`workspace.tsx`,
+ * `askOpenEntry`): с вопросом, не сохранить ли нынешний в файл, если он
+ * правился, и с переставленным указателем на открытую запись.
  *
- * Водяной знак нарочно бледный: это подпись, а не заголовок экрана, и
- * спорить с цифрами под ним ему не за что. На время правки он обязан стать
- * читаемым — иначе не видно ни набранного текста, ни курсора, — а как
- * только правка кончилась, возвращается прежним.
+ * --- Почему так бледно ------------------------------------------------------
+ *
+ * Водяной знак нарочно бледный — и в шапке тоже: это подпись к экрану, а
+ * не заголовок, и спорить с цифрами ему не за что. Под указателем он
+ * проступает чуть ярче, если на него можно нажать.
  */
 export function ProfileName({
   profile,
-  onChange,
-  editable = true,
+  others,
+  onPick,
   place = "page",
 }: {
   profile: StoredProfile;
-  onChange: (change: (previous: StoredProfile) => StoredProfile) => void;
+  /** Другие профили проводника — те, на которые можно переключиться. */
+  others: readonly LibraryEntry[];
+  /** Открыть выбранный профиль вместо нынешнего. */
+  onPick: (entry: LibraryEntry) => void;
   /**
    * Где стоит имя.
    *
-   * `page` — водяным знаком над цифрами, крупно и бледно: так оно стоит на
-   * узком экране, где в шапке места нет.
+   * `page` — над цифрами, крупно: так оно стоит на узком экране, где в
+   * шапке места нет.
    *
-   * `header` — в строке шапки, сразу за знаком сайта. Там оно не водяной
-   * знак, а подпись рядом с названием: размер подобран по высоте букв
-   * «ГРАФИК 1|3», а цвет — приглушённый, но читаемый. Десять процентов
-   * непрозрачности, верные для крупного знака посреди бумаги, в строке
-   * высотой в четыре рема дали бы надпись, которой нет.
+   * `header` — в строке шапки, сразу за знаком сайта, в размер букв
+   * «ГРАФИК 1|3».
    */
   place?: "page" | "header";
-  /**
-   * Имя правится нажатием по нему.
-   *
-   * Выключается, когда наверху страницы показан ЧУЖОЙ профиль — тот, на
-   * который человек навёл указатель в проводнике (`workspace.tsx`). Имя в
-   * этот миг принадлежит не открытому графику, и правка ушла бы не туда.
-   */
-  editable?: boolean;
 }) {
-  const [editing, setEditing] = useState(false);
-  const field = useRef<HTMLSpanElement>(null);
-
-  function edit() {
-    setEditing(true);
-    // Текст и фокус — уже ПОСЛЕ отрисовки поля: пока стоит кнопка, ставить
-    // курсор некуда. `contenteditable`, в отличие от `<input>`, не читает
-    // содержимое из атрибута — оно ставится здесь, один раз на вход в
-    // правку, и дальше это уже НЕ управляемый React элемент: перерисовка
-    // строки при каждой набранной букве сбивала бы курсор на середину.
-    requestAnimationFrame(() => {
-      const el = field.current;
-      if (!el) return;
-      el.textContent = profile.displayName;
-      el.focus();
-      // Курсор — в конец набранного, а не выделением всего имени: имя и
-      // так уже целиком читается (правка только поднимает его
-      // непрозрачность), а выделение заливкой поверх рукописных букв
-      // выглядело бы другим словом, а не тем же самым, ставшим печатным.
-      const range = document.createRange();
-      range.selectNodeContents(el);
-      range.collapse(false);
-      const selection = window.getSelection();
-      selection?.removeAllRanges();
-      selection?.addRange(range);
-    });
-  }
-
-  function commit(event: FormEvent<HTMLSpanElement>) {
-    const el = event.currentTarget;
-    let text = el.textContent ?? "";
-    if (text.length > MAX_NAME_LENGTH) {
-      text = text.slice(0, MAX_NAME_LENGTH);
-      el.textContent = text;
-    }
-    onChange((previous) => ({ ...previous, displayName: text }));
-  }
-
-  // Enter и Esc уводят фокус из поля тем же путём, что и щелчок мимо:
-  // отдельного отката нет, как и у всех остальных полей приложения, —
-  // набранное уже записано в профиль по ходу правки.
-  function endOnKey(event: KeyboardEvent<HTMLSpanElement>) {
-    if (event.key === "Enter" || event.key === "Escape") {
-      event.preventDefault();
-      event.currentTarget.blur();
-    }
-  }
-
+  const [открыто, setОткрыто] = useState(false);
+  const гнездо = useRef<HTMLDivElement>(null);
+  const id = useId();
   const вШапке = place === "header";
+  const имя = profile.displayName || "Имя профиля";
+  const выбор = others.length > 0;
+
+  // Закрывается всеми способами, какими обязано: `Esc`, нажатие мимо, уход
+  // фокуса. Те же три, что у меню в шапке и у легенды.
+  useEffect(() => {
+    if (!открыто) return;
+
+    const закрыть = () => setОткрыто(false);
+    const мимо = (событие: PointerEvent) => {
+      if (!гнездо.current?.contains(событие.target as Node)) закрыть();
+    };
+    const клавиша = (событие: KeyboardEvent) => {
+      if (событие.key === "Escape") закрыть();
+    };
+    const фокус = (событие: FocusEvent) => {
+      if (!гнездо.current?.contains(событие.target as Node)) закрыть();
+    };
+
+    document.addEventListener("pointerdown", мимо);
+    document.addEventListener("keydown", клавиша);
+    document.addEventListener("focusin", фокус);
+
+    return () => {
+      document.removeEventListener("pointerdown", мимо);
+      document.removeEventListener("keydown", клавиша);
+      document.removeEventListener("focusin", фокус);
+    };
+  }, [открыто]);
+
+  // По алфавиту, а не по свежести: место профиля в перечне не должно
+  // меняться от того, какой правили последним, — тогда рука запоминает,
+  // где он.
+  const перечень = [...others].sort((a, b) => a.name.localeCompare(b.name, "ru"));
 
   return (
-    <h1
-      className={cn(
-        "font-hand",
-        вШапке
-          ? // Рукописная гарнитура мельче печатной при том же кегле: её
-            // строчные — в полроста прописных, а росчерки уходят вверх и
-            // вниз. В тех же 20 точках, что «ГРАФИК», имя читалось бы
-            // сноской; в 30 высота строчных встаёт вровень с высотой
-            // прописных названия. `truncate` — длинное имя обрезается, а
-            // не выталкивает меню за край строки.
-            "min-w-0 truncate text-3xl leading-none"
-          : "text-3xl leading-tight text-center sm:text-5xl",
-      )}
-    >
-      {editing ? (
-        <span
-          ref={field}
-          contentEditable
-          suppressContentEditableWarning
-          role="textbox"
-          aria-multiline="false"
-          aria-label="Имя профиля"
-          onInput={commit}
-          onBlur={() => setEditing(false)}
-          onKeyDown={endOnKey}
+    // Окошко — вне заголовка, а не внутри: у имени в шапке стоит
+    // `truncate`, и всё, что выходит за его рамку, обрезалось бы вместе с
+    // длинным именем.
+    <div ref={гнездо} className={cn("relative min-w-0", !вШапке && "text-center")}>
+      <h1
+        className={cn(
+          "font-hand",
+          вШапке
+            ? // Рукописная гарнитура мельче печатной при том же кегле: её
+              // строчные — в полроста прописных, а росчерки уходят вверх и
+              // вниз. В тех же 20 точках, что «ГРАФИК», имя читалось бы
+              // сноской; в 30 высота строчных встаёт вровень с высотой
+              // прописных названия. `truncate` — длинное имя обрезается, а
+              // не выталкивает меню за край строки.
+              "min-w-0 truncate text-3xl leading-none"
+            : "text-3xl leading-tight sm:text-5xl",
+        )}
+      >
+        {выбор ? (
+          <button
+            type="button"
+            onClick={() => setОткрыто((было) => !было)}
+            aria-expanded={открыто}
+            aria-controls={id}
+            // Имя кнопки — само имя профиля и то, что нажатие делает:
+            // «Петров И. С.» без продолжения не говорит, что за ним выбор.
+            aria-label={`${имя}. Выбрать другой профиль`}
+            className={cn(
+              // Указатель над текстом везде стрелка (`globals.css`), и
+              // «палец» — единственный признак нажимаемого. У имени он тем
+              // нужнее, что на кнопку оно не похоже вовсе.
+              "max-w-full cursor-pointer truncate rounded-sm opacity-10 transition-opacity",
+              "hover:opacity-20",
+              открыто && "opacity-20",
+              "focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ink",
+            )}
+          >
+            {имя}
+          </button>
+        ) : (
+          <span className="opacity-10">{имя}</span>
+        )}
+      </h1>
+
+      {открыто && (
+        <div
+          id={id}
+          role="group"
+          aria-label="Другие профили"
           className={cn(
-            "inline-block min-w-[1ch] outline-none",
-            // Указатель — чернилами, то есть цветом самой надписи.
-            // Сигнальным он был ради заметности на тонкой рукописной
-            // гарнитуре, но красная черта поперёк росчерков читалась не
-            // курсором, а помаркой: будто слово зачёркнуто.
-            "caret-ink",
-            "rounded-sm focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ink",
-          )}
-        />
-      ) : editable ? (
-        <button
-          type="button"
-          onClick={edit}
-          aria-label="Изменить имя профиля"
-          className={cn(
-            // Указатель над текстом теперь везде стрелка (`globals.css`), и
-            // «палец» остался единственным признаком нажимаемого. У имени
-            // он тем нужнее, что на кнопку оно не похоже вовсе.
-            "cursor-pointer rounded-sm",
-            "focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ink",
-            вШапке
-              ? "max-w-full truncate text-ink-muted transition-colors hover:text-ink"
-              : "opacity-10 transition-opacity hover:opacity-20",
+            // `modal-lift` — та же кайма и тень, что у меню в шапке: окошко
+            // лежит поверх страницы на той же высоте. Выше полосы цифр
+            // (`z-40`), иначе на узком экране оно уходило бы под неё.
+            "modal-lift absolute top-full z-50 mt-2 w-64 max-w-[calc(100vw-3rem)]",
+            "max-h-[60svh] overflow-y-auto rounded-xl bg-paper-raised p-1.5 text-left",
+            // В шапке — от левого края имени, вниз; над цифрами — по
+            // середине, под самим именем: оно там стоит по центру.
+            вШапке ? "left-0" : "left-1/2 -translate-x-1/2",
           )}
         >
-          {profile.displayName || "Имя профиля"}
-        </button>
-      ) : (
-        <span className={вШапке ? "text-ink-muted" : "opacity-10"}>
-          {profile.displayName || "Имя профиля"}
-        </span>
+          <p className="px-2.5 pt-1.5 pb-1 text-xs text-ink-muted">Открыть другой профиль</p>
+          {перечень.map((entry) => (
+            <button
+              key={entry.id}
+              type="button"
+              onClick={() => {
+                setОткрыто(false);
+                onPick(entry);
+              }}
+              className={cn(
+                "flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-sm text-ink",
+                "cursor-pointer transition-colors hover:bg-paper-sunken",
+                "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ink",
+              )}
+            >
+              <User aria-hidden className="size-4 shrink-0 text-ink-muted" />
+              <span className="min-w-0 truncate">{entry.name || "Без имени"}</span>
+            </button>
+          ))}
+        </div>
       )}
-    </h1>
+    </div>
   );
 }
