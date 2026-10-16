@@ -1,3 +1,4 @@
+import { MARK_EMPTY } from "@/components/shared/header-action";
 import { cn } from "@/lib/utils/cn";
 
 /**
@@ -27,9 +28,10 @@ import { cn } from "@/lib/utils/cn";
  * ровно этим, — а серый по-прежнему называет цикл: залито одно из четырёх.
  *
  * Поэтому у одноцветного вида от знака остаётся всё, кроме цвета: те же
- * квадраты, та же геометрия, та же залитая клетка. Обводки при этом чуть
- * плотнее (0,55 против 0,45): в шапке знак вдвое крупнее, чем в ряду
- * управления, и на мелком прежняя доля растворялась до неразличимой.
+ * квадраты, та же геометрия, та же залитая клетка. Обводки при этом
+ * плотнее (0,55 от цвета значка): в одноцветном виде они берут цвет
+ * значка, а не чернила при четверти силы, как у цветного знака
+ * (`MARK_EMPTY` в `shared/header-action.tsx`).
  *
  * Размер в ряду знак берёт не отсюда: квадраты занимают клетку рисунка
  * почти целиком, и рядом со значками из набора он выходит крупнее.
@@ -37,7 +39,12 @@ import { cn } from "@/lib/utils/cn";
  * grid-icons.tsx`), — вместе с замером, из которого она получена.
  */
 export function Logo({ className, mono }: { className?: string; mono?: boolean }) {
-  const outline = mono ? "currentColor" : "#8a8578";
+  // Пустые клетки цветного знака — чернилами темы при четверти силы, тем
+  // же нейтральным серым, что полосы меню и знаки по углам окна
+  // (`MARK_EMPTY`); одноцветного — цветом самого значка.
+  const пустая = mono
+    ? ({ stroke: "currentColor", opacity: 0.55 } as const)
+    : MARK_EMPTY;
   return (
     <svg
       viewBox="0 0 24 24"
@@ -54,9 +61,8 @@ export function Logo({ className, mono }: { className?: string; mono?: boolean }
         width="8.5"
         height="8.5"
         rx="1.75"
-        stroke={outline}
         strokeWidth="1.5"
-        opacity={mono ? "0.55" : "0.45"}
+        {...пустая}
       />
       <rect
         x="1.75"
@@ -64,9 +70,8 @@ export function Logo({ className, mono }: { className?: string; mono?: boolean }
         width="8.5"
         height="8.5"
         rx="1.75"
-        stroke={outline}
         strokeWidth="1.5"
-        opacity={mono ? "0.55" : "0.45"}
+        {...пустая}
       />
       <rect
         x="13.75"
@@ -74,9 +79,8 @@ export function Logo({ className, mono }: { className?: string; mono?: boolean }
         width="8.5"
         height="8.5"
         rx="1.75"
-        stroke={outline}
         strokeWidth="1.5"
-        opacity={mono ? "0.55" : "0.45"}
+        {...пустая}
       />
     </svg>
   );

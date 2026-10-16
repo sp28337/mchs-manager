@@ -45,12 +45,12 @@ const INK_MUTED = "#a3a9b0";
 const SIGNAL = "#db0e17";
 const VERIFY = "#45a352";
 
-/** Знак приложения — та же геометрия, что в `ui/logo.tsx`, до десятой доли. */
+/** Знак приложения — та же геометрия, что в `ui/logo.tsx`, до десятой доли, и те же цвета тёмной темы: пустые клетки — чернилами при четверти силы. */
 const LOGO = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none">
 <rect x="1" y="1" width="10" height="10" rx="2" fill="${SIGNAL}"/>
-<rect x="13.75" y="1.75" width="8.5" height="8.5" rx="1.75" stroke="#8a8578" stroke-width="1.5" opacity="0.45"/>
-<rect x="1.75" y="13.75" width="8.5" height="8.5" rx="1.75" stroke="#8a8578" stroke-width="1.5" opacity="0.45"/>
-<rect x="13.75" y="13.75" width="8.5" height="8.5" rx="1.75" stroke="#8a8578" stroke-width="1.5" opacity="0.45"/>
+<rect x="13.75" y="1.75" width="8.5" height="8.5" rx="1.75" stroke="${INK}" stroke-width="1.5" opacity="0.24"/>
+<rect x="1.75" y="13.75" width="8.5" height="8.5" rx="1.75" stroke="${INK}" stroke-width="1.5" opacity="0.24"/>
+<rect x="13.75" y="13.75" width="8.5" height="8.5" rx="1.75" stroke="${INK}" stroke-width="1.5" opacity="0.24"/>
 </svg>`;
 
 const BRAND = "ГРАФИК";

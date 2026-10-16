@@ -53,24 +53,29 @@ export const HEADER_ACTION = cn(
 const ЗНАК = "size-7 shrink-0";
 
 /**
- * Цвет «пустых» частей знака — ровно тот же, что у пустых квадратов
- * логотипа (`ui/logo.tsx`): тёплый серый `#8a8578` в сорока пяти
- * процентах. Не `currentColor` и не линовка: знаки стоят в одной строке
- * с логотипом, и любое расхождение в полутоне читается как разные
- * наборы значков, собранные из разных мест.
+ * Цвет «пустых» частей знаков — пустых квадратов логотипа (`ui/logo.tsx`),
+ * полос меню, двери, контуров легенды и темы: чернила темы при двадцати
+ * четырёх процентах, то есть нейтральный серый на обеих темах.
+ *
+ * Прежде здесь стоял тёплый серый `#8a8578` при сорока пяти процентах —
+ * один на обе темы. Рядом с холодной бумагой он читался желтоватым, а с
+ * именем профиля в той же строке шапки (обычные чернила при десяти
+ * процентах) расходился оттенком. Чернила темы нейтральны сами и
+ * подстраиваются под тему; двадцать четыре процента дают ту же яркость,
+ * что была: на тёмной бумаге (79,80,82) против (79,78,73), на светлой
+ * (199,199,201) против (202,200,194) — меняется оттенок, а не сила.
+ *
+ * Цвет задан классом (`stroke-ink`), а не атрибутом: атрибут не знает
+ * темы, а правило таблицы стилей сильнее атрибута и берёт чернила той
+ * темы, что включена.
  */
-export const MARK_EMPTY = { stroke: "#8a8578", opacity: 0.45 } as const;
+export const MARK_EMPTY = { className: "stroke-ink", opacity: 0.24 } as const;
 
 /**
- * То же самое классами — для значков из набора (`lucide`), которые берут
- * цвет из `currentColor` и своих атрибутов не имеют. Цвет и прозрачность
- * есть и порознь: тексту с обрезкой многоточием цвет нужен на том же
- * узле, что рисует многоточие, а прозрачность — там, где её меняет
- * наведение.
+ * То же самое классами — для значков из набора (`lucide`) и прочих, что
+ * берут цвет из `currentColor`.
  */
-export const MARK_EMPTY_COLOR = "text-[#8a8578]";
-export const MARK_EMPTY_OPACITY = "opacity-45";
-export const MARK_EMPTY_CLASS = `${MARK_EMPTY_COLOR} ${MARK_EMPTY_OPACITY}`;
+export const MARK_EMPTY_CLASS = "text-ink opacity-24";
 
 const ПУСТОЕ = MARK_EMPTY;
 
@@ -151,9 +156,8 @@ export function MenuMark({ cross, className }: { cross?: boolean; className?: st
         width="20"
         height="2.4"
         rx="1.2"
-        fill={ПУСТОЕ.stroke}
         opacity={ПУСТОЕ.opacity}
-        className={cn(полоса, cross === true && "translate-y-[7.4px] rotate-45")}
+        className={cn(полоса, "fill-ink", cross === true && "translate-y-[7.4px] rotate-45")}
       />
       <rect
         x="2"
@@ -161,9 +165,8 @@ export function MenuMark({ cross, className }: { cross?: boolean; className?: st
         width="20"
         height="2.4"
         rx="1.2"
-        fill={ПУСТОЕ.stroke}
         opacity={ПУСТОЕ.opacity}
-        className={cn(полоса, cross === true && "opacity-0")}
+        className={cn(полоса, "fill-ink", cross === true && "opacity-0")}
       />
       <rect
         x="2"
@@ -171,9 +174,8 @@ export function MenuMark({ cross, className }: { cross?: boolean; className?: st
         width="20"
         height="2.4"
         rx="1.2"
-        fill={ПУСТОЕ.stroke}
         opacity={ПУСТОЕ.opacity}
-        className={cn(полоса, cross === true && "-translate-y-[7.4px] -rotate-45")}
+        className={cn(полоса, "fill-ink", cross === true && "-translate-y-[7.4px] -rotate-45")}
       />
     </svg>
   );
