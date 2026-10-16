@@ -17,6 +17,7 @@ import { shiftMinutes } from "../domain/shift-hours";
 import { pendingTransfers } from "../domain/production-calendar";
 import type { PeriodCalculation } from "../domain/calculation";
 import { SETTINGS_TABS, type SettingsTab } from "./settings-tabs";
+import { TAB_SHAPE_STYLE } from "./tab-shape";
 
 /**
  * Итог периода.
@@ -62,9 +63,16 @@ export function PeriodSummary({
   accountingYear,
   overtimeInShifts,
   shiftDurationHours,
+  period,
   settings,
 }: {
   calculation: PeriodCalculation;
+  /**
+   * Выбор периода, за который посчитаны числа, — в ушке над главной
+   * плашкой (с `md`). Кнопку отдаёт рабочий экран: состояние периода живёт
+   * там, общее у чисел и у сетки.
+   */
+  period?: ReactNode;
   accountingYear: number;
   /** В чём показывать переработку: в часах или сменами и часами. */
   overtimeInShifts: boolean;
@@ -131,6 +139,7 @@ export function PeriodSummary({
               calculation={calculation}
               inShifts={overtimeInShifts}
               shiftHours={shiftDurationHours}
+              period={period}
             />
           </div>
 
@@ -327,10 +336,12 @@ function FiguresRow({
   calculation,
   inShifts,
   shiftHours,
+  period,
 }: {
   calculation: PeriodCalculation;
   inShifts: boolean;
   shiftHours: string;
+  period?: ReactNode;
 }) {
   const row = useRef<HTMLDivElement>(null);
   const probe = useRef<HTMLDivElement>(null);
@@ -399,7 +410,9 @@ function FiguresRow({
     <div
       ref={row}
       className={cn(
-        "relative items-stretch gap-2 px-6 pb-3",
+        // По низу, а не растяжкой: у главной плашки с `md` ушко сверху, и
+        // мелкие итоги обязаны встать вровень с её телом, а не с ушком.
+        "relative items-end gap-2 px-6 pb-3",
         pairs === 0 && "flex",
         pairs === 1 && "grid grid-cols-[1fr_auto_1fr]",
         // Две плашки по 10,5 рем и просвет между ними в полрема: 21,5 рем.
@@ -414,6 +427,7 @@ function FiguresRow({
         inShifts={inShifts}
         shiftHours={shiftHours}
         grow={pairs === 0}
+        period={period}
         className={pairs === 0 ? undefined : "col-start-2 row-start-1"}
       />
 
@@ -548,6 +562,7 @@ function MainPlate({
   shiftHours,
   grow,
   tight,
+  period,
   className,
 }: {
   calculation: PeriodCalculation;
@@ -559,6 +574,11 @@ function MainPlate({
   grow?: boolean;
   /** Плашка эталона: по содержимому. */
   tight?: boolean;
+  /**
+   * Выбор периода — в ушке над числами (с `md`, `tab-shape.ts`). Ниже
+   * `md` ушка нет: выбор стоит в нижней панели телефона.
+   */
+  period?: ReactNode;
   /** Место в сетке полосы: посередине, когда по сторонам есть итоги. */
   className?: string;
 }) {
@@ -575,50 +595,97 @@ function MainPlate({
   // пускала. Эталон тоже меряется столбиком — иначе он считал бы место
   // для раскладки, которой при итогах рядом не бывает.
   const stacked = tight === true || grow !== true;
+  const ушко = period !== undefined;
 
   return (
-    <dl
+    // Три слоя, как у папки проводника (`globals.css`, «Главная плашка
+    // итога с ушком»): обёртка роняет тень по очертанию и держит наклон
+    // света (`lit-aim`), кайма светится фоном, лицо с бумагой лежит в ней
+    // на точку меньше. С `md` кайма и лицо обрезаны по контуру с ушком.
+    <div
       className={cn(
-        // Поля и просветы ужаты на самом узком телефоне: три числа с
-        // подписями требуют 267 точек, а на 320-точечном экране полосе
-        // достаётся 272 — впритык, и «Переработка» упиралась в край.
-        "flex h-14 items-center rounded-xl bg-paper-raised px-2 min-[360px]:px-4 py-2 lg:min-w-92.5 justify-around",
-        // Свет лампы — на видимой плашке, но не на эталоне: тот невидим и
-        // служит линейкой, а лишняя тень сбила бы замер ширины.
-        !tight && "lit",
+        "lg:min-w-92.5",
         // Пока мелких итогов нет, плашка занимает строку целиком, а числа
         // расходятся по ней: три числа, сжатые в левый угол полосы во всю
         // ширину экрана, читаются как незаконченная вёрстка.
-        grow && !tight
-          ? "min-w-0 flex-1 justify-around gap-x-1.5 min-[360px]:gap-x-3"
-          : "shrink-0 gap-x-5 sm:gap-x-6",
+        grow && !tight ? "min-w-0 flex-1" : "shrink-0",
+        ушко && "tab-plate",
+        // Свет лампы — на видимой плашке, но не на эталоне: тот невидим и
+        // служит линейкой, а лишняя тень сбила бы замер ширины.
+        !tight && "lit-aim",
         className,
       )}
+      style={ушко ? TAB_SHAPE_STYLE : undefined}
     >
-      <Figure
-        parts={[{ value: hoursTrim(calculation.normHours), unit: "ч" }]}
-        caption="Норма периода"
-        emphatic
-        still={tight}
-        stacked={stacked}
-      />
-      <Figure
-        parts={[{ value: hoursTrim(calculation.actualHours), unit: "ч" }]}
-        caption="Фактически"
-        still={tight}
-        stacked={stacked}
-      />
-      <Figure
-        parts={overtimeParts(balance, inShifts, shiftHours)}
-        caption={<BalanceCaption under={under} />}
-        // Ноль — это попадание в норму, и цвета у него нет: ни зелёного,
-        // ни красного. Сигнальным становится только то, что требует
-        // разговора с работодателем.
-        tone={under ? "signal" : balance.greaterThan(0) ? "verify" : undefined}
-        still={tight}
-        stacked={stacked}
-      />
-    </dl>
+      <div
+        className={cn(
+          // Под каймой та же бумага, что у лица: пока кайма не горит,
+          // плашка ровно той же меры, что соседние, а не на точку уже.
+          "h-14 rounded-xl bg-paper-raised p-px",
+          !tight && "tab-rim lit-edge lit-edge--clipped",
+          // Тело — те же 3,5 рема, что у мелких плашек рядом, и ушко над
+          // ним — ещё 2 (`TAB_HEIGHT`). Полоса выравнивает плашки по низу,
+          // и тело главной встаёт вровень с ними.
+          ушко && "md:h-[5.5rem]",
+        )}
+      >
+        <div
+          className={cn(
+            "flex size-full flex-col rounded-[11px] bg-paper-raised",
+            !tight && "tab-face",
+          )}
+        >
+          {ушко ? (
+            // Высота ушка за вычетом точки каймы сверху: лицо начинается
+            // на точку ниже каймы, а тело обязано начаться ровно там, где
+            // кончается склон.
+            <div className="hidden h-[calc(2rem-1px)] shrink-0 items-center justify-center px-3 md:flex">
+              {period}
+            </div>
+          ) : null}
+          <dl
+            className={cn(
+              // Поля и просветы ужаты на самом узком телефоне: три числа с
+              // подписями требуют 267 точек, а на 320-точечном экране
+              // полосе достаётся 272 — впритык, и «Переработка» упиралась
+              // в край.
+              //
+              // Поле — на точку меньше привычных 8 и 16: эту точку с каждой
+              // стороны занимает кайма (`p-px` выше). Вместе те же 8 и 16,
+              // и плашка той же ширины, что была без каймы, — иначе
+              // сдвинулись бы пороги, по которым открываются мелкие итоги
+              // (598 и 906 точек), а заглушка держит их числами.
+              "flex min-h-0 flex-1 items-center justify-around px-[7px] py-2 min-[360px]:px-[15px]",
+              grow && !tight ? "gap-x-1.5 min-[360px]:gap-x-3" : "gap-x-5 sm:gap-x-6",
+            )}
+          >
+            <Figure
+              parts={[{ value: hoursTrim(calculation.normHours), unit: "ч" }]}
+              caption="Норма периода"
+              emphatic
+              still={tight}
+              stacked={stacked}
+            />
+            <Figure
+              parts={[{ value: hoursTrim(calculation.actualHours), unit: "ч" }]}
+              caption="Отработано"
+              still={tight}
+              stacked={stacked}
+            />
+            <Figure
+              parts={overtimeParts(balance, inShifts, shiftHours)}
+              caption={<BalanceCaption under={under} />}
+              // Ноль — это попадание в норму, и цвета у него нет: ни зелёного,
+              // ни красного. Сигнальным становится только то, что требует
+              // разговора с работодателем.
+              tone={under ? "signal" : balance.greaterThan(0) ? "verify" : undefined}
+              still={tight}
+              stacked={stacked}
+            />
+          </dl>
+        </div>
+      </div>
+    </div>
   );
 }
 

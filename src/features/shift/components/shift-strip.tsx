@@ -152,7 +152,7 @@ function MonthBalance({ total }: { total: MonthTotal | undefined }) {
 
   return (
     <span
-      title={`Норма ${hoursTrim(total.normHours)} ч, фактически ${hoursTrim(total.actualHours)} ч, ${name} ${hoursTrim(balance)} ч`}
+      title={`Норма ${hoursTrim(total.normHours)} ч, отработано ${hoursTrim(total.actualHours)} ч, ${name} ${hoursTrim(balance)} ч`}
     >
       {/* Числа доходят до нового значения, как и числа полосы итога:
           человек отмечает отпуск в апреле и видит движение там, где
@@ -161,7 +161,7 @@ function MonthBalance({ total }: { total: MonthTotal | undefined }) {
       <span className="sr-only">норма </span>
       <CountedNumber value={hoursTrim(total.normHours)} /> ч
       <MetaSep />
-      <span className="sr-only">фактически </span>
+      <span className="sr-only">отработано </span>
       <CountedNumber value={hoursTrim(total.actualHours)} /> ч
       <MetaSep />
       <span className={cn(over && "text-verify", under && "text-signal")}>

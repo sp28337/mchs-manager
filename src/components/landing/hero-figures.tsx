@@ -44,7 +44,7 @@ import { HERO_FIGURE_STEPS, HERO_STAGES, type HeroStage } from "./hero-scenario"
  * с первым кадром истории, которую он не увидит.
  */
 
-const CAPTIONS = ["Норма периода", "Фактически"] as const;
+const CAPTIONS = ["Норма периода", "Отработано"] as const;
 
 export function HeroFigures({
   className,

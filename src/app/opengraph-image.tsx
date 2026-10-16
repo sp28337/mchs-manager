@@ -68,7 +68,7 @@ const SUB = "Сутки через трое, два через два, пяти�
 /** Полоса итога — те же три числа и те же подписи, что над сеткой. */
 const FIGURES: { value: string; unit: string; caption: string; tone?: string }[] = [
   { value: "1972", unit: "ч", caption: "Норма периода" },
-  { value: "2192", unit: "ч", caption: "Фактически" },
+  { value: "2192", unit: "ч", caption: "Отработано" },
   { value: "220", unit: "ч", caption: "Переработка", tone: VERIFY },
 ];
 

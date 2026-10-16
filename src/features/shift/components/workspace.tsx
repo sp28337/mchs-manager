@@ -26,6 +26,7 @@ import { LegendButton } from "./legend-button";
 import { WorkspaceMenuItems } from "./header-tools";
 import { scrollMonthUnderBar, topmostVisibleMonth } from "./month-anchor";
 import { useConfirmSwitch } from "./open-profile";
+import { PeriodPicker } from "./period-picker";
 import { PeriodSummary, REVEAL_DELAY_MS } from "./period-summary";
 import { ProfileExplorer, useExplorerTools, useLibrary } from "./profile-explorer";
 import { ProfileFooter } from "./profile-footer";
@@ -612,6 +613,29 @@ export function Workspace({
             accountingYear={headProfile.accountingYear}
             overtimeInShifts={headProfile.overtimeInDays}
             shiftDurationHours={headProfile.shiftDurationHours}
+            // Выбор периода — в ушке над главными числами (с `md`): он
+            // решает, за что они посчитаны, и стоит прямо над ними. Ниже
+            // `md` тот же выбор — в нижней панели телефона (`GridDeck`).
+            //
+            // Год в подписи — того профиля, чьи числа под ним
+            // (`headProfile`): показанный из статистики профиль считается
+            // по СВОЕМУ учётному году, и подпись открытого назвала бы
+            // срок, за который эти числа не считались. Выбор же пишется в
+            // открытый профиль — показанный не открыт, и править его
+            // отсюда нельзя.
+            period={
+              <PeriodPicker
+                flat
+                accountingYear={headProfile.accountingYear}
+                onAccountingYear={(accountingYear) =>
+                  onChange((previous) => ({ ...previous, accountingYear }))
+                }
+                statutory={statutory}
+                onStatutory={setStatutory}
+                month={month}
+                onMonth={setMonth}
+              />
+            }
             settings={{ open: showSettings, tab: settingsTab, onTab: setSettingsTab }}
           />
         </>
@@ -788,10 +812,6 @@ export function Workspace({
               view={yearView}
               onViewChange={changeYearView}
               onChange={onChange}
-              statutory={statutory}
-              onStatutory={setStatutory}
-              month={month}
-              onMonth={setMonth}
               // Нажатие по дню раскрывает кольцо видов вокруг клетки, и
               // этим дело кончается: закрывает его нажатие по тому же дню,
               // по любому погасшему месту или Esc — всё это кольцо делает

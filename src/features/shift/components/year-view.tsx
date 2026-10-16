@@ -28,7 +28,7 @@ import {
   LIVE_ROW_CAPTION,
   LIVE_ROW_CELL,
 } from "./live-mode";
-import { PeriodPicker, type StatutoryChoice } from "./period-picker";
+import type { StatutoryChoice } from "./period-picker";
 import { ShiftStrip } from "./shift-strip";
 import { YearCalendarEditor } from "./year-calendar-editor";
 
@@ -45,13 +45,15 @@ export type { StatutoryChoice };
  * означало прокрутку между ними: пока долистаешь до календаря, клетка
  * графика, из-за которой пошёл, уже за экраном.
  *
- * --- Почему выбор периода тоже здесь -------------------------------------
+ * --- Где выбор периода -----------------------------------------------------
  *
- * Он жил в боковой колонке и управлял тем, что нарисовано в этой сетке, —
- * то есть человек менял период в одном углу экрана, а смотрел на
- * последствия в другом. Теперь орган управления стоит вплотную к тому,
- * чем управляет: год, полугодие, квартал и месяц выбираются над самой
- * сеткой.
+ * Не здесь. Он жил в боковой колонке, потом кнопкой в строке над сеткой,
+ * а теперь — в ушке над главными числами полосы итога
+ * (`period-summary.tsx`, `tab-shape.ts`): период решает прежде всего то,
+ * за что посчитаны норма и переработка, и ответ «за какой период» стоит
+ * прямо над ними. Сетка показывает тот же отрезок, поэтому от переезда
+ * она ничего не теряет. На телефоне выбор — в нижней панели
+ * (`grid-deck.tsx`), под большим пальцем.
  *
  * --- Почему период одной кнопкой -----------------------------------------
  *
@@ -196,10 +198,6 @@ export function YearView({
   view,
   onViewChange,
   onChange,
-  statutory,
-  onStatutory,
-  month,
-  onMonth,
   onPickDay,
   onMoveShift,
 }: {
@@ -217,11 +215,6 @@ export function YearView({
   view: YearViewKind;
   onViewChange: (view: YearViewKind) => void;
   onChange: (change: (previous: StoredProfile) => StoredProfile) => void;
-  statutory: StatutoryChoice;
-  onStatutory: (choice: StatutoryChoice) => void;
-  /** Месяц внутри периода или `null` — «весь период». */
-  month: number | null;
-  onMonth: (month: number | null) => void;
   onPickDay: (day: IsoDate) => void;
   /** Перенос смены перетаскиванием по сетке графика. */
   onMoveShift: (from: IsoDate, to: IsoDate) => void;
@@ -388,13 +381,12 @@ export function YearView({
             правилом, а не замером ширины: замер означал бы, что до его
             выполнения не показано ни то ни другое. */}
         <div className="hidden flex-wrap items-center gap-2 md:flex">
-          <div className="flex-wrap flex lg:min-w-92.5 gap-2 justify-between">
+          <div className="flex flex-wrap gap-2">
             <Segmented label="Что показывать на сетке">
-              {/* Знаки здесь той же меры, что у кнопки периода рядом и у
-                  кнопок шапки: девять десятых рема. Своя мера
-                  переключателя (четыре пятых) оставляла бы в одной строке
-                  значки двух размеров — замер краски давал 13,3 точки
-                  против 15 у часов. */}
+              {/* Знаки здесь той же меры, что у кнопок шапки: девять
+                  десятых рема. Своя мера переключателя (четыре пятых)
+                  оставляла бы в одной строке значки двух размеров — замер
+                  краски давал 13,3 точки против 15 у часов. */}
               <SegmentedItem
                 active={view === "shifts"}
                 onClick={() => onViewChange("shifts")}
@@ -416,23 +408,10 @@ export function YearView({
               </SegmentedItem>
             </Segmented>
 
-            {/* Период стоит в одной строке с видом сетки: и то и другое
-                отвечает на вопрос «что я сейчас вижу». */}
-            {/* Учётный год записывается прямо в профиль, а не хранится
-                состоянием экрана: человек, вернувшийся к прошлогоднему
-                расчёту через день, должен найти его там же, где оставил.
-                Отдельного свойства у `YearView` для этого не нужно —
-                обновление профиля здесь уже есть. */}
-            <PeriodPicker
-              accountingYear={profile.accountingYear}
-              onAccountingYear={(accountingYear) =>
-                onChange((previous) => ({ ...previous, accountingYear }))
-              }
-              statutory={statutory}
-              onStatutory={onStatutory}
-              month={month}
-              onMonth={onMonth}
-            />
+            {/* Выбора периода здесь больше нет: он переехал в ушко над
+                главными числами (`period-summary.tsx`), туда, где видно, за
+                что они посчитаны. Строка над сеткой отвечает на вопрос
+                «что я вижу на сетке» — график или календарь. */}
           </div>
 
           {/* Режим здесь, а не только в настройках: он меняет то, что

@@ -138,6 +138,7 @@ export function PeriodPicker({
   onMonth,
   cellClassName,
   captionClassName,
+  flat = false,
 }: {
   accountingYear: number;
   /** Учётный год — такой же ответ на «что смотрим», как отрезок и месяц. */
@@ -161,6 +162,12 @@ export function PeriodPicker({
    */
   cellClassName?: string;
   captionClassName?: string;
+  /**
+   * Кнопка без своей плашки — для ушка главной плашки итога
+   * (`period-summary.tsx`). Ушко уже и есть поднятая бумага с каймой, и
+   * вторая плашка на нём читалась бы кнопкой, положенной на кнопку.
+   */
+  flat?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const partId = useId();
@@ -194,6 +201,22 @@ export function PeriodPicker({
         >
           <PeriodIcon className="text-ink-muted" />
           <span className={captionClassName}>{current}</span>
+        </button>
+      ) : flat ? (
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          aria-label={`Период: ${current}. Выбрать другой`}
+          className={cn(
+            // Отклик на наведение — заливкой чуть темнее бумаги, как у строк
+            // меню: своей каймы у кнопки нет, кайма у ушка общая.
+            "inline-flex h-7 max-w-full shrink-0 cursor-pointer items-center gap-1.5 rounded-lg",
+            "px-2.5 text-[13px] font-medium text-ink transition-colors hover:bg-paper-sunken",
+            "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ink",
+          )}
+        >
+          <PeriodIcon className="shrink-0 text-ink-muted" />
+          <span className="truncate">{current}</span>
         </button>
       ) : (
         <button
