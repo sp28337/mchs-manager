@@ -4,6 +4,7 @@ import { ZoomIn, ZoomOut } from "lucide-react";
 import {
   useEffect,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
   type CSSProperties,
@@ -17,6 +18,7 @@ import { cn } from "@/lib/utils/cn";
 import type { PeriodCalculation } from "../domain/calculation";
 import { formatDateRu } from "../domain/format";
 import { todayIso, type IsoDate } from "../domain/plain-date";
+import { monthTotalsFor } from "../model/derive";
 import type { StoredProfile } from "../storage/profile";
 import { CalendarIcon, ShiftsIcon } from "./grid-icons";
 import { anchorCurrentMonth } from "./month-anchor";
@@ -228,6 +230,15 @@ export function YearView({
   // экрана и занимает его целиком, растить его некуда, а мельчить —
   // значит получить клетку, в которую не попасть пальцем.
   const zoomable = useMediaQuery("(min-width: 1024px)");
+
+  // Итоги месяцев над сеткой: норма, факт и разница — тем же расчётом,
+  // что полоса наверху, по месяцу на каждый (`monthTotalsFor`). Считаются
+  // при правке профиля и смене отрезка, а не на каждую отрисовку: прокрутка
+  // и масштаб их не меняют.
+  const monthTotals = useMemo(
+    () => monthTotalsFor(profile, calculation.periodStart, calculation.periodEnd, upcoming),
+    [profile, calculation.periodStart, calculation.periodEnd, upcoming],
+  );
 
   const room = useRef<HTMLDivElement>(null);
   const [asked, setAsked] = useState(DEFAULT_MONTHS);
@@ -500,6 +511,7 @@ export function YearView({
       ) : view === "shifts" ? (
         <ShiftStrip
           calculation={calculation}
+          monthTotals={monthTotals}
           upcoming={upcoming}
           gridClassName={GRID}
           dayNotes={profile.dayNotes}

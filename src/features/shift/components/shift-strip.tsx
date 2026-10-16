@@ -7,11 +7,8 @@ import { CountedNumber } from "@/components/ui/counted-number";
 import { cn } from "@/lib/utils/cn";
 
 import type { DayRecord, PeriodCalculation } from "../domain/calculation";
-import {
-  ZERO,
-  formatHoursTrim as hoursTrim,
-  type Decimal,
-} from "../domain/decimal";
+import type { MonthTotal } from "../model/derive";
+import { ZERO, formatHoursTrim as hoursTrim } from "../domain/decimal";
 import {
   datesInRange,
   dayOfMonth,
@@ -109,21 +106,76 @@ interface MonthGroup {
   year: number;
   month: number;
   days: IsoDate[];
-  /** Заступлений в этом месяце. */
-  starts: number;
-  /** Отработанные часы, пришедшиеся на СУТКИ этого месяца. */
-  workedHours: Decimal;
-  nightHours: Decimal;
-  /** Часы вызовов помимо графика — они уже входят в `workedHours`. */
-  calloutHours: Decimal;
-  /** Пропущенных по уважительной причине смен. */
-  absentStarts: number;
-  /** Сутки месяца, которые уже наступили. Ноль — месяц целиком впереди. */
-  counted: number;
+}
+
+/** Первые сутки месяца в сетке — по ним ищется его итог. */
+const day0 = (group: MonthGroup): IsoDate => group.days[0]!;
+
+/**
+ * Итог месяца над его сеткой: норма, факт и разница.
+ *
+ * --- Почему эти три, а не смены и ночные -----------------------------------
+ *
+ * Здесь стояло «8 см | 192 ч | ноч. 64» — сколько смен, сколько часов и
+ * сколько из них ночных. Всё это правда, но на вопрос, ради которого
+ * человек смотрит на месяц, оно не отвечало: «я в этом месяце переработал
+ * или нет?» — для этого рядом с фактом нужна норма, а её на экране не было.
+ * Теперь над месяцем то же, что в полосе итога наверху, — норма, факт и
+ * разница, — только за месяц, и полоса служит ему расшифровкой: порядок
+ * тот же.
+ *
+ * Разница — часами, всегда, даже если в полосе переработка показана
+ * сменами: в подписи месяца место считано, а «1 смена 8 ч» вдвое длиннее
+ * «+32 ч». Цвет у неё тот же, что в полосе: переработка зелёная,
+ * недоработка красная, ноль без цвета — попадание в норму не требует ни
+ * радости, ни тревоги.
+ *
+ * Знак перед числом — для глаза, и программе чтения он не нужен: ей
+ * разница названа словом (`sr-only`), как и норма с фактом. Иначе вслух
+ * звучало бы «сто шестьдесят часов, сто девяносто два часа, плюс тридцать
+ * два» — три числа без смысла.
+ *
+ * --- Почему месяц впереди не показывает нулей ------------------------------
+ *
+ * Месяц, который весь ещё впереди («Онлайн»), не показывает «норма 160,
+ * факт 0, недоработка 160» над сеткой, полной смен: ноль здесь означал бы
+ * «не отработано», а верно — «не наступило». Месяц наполовину прошедший
+ * показывает итог на сегодня — тот же, что в полосе наверху.
+ */
+function MonthBalance({ total }: { total: MonthTotal | undefined }) {
+  if (total === undefined) return <span className="text-ink-faint">ещё не наступил</span>;
+
+  const over = total.overtimeHours.greaterThan(0);
+  const under = total.undertimeHours.greaterThan(0);
+  const balance = under ? total.undertimeHours : total.overtimeHours;
+  const name = over ? "переработка" : under ? "недоработка" : "разница";
+
+  return (
+    <span
+      title={`Норма ${hoursTrim(total.normHours)} ч, фактически ${hoursTrim(total.actualHours)} ч, ${name} ${hoursTrim(balance)} ч`}
+    >
+      {/* Числа доходят до нового значения, как и числа полосы итога:
+          человек отмечает отпуск в апреле и видит движение там, где
+          апрель, — а не только наверху. Без нулевого хвоста: «160 ч», а
+          не «160,0 ч» (`formatHoursTrim`). */}
+      <span className="sr-only">норма </span>
+      <CountedNumber value={hoursTrim(total.normHours)} /> ч
+      <MetaSep />
+      <span className="sr-only">фактически </span>
+      <CountedNumber value={hoursTrim(total.actualHours)} /> ч
+      <MetaSep />
+      <span className={cn(over && "text-verify", under && "text-signal")}>
+        <span className="sr-only">{name} </span>
+        {over || under ? <span aria-hidden>{over ? "+" : "−"}</span> : null}
+        <CountedNumber value={hoursTrim(balance)} /> ч
+      </span>
+    </span>
+  );
 }
 
 export function ShiftStrip({
   calculation,
+  monthTotals,
   upcoming,
   gridClassName,
   dayNotes,
@@ -132,11 +184,16 @@ export function ShiftStrip({
 }: {
   calculation: PeriodCalculation;
   /**
+   * Итоги месяцев — норма, факт и разница над каждым месяцем
+   * (`monthTotalsFor`). Месяца, который ещё не наступил, в них нет.
+   */
+  monthTotals: ReadonlyMap<string, MonthTotal>;
+  /**
    * Первые сутки, которые ещё не наступили («Онлайн»), или `null`.
    *
-   * Сетка их ПОКАЗЫВАЕТ — гашёными и в штриховку, — но в свои итоги не
-   * берёт: числа месяца обязаны совпадать с полосой итога наверху, а та
-   * считает по сегодняшний день.
+   * Сетка их ПОКАЗЫВАЕТ — гашёными и в штриховку, — но в итоги месяцев не
+   * берёт: те считаются по сегодняшний день, как полоса наверху
+   * (`monthTotals`).
    */
   upcoming?: IsoDate | null;
   /** Раскладка месяцев: её задаёт масштаб, общий с календарём года. */
@@ -169,39 +226,10 @@ export function ShiftStrip({
     const month = monthIndex(day);
     let group = groups.at(-1);
     if (!group || group.year !== year || group.month !== month) {
-      group = {
-        year,
-        month,
-        days: [],
-        starts: 0,
-        workedHours: ZERO,
-        nightHours: ZERO,
-        calloutHours: ZERO,
-        absentStarts: 0,
-        counted: 0,
-      };
+      group = { year, month, days: [] };
       groups.push(group);
     }
-
     group.days.push(day);
-
-    // Ещё не наступившие сутки в итог месяца не идут. Показать их и тут же
-    // сложить в «отработано» значило бы объявить отработанным то, что
-    // только предстоит.
-    if (upcoming != null && day >= upcoming) continue;
-    group.counted += 1;
-
-    for (const record of byDay.get(day) ?? []) {
-      if (record.isShiftStart) {
-        group.starts += 1;
-        if (record.absenceKind) group.absentStarts += 1;
-      }
-      if (record.calloutKind) group.calloutHours = group.calloutHours.plus(record.hours);
-      if (!record.absenceKind) {
-        group.workedHours = group.workedHours.plus(record.hours);
-        group.nightHours = group.nightHours.plus(record.nightHours);
-      }
-    }
   }
 
   // Где стоят заступления: тянуть можно только их, и класть можно только
@@ -259,61 +287,7 @@ export function ShiftStrip({
             key={`${group.year}-${group.month}`}
             title={MONTH_NAMES[group.month]}
             meta={
-              // Месяц, который весь ещё впереди, не показывает «0 см /
-              // 0,0 ч» над сеткой, полной смен: ноль здесь означал бы «не
-              // отработано», а верно — «не наступило». Месяц наполовину
-              // прошедший показывает числа как есть: это итог на сегодня,
-              // тот же, что в полосе наверху.
-              group.counted === 0 ? (
-                <span className="text-ink-faint">ещё не наступил</span>
-              ) : (
-              <>
-                {/* Числа месяца доходят до нового значения, как и числа
-                    полосы итога: человек отмечает отпуск в апреле и видит
-                    движение там, где апрель, — а не только наверху. */}
-                <CountedNumber value={String(group.starts)} /> см
-                <MetaSep />
-                {/* Без нулевого хвоста: «192 ч», а не «192,0 ч». Десятая
-                    доля показывается тогда, когда она есть, — на целых
-                    часах ноль после запятой не уточняет ничего, зато
-                    удлиняет подпись на треть в строке, где место считано
-                    (`formatHoursTrim`). */}
-                <CountedNumber value={hoursTrim(group.workedHours)} /> ч
-                {/* Раньше здесь стояло «· −8», и человек справедливо
-                    прочитал это как «минус 8 часов». Число пропущенных
-                    смен обязано быть подписано словом: приложение
-                    существует ровно для того, чтобы часы не отнимались
-                    молча, и двусмысленность в его собственном итоге —
-                    последнее, что тут допустимо. */}
-                {group.absentStarts > 0 ? (
-                  <>
-                    <MetaSep />
-                    <span className="text-signal">
-                      {"пропущено "}
-                      <CountedNumber value={String(group.absentStarts)} />
-                    </span>
-                  </>
-                ) : null}
-                {group.calloutHours.greaterThan(0) ? (
-                  <>
-                    <MetaSep />
-                    <span className="text-trace">
-                      {"вызовы "}
-                      <CountedNumber value={hoursTrim(group.calloutHours)} />
-                    </span>
-                  </>
-                ) : null}
-                {group.nightHours.greaterThan(0) ? (
-                  <>
-                    <MetaSep />
-                    <span className="text-ink-faint">
-                      {"ноч. "}
-                      <CountedNumber value={hoursTrim(group.nightHours)} />
-                    </span>
-                  </>
-                ) : null}
-              </>
-              )
+              <MonthBalance total={monthTotals.get(day0(group).slice(0, 7))} />
             }
             days={group.days}
             joined

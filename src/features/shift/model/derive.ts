@@ -7,7 +7,7 @@
  * порядок вывода нормы.
  */
 
-import { Dec, parseHours } from "../domain/decimal";
+import { Dec, parseHours, type Decimal } from "../domain/decimal";
 import {
   calculatePeriod,
   SCAN_LEAD_DAYS,
@@ -202,6 +202,79 @@ export function calculateFor(
   });
 }
 
+
+/**
+ * Итог одного месяца — та же норма, тот же факт и та же разница, что в
+ * полосе итога наверху, только за месяц.
+ */
+export interface MonthTotal {
+  readonly normHours: Decimal;
+  readonly actualHours: Decimal;
+  readonly overtimeHours: Decimal;
+  readonly undertimeHours: Decimal;
+}
+
+/**
+ * Итоги месяцев отрезка — для подписи над каждым месяцем сетки.
+ *
+ * --- Почему расчётом, а не суммой клеток -----------------------------------
+ *
+ * Факт месяца можно сложить из суток, а норму — нельзя: она не лежит в
+ * клетках, её выводят из производственного календаря, недельной нормы и
+ * отсутствий (ст. 104 ТК РФ), и отпуск в середине месяца уменьшает её на
+ * свои часы. Повторить этот вывод в разметке значило бы завести второе
+ * правило нормы рядом с первым — и однажды они бы разошлись. Поэтому
+ * каждый месяц считается тем же `calculateFor`, что и полоса наверху:
+ * правило одно, меняется только отрезок.
+ *
+ * --- Какой отрезок у месяца ------------------------------------------------
+ *
+ * Пересечение месяца с отрезком сетки: месяц на краю периода (начало
+ * отсчёта в середине марта) считается с того же числа, что и сам период.
+ * В режиме «Онлайн» (`upcoming`) месяц обрезается сегодняшним днём — это
+ * итог на сегодня, тот же, что в полосе. Месяца, целиком лежащего после
+ * сегодня, в итогах нет вовсе: «норма 160, факт 0, недоработка 160» над
+ * месяцем, который ещё не наступил, было бы неправдой.
+ *
+ * --- Почему разницы месяцев не складываются в разницу периода --------------
+ *
+ * И не должны. Переработка периода — это факт периода против нормы
+ * периода, и недоработка марта гасится переработкой апреля. Над месяцем
+ * стоит разница ЭТОГО месяца: где набежало и где не добрал. Сами нормы и
+ * факты месяцев при этом складываются ровно в норму и факт периода —
+ * это проверено тестом.
+ *
+ * Ключ — `2026-03`: год и месяц, как они стоят в датах.
+ */
+export function monthTotalsFor(
+  profile: StoredProfile,
+  periodStart: IsoDate,
+  periodEnd: IsoDate,
+  upcoming: IsoDate | null,
+): ReadonlyMap<string, MonthTotal> {
+  const totals = new Map<string, MonthTotal>();
+  const end = upcoming !== null && upcoming < periodEnd ? upcoming : periodEnd;
+
+  let cursor = periodStart;
+  while (cursor < end) {
+    const year = Number(cursor.slice(0, 4));
+    const month = Number(cursor.slice(5, 7)) - 1;
+    const next = monthBounds(year, month).periodEnd;
+    const monthEnd = next < end ? next : end;
+
+    const calculation = calculateFor(profile, cursor, monthEnd);
+    totals.set(cursor.slice(0, 7), {
+      normHours: calculation.normHours,
+      actualHours: calculation.actualHours,
+      overtimeHours: calculation.overtimeHours,
+      undertimeHours: calculation.undertimeHours,
+    });
+
+    cursor = next;
+  }
+
+  return totals;
+}
 
 const pad = (value: number) => String(value).padStart(2, "0");
 

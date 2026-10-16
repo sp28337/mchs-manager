@@ -3,7 +3,6 @@ import { ZoomIn, ZoomOut } from "lucide-react";
 import type { ReactNode } from "react";
 
 import { Bone, BoneText } from "@/components/ui/bone";
-import { SYNC_ENABLED } from "@/features/sync/ui/enabled";
 import { cn } from "@/lib/utils/cn";
 
 import { datesOfMonth, dayOfMonth } from "../domain/plain-date";
@@ -88,6 +87,22 @@ const RIGHT_FIGURES = [
   { value: "96", unit: "ч", caption: "Праздничные часы" },
 ] as const;
 
+/**
+ * Кость имени профиля для строки шапки — тем же кеглем и той же
+ * гарнитурой, что настоящее имя там (`ProfileName`, `place="header"`):
+ * высота строки шапки от неё не зависит, а ширина обещает имя, которое
+ * встанет на её место.
+ */
+export function ProfileNameBone() {
+  return (
+    <span aria-hidden className="font-hand text-3xl leading-none">
+      <BoneText skeleton className="rounded-md">
+        Мой график
+      </BoneText>
+    </span>
+  );
+}
+
 export function WorkspaceSkeleton() {
   return (
     <main
@@ -104,7 +119,9 @@ export function WorkspaceSkeleton() {
           обещал бы блок, которого через мгновение почти не видно. Поле
           под ним — то же, что в рабочем экране: полоса итога поднята на
           восемь точек и легла бы прямо на имя. */}
-      <header className="pb-12">
+      {/* С `md` имя стоит в строке шапки (`ProfileNameBone` ниже), а
+          здесь его нет — как у расчёта. */}
+      <header className="pb-12 md:hidden">
         <h1 className="text-3xl font-hand sm:text-5xl opacity-10 leading-tight text-center">
           <BoneText skeleton className="rounded-xl">
             Мой график
@@ -339,7 +356,8 @@ function MonthBones({ month }: { month: number }) {
       joined
       // Строки настоящие, а не «примерно такие»: от их ширины зависит,
       // перенесётся ли шапка месяца на вторую строку. Образец итога взят
-      // самый частый — восемь смен по двадцать четыре часа.
+      // самый частый — норма месяца в сто шестьдесят восемь часов и восемь
+      // смен по двадцать четыре.
       title={MONTH_NAMES[month - 1]}
       // Буквы недели — тоже кости: единственный настоящий текст посреди
       // пустых плашек читался бы как недогруженная страница, а не как
@@ -348,20 +366,23 @@ function MonthBones({ month }: { month: number }) {
       weekdayProps={() => ({
         className: "skeleton-bone mx-auto w-fit rounded-xs bg-paper-raised text-transparent",
       })}
-      // Итог собран из тех же кусков, что и настоящий: число, слово,
-      // отдельная вставка про ночные. Склей их в одну строку — и строчных
-      // коробок станет меньше, а округление ширины изменится на доли
-      // пикселя. Этих долей хватает, чтобы шапка перенеслась на вторую
-      // строку не там, где у расчёта, и сетка разъехалась на пятнадцать
-      // точек по высоте.
+      // Итог собран из тех же кусков, что и настоящий (`MonthBalance` в
+      // `shift-strip.tsx`): норма, факт и отдельная вставка с разницей и
+      // её знаком. Склей их в одну строку — и строчных коробок станет
+      // меньше, а округление ширины изменится на доли пикселя. Этих долей
+      // хватает, чтобы шапка перенеслась на вторую строку не там, где у
+      // расчёта, и сетка разъехалась на пятнадцать точек по высоте.
       meta={
-        <>
-          {"8"} см
+        <span>
+          {"168"} ч
           <MetaSep />
           {"192"} ч
           <MetaSep />
-          <span>ноч. {"64"}</span>
-        </>
+          <span>
+            <span>+</span>
+            {"24"} ч
+          </span>
+        </span>
       }
       days={datesOfMonth(SAMPLE_YEAR, month)}
       renderDay={(day, corners) => (
@@ -595,10 +616,6 @@ function ProfileFooterBones() {
         <BoneText skeleton>Вопросы и обращения: grafik1-3@yandex.ru</BoneText>
       </p>
 
-      {/* Место под строку состояния синхронизации — пустое и ровно там,
-          где её держит настоящий подвал: слов в ней заглушка не знает
-          (их знает только сервер), а высоту обязана занять ту же. */}
-      {SYNC_ENABLED && <div className="text-xs" />}
     </footer>
   );
 }

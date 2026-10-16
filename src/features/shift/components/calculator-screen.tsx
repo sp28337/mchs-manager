@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { SiteHeader } from "@/components/shared/site-header";
 import { RegisterForm } from "./register-form";
 import { Workspace } from "./workspace";
-import { WorkspaceSkeleton } from "./workspace-skeleton";
+import { ProfileNameBone, WorkspaceSkeleton } from "./workspace-skeleton";
 import { useProfile } from "../storage/use-profile";
 
 /**
@@ -84,7 +84,14 @@ export function CalculatorScreen() {
           разом, читается как рывок ровно так же, как пустое поле под ней.
           Без профиля (анкета) кнопкам браться неоткуда — им нечего
           настраивать и нечего выгружать. */}
-      <SiteHeader menuBone={state.status !== "corrupt"} />
+      <SiteHeader
+        menuBone={state.status !== "corrupt"}
+        // Имя профиля на широком экране стоит в шапке, и пока профиль
+        // читается, там же стоит его кость: иначе имя возникало бы рывком
+        // рядом с названием сайта в тот же миг, когда заглушка сменяется
+        // расчётом.
+        title={state.status === "corrupt" ? undefined : <ProfileNameBone />}
+      />
 
       {state.status === "corrupt" ? (
         <RegisterForm

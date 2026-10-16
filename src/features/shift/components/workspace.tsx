@@ -506,6 +506,20 @@ export function Workspace({
         // сайт: прежде он читал «НАСТРОЙКИ», оставаясь ссылкой домой, и
         // нажатие по слову уводило с расчёта на посадочную страницу.
         section={раздел}
+        // Имя профиля — в строке шапки, сразу за знаком сайта, там, где
+        // ширина это позволяет (с `md`). Ниже оно стоит над цифрами, в
+        // самой странице (`md:hidden` у того места). В проводнике имени
+        // нет нигде: там на экране не один профиль, а все.
+        title={
+          explorerOpen ? undefined : (
+            <ProfileName
+              profile={headProfile}
+              onChange={onChange}
+              editable={preview === null}
+              place="header"
+            />
+          )
+        }
         menu={
           <WorkspaceMenuItems
             onToggleSettings={toggleSettings}
@@ -564,7 +578,9 @@ export function Workspace({
               над собой двенадцать точек бумаги (щиток в `PeriodSummary`, он
               гасит просвет под шапкой), и без этого зазора щиток лёг бы
               прямо на имя. */}
-          <header className="pb-12">
+          {/* С `md` имя уезжает в строку шапки (`title` у `SiteHeader`
+              выше), и здесь его нет — вместе с полем под ним. */}
+          <header className="pb-12 md:hidden">
             {/* Пока наверху показан ЧУЖОЙ профиль, имя не правится: нажатие
                 по нему правило бы открытый, а человек читает не его. */}
             <ProfileName

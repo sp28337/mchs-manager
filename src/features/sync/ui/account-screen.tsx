@@ -24,7 +24,7 @@ import { cn } from "@/lib/utils/cn";
 import { LEGAL_URLS } from "../legal";
 import { AuthScreen, PasswordField, PasswordStrength } from "./auth-screen";
 import { оценить } from "./password-strength";
-import { когда, короткоОСинхронизации } from "./presence";
+import { когда } from "./presence";
 import { RecoveryKeyCard } from "./recovery-key-card";
 import { useSync } from "./sync-provider";
 
@@ -64,7 +64,6 @@ import { useSync } from "./sync-provider";
 export function AccountScreen() {
   const {
     enabled,
-    phase,
     account,
     error,
     busy,
@@ -117,11 +116,13 @@ export function AccountScreen() {
         <span className="grid size-12 shrink-0 place-items-center rounded-full bg-paper-sunken">
           <UserRound aria-hidden className="size-6 text-ink-muted" />
         </span>
-        <div className="min-w-0 flex-1 space-y-0.5">
+        {/* Под адресом здесь стояло «Синхронизировано только что» — та же
+            строка, что была в подвале расчёта. Убрана вместе с ней: о
+            синхронизации на экране говорится, только когда она встала
+            (полоса наверху), а время последнего прохода — ниже, в разделе
+            «Синхронизация», для того, кто пришёл его проверить. */}
+        <div className="min-w-0 flex-1">
           <p className="truncate text-md font-medium text-ink">{account.email}</p>
-          <p className="text-xs text-ink-muted">
-            {короткоОСинхронизации({ phase, dirty, syncedAt, принято })}
-          </p>
         </div>
         <Значок
           icon={account.email_verified ? CircleCheck : CircleDashed}

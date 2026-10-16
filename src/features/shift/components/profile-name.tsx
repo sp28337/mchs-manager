@@ -44,9 +44,23 @@ export function ProfileName({
   profile,
   onChange,
   editable = true,
+  place = "page",
 }: {
   profile: StoredProfile;
   onChange: (change: (previous: StoredProfile) => StoredProfile) => void;
+  /**
+   * Где стоит имя.
+   *
+   * `page` — водяным знаком над цифрами, крупно и бледно: так оно стоит на
+   * узком экране, где в шапке места нет.
+   *
+   * `header` — в строке шапки, сразу за знаком сайта. Там оно не водяной
+   * знак, а подпись рядом с названием: размер подобран по высоте букв
+   * «ГРАФИК 1|3», а цвет — приглушённый, но читаемый. Десять процентов
+   * непрозрачности, верные для крупного знака посреди бумаги, в строке
+   * высотой в четыре рема дали бы надпись, которой нет.
+   */
+  place?: "page" | "header";
   /**
    * Имя правится нажатием по нему.
    *
@@ -104,8 +118,23 @@ export function ProfileName({
     }
   }
 
+  const вШапке = place === "header";
+
   return (
-    <h1 className="text-3xl font-hand sm:text-5xl leading-tight text-center">
+    <h1
+      className={cn(
+        "font-hand",
+        вШапке
+          ? // Рукописная гарнитура мельче печатной при том же кегле: её
+            // строчные — в полроста прописных, а росчерки уходят вверх и
+            // вниз. В тех же 20 точках, что «ГРАФИК», имя читалось бы
+            // сноской; в 30 высота строчных встаёт вровень с высотой
+            // прописных названия. `truncate` — длинное имя обрезается, а
+            // не выталкивает меню за край строки.
+            "min-w-0 truncate text-3xl leading-none"
+          : "text-3xl leading-tight text-center sm:text-5xl",
+      )}
+    >
       {editing ? (
         <span
           ref={field}
@@ -136,15 +165,19 @@ export function ProfileName({
             // Указатель над текстом теперь везде стрелка (`globals.css`), и
             // «палец» остался единственным признаком нажимаемого. У имени
             // он тем нужнее, что на кнопку оно не похоже вовсе.
-            "cursor-pointer rounded-sm opacity-10 transition-opacity",
-            "hover:opacity-20",
+            "cursor-pointer rounded-sm",
             "focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ink",
+            вШапке
+              ? "max-w-full truncate text-ink-muted transition-colors hover:text-ink"
+              : "opacity-10 transition-opacity hover:opacity-20",
           )}
         >
           {profile.displayName || "Имя профиля"}
         </button>
       ) : (
-        <span className="opacity-10">{profile.displayName || "Имя профиля"}</span>
+        <span className={вШапке ? "text-ink-muted" : "opacity-10"}>
+          {profile.displayName || "Имя профиля"}
+        </span>
       )}
     </h1>
   );
