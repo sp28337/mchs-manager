@@ -20,17 +20,18 @@ export const metadata: Metadata = {
  */
 export default function RecoverPage() {
   return (
-    // Колонка во весь экран: на короткой странице подвал уходит к нижней
-    // кромке окна, а не висит под содержимым посреди бумаги.
-    <div className="flex min-h-[var(--page-min-h)] flex-col">
+    // Содержимое — не ниже экрана (`--fold-min-h`): на короткой странице
+    // подвал уходит за нижнюю кромку окна и показывается прокруткой, а не
+    // висит под содержимым посреди бумаги.
+    <>
       {/* Переход к расчёту — строкой в меню, а не словом в шапке:
           справа на всех страницах одно и то же «МЕНЮ». */}
       <SiteHeader menu={<OpenScheduleItem />} />
-      <main className="mx-auto w-full max-w-[44rem] flex-1 px-6 pt-24 pb-16">
+      <main className="mx-auto w-full max-w-[44rem] min-h-[var(--fold-min-h)] px-6 pt-24 pb-16">
         <RecoverScreen />
       </main>
 
       <SiteFooter />
-    </div>
+    </>
   );
 }

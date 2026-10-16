@@ -5,6 +5,7 @@ import { useTheme } from "next-themes";
 import { useEffect, useId, useRef, useState } from "react";
 
 import { MARK_EMPTY_CLASS } from "@/components/shared/header-action";
+import { KNOB, KNOB_ICON, KNOB_NEST, KnobLabel } from "@/components/ui/knob";
 import { useDismiss } from "@/components/ui/use-dismiss";
 import { cn } from "@/lib/utils/cn";
 
@@ -148,9 +149,12 @@ export function ThemeCorner({
         // Сам по себе — в углу: та же высота от нижней кромки и то же поле
         // от боковой, что у нижнего ряда рабочего экрана, иначе знак
         // прыгал бы, когда ряд появляется и уходит.
+        //
+        // Гнездо держит наведение (`group/knob`), как у знаков нижнего
+        // ряда: подпись не убегает, пока курсор в раскрытом окошке.
         docked
-          ? "pointer-events-auto relative shrink-0"
-          : "fixed right-6 z-90 bottom-[calc(1.5rem+var(--safe-bottom))]",
+          ? KNOB_NEST
+          : "group/knob fixed right-6 z-90 flex bottom-[calc(1.5rem+var(--safe-bottom))]",
         className,
       )}
     >
@@ -207,30 +211,28 @@ export function ThemeCorner({
         aria-expanded={открыто}
         aria-controls={id}
         aria-label="Тема оформления"
-        title="Тема оформления"
-        className={cn(
-          // Ни плашки, ни кромки — один знак, как у легенды в левом углу
-          // и у надписей в шапке. Размер знака — те же 28 точек, что у
-          // знака сайта и у знака легенды: углы читаются как один ряд,
-          // и знак на пару точек меньше ломал бы его.
-          //
-          // Место под палец при этом 44 точки: цель размером со значок —
-          // промах через раз.
-          "grid size-11 cursor-pointer place-items-center rounded-xl",
-          "transition-opacity hover:opacity-80",
-          "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink",
-        )}
+        // Ни плашки, ни кромки — тот же знак, что у нижнего ряда (`KNOB`):
+        // значок в 28 точек, место под палец в 44. Всплывающего `title`
+        // нет, как и у соседей: на широком экране знак называет подпись,
+        // и вторая, браузерная, вылезла бы поверх неё.
+        className={KNOB}
       >
-        {/* Обе картинки стоят в разметке, а показывает одну таблица
-            стилей по классу темы на `html`: ни гидратации, ни подмены
-            через миг после открытия страницы.
+        {/* Подпись — слева: справа у знака кромка окна. Перед значком в
+            разметке, чтобы значок стоял на месте, а подпись росла от него
+            (`KnobLabel`). */}
+        <KnobLabel side="left">Выбрать тему</KnobLabel>
+        <span className={KNOB_ICON}>
+          {/* Обе картинки стоят в разметке, а показывает одну таблица
+              стилей по классу темы на `html`: ни гидратации, ни подмены
+              через миг после открытия страницы.
 
-            Цвет — ровно тот, которым нарисованы пустые квадраты логотипа
-            (`shared/header-action.tsx`, `MARK_EMPTY`): знаки по углам
-            окна стоят одним набором, и любое расхождение в полутоне
-            читается как значки, собранные из разных мест. */}
-        <Sun aria-hidden className={cn("size-7 dark:hidden", MARK_EMPTY_CLASS)} />
-        <Moon aria-hidden className={cn("hidden size-7 dark:block", MARK_EMPTY_CLASS)} />
+              Цвет — ровно тот, которым нарисованы пустые квадраты логотипа
+              (`shared/header-action.tsx`, `MARK_EMPTY`): знаки по углам
+              окна стоят одним набором, и любое расхождение в полутоне
+              читается как значки, собранные из разных мест. */}
+          <Sun aria-hidden className={cn("dark:hidden", MARK_EMPTY_CLASS)} />
+          <Moon aria-hidden className={cn("hidden dark:block", MARK_EMPTY_CLASS)} />
+        </span>
       </button>
     </div>
   );

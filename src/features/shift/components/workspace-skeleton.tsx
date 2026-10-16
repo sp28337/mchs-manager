@@ -120,170 +120,173 @@ export function PeriodPickerBone() {
 
 export function WorkspaceSkeleton() {
   return (
-    <main
-      aria-hidden
-      className={cn(
-        "mx-auto w-full px-6 pt-26 2xl:max-w-[2000px]",
-        // Та же высота, что у рабочего экрана: иначе страница дёрнулась бы
-        // ровно в тот миг, ради которого заглушка и существует.
-        "min-h-[calc(100dvh-var(--safe-top)-var(--safe-bottom))]",
-      )}
-    >
-      {/* Имя человека — водяным знаком: по центру и почти прозрачное.
-          Кость под ним такая же бледная, иначе плотный прямоугольник
-          обещал бы блок, которого через мгновение почти не видно. Поле
-          под ним — то же, что в рабочем экране: полоса итога поднята на
-          восемь точек и легла бы прямо на имя. */}
-      {/* С `md` имя стоит в строке шапки (`ProfileNameBone` ниже), а
-          здесь его нет — как у расчёта. */}
-      <header className="pb-12 md:hidden">
-        <h1 className="text-3xl font-hand sm:text-5xl opacity-10 leading-tight text-center">
-          <BoneText skeleton className="rounded-xl">
-            Мой график
-          </BoneText>
-        </h1>
-      </header>
-
-      {/* Полоса итога. Закреплена так же, как настоящая: иначе при
-          прокрутке заглушка вела бы себя иначе, чем расчёт. */}
-      {/* Та же примета, что у настоящей полосы: дымка обязана быть той же
-          высоты и в заглушке — иначе в миг подстановки она поменяла бы
-          высоту, и страница дёрнулась бы ровно там, где заглушка и
-          существует, чтобы этого не случилось. */}
-      {/* `md:-mt-2` — то же поле, что у настоящей полосы
-          (`period-summary.tsx`): с `md` имя стоит в шапке, и полоса в
-          потоке должна стоять ровно там, где закрепится. */}
-      <div
-        data-summary
-        className="sticky top-[calc(6rem+var(--safe-top))] z-40 -mx-6 -translate-y-8 md:-mt-2"
+    <>
+      <main
+        aria-hidden
+        className={cn(
+          "mx-auto w-full px-6 pt-26 2xl:max-w-[2000px]",
+          // Та же высота, что у рабочего экрана, и подвал так же за ней, вне
+          // `main`: иначе страница дёрнулась бы ровно в тот миг, ради
+          // которого заглушка и существует.
+          "min-h-[var(--fold-min-h)]",
+        )}
       >
-        {/* Мелкие плашки появляются там же, где в расчёте. Тот меряет
-            строку и открывает их парами — по одной с каждой стороны, —
-            и пороги у него приходятся на 598 точек (первая пара) и на
-            906 (вторая): проверено замером с шагом в точку на профиле с
-            четырёхзначной нормой — самом широком из настоящих. Заглушка
-            мерить не умеет, поэтому держит те же пороги числами. */}
+        {/* Имя человека — водяным знаком: по центру и почти прозрачное.
+            Кость под ним такая же бледная, иначе плотный прямоугольник
+            обещал бы блок, которого через мгновение почти не видно. Поле
+            под ним — то же, что в рабочем экране: полоса итога поднята на
+            восемь точек и легла бы прямо на имя. */}
+        {/* С `md` имя стоит в строке шапки (`ProfileNameBone` ниже), а
+            здесь его нет — как у расчёта. */}
+        <header className="pb-12 md:hidden">
+          <h1 className="text-3xl font-hand sm:text-5xl opacity-10 leading-tight text-center">
+            <BoneText skeleton className="rounded-xl">
+              Мой график
+            </BoneText>
+          </h1>
+        </header>
+
+        {/* Полоса итога. Закреплена так же, как настоящая: иначе при
+            прокрутке заглушка вела бы себя иначе, чем расчёт. */}
+        {/* Та же примета, что у настоящей полосы: дымка обязана быть той же
+            высоты и в заглушке — иначе в миг подстановки она поменяла бы
+            высоту, и страница дёрнулась бы ровно там, где заглушка и
+            существует, чтобы этого не случилось. */}
+        {/* `md:-mt-2` — то же поле, что у настоящей полосы
+            (`period-summary.tsx`): с `md` имя стоит в шапке, и полоса в
+            потоке должна стоять ровно там, где закрепится. */}
         <div
-          className={cn(
-            "relative flex items-stretch gap-2 px-6 pb-3",
-            "min-[598px]:grid min-[598px]:grid-cols-[1fr_auto_1fr]",
-            // С двумя парами мелкие плашки растут лишь до 10,5 рем, а дальше
-            // растёт главная — тот же предел колонок, что в расчёте.
-            "min-[906px]:grid-cols-[minmax(0,21.5rem)_minmax(auto,1fr)_minmax(0,21.5rem)]",
-          )}
+          data-summary
+          className="sticky top-[calc(6rem+var(--safe-top))] z-40 -mx-6 -translate-y-8 md:-mt-2"
         >
-          <MainPlateBone />
+          {/* Мелкие плашки появляются там же, где в расчёте. Тот меряет
+              строку и открывает их парами — по одной с каждой стороны, —
+              и пороги у него приходятся на 598 точек (первая пара) и на
+              906 (вторая): проверено замером с шагом в точку на профиле с
+              четырёхзначной нормой — самом широком из настоящих. Заглушка
+              мерить не умеет, поэтому держит те же пороги числами. */}
+          <div
+            className={cn(
+              "relative flex items-stretch gap-2 px-6 pb-3",
+              "min-[598px]:grid min-[598px]:grid-cols-[1fr_auto_1fr]",
+              // С двумя парами мелкие плашки растут лишь до 10,5 рем, а дальше
+              // растёт главная — тот же предел колонок, что в расчёте.
+              "min-[906px]:grid-cols-[minmax(0,21.5rem)_minmax(auto,1fr)_minmax(0,21.5rem)]",
+            )}
+          >
+            <MainPlateBone />
 
-          <div className="col-start-1 row-start-1 hidden h-14 min-w-0 gap-2 min-[598px]:flex">
-            <MinorPlateBone {...LEFT_FIGURES[0]} />
-            <MinorPlateBone {...LEFT_FIGURES[1]} className="hidden min-[906px]:flex" />
-          </div>
-          <div className="col-start-3 row-start-1 hidden h-14 min-w-0 gap-2 min-[598px]:flex">
-            <MinorPlateBone {...RIGHT_FIGURES[0]} />
-            <MinorPlateBone {...RIGHT_FIGURES[1]} className="hidden min-[906px]:flex" />
-          </div>
-        </div>
-      </div>
-
-      <div className="space-y-10">
-        <section className="space-y-4 -translate-y-2">
-          {/* Заголовок «Календарь» виден только программе чтения — как и в
-              расчёте. Кости под него не ставится: он вынесен из потока и
-              места на экране не занимает, а нарисованная на пустом месте
-              полоса сдвинула бы всё под собой на строку. */}
-          <h2 className="flex items-center gap-2 text-xl sr-only">Календарь</h2>
-
-          {/* `year-room` — та же метка, что на корне `YearView`: из неё
-              берётся число месяцев в ряду на каждой ширине. */}
-          <div className="year-room space-y-4">
-            {/* Над сеткой — только масштаб и только с `lg`, как в расчёте
-                (`year-view.tsx`): остальное управление — знаками нижнего
-                ряда. Кнопки подняты и ловят свет: те же девять десятых
-                рема, то же скругление, тот же `lit`, что у настоящих. */}
-            <div className="hidden items-center lg:flex">
-              <div className="ml-auto flex items-center gap-1">
-                <Bone className="lit size-9 rounded-xl" />
-                <Bone className="lit size-9 rounded-xl" />
-                <span className="sr-only">
-                  <ZoomIn aria-hidden />
-                  <ZoomOut aria-hidden />
-                </span>
-              </div>
+            <div className="col-start-1 row-start-1 hidden h-14 min-w-0 gap-2 min-[598px]:flex">
+              <MinorPlateBone {...LEFT_FIGURES[0]} />
+              <MinorPlateBone {...LEFT_FIGURES[1]} className="hidden min-[906px]:flex" />
             </div>
-
-            {/* Сетка месяцев и легенда — тем же строем, что в графике: с
-                1280 точек легенда стоит колонкой слева на экране, ниже —
-                полосой над сеткой. */}
-            <div className="space-y-6 xl:flex xl:flex-row-reverse xl:gap-4">
-              {/* Раскладка года — теми же двумя классами, что у расчёта.
-                  Ни числа месяцев в ряду, ни кегля здесь больше не
-                  назначается: и то и другое приходит из `globals.css`, а
-                  кегль вдобавок считается по ЗАМЕРУ мерной коробки —
-                  запросом к ней, а не скриптом, которого у заглушки нет.
-
-                  Раньше ступени были переписаны сюда руками
-                  (`lg:grid-cols-4`, `text-xs`), и переписаны неточно: 12
-                  точек против 11,28 у расчёта. От этой разницы разъезжалось
-                  всё — буквы недели, клетка, шапка месяца, — и к декабрю
-                  набегало девять точек, которые страница отыгрывала рывком
-                  в момент подстановки. */}
-              <div className={YEAR_BOX}>
-              <div
-                className={cn(
-                  YEAR_GRID,
-                  // Названия месяцев и итоги под ними — кости. Обводка
-                  // назначается отсюда, а не оборачивает текст в `span`:
-                  // лишняя строчная коробка меняет округление ширины на
-                  // доли пикселя, и шапка месяца переносится на вторую
-                  // строку не там, где у расчёта.
-                  "[&_h3]:skeleton-bone [&_h3]:rounded-xs [&_h3]:bg-paper-raised [&_h3]:text-transparent",
-                  "[&_p]:skeleton-bone [&_p]:rounded-xs [&_p]:bg-paper-raised [&_p]:text-transparent",
-                )}
-              >
-                {MONTHS.map((month) => (
-                  <MonthBones key={month} month={month} />
-                ))}
-              </div>
-              </div>
+            <div className="col-start-3 row-start-1 hidden h-14 min-w-0 gap-2 min-[598px]:flex">
+              <MinorPlateBone {...RIGHT_FIGURES[0]} />
+              <MinorPlateBone {...RIGHT_FIGURES[1]} className="hidden min-[906px]:flex" />
             </div>
           </div>
-        </section>
+        </div>
 
-        <ProfileFooterBones />
-      </div>
+        <div className="space-y-10">
+          <section className="space-y-4 -translate-y-2">
+            {/* Заголовок «Календарь» виден только программе чтения — как и в
+                расчёте. Кости под него не ставится: он вынесен из потока и
+                места на экране не занимает, а нарисованная на пустом месте
+                полоса сдвинула бы всё под собой на строку. */}
+            <h2 className="flex items-center gap-2 text-xl sr-only">Календарь</h2>
 
-      {/* Нижний ряд знаков — тем же строем, что в расчёте (`grid-dock.tsx`):
-          знаки в нём от профиля почти не зависят, и оставь ряд пустым — в
-          миг подстановки у нижней кромки из ничего возникли бы шесть
-          значков, то есть ровно тот рывок, ради которого заглушка и
-          существует. Знаки настоящие, но не нажимаются: показан график,
-          «Онлайн» выключен — как у расчёта по умолчанию. */}
-      <div aria-hidden className={DOCK}>
-        <div className={DOCK_LEFT}>
+            {/* `year-room` — та же метка, что на корне `YearView`: из неё
+                берётся число месяцев в ряду на каждой ширине. */}
+            <div className="year-room space-y-4">
+              {/* Над сеткой — только масштаб и только с `lg`, как в расчёте
+                  (`year-view.tsx`): остальное управление — знаками нижнего
+                  ряда. Кнопки подняты и ловят свет: те же девять десятых
+                  рема, то же скругление, тот же `lit`, что у настоящих. */}
+              <div className="hidden items-center lg:flex">
+                <div className="ml-auto flex items-center gap-1">
+                  <Bone className="lit size-9 rounded-xl" />
+                  <Bone className="lit size-9 rounded-xl" />
+                  <span className="sr-only">
+                    <ZoomIn aria-hidden />
+                    <ZoomOut aria-hidden />
+                  </span>
+                </div>
+              </div>
+
+              {/* Сетка месяцев и легенда — тем же строем, что в графике: с
+                  1280 точек легенда стоит колонкой слева на экране, ниже —
+                  полосой над сеткой. */}
+              <div className="space-y-6 xl:flex xl:flex-row-reverse xl:gap-4">
+                {/* Раскладка года — теми же двумя классами, что у расчёта.
+                    Ни числа месяцев в ряду, ни кегля здесь больше не
+                    назначается: и то и другое приходит из `globals.css`, а
+                    кегль вдобавок считается по ЗАМЕРУ мерной коробки —
+                    запросом к ней, а не скриптом, которого у заглушки нет.
+
+                    Раньше ступени были переписаны сюда руками
+                    (`lg:grid-cols-4`, `text-xs`), и переписаны неточно: 12
+                    точек против 11,28 у расчёта. От этой разницы разъезжалось
+                    всё — буквы недели, клетка, шапка месяца, — и к декабрю
+                    набегало девять точек, которые страница отыгрывала рывком
+                    в момент подстановки. */}
+                <div className={YEAR_BOX}>
+                <div
+                  className={cn(
+                    YEAR_GRID,
+                    // Названия месяцев и итоги под ними — кости. Обводка
+                    // назначается отсюда, а не оборачивает текст в `span`:
+                    // лишняя строчная коробка меняет округление ширины на
+                    // доли пикселя, и шапка месяца переносится на вторую
+                    // строку не там, где у расчёта.
+                    "[&_h3]:skeleton-bone [&_h3]:rounded-xs [&_h3]:bg-paper-raised [&_h3]:text-transparent",
+                    "[&_p]:skeleton-bone [&_p]:rounded-xs [&_p]:bg-paper-raised [&_p]:text-transparent",
+                  )}
+                >
+                  {MONTHS.map((month) => (
+                    <MonthBones key={month} month={month} />
+                  ))}
+                </div>
+                </div>
+              </div>
+            </div>
+          </section>
+        </div>
+
+        {/* Нижний ряд знаков — тем же строем, что в расчёте (`grid-dock.tsx`):
+            знаки в нём от профиля почти не зависят, и оставь ряд пустым — в
+            миг подстановки у нижней кромки из ничего возникли бы шесть
+            значков, то есть ровно тот рывок, ради которого заглушка и
+            существует. Знаки настоящие, но не нажимаются: показан график,
+            «Онлайн» выключен — как у расчёта по умолчанию. */}
+        <div aria-hidden className={DOCK}>
+          <div className={DOCK_LEFT}>
+            <KnobBone>
+              <LegendMark />
+            </KnobBone>
+            <KnobBone className={SHIFTS_ON}>
+              <ShiftsIcon className="scale-100" />
+            </KnobBone>
+            <KnobBone className={MARK_EMPTY_CLASS}>
+              <CalendarIcon className="scale-100" />
+            </KnobBone>
+            <KnobBone className="text-ink-muted">
+              <YearMark year={SAMPLE_YEAR} />
+            </KnobBone>
+            <KnobBone>
+              <LiveSignal on={false} className={MARK_EMPTY_CLASS} />
+            </KnobBone>
+          </div>
+          {/* Тема — той же картинкой, что у настоящего знака: солнце или
+              месяц по классу темы на `html`, без сценария. */}
           <KnobBone>
-            <LegendMark />
-          </KnobBone>
-          <KnobBone className={SHIFTS_ON}>
-            <ShiftsIcon className="scale-100" />
-          </KnobBone>
-          <KnobBone className={MARK_EMPTY_CLASS}>
-            <CalendarIcon className="scale-100" />
-          </KnobBone>
-          <KnobBone className="text-ink-muted">
-            <YearMark year={SAMPLE_YEAR} />
-          </KnobBone>
-          <KnobBone>
-            <LiveSignal on={false} className={MARK_EMPTY_CLASS} />
+            <Sun className={cn("dark:hidden", MARK_EMPTY_CLASS)} />
+            <Moon className={cn("hidden dark:block", MARK_EMPTY_CLASS)} />
           </KnobBone>
         </div>
-        {/* Тема — той же картинкой, что у настоящего знака: солнце или
-            месяц по классу темы на `html`, без сценария. */}
-        <KnobBone>
-          <Sun className={cn("dark:hidden", MARK_EMPTY_CLASS)} />
-          <Moon className={cn("hidden dark:block", MARK_EMPTY_CLASS)} />
-        </KnobBone>
-      </div>
-    </main>
+      </main>
+
+      <ProfileFooterBones />
+    </>
   );
 }
 
@@ -533,35 +536,38 @@ function MinorPlateBone({
  */
 function ProfileFooterBones() {
   return (
-    <footer className="space-y-4 border-t border-rule py-6 text-sm">
-      {/* Плитки документов: та же сетка и та же начинка, что в подвале
-          расчёта (`shared/site-footer.tsx`), — высота плитки и переносы
-          названия получаются сами, а не подобраны числом. */}
-      <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
-        {ДОКУМЕНТЫ_КОСТИ.map((документ) => (
-          <span
-            key={документ.label}
-            className="flex items-center gap-3 rounded-xl bg-paper-raised px-3 py-2.5"
-          >
-            <Bone className="size-7 shrink-0 rounded-lg" />
-            <span className="min-w-0">
-              <BoneText skeleton className="block text-xs leading-4">
-                {документ.label}
-              </BoneText>
-              <BoneText skeleton className="block text-[11px] leading-4">
-                {документ.note}
-              </BoneText>
+    // Те же поля, ширина и просвет сверху, что у настоящего подвала
+    // (`ProfileFooter`): он тоже стоит после `main`.
+    <footer aria-hidden className="mx-auto mt-10 w-full px-6 2xl:max-w-[2000px]">
+      <div className="space-y-4 border-t border-rule py-6 text-sm">
+        {/* Плитки документов: та же сетка и та же начинка, что в подвале
+            расчёта (`shared/site-footer.tsx`), — высота плитки и переносы
+            названия получаются сами, а не подобраны числом. */}
+        <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+          {ДОКУМЕНТЫ_КОСТИ.map((документ) => (
+            <span
+              key={документ.label}
+              className="flex items-center gap-3 rounded-xl bg-paper-raised px-3 py-2.5"
+            >
+              <Bone className="size-7 shrink-0 rounded-lg" />
+              <span className="min-w-0">
+                <BoneText skeleton className="block text-xs leading-4">
+                  {документ.label}
+                </BoneText>
+                <BoneText skeleton className="block text-[11px] leading-4">
+                  {документ.note}
+                </BoneText>
+              </span>
             </span>
-          </span>
-        ))}
+          ))}
+        </div>
+
+        {/* Строка адреса — теми же словами и тем же кеглем, что в подвале
+            расчёта: её высота и переносы получаются сами. */}
+        <p className="mt-16 text-center text-xs text-ink-muted">
+          <BoneText skeleton>Вопросы и обращения: grafik1-3@yandex.ru</BoneText>
+        </p>
       </div>
-
-      {/* Строка адреса — теми же словами и тем же кеглем, что в подвале
-          расчёта: её высота и переносы получаются сами. */}
-      <p className="mt-16 text-center text-xs text-ink-muted">
-        <BoneText skeleton>Вопросы и обращения: grafik1-3@yandex.ru</BoneText>
-      </p>
-
     </footer>
   );
 }

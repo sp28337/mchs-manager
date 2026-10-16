@@ -58,8 +58,27 @@ export const KNOB_ICON = "grid size-11 shrink-0 place-items-center [&_svg]:size-
 /** Мягкий ход на обоих концах — трогается и встаёт без рывка. */
 const ХОД = "duration-[420ms] ease-[cubic-bezier(0.65,0,0.35,1)]";
 
-/** Подпись знака: выезжает вправо при наведении или фокусе с клавиатуры. */
-export function KnobLabel({ children }: { children: ReactNode }) {
+/**
+ * Подпись знака: выезжает при наведении или фокусе с клавиатуры.
+ *
+ * В сторону от знака туда, где есть место (`side`): у знаков левой группы
+ * вправо, у знака темы, прижатого к правому краю, — влево. Справа от него
+ * кромка окна, и подпись, выехавшая туда, ушла бы за экран.
+ *
+ * В разметке подпись левой стороны стоит ПЕРЕД клеткой значка: ряд
+ * прижимает знак к правому краю, колонка подписи растёт от него влево, и
+ * сам значок не сдвигается ни на точку. Слово при этом выровнено к знаку
+ * (`justify-end`): колонка открывает его, а не тащит за собой, — так же,
+ * как у правой подписи, только зеркально.
+ */
+export function KnobLabel({
+  children,
+  side = "right",
+}: {
+  children: ReactNode;
+  side?: "right" | "left";
+}) {
+  const left = side === "left";
   return (
     // Для программы чтения подпись лишняя: имя у кнопки своё
     // (`aria-label`), и подпись повторила бы его второй раз.
@@ -71,15 +90,18 @@ export function KnobLabel({ children }: { children: ReactNode }) {
         "md:group-hover/knob:grid-cols-[1fr] md:group-focus-visible/press:grid-cols-[1fr]",
       )}
     >
-      <span className="min-w-0 overflow-hidden">
+      <span className={cn("min-w-0 overflow-hidden", left && "flex justify-end")}>
         <span
           className={cn(
             HEADER_WORD,
-            // Поле слева — тот же просвет, что между знаком сайта и
+            // Поле у знака — тот же просвет, что между знаком сайта и
             // «ГРАФИК» в шапке (`gap-2.5`): клетка значка уже даёт 8 точек
-            // справа от рисунка, ещё две — здесь.
-            "block pl-0.5 pr-3",
-            "-translate-x-2 opacity-0 transition-[translate,opacity]",
+            // от рисунка, ещё две — здесь. С другой стороны — поле до
+            // соседа.
+            //
+            // Сдвиг в начале хода — к знаку: подпись выходит из-под него.
+            left ? "block shrink-0 pl-3 pr-0.5 translate-x-2" : "block pl-0.5 pr-3 -translate-x-2",
+            "opacity-0 transition-[translate,opacity]",
             ХОД,
             "md:group-hover/knob:translate-x-0 md:group-hover/knob:opacity-100",
             "md:group-focus-visible/press:translate-x-0 md:group-focus-visible/press:opacity-100",
