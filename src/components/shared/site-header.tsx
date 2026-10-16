@@ -121,10 +121,17 @@ export function SiteHeader({
     // остальным — собственный отступ здесь сложился бы с ним вдвое.
     <header className={cn("fixed z-100 w-full group", className)}>
       <div className="mx-auto flex h-16 w-full flex-nowrap items-center gap-x-4 py-3 px-6 sm:gap-x-6 2xl:max-w-[2000px]">
+        {/* `md:shrink-0` — с `md` название сайта не уступает места
+            заголовку страницы. Рядом с ним с этого порога стоит имя
+            профиля, а имя бывает любой длины: при равном праве сжиматься
+            длинное имя отнимало место у «ГРАФИК 1|3», и от названия
+            оставалось «ГРАФИК» без цифр. Уступать должно имя — у него для
+            этого и есть многоточие. Ниже `md` заголовка в шапке нет, и
+            название сжимается, как прежде, само (`min-w-0`). */}
         <Link
           href="/"
           data-brand
-          className="group flex min-w-0 items-center gap-2.5 rounded-xs focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
+          className="group flex min-w-0 items-center gap-2.5 rounded-xs focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink md:shrink-0"
         >
           <Logo className="size-7 shrink-0 text-signal" />
           {/* `min-w-0` и обрезка — страховка, а не расчёт: меню в шапке не
