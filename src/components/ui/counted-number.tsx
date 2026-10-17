@@ -1,12 +1,6 @@
 "use client";
 
-import {
-  useEffect,
-  useLayoutEffect,
-  useRef,
-  useState,
-  type CSSProperties,
-} from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { COUNT_MS } from "@/lib/motion";
 
@@ -57,6 +51,21 @@ import { COUNT_MS } from "@/lib/motion";
  * Прижато содержимое вправо, к своей единице измерения: запас тогда
  * достаётся промежутку с подписью, где он и так есть.
  *
+ * --- Почему цифры не едут и не размываются ---------------------------------
+ *
+ * Прежде каждый знак был своей ячейкой и менялся «барабаном»: приезжал со
+ * стороны хода, смазанный и бледный, и садился на место. Замысел был в том,
+ * что счётчик, который держали в руках (одометр), работает так же. Но на
+ * экране это читалось иначе: число идёт сотни кадров подряд, и каждый кадр
+ * у каждого знака — свой вертикальный сдвиг, своё размытие, своя
+ * прозрачность. Колонки цифр ползли сверху вниз вразнобой, а число в
+ * целом мутнело, пока считалось, — то, что должно быть читаемым, на
+ * четверть секунды переставало им быть.
+ *
+ * Поэтому знаки меняются на месте: те же шрифт, цвет и положение, только
+ * значение другое. Движение здесь — сам счёт, то есть то, что число идёт к
+ * новому значению, а не то, как выглядит каждая цифра по дороге.
+ *
  * --- Уважение к `prefers-reduced-motion` ----------------------------------
  *
  * Отсчёта нет вовсе: новое значение встаёт сразу. Числа при этом не
@@ -65,28 +74,13 @@ import { COUNT_MS } from "@/lib/motion";
  */
 
 export function CountedNumber({ value }: { value: string }) {
-  const { shown, reserve, roll, up } = useCountedNumber(value);
+  const { shown, reserve } = useCountedNumber(value);
   return (
     <span
       className="inline-block text-right tabular-nums"
       style={{ minWidth: `${reserve}ch` }}
     >
-      {[...shown].map((char, index) => (
-        <span
-          // Ключ считается от ПРАВОГО края: барабан у единиц один и тот
-          // же, сколько бы знаков ни было в числе. Смена знака в ключе
-          // означает новый элемент — с него и начинается оборот.
-          key={`${shown.length - 1 - index}:${char}`}
-          className={roll > 0 ? "digit-roll" : undefined}
-          style={
-            roll > 0
-              ? ({ "--roll": roll, "--dir": up ? 1 : -1 } as CSSProperties)
-              : undefined
-          }
-        >
-          {char}
-        </span>
-      ))}
+      {shown}
     </span>
   );
 }
@@ -104,10 +98,6 @@ export function useCountedNumber(target: string): {
   /** Сколько знаков держать под число: столько же, сколько было в самой
    *  длинной его записи за жизнь этого экрана. */
   reserve: number;
-  /** Скорость барабана: 1 в начале хода, 0 в конце и в покое. */
-  roll: number;
-  /** Куда идёт счёт: вверх или вниз. */
-  up: boolean;
 } {
   const [tween, setTween] = useState<Tween | null>(null);
   const [reserved, setReserved] = useState(target.length);
@@ -130,8 +120,6 @@ export function useCountedNumber(target: string): {
       return;
     }
 
-    const up = to > from;
-
     // Первым кадром — то, что уже стоит на экране, а не новая цель.
     //
     // Без этой строки браузер успевал нарисовать итог ДО того, как к нему
@@ -142,12 +130,28 @@ export function useCountedNumber(target: string): {
     // Лишняя отрисовка здесь неизбежна: сравнить старое значение с новым
     // можно только после того, как новое пришло, а исправить картинку
     // нужно до того, как её увидят.
-    setTween({ text: displayed.current, roll: 1, up });
+    setTween({ text: displayed.current });
 
     const digits = decimalsOf(target);
-    const startedAt = performance.now();
+    // Часы отсчёта запускает ПЕРВЫЙ кадр, а не эффект.
+    //
+    // Раньше начало бралось из `performance.now()` здесь же, а время кадра
+    // приходило из `requestAnimationFrame` — и метка кадра бывает РАНЬШЕ
+    // этого момента: пока React строил экран после правки, браузер уже
+    // отметил кадр. Разность выходила отрицательной, и число первым же
+    // шагом уходило не к цели, а от неё: «1749 → 1757 → 1745 → … → 1741».
+    // Замерено в браузере, правка одного дня: перерисовка заняла 234 мс, и
+    // шаг получился ровно «−1» от замедления — число прыгало на весь
+    // размах в обратную сторону и тут же возвращалось.
+    //
+    // Теперь отсчёт идёт от метки первого кадра: разность неотрицательна
+    // по построению, а длительность хода считается от того момента, когда
+    // человек впервые видит число в пути, — а не от момента, когда оно
+    // стало к этому готово.
+    let startedAt: number | null = null;
 
     const step = (now: number) => {
+      startedAt ??= now;
       const passed = Math.min(1, (now - startedAt) / COUNT_MS);
       if (passed < 1) {
         // Замедление к концу: число подходит к своему значению, а не
@@ -155,11 +159,7 @@ export function useCountedNumber(target: string): {
         const eased = 1 - Math.pow(1 - passed, 3);
         const text = format(from + (to - from) * eased, digits);
         displayed.current = text;
-        // Скорость барабана — производная того же замедления, приведённая
-        // к единице: полный ход в начале, полная остановка в конце. Из неё
-        // берутся и размытие, и подскок цифры, поэтому «быстро» и «резко»
-        // не расходятся между собой ни на кадр.
-        setTween({ text, roll: Math.pow(1 - passed, 2), up });
+        setTween({ text });
         // Запас считается по дороге, а не заранее: длина промежуточных
         // значений известна только здесь. Обновление идёт из кадра
         // анимации, вместе с самим числом, и лишней отрисовки не даёт.
@@ -177,19 +177,12 @@ export function useCountedNumber(target: string): {
     return () => cancelAnimationFrame(frame.current);
   }, [target]);
 
-  return {
-    shown,
-    reserve: Math.max(reserved, shown.length),
-    roll: tween?.roll ?? 0,
-    up: tween?.up ?? true,
-  };
+  return { shown, reserve: Math.max(reserved, shown.length) };
 }
 
-/** Кадр отсчёта: что показать и с какой скоростью крутится барабан. */
+/** Кадр отсчёта: что показать. */
 interface Tween {
   text: string;
-  roll: number;
-  up: boolean;
 }
 
 /** Число из записи вида «1972» или «15,5». Всё прочее — не число. */
