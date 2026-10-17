@@ -66,7 +66,7 @@ const MONTHS = Array.from({ length: 12 }, (_, index) => index + 1);
  * Мелкие итоги полосы — те же четыре, что в расчёте, и по тем же сторонам:
  * слева смены, справа часы (`period-summary.tsx`, `sideItems`).
  *
- * Образцы — самый широкий случай из настоящих, чтобы плашка заглушки не
+ * Образцы — самый широкий случай из настоящих, чтобы колонка заглушки не
  * оказалась уже той, что встанет на её место.
  */
 const LEFT_FIGURES = [
@@ -153,32 +153,29 @@ export function WorkspaceSkeleton() {
           data-summary
           className="sticky top-[calc(6rem+var(--safe-top))] z-40 -mx-6 -translate-y-8 md:-mt-2"
         >
-          {/* Мелкие плашки появляются там же, где в расчёте. Тот меряет
+          {/* Мелкие итоги появляются там же, где в расчёте. Тот меряет
               строку и открывает их парами — по одной с каждой стороны, —
-              и пороги у него приходятся на 814 точек (первая пара) и на
-              1114 (вторая): замер с шагом в две точки, окно менялось на
-              месте. Пороги задают подписи главных чисел («НОРМА ПЕРИОДА» —
-              137 точек), а не сами числа, поэтому от профиля они почти не
-              зависят. Заглушка мерить не умеет, поэтому держит те же
-              пороги числами. */}
+              и пороги у него приходятся на 603 точки (первая пара) и на
+              975 (вторая): замер с шагом в две точки, окно менялось на
+              месте. Пороги задают подписи и числа, а не профиль, поэтому
+              от него они почти не зависят. Заглушка мерить не умеет,
+              поэтому держит те же пороги числами. */}
           <div
             className={cn(
-              "relative flex items-stretch gap-2 px-6 pb-3",
-              "min-[814px]:grid min-[814px]:grid-cols-[1fr_auto_1fr]",
-              // С двумя парами мелкие плашки растут лишь до 10,5 рем, а дальше
-              // растёт главная — тот же предел колонок, что в расчёте.
-              "min-[1114px]:grid-cols-[minmax(0,21.5rem)_minmax(auto,1fr)_minmax(0,21.5rem)]",
+              "relative flex items-center justify-center px-6 pb-3",
+              "min-[603px]:grid min-[603px]:grid-cols-[1fr_auto_1fr] min-[603px]:justify-normal min-[603px]:gap-x-8",
             )}
           >
             <MainPlateBone />
 
-            <div className="col-start-1 row-start-1 hidden h-14 min-w-0 gap-2 min-[814px]:flex">
-              <MinorPlateBone {...LEFT_FIGURES[0]} />
-              <MinorPlateBone {...LEFT_FIGURES[1]} className="hidden min-[1114px]:flex" />
+            {/* Слева — к главным, то есть вправо; справа — влево. */}
+            <div className={cn(SIDE_BONE, "col-start-1 row-start-1 justify-self-end")}>
+              <FigureBone {...LEFT_FIGURES[0]} minor />
+              <FigureBone {...LEFT_FIGURES[1]} minor className="hidden min-[975px]:flex" />
             </div>
-            <div className="col-start-3 row-start-1 hidden h-14 min-w-0 gap-2 min-[814px]:flex">
-              <MinorPlateBone {...RIGHT_FIGURES[0]} />
-              <MinorPlateBone {...RIGHT_FIGURES[1]} className="hidden min-[1114px]:flex" />
+            <div className={cn(SIDE_BONE, "col-start-3 row-start-1 justify-self-start")}>
+              <FigureBone {...RIGHT_FIGURES[0]} minor />
+              <FigureBone {...RIGHT_FIGURES[1]} minor className="hidden min-[975px]:flex" />
             </div>
           </div>
         </div>
@@ -390,95 +387,89 @@ function MonthBones({ month }: { month: number }) {
 }
 
 /**
+ * Сторона мелких итогов: колонки поровну по самой широкой, вплотную к
+ * главным числам — как в расчёте (`SIDE` в `period-summary.tsx`). Скрыта,
+ * пока мелким итогам нет места.
+ */
+const SIDE_BONE =
+  "hidden h-14 min-w-0 grid-flow-col auto-cols-fr items-center gap-x-5 min-[603px]:grid";
+
+/**
  * Главные числа: то же построение, что в расчёте (`MainPlate`) — три
  * колонки поровну, число над подписью, без плашки и без света.
  *
- * Колонки делят строку целиком, пока мелких итогов рядом нет, и сжимаются
- * по содержимому и встают посередине, когда они появляются, — ровно как
- * настоящие. Без плашки и света заглушка не отличается от расчёта и в
- * том, что у главных чисел под ними ничего нет: в миг подстановки
- * зажигаться на этом месте нечему.
+ * Одной группой по середине строки, пока мелких итогов рядом нет, и
+ * сжимаются по содержимому, когда они появляются, — ровно как настоящие.
+ * Без плашки и света заглушка не отличается от расчёта и в том, что под
+ * числами ничего нет: в миг подстановки зажигаться на этом месте нечему.
  */
 function MainPlateBone() {
   return (
     <dl
       className={cn(
         "grid h-14 grid-cols-3 items-center",
-        "min-w-0 flex-1 gap-x-1",
-        "min-[814px]:col-start-2 min-[814px]:row-start-1 min-[814px]:flex-none",
-        "min-[814px]:shrink-0 min-[814px]:gap-x-6 min-[814px]:px-5",
-        // В сетке со сторонами колонки не уже своего содержимого — как
-        // настоящие (`min-w-max`, довод — в `MainPlate`). С `min-w-0`
-        // средняя колонка (`minmax(auto, 1fr)`) считала бы её нижней
-        // границей ноль, и стороны, растущие до своего предела первыми,
-        // сжимали бы её: на 1114–1250 точках колонки выходили вдвое уже
-        // подписей.
-        "min-[814px]:min-w-max",
+        "min-w-0 gap-x-2 min-[360px]:gap-x-5",
+        // В сетке со сторонами группа не уже своего содержимого — как
+        // настоящая (`min-w-max`, довод — в `MainPlate`). С `min-w-0`
+        // средняя колонка (`1fr auto 1fr`) считала бы её нижней границей
+        // ноль, и стороны сжимали бы её: на 1114–1250 точках колонки
+        // выходили вдвое уже подписей.
+        "min-[603px]:col-start-2 min-[603px]:row-start-1 min-[603px]:min-w-max min-[603px]:shrink-0",
+        "min-[603px]:gap-x-5",
       )}
     >
-      <FigureBone value="1972" caption="Норма периода" />
-      <FigureBone value="2192" caption="Отработано" />
-      <FigureBone value="220" caption="Переработка" />
+      <FigureBone value="1972" unit="ч" caption="Норма периода" />
+      <FigureBone value="2192" unit="ч" caption="Отработано" />
+      <FigureBone value="220" unit="ч" caption="Переработка" />
     </dl>
   );
 }
 
 /**
- * Число с подписью внутри главных чисел: тот же `Figure`, что в расчёте,
- * — число ростом нормы и жирное, подпись прописными гарнитурой названий.
+ * Число с подписью: тот же `Figure`, что в расчёте, — число жирное и
+ * одного роста, подпись прописными гарнитурой названий, мелко. Мелкий итог
+ * (`minor`) — число на ступень меньше.
  *
- * Кегль подписи ступенями, как у настоящей: классы с порогами написаны
- * целиком, а не собраны из переменной — Tailwind находит их в исходнике
- * как строки.
+ * Ступени кегля те же, что у настоящей подписи (`CAPTION`), и порог у них
+ * общий — 42,5 рема, а не `sm`: почему, написано там же. Классы с порогами
+ * написаны целиком, а не собраны из переменной — Tailwind находит их в
+ * исходнике как строки.
  */
-function FigureBone({ value, caption }: { value: string; caption: string }) {
+function FigureBone({
+  value,
+  unit,
+  caption,
+  minor,
+  className,
+}: {
+  value: string;
+  unit?: string;
+  caption: string;
+  minor?: boolean;
+  className?: string;
+}) {
   return (
-    <div className="flex min-w-0 flex-col items-center justify-center gap-1">
-      <dd className="whitespace-nowrap font-mono text-xl font-bold leading-none text-center sm:text-2xl">
+    <div className={cn("flex min-w-0 flex-col items-center justify-center gap-1", className)}>
+      <dd
+        className={cn(
+          "flex h-5 items-end justify-center whitespace-nowrap font-mono font-bold leading-none text-center min-[42.5rem]:h-6",
+          minor ? "text-lg min-[42.5rem]:text-xl" : "text-xl min-[42.5rem]:text-2xl",
+        )}
+      >
         <BoneText skeleton>
           {value}
-          <span className="ml-1 text-xs font-normal sm:text-sm">ч</span>
+          {unit ? (
+            <span className="ml-1 text-xs font-normal min-[42.5rem]:text-sm">{unit}</span>
+          ) : null}
         </BoneText>
       </dd>
       <dt
         className={cn(
           "flex h-[1.25em] items-center justify-center whitespace-nowrap",
           "font-display font-bold uppercase leading-tight tracking-wide text-ink-muted",
-          "text-xs min-[360px]:text-sm min-[414px]:text-base min-[470px]:text-lg min-[520px]:text-xl",
+          "text-[11px] min-[340px]:text-xs min-[42.5rem]:text-sm",
         )}
       >
-        <BoneText skeleton>{caption}</BoneText>
-      </dt>
-    </div>
-  );
-}
-
-/** Мелкий итог: то же построение, что у главного, но вполголоса. */
-function MinorPlateBone({
-  value,
-  unit,
-  caption,
-  className,
-}: {
-  value: string;
-  unit?: string;
-  caption: string;
-  className?: string;
-}) {
-  return (
-    <div
-      className={cn(
-        "lit flex min-w-0 flex-1 flex-col items-center justify-end rounded-xl bg-paper-raised px-3 pb-2",
-        className,
-      )}
-    >
-      <dd className="whitespace-nowrap font-mono text-base leading-none">
-        <BoneText skeleton>
-          {value}
-          {unit ? <span className="ml-1 text-[11px]">{unit}</span> : null}
-        </BoneText>
-      </dd>
-      <dt className="mt-1.5 flex h-3.5 items-center gap-1 whitespace-nowrap text-[11px] leading-tight text-ink-muted">
         <BoneText skeleton>{caption}</BoneText>
       </dt>
     </div>
