@@ -2,11 +2,13 @@
 
 import { useEffect, useState, useSyncExternalStore } from "react";
 
+import { MARK_EMPTY_TEXT } from "@/components/shared/header-action";
 import { DEFAULT_SCHEDULE_LABEL } from "@/features/shift/domain/schedule-pattern";
 import {
   storedScheduleLabel,
   subscribeToStoredProfile,
 } from "@/features/shift/storage/profile";
+import { cn } from "@/lib/utils/cn";
 
 /**
  * Цифры графика в названии сайта: «График 1 3».
@@ -92,7 +94,10 @@ export function ScheduleMark() {
     // Место под цифры держит текущая пара, догорающая лежит поверх и из
     // потока вынута: иначе на время анимации название становилось бы вдвое
     // длиннее и толкало кнопки шапки.
-    <span className="relative inline-block text-ink-muted">
+    // Цвет — тот же, что у «пустых» частей знаков рядом: квадратов логотипа
+    // и полос меню (`MARK_EMPTY_TEXT`). Метка и знак стоят в одной строке и
+    // читаются одним предметом — разные серые рядом выглядели бы случайными.
+    <span className={cn("relative inline-block", MARK_EMPTY_TEXT)}>
       <Digits key={shown} pattern={shown} kindle={burning !== null} />
       {burning ? (
         <span
@@ -139,13 +144,33 @@ function Digits({
           черты между ними читается как два числа, а не как график. Порог
           тот же, на котором уходит слово (`site-header.tsx`), и второго
           его написания быть не должно — разойдись они, и на узком экране
-          цифры остались бы без черты. */}
+          цифры остались бы без черты.
+
+          Черта нарисована, а не набрана глифом: «|» шрифта — толстая палка
+          во всю строку, рядом с цифрами она выглядела приставным забором.
+          Здесь игла: тонкая, короче цифр, симметричная, к обоим концам
+          сходящая в точку (`.mark-needle`); цвет у неё `currentColor`, то есть тот же
+          бледный, что у цифр. Слово «|» остаётся для программы чтения
+          отдельным `sr-only`: «График 1|3» в её устах не должен
+          превращаться в «График 13». */}
       <span
-        className="font-extralight opacity-0 transition-opacity duration-200
-                   group-hover:opacity-100 max-[399px]:opacity-100"
-      >
-        |
-      </span>
+        aria-hidden
+        className={cn(
+          // Игла КОРОЧЕ цифр (0,6 em против их 0,7) и приподнята ровно на
+          // столько, чтобы её середина пришлась на середину цифр: сверху и
+          // снизу от неё остаётся поровну. Отступы по бокам равны, и от
+          // чернил «1» и «3» она отстоит одинаково (замер: центр иглы и
+          // центр просвета между чернилами расходятся на 0,03 точки).
+          "mark-needle mx-[0.14em] inline-block h-[0.6em] w-[1.5px] bg-current",
+          "align-[0.05em] opacity-0 transition-opacity duration-200",
+          "group-hover:opacity-100 max-[399px]:opacity-100",
+          // У догорающей пары черта только держит место: настоящая стоит
+          // под ней, и две прозрачные друг на друге давали бы вспышку
+          // вдвое темнее, пока цифры тлеют.
+          ash && "invisible",
+        )}
+      />
+      <span className="sr-only">|</span>
       <span className={digit} style={{ "--mark-i": 1 } as React.CSSProperties}>
         {second}
       </span>
