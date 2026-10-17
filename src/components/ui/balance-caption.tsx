@@ -147,7 +147,12 @@ function Prefix({
     <span
       ref={ref}
       aria-hidden={hidden}
-      className={cn("col-start-1 row-start-1 flex items-center justify-center")}
+      // К правому краю коробки, а не по середине: коробку держит самая
+      // широкая приставка («НЕДО» в прописных), и узкая «ПЕРЕ» по середине
+      // оставляла бы просвет между собой и хвостом слова — «ПЕРЕ РАБОТКА».
+      // У края она стоит вплотную к хвосту, а лишнее место уходит влево, где
+      // читается сдвигом подписи, а не разрывом слова.
+      className={cn("col-start-1 row-start-1 flex items-center justify-end")}
       style={{ transform: `translateY(${at})` }}
     >
       {children}

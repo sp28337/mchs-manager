@@ -99,21 +99,15 @@ export function ProfileNameBone() {
 
 /**
  * Кость кнопки периода посередине шапки — той же меры, что настоящая
- * (`PeriodPicker`): плашка, знак и подпись прозрачными. Подпись — «год»
- * нынешнего года: учётный период по умолчанию — год целиком, и в
- * большинстве профилей кнопка встанет ровно на место кости.
+ * (`PeriodPicker`): те же часы в той же клетке. Круг целый — это год:
+ * учётный период по умолчанию — год целиком, и в большинстве профилей
+ * кнопка встанет ровно на место кости. Знак настоящий, но не нажимается —
+ * как у знаков нижнего ряда.
  */
 export function PeriodPickerBone() {
   return (
-    <span
-      aria-hidden
-      className={cn(
-        "lit inline-flex h-9 shrink-0 items-center gap-2 rounded-xl whitespace-nowrap",
-        "skeleton-bone bg-paper-raised px-3 text-sm font-medium text-transparent",
-      )}
-    >
-      <PeriodIcon kind="year" index={0} className="shrink-0 opacity-0" />
-      {SAMPLE_YEAR} год
+    <span aria-hidden className="inline-flex size-11 shrink-0 items-center justify-center text-ink">
+      <PeriodIcon kind="year" index={0} className="size-7" />
     </span>
   );
 }
@@ -161,28 +155,30 @@ export function WorkspaceSkeleton() {
         >
           {/* Мелкие плашки появляются там же, где в расчёте. Тот меряет
               строку и открывает их парами — по одной с каждой стороны, —
-              и пороги у него приходятся на 598 точек (первая пара) и на
-              906 (вторая): проверено замером с шагом в точку на профиле с
-              четырёхзначной нормой — самом широком из настоящих. Заглушка
-              мерить не умеет, поэтому держит те же пороги числами. */}
+              и пороги у него приходятся на 814 точек (первая пара) и на
+              1114 (вторая): замер с шагом в две точки, окно менялось на
+              месте. Пороги задают подписи главных чисел («НОРМА ПЕРИОДА» —
+              137 точек), а не сами числа, поэтому от профиля они почти не
+              зависят. Заглушка мерить не умеет, поэтому держит те же
+              пороги числами. */}
           <div
             className={cn(
               "relative flex items-stretch gap-2 px-6 pb-3",
-              "min-[598px]:grid min-[598px]:grid-cols-[1fr_auto_1fr]",
+              "min-[814px]:grid min-[814px]:grid-cols-[1fr_auto_1fr]",
               // С двумя парами мелкие плашки растут лишь до 10,5 рем, а дальше
               // растёт главная — тот же предел колонок, что в расчёте.
-              "min-[906px]:grid-cols-[minmax(0,21.5rem)_minmax(auto,1fr)_minmax(0,21.5rem)]",
+              "min-[1114px]:grid-cols-[minmax(0,21.5rem)_minmax(auto,1fr)_minmax(0,21.5rem)]",
             )}
           >
             <MainPlateBone />
 
-            <div className="col-start-1 row-start-1 hidden h-14 min-w-0 gap-2 min-[598px]:flex">
+            <div className="col-start-1 row-start-1 hidden h-14 min-w-0 gap-2 min-[814px]:flex">
               <MinorPlateBone {...LEFT_FIGURES[0]} />
-              <MinorPlateBone {...LEFT_FIGURES[1]} className="hidden min-[906px]:flex" />
+              <MinorPlateBone {...LEFT_FIGURES[1]} className="hidden min-[1114px]:flex" />
             </div>
-            <div className="col-start-3 row-start-1 hidden h-14 min-w-0 gap-2 min-[598px]:flex">
+            <div className="col-start-3 row-start-1 hidden h-14 min-w-0 gap-2 min-[814px]:flex">
               <MinorPlateBone {...RIGHT_FIGURES[0]} />
-              <MinorPlateBone {...RIGHT_FIGURES[1]} className="hidden min-[906px]:flex" />
+              <MinorPlateBone {...RIGHT_FIGURES[1]} className="hidden min-[1114px]:flex" />
             </div>
           </div>
         </div>
@@ -394,34 +390,33 @@ function MonthBones({ month }: { month: number }) {
 }
 
 /**
- * Главное число: та же плашка и то же построение, что в расчёте.
+ * Главные числа: то же построение, что в расчёте (`MainPlate`) — три
+ * колонки поровну, число над подписью, без плашки и без света.
  *
- * Плашка растягивается на всю строку, пока мелких итогов рядом нет, и
- * сжимается по содержимому и встаёт посередине, когда они появляются, —
- * ровно как настоящая.
+ * Колонки делят строку целиком, пока мелких итогов рядом нет, и сжимаются
+ * по содержимому и встают посередине, когда они появляются, — ровно как
+ * настоящие. Без плашки и света заглушка не отличается от расчёта и в
+ * том, что у главных чисел под ними ничего нет: в миг подстановки
+ * зажигаться на этом месте нечему.
  */
 function MainPlateBone() {
   return (
     <dl
       className={cn(
-        // `lit` — тот же свет, что у настоящей плашки: блик по верхней
-        // кромке и тень вниз. Без него заглушка была плоской, а на её
-        // место вставала поднятая — и в этот миг по всей полосе итога
-        // разом зажигался свет.
-        "lit flex h-14 items-center justify-around rounded-xl bg-paper-raised py-2",
-        "px-2 min-[360px]:px-4",
-        "min-w-0 flex-1 gap-x-1.5 min-[360px]:gap-x-3",
-        "min-[598px]:col-start-2 min-[598px]:row-start-1 min-[598px]:flex-none",
-        "min-[598px]:shrink-0 min-[598px]:gap-x-5 sm:gap-x-6 lg:min-w-92.5",
-        // В сетке со сторонами плашка не уже своего содержимого — как
-        // настоящая. С `min-w-0` средняя колонка (`minmax(auto, 1fr)`)
-        // считала бы её нижней границей ноль, и стороны, растущие до
-        // своего предела первыми, сжимали бы её вдвое: замер на 906
-        // точках — 144 против 291 у расчёта.
-        "min-[598px]:min-w-auto",
+        "grid h-14 grid-cols-3 items-center",
+        "min-w-0 flex-1 gap-x-1",
+        "min-[814px]:col-start-2 min-[814px]:row-start-1 min-[814px]:flex-none",
+        "min-[814px]:shrink-0 min-[814px]:gap-x-6 min-[814px]:px-5",
+        // В сетке со сторонами колонки не уже своего содержимого — как
+        // настоящие (`min-w-max`, довод — в `MainPlate`). С `min-w-0`
+        // средняя колонка (`minmax(auto, 1fr)`) считала бы её нижней
+        // границей ноль, и стороны, растущие до своего предела первыми,
+        // сжимали бы её: на 1114–1250 точках колонки выходили вдвое уже
+        // подписей.
+        "min-[814px]:min-w-max",
       )}
     >
-      <FigureBone value="1972" caption="Норма периода" emphatic />
+      <FigureBone value="1972" caption="Норма периода" />
       <FigureBone value="2192" caption="Отработано" />
       <FigureBone value="220" caption="Переработка" />
     </dl>
@@ -429,59 +424,30 @@ function MainPlateBone() {
 }
 
 /**
- * Число с подписью внутри главной плашки: столбиком, а с 1496 точек — в
- * строку.
+ * Число с подписью внутри главных чисел: тот же `Figure`, что в расчёте,
+ * — число ростом нормы и жирное, подпись прописными гарнитурой названий.
  *
- * Расчёт переводит плашку на строчную запись по замеру — когда ей
- * достаётся заметно больше места, чем нужно строке (`INLINE_ROOM` в
- * `period-summary.tsx`). Заглушка мерить не умеет и держит порог числом:
- * с двумя парами мелких итогов ширина главной плашки зависит только от
- * ширины окна, и на образцовых четырёхзначных числах строка включается с
- * 1496 точек — замер с шагом в восемь точек.
- *
- * Порог записан в ремах (93,5 рема — те же 1496 точек), а не в точках:
- * `sm:text-xl` задан в ремах, и правило в точках Tailwind ставил перед
- * ним — число в строке оставалось ростом в 20 точек вместо 24. Классы с
- * порогом написаны целиком, а не собраны из переменной: Tailwind находит
- * их в исходнике как строки.
+ * Кегль подписи ступенями, как у настоящей: классы с порогами написаны
+ * целиком, а не собраны из переменной — Tailwind находит их в исходнике
+ * как строки.
  */
-function FigureBone({
-  value,
-  caption,
-  emphatic,
-}: {
-  value: string;
-  caption: string;
-  emphatic?: boolean;
-}) {
+function FigureBone({ value, caption }: { value: string; caption: string }) {
   return (
-    <div
-      className={cn(
-        "min-w-0",
-        "min-[93.5rem]:flex min-[93.5rem]:flex-row-reverse min-[93.5rem]:items-center min-[93.5rem]:gap-2.5",
-      )}
-    >
-      <dd
-        className={cn(
-          "whitespace-nowrap font-mono leading-none text-center",
-          // В строку все три числа ростом нормы — как в расчёте.
-          emphatic ? "text-xl sm:text-2xl" : "text-lg sm:text-xl min-[93.5rem]:text-2xl",
-        )}
-      >
+    <div className="flex min-w-0 flex-col items-center justify-center gap-1">
+      <dd className="whitespace-nowrap font-mono text-xl font-bold leading-none text-center sm:text-2xl">
         <BoneText skeleton>
           {value}
-          <span className="ml-1 text-xs sm:text-sm">ч</span>
+          <span className="ml-1 text-xs font-normal sm:text-sm">ч</span>
         </BoneText>
       </dd>
       <dt
         className={cn(
-          "flex h-3.5 items-center justify-center gap-1 whitespace-nowrap text-[10px] min-[360px]:text-[11px] leading-tight text-ink-muted",
-          "min-[93.5rem]:h-auto min-[93.5rem]:text-sm",
+          "flex h-[1.25em] items-center justify-center whitespace-nowrap",
+          "font-display font-bold uppercase leading-tight tracking-wide text-ink-muted",
+          "text-xs min-[360px]:text-sm min-[414px]:text-base min-[470px]:text-lg min-[520px]:text-xl",
         )}
       >
-        <BoneText skeleton>
-          <span className="min-[93.5rem]:after:content-[':']">{caption}</span>
-        </BoneText>
+        <BoneText skeleton>{caption}</BoneText>
       </dt>
     </div>
   );

@@ -109,13 +109,19 @@ function yearChoices(accountingYear: number): number[] {
 }
 
 /**
- * Доля года — кнопкой посередине шапки и списком под ней.
+ * Доля года — знаком посередине шапки и списком под ним.
  *
- * Кнопка — плашка того же рода, что итоги под шапкой: бумага, скругление,
- * свет лампы по кромке (`lit`). На ней знак — часы, чей круг показывает
- * выбранную долю (`PeriodIcon`), — и та же доля словами: «2026 год»,
- * «2-е полугодие». Не «Период» и не даты: кнопку нажимают, чтобы СМЕНИТЬ
- * долю, и сначала нужно знать, на какой стоишь.
+ * Сама кнопка — одни часы, чей круг показывает выбранную долю
+ * (`PeriodIcon`): целый — год, половина — полугодие, четверть — квартал.
+ * Ни плашки, ни света, ни подписи: у остальных органов управления шапки
+ * (знак сайта, меню) их тоже нет, и плашка с «2026 год» посередине строки
+ * читалась бы вторым заголовком страницы, а не кнопкой.
+ *
+ * Название доли словами при этом никуда не делось: оно в окошке, которое
+ * кнопка открывает, и в имени кнопки для программы чтения (`aria-label`).
+ * Прежнее правило «сначала нужно знать, на какой доле стоишь» выполняет
+ * сам рисунок часов, а читать его слева направо человеку учиться не нужно:
+ * закрашенная часть круга — это и есть выбранный срок.
  */
 export function PeriodPicker({
   accountingYear,
@@ -142,15 +148,16 @@ export function PeriodPicker({
         aria-controls={id}
         aria-label={`Учётный период: ${current}. Выбрать другой`}
         className={cn(
-          "lit inline-flex h-9 shrink-0 cursor-pointer items-center gap-2 rounded-xl",
-          "bg-paper-raised px-3 text-sm font-medium whitespace-nowrap text-ink",
+          // Место под палец — 44 точки, как у знаков нижнего ряда
+          // (`KNOB_ICON`); сам рисунок — те же 28, что у знака сайта.
+          "inline-flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-xl text-ink",
+          "transition-opacity hover:opacity-80",
           "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink",
         )}
       >
         {/* Чернилами, а не серым: выбранная доля кольца должна читаться
             рядом с тусклыми, а на сером всё кольцо сливалось в одно. */}
-        <PeriodIcon kind={statutory.kind} index={statutory.index} />
-        {current}
+        <PeriodIcon kind={statutory.kind} index={statutory.index} className="size-7" />
       </button>
 
       {open && (
