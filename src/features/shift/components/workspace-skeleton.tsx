@@ -2,7 +2,7 @@ import { Moon, Sun, ZoomIn, ZoomOut } from "lucide-react";
 
 import type { ReactNode } from "react";
 
-import { LegendMark, MARK_EMPTY_CLASS } from "@/components/shared/header-action";
+import { LegendMark, MARK_EMPTY_CLASS, MARK_EMPTY_TEXT } from "@/components/shared/header-action";
 import { Bone, BoneText } from "@/components/ui/bone";
 import { KNOB_ICON, KNOB_NEST } from "@/components/ui/knob";
 import { cn } from "@/lib/utils/cn";
@@ -75,8 +75,8 @@ const LEFT_FIGURES = [
 ] as const;
 
 const RIGHT_FIGURES = [
-  { value: "734", unit: "ч", caption: "Ночные часы" },
-  { value: "96", unit: "ч", caption: "Праздничные часы" },
+  { value: "734", unit: "ч", caption: "Ночные" },
+  { value: "96", unit: "ч", caption: "Праздничные" },
 ] as const;
 
 /**
@@ -156,7 +156,7 @@ export function WorkspaceSkeleton() {
           {/* Мелкие итоги появляются там же, где в расчёте. Тот меряет
               строку и открывает их парами — по одной с каждой стороны, —
               и пороги у него приходятся на 599 точек (первая пара) и на
-              898 (вторая): замер с шагом в одну точку, окно менялось на
+              861 (вторая): замер с шагом в одну точку, окно менялось на
               месте. Пороги задают подписи и числа, а не профиль, поэтому
               от него они почти не зависят. Заглушка мерить не умеет,
               поэтому держит те же пороги числами. */}
@@ -171,11 +171,11 @@ export function WorkspaceSkeleton() {
             {/* Слева — к главным, то есть вправо; справа — влево. */}
             <div className={cn(SIDE_BONE, "col-start-1 row-start-1 justify-self-end")}>
               <FigureBone {...LEFT_FIGURES[0]} minor />
-              <FigureBone {...LEFT_FIGURES[1]} minor className="hidden min-[898px]:flex" />
+              <FigureBone {...LEFT_FIGURES[1]} minor className="hidden min-[861px]:flex" />
             </div>
             <div className={cn(SIDE_BONE, "col-start-3 row-start-1 justify-self-start")}>
               <FigureBone {...RIGHT_FIGURES[0]} minor />
-              <FigureBone {...RIGHT_FIGURES[1]} minor className="hidden min-[898px]:flex" />
+              <FigureBone {...RIGHT_FIGURES[1]} minor className="hidden min-[861px]:flex" />
             </div>
           </div>
         </div>
@@ -469,7 +469,8 @@ function FigureBone({
       <dt
         className={cn(
           "flex h-[1.125rem] items-center justify-center whitespace-nowrap",
-          "font-display uppercase leading-tight tracking-wide text-ink-muted",
+          "font-display uppercase leading-tight tracking-wide",
+          MARK_EMPTY_TEXT,
           "text-[11px] min-[340px]:text-xs",
           minor ? "min-[42.5rem]:text-xs" : "font-bold min-[42.5rem]:text-sm",
         )}

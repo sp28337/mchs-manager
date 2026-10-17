@@ -2,6 +2,7 @@
 
 import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
 
+import { MARK_EMPTY_TEXT } from "@/components/shared/header-action";
 import { BalanceCaption, BALANCE_SWAP_MS } from "@/components/ui/balance-caption";
 import { CountedNumber } from "@/components/ui/counted-number";
 import { cn } from "@/lib/utils/cn";
@@ -138,8 +139,8 @@ export const REVEAL_DELAY_MS = 220;
  *
  * Парами, по одной с каждой стороны, — иначе главные числа съехали бы с
  * середины. Сначала ближайшие по смыслу к главным: «Смен по графику» и
- * «Ночные часы»; потом, когда места хватает на всё, «Отработано смен» и
- * «Праздничные часы». Порядок слева направо при этом не меняется: план
+ * «Ночные»; потом, когда места хватает на всё, «Отработано смен» и
+ * «Праздничные». Порядок слева направо при этом не меняется: план
  * смен всегда левее факта.
  *
  * Пропущенных смен в полосе больше нет. Это разница двух соседних чисел
@@ -343,8 +344,8 @@ interface MinorItem {
  * Каждая сторона — в порядке ПОЯВЛЕНИЯ: первое число показывается уже
  * при одной паре, второе — только при двух. На экране левая сторона при
  * этом читается в том же порядке («Смен по графику», потом «Отработано
- * смен»), а правая — от главных наружу («Ночные часы», потом
- * «Праздничные часы»).
+ * смен»), а правая — от главных наружу («Ночные», потом
+ * «Праздничные»).
  */
 function sideItems(calculation: PeriodCalculation): {
   left: readonly MinorItem[];
@@ -356,8 +357,9 @@ function sideItems(calculation: PeriodCalculation): {
       { value: String(calculation.workedShifts), caption: "Отработано смен" },
     ],
     right: [
-      { value: hoursTrim(calculation.nightHours), unit: "ч", caption: "Ночные часы" },
-      { value: hoursTrim(calculation.holidayHours), unit: "ч", caption: "Праздничные часы" },
+      // Слово «часы» в подписи не нужно: единица «ч» стоит при числе.
+      { value: hoursTrim(calculation.nightHours), unit: "ч", caption: "Ночные" },
+      { value: hoursTrim(calculation.holidayHours), unit: "ч", caption: "Праздничные" },
     ],
   };
 }
@@ -616,7 +618,8 @@ export interface FigurePart {
  */
 const CAPTION_BASE = cn(
   "flex h-[1.125rem] items-center justify-center whitespace-nowrap",
-  "font-display uppercase leading-tight tracking-wide text-ink-muted",
+  "font-display uppercase leading-tight tracking-wide",
+  MARK_EMPTY_TEXT,
   "text-[11px] min-[340px]:text-xs",
 );
 const CAPTION = cn(CAPTION_BASE, "font-bold min-[42.5rem]:text-sm");
@@ -661,6 +664,12 @@ function Figure({
           minor
             ? "text-lg min-[42.5rem]:text-xl"
             : "text-xl font-bold min-[42.5rem]:text-2xl",
+          // Сами цифры — обычными чернилами темы (от страницы), а тон
+          // разницы — зелёный и красный — говорит о переработке и
+          // недоработке. Цвет бургера (`MARK_EMPTY_TEXT`) — у БУКВ полосы:
+          // у подписей и у единицы при числе, но не у цифр: цифры — то, ради
+          // чего полоса существует, и им гаснуть не за чем.
+          //
           // Цвет меняется столько же, сколько едет приставка в подписи:
           // это одно событие, показанное с двух сторон, и разъезжаться им
           // нельзя. Поэтому длительность приходит оттуда же, откуда её
@@ -674,9 +683,12 @@ function Figure({
         {parts.map((part, index) => (
           <span key={`${index}:${part.unit ?? ""}`} className={index > 0 ? "ml-2" : undefined}>
             {still ? part.value : <CountedNumber value={part.value} />}
-            {/* Единица тише числа: ни жирности, ни полного роста. */}
+            {/* Единица тише числа: ни жирности, ни полного роста. Это
+                буква, а не цифра, и цвет у неё как у подписей — цвет
+                бургера; у числа с тоном тоже: «ч» при зелёном числе серое,
+                как везде. */}
             {part.unit ? (
-              <span className="ml-1 text-xs font-normal text-ink-muted min-[42.5rem]:text-sm">
+              <span className={cn("ml-1 text-xs font-normal min-[42.5rem]:text-sm", MARK_EMPTY_TEXT)}>
                 {part.unit}
               </span>
             ) : null}
