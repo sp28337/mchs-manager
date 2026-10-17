@@ -452,10 +452,15 @@ function clearOf(grid: Box): Box {
     const box = element.getBoundingClientRect();
     if (overlaps(box)) top = Math.max(top, box.bottom);
   }
-  const dock = document.querySelector("[data-dock]");
-  if (dock !== null) {
-    const box = dock.getBoundingClientRect();
-    if (overlaps(box)) bottom = Math.min(bottom, box.top);
+  // Сами знаки, а не полоса ряда: с `md` знаки стоят колонкой у левого
+  // края, а полоса остаётся во всю ширину окна и в высоту колонки, — по ней
+  // низ сетки уехал бы вверх на двести с лишним точек по всей ширине.
+  // Знак вычитается, только если он и правда стоит над сеткой: колонка
+  // слева в поле страницы, мимо неё, а на телефоне знаки лежат на сетке.
+  for (const knob of document.querySelectorAll("[data-dock] button")) {
+    const box = knob.getBoundingClientRect();
+    const across = box.right > grid.left && box.left < grid.left + grid.width;
+    if (across && overlaps(box)) bottom = Math.min(bottom, box.top);
   }
   return { left: grid.left, top, width: grid.width, height: Math.max(0, bottom - top) };
 }
