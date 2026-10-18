@@ -438,7 +438,7 @@ function MainPlateBone() {
 /**
  * Число с подписью: тот же `Figure`, что в расчёте, — главное число жирное
  * и одного роста, подпись прописными гарнитурой названий, мелко. Мелкий
- * итог (`minor`) — обычный вес, число на ступень меньше, подпись на любой
+ * итог (`minor`) — число жирное, но мельче (`text-sm`), подпись на любой
  * ширине в 12 точек.
  *
  * Ступени кегля те же, что у настоящей подписи (`CAPTION` в
@@ -465,7 +465,7 @@ function FigureBone({
         className={cn(
           "flex h-5 items-end justify-center whitespace-nowrap font-mono leading-none text-center min-[42.5rem]:h-6",
           minor
-            ? "text-lg min-[42.5rem]:text-xl"
+            ? "text-sm font-bold"
             : "text-xl font-bold min-[42.5rem]:text-2xl",
         )}
       >

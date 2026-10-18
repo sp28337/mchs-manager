@@ -13,7 +13,13 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import Link from "next/link";
-import { useId, useState, type ReactNode } from "react";
+import {
+  useCallback,
+  useId,
+  useState,
+  useSyncExternalStore,
+  type ReactNode,
+} from "react";
 
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -28,51 +34,42 @@ import { когда } from "./presence";
 import { RecoveryKeyCard } from "./recovery-key-card";
 import { useSync } from "./sync-provider";
 
-/**
- * Страница учётной записи: кто вошёл, что с синхронизацией, права субъекта.
- *
- * --- Почему отдельная страница, а не третья закладка настроек ----------------
- *
- * В настройках лежат ответы анкеты — то, из чего считается норма. Учётная
- * запись к расчёту не относится вовсе: она о том, где лежит копия данных.
- * Рядом с «датой смены» она сбивала бы с толку, а главное — здесь же, по
- * тому же адресу, стоят «мои данные»: выгрузка и удаление. Это страница
- * про данные и права, а не про график.
- *
- * --- Как она собрана ---------------------------------------------------------
- *
- * Не вошедшему — только вход (`auth-screen.tsx`): одно действие, узкая
- * колонка, никаких разделов про чужие данные.
- *
- * Вошедшему — три раздела в том порядке, в каком о них спрашивают:
- * синхронизация (моё уехало?), доступ (сменить пароль), мои данные
- * (забрать и удалить). У каждого свой заголовок со значком: без них
- * страница была лентой из карточек и кнопок, где удаление учётной записи
- * стояло в том же ряду, что и «синхронизировать сейчас».
- *
- * Наверху — знак учётной записи с адресом: тот же кружок, что в шапке, и
- * та же точка состояния. Человек, нажавший в шапке на себя, попадает на
- * страницу, которая начинается с него же.
- *
- * --- Чего здесь нет ----------------------------------------------------------
- *
- * Пароль не хранится и не показывается; ключ восстановления показывается
- * один раз и больше никогда (`recovery-key-card.tsx`). Выгрузка уходит
- * файлом в браузер, а не открывается на странице: это все данные
- * человека, и место им не на экране, а на диске.
- */
+type SectionId = "profile" | "sync" | "access" | "data";
+
+const SECTIONS: readonly { id: SectionId; title: string; icon: LucideIcon }[] = [
+  { id: "profile", title: "Профиль", icon: UserRound },
+  { id: "sync", title: "Синхронизация", icon: FolderSync },
+  { id: "access", title: "Доступ", icon: KeyRound },
+  { id: "data", title: "Мои данные", icon: ShieldCheck },
+];
+
+function subscribeToHash(callback: () => void) {
+  window.addEventListener("hashchange", callback);
+  return () => window.removeEventListener("hashchange", callback);
+}
+
+/** Открытый раздел; живёт и в адресе (`#sync`), чтобы на него можно было сослаться. */
+function useSection(): [SectionId, (id: SectionId) => void] {
+  const hash = useSyncExternalStore(
+    subscribeToHash,
+    () => window.location.hash.slice(1),
+    () => "",
+  );
+  const section = SECTIONS.find((item) => item.id === hash)?.id ?? "profile";
+
+  const choose = useCallback((id: SectionId) => {
+    // Без прокрутки к якорю и без записи в историю; подписчикам об этом
+    // сообщаем сами — `replaceState` `hashchange` не вызывает.
+    window.history.replaceState(null, "", `#${id}`);
+    window.dispatchEvent(new HashChangeEvent("hashchange"));
+  }, []);
+
+  return [section, choose];
+}
+
 export function AccountScreen() {
-  const {
-    enabled,
-    account,
-    error,
-    busy,
-    dirty,
-    syncedAt,
-    freshRecoveryKey,
-    actions,
-    report,
-  } = useSync();
+  const { enabled, account, error, freshRecoveryKey, actions } = useSync();
+  const [section, choose] = useSection();
 
   if (!enabled) {
     return (
@@ -93,132 +90,78 @@ export function AccountScreen() {
     );
   }
 
-  const принято = report === null ? 0 : report.received + report.deleted;
+  const current = SECTIONS.find((item) => item.id === section) ?? SECTIONS[0]!;
 
   return (
-    <div className="mx-auto w-full max-w-[44rem] space-y-8">
+    <div className="mx-auto w-full max-w-4xl space-y-6">
       <h1 className="text-xl font-medium text-ink">Учётная запись</h1>
 
       {error !== null && <Отказ>{error}</Отказ>}
 
       {freshRecoveryKey !== null && (
-        <RecoveryKeyCard
-          recoveryKey={freshRecoveryKey}
-          onDone={actions.forgetRecoveryKey}
-        />
+        <RecoveryKeyCard recoveryKey={freshRecoveryKey} onDone={actions.forgetRecoveryKey} />
       )}
 
-      {/* Кто вошёл — первой строкой и теми же знаками, что в шапке. */}
-      <div className="lit flex flex-wrap items-center gap-4 rounded-xl bg-paper-raised px-5 py-4">
-        {/* Тот же кружок с человечком, что в шапке (`header-menu.tsx`):
-            человек, нажавший там на себя, попадает на страницу, которая
-            начинается с того же знака. */}
-        <span className="grid size-12 shrink-0 place-items-center rounded-full bg-paper-sunken">
-          <UserRound aria-hidden className="size-6 text-ink-muted" />
-        </span>
-        {/* Под адресом здесь стояло «Синхронизировано только что» — та же
-            строка, что была в подвале расчёта. Убрана вместе с ней: о
-            синхронизации на экране говорится, только когда она встала
-            (полоса наверху), а время последнего прохода — ниже, в разделе
-            «Синхронизация», для того, кто пришёл его проверить. */}
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-md font-medium text-ink">{account.email}</p>
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-6 md:grid-cols-[14rem_minmax(0,1fr)] md:gap-10">
+        <div className="space-y-6 md:sticky md:top-24 md:self-start">
+          <nav
+            aria-label="Разделы учётной записи"
+            className="flex flex-wrap gap-1 md:flex-col"
+          >
+            {SECTIONS.map(({ id, title, icon: Icon }) => {
+              const active = id === section;
+              return (
+                <button
+                  key={id}
+                  type="button"
+                  aria-current={active ? "true" : undefined}
+                  onClick={() => choose(id)}
+                  className={cn(
+                    "flex cursor-pointer items-center gap-2.5 rounded-lg px-3 py-2",
+                    "text-left text-sm whitespace-nowrap transition-colors hover:bg-paper-sunken",
+                    "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ink",
+                    active ? "bg-paper-sunken font-medium text-ink" : "text-ink-muted",
+                  )}
+                >
+                  <Icon aria-hidden className="size-4.5 shrink-0" />
+                  {title}
+                </button>
+              );
+            })}
+          </nav>
+
+          <p className="hidden text-xs leading-5 text-ink-faint md:block">
+            Приложение работает и без учётной записи. Она добавляет копию на
+            сервере и перенос между устройствами.{" "}
+            <Link href={LEGAL_URLS.policy} className="underline hover:no-underline">
+              Политика обработки данных
+            </Link>
+          </p>
         </div>
-        <Значок
-          icon={account.email_verified ? CircleCheck : CircleDashed}
-          tone={account.email_verified ? "ok" : "wait"}
-        >
-          {account.email_verified ? "Адрес подтверждён" : "Адрес не подтверждён"}
-        </Значок>
+
+        <section aria-labelledby="account-section" className="min-w-0 space-y-4">
+          <h2 id="account-section" className="flex items-center gap-2 text-md font-medium text-ink">
+            <current.icon aria-hidden className="size-5 text-ink-muted" />
+            {current.title}
+          </h2>
+          {section === "profile" && <Profile />}
+          {section === "sync" && <Sync />}
+          {section === "access" && <Access />}
+          {section === "data" && <MyData />}
+        </section>
       </div>
 
-      {/* Та же беда, что в метке выше, но сказанная не теми же словами:
-          метка называет состояние, а строка отвечает на вопрос «и что
-          теперь». Повтор слово в слово читался бы как сбой разметки. */}
-      {!account.email_verified && (
-        <p className="text-xs leading-5 text-ink-muted">
-          Письмо со ссылкой отправлено при регистрации. Синхронизация работает
-          и до подтверждения; без него нельзя восстановить доступ письмом, если
-          забудется пароль.
-        </p>
-      )}
-
-      <Раздел
-        icon={FolderSync}
-        title="Синхронизация"
-        note="Проход случается сам: после правки, при появлении связи и при возвращении на вкладку."
-      >
-        <Card>
-          {/* Время последнего удачного прохода — единственный ответ на
-              вопрос «а точно уехало?», который можно проверить. Слово
-              «синхронизировано» без времени его не даёт: оно говорит,
-              что сейчас нечего отправлять, а не когда отправляли. */}
-          <Field
-            label="Последняя синхронизация"
-            note={
-              dirty
-                ? "Есть правки, которые ещё не уехали — уедут через мгновение."
-                : undefined
-            }
-          >
-            <span className="text-sm text-ink">
-              {syncedAt === null ? "в этом сеансе ещё не было" : когда(syncedAt)}
-            </span>
-          </Field>
-          {принято > 0 && (
-            <Field label="Принято с другого устройства">
-              <span className="text-sm text-ink">{принято}</span>
-            </Field>
-          )}
-          {report !== null && report.skipped > 0 && (
-            <Field
-              label="Не удалось прочесть"
-              note="Записи, сделанные другой версией приложения или другим ключом."
-            >
-              <span className="text-sm text-ink">{report.skipped}</span>
-            </Field>
-          )}
-        </Card>
-
-        {/* Кнопки «синхронизировать сейчас» здесь нет и не должно быть:
-            проход случается сам — после правки, при появлении связи и при
-            возвращении на вкладку, — и кнопка предлагала бы человеку
-            делать работу, которую приложение уже делает. Хуже того, она
-            заставляла бы сомневаться: раз кнопка есть, может, без неё не
-            уедет? */}
-        <Кнопки>
-          <Button variant="ghost" disabled={busy} onClick={() => void actions.logout()}>
-            <LogOut aria-hidden /> Выйти
-          </Button>
-        </Кнопки>
-      </Раздел>
-
-      <Раздел
-        icon={KeyRound}
-        title="Доступ"
-        note="Пароль защищает ключ, которым шифруются данные, а не сами записи: при смене перешифровывается только обёртка ключа."
-      >
-        <PasswordChange email={account.email} />
-      </Раздел>
-
-      <Раздел icon={ShieldCheck} title="Мои данные">
-        <MyData />
-      </Раздел>
-
-      <p className="border-t border-rule pt-4 text-xs leading-5 text-ink-faint">
-        Приложение работает и без учётной записи — как работало раньше: расчёт
-        и данные живут в этом браузере. Учётная запись добавляет копию на
-        сервере и перенос между устройствами, и ничего не забирает.{" "}
+      <p className="text-xs leading-5 text-ink-faint md:hidden">
+        Приложение работает и без учётной записи. Она добавляет копию на сервере
+        и перенос между устройствами.{" "}
         <Link href={LEGAL_URLS.policy} className="underline hover:no-underline">
           Политика обработки данных
         </Link>
-        .
       </p>
     </div>
   );
 }
 
-/** Отказ сервера или неудача действия — одной рамкой на всю страницу. */
 function Отказ({ children }: { children: ReactNode }) {
   return (
     <p
@@ -230,53 +173,7 @@ function Отказ({ children }: { children: ReactNode }) {
   );
 }
 
-/**
- * Раздел страницы: заголовок со значком, под ним содержимое.
- *
- * Значок здесь не украшение, а то, чем раздел отличается от соседнего на
- * бегу: страница читается сверху вниз один раз, а возвращаются на неё за
- * чем-то одним — сменить пароль, забрать данные, посмотреть, уехало ли.
- */
-function Раздел({
-  icon: Icon,
-  title,
-  note,
-  children,
-}: {
-  icon: LucideIcon;
-  title: string;
-  note?: string;
-  children: ReactNode;
-}) {
-  return (
-    <section className="space-y-3">
-      <div className="space-y-1">
-        <h2 className="flex items-center gap-2 text-sm font-medium text-ink">
-          <Icon aria-hidden className="size-4 shrink-0 text-ink-muted" />
-          {title}
-        </h2>
-        {note !== undefined && (
-          <p className="text-xs leading-5 text-ink-muted">{note}</p>
-        )}
-      </div>
-      {children}
-    </section>
-  );
-}
-
-/**
- * Ряд кнопок раздела.
- *
- * Кнопки в приложении растянуты по ширине своего места (`ui/button.tsx`),
- * и строкой это значило бы «выгрузить всё» и «удалить» во всю страницу —
- * два пятна по пол-экрана, одинаково громких. Поэтому сетка, где доля
- * каждой кнопки равна её собственной надписи: ряд получается такой
- * длины, какой требуют слова, и кончается там, где кончаются они.
- *
- * На телефоне доля одна, и кнопки встают столбцом во всю ширину — там
- * иначе и нельзя: в строку они не встанут, а половинчатая кнопка на
- * трёхстах точках это обрезанная надпись.
- */
+/** Ряд кнопок раздела: по ширине надписей, а на телефоне столбцом. */
 function Кнопки({ children }: { children: ReactNode }) {
   return (
     <div className="grid gap-2 sm:grid-flow-col sm:auto-cols-max sm:justify-start">
@@ -299,9 +196,7 @@ function Значок({
     <span
       className={cn(
         "inline-flex shrink-0 items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs",
-        tone === "ok"
-          ? "border-verify/40 text-ink"
-          : "border-rule-strong text-ink-muted",
+        tone === "ok" ? "border-verify/40 text-ink" : "border-rule-strong text-ink-muted",
       )}
     >
       <Icon
@@ -313,7 +208,95 @@ function Значок({
   );
 }
 
-/** Смена пароля: перешифровывается обёртка ключа, данные не трогаются. */
+function Profile() {
+  const { account, busy, actions } = useSync();
+  if (account === null) return null;
+
+  return (
+    <div className="space-y-4">
+      <Card>
+        <Field label="Адрес почты">
+          <span className="truncate text-sm text-ink">{account.email}</span>
+        </Field>
+        <Field label="Подтверждение">
+          <Значок
+            icon={account.email_verified ? CircleCheck : CircleDashed}
+            tone={account.email_verified ? "ok" : "wait"}
+          >
+            {account.email_verified ? "Адрес подтверждён" : "Адрес не подтверждён"}
+          </Значок>
+        </Field>
+      </Card>
+
+      {!account.email_verified && (
+        <p className="text-xs leading-5 text-ink-muted">
+          Письмо со ссылкой отправлено при регистрации. Синхронизация работает и
+          без подтверждения, но без него нельзя восстановить доступ письмом,
+          если забудется пароль.
+        </p>
+      )}
+
+      <Кнопки>
+        <Button variant="ghost" disabled={busy} onClick={() => void actions.logout()}>
+          <LogOut aria-hidden /> Выйти
+        </Button>
+      </Кнопки>
+    </div>
+  );
+}
+
+function Sync() {
+  const { dirty, syncedAt, report } = useSync();
+  const принято = report === null ? 0 : report.received + report.deleted;
+
+  return (
+    <div className="space-y-4">
+      <p className="text-xs leading-5 text-ink-muted">
+        Синхронизация идёт сама: после правки, при появлении связи и при
+        возвращении на вкладку.
+      </p>
+      <Card>
+        <Field
+          label="Последняя синхронизация"
+          note={dirty ? "Есть правки, которые ещё не уехали — уедут через мгновение." : undefined}
+        >
+          <span className="text-sm text-ink">
+            {syncedAt === null ? "в этом сеансе ещё не было" : когда(syncedAt)}
+          </span>
+        </Field>
+        {принято > 0 && (
+          <Field label="Принято с другого устройства">
+            <span className="text-sm text-ink">{принято}</span>
+          </Field>
+        )}
+        {report !== null && report.skipped > 0 && (
+          <Field
+            label="Не удалось прочесть"
+            note="Записи, сделанные другой версией приложения или другим ключом."
+          >
+            <span className="text-sm text-ink">{report.skipped}</span>
+          </Field>
+        )}
+      </Card>
+    </div>
+  );
+}
+
+function Access() {
+  const { account } = useSync();
+  if (account === null) return null;
+
+  return (
+    <div className="space-y-4">
+      <p className="text-xs leading-5 text-ink-muted">
+        Пароль защищает ключ шифрования данных. При смене перешифровывается
+        только он, сами записи не меняются.
+      </p>
+      <PasswordChange email={account.email} />
+    </div>
+  );
+}
+
 function PasswordChange({ email }: { email: string }) {
   const { busy, actions } = useSync();
   const [открыто, setОткрыто] = useState(false);
@@ -334,9 +317,6 @@ function PasswordChange({ email }: { email: string }) {
     );
   }
 
-  // Новый пароль проверяется так же, как при регистрации: это тот же
-  // придуманный пароль, и слабеть при смене ему незачем. Нынешний не
-  // проверяется вовсе — он уже существует.
   const оценка = оценить(новый, { email });
   const нельзя = busy || текущий === "" || !оценка.годится;
 
@@ -401,13 +381,7 @@ function PasswordChange({ email }: { email: string }) {
   );
 }
 
-/**
- * Права субъекта: выгрузка и удаление.
- *
- * Работают сразу и без переписки с оператором — ждать ответа на письмо,
- * чтобы забрать свои же данные, это не исполнение права (ст. 14, 21
- * 152-ФЗ), а его имитация.
- */
+/** Права субъекта: выгрузка и удаление работают сразу, без переписки (ст. 14, 21 152-ФЗ). */
 function MyData() {
   const { busy, actions } = useSync();
   const [спросить, setСпросить] = useState(false);
@@ -418,8 +392,6 @@ function MyData() {
     const текст = await actions.exportAll().catch(() => null);
     if (текст === null) return;
 
-    // Файлом, а не на экран: это все данные человека, и место им на
-    // диске. Тот же приём, что у выгрузки профиля (`save-to-file.tsx`).
     const url = URL.createObjectURL(new Blob([текст], { type: "application/json" }));
     const ссылка = document.createElement("a");
     ссылка.href = url;
@@ -431,7 +403,13 @@ function MyData() {
   };
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-4">
+      <p className="text-xs leading-5 text-ink-muted">
+        Удаление уничтожает на сервере копии графиков и их историю, ключи, адрес
+        почты и журнал входов; отзыв согласия — это оно же. Графики на этом
+        устройстве останутся. Резервные копии очищаются в течение 30 дней.
+      </p>
+
       <Кнопки>
         <Button variant="outline" disabled={busy} onClick={() => void выгрузить()}>
           <Download aria-hidden /> Выгрузить всё, что обо мне есть
@@ -440,14 +418,6 @@ function MyData() {
           <Trash2 aria-hidden /> Удалить учётную запись
         </Button>
       </Кнопки>
-
-      <p className="text-xs leading-5 text-ink-muted">
-        Удаление уничтожает на сервере всё: копии графиков, их историю,
-        обёртки ключа, адрес почты, журнал входов. Отзыв согласия — это оно
-        же: без адреса и ключа учётной записи не существует. Графики на этом
-        устройстве останутся. Резервные копии догоняют удаление в течение 30
-        дней.
-      </p>
 
       <ConfirmDialog
         open={спросить}
