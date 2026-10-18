@@ -4,12 +4,7 @@ import type { ReactNode } from "react";
 
 import { LegendMark, MARK_EMPTY_CLASS, MARK_EMPTY_TEXT } from "@/components/shared/header-action";
 import { Bone, BoneText } from "@/components/ui/bone";
-import {
-  FOOTER_DOCS,
-  FOOTER_DOCUMENTS,
-  FOOTER_HEADING,
-  FOOTER_LIST,
-} from "@/components/shared/site-footer";
+import { FooterBody } from "@/components/shared/site-footer";
 import { KNOB_ICON, KNOB_NEST } from "@/components/ui/knob";
 import { cn } from "@/lib/utils/cn";
 
@@ -511,28 +506,10 @@ function ProfileFooterBones() {
     // что у графика (`frame-inset`).
     <footer aria-hidden className="mx-auto mt-10 w-full px-6 2xl:max-w-[2000px]">
       <div className="frame-inset">
-        <div className="space-y-4 border-t border-rule py-6 text-sm">
-          {/* Перечень документов: те же классы и те же слова, что у
-              настоящего (`shared/site-footer.tsx`), — высота получается
-              сама, а не подбирается числом. */}
-          <div className={FOOTER_DOCS}>
-            <span className={FOOTER_HEADING}>
-              <BoneText skeleton>Документы</BoneText>
-            </span>
-            <ul className={FOOTER_LIST}>
-              {FOOTER_DOCUMENTS.map((документ) => (
-                <li key={документ.href}>
-                  <BoneText skeleton>{документ.label}</BoneText>
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          {/* Строка адреса — теми же словами и тем же кеглем, что в подвале
-              расчёта: её высота и переносы получаются сами. */}
-          <p className="mt-16 text-center text-xs text-ink-muted">
-            <BoneText skeleton>Вопросы и обращения: grafik1-3@yandex.ru</BoneText>
-          </p>
+        <div className="border-t border-rule py-10">
+          {/* Тот же подвал, что у расчёта (`shared/site-footer.tsx`), только
+              костями: высота получается сама, а не подбирается числом. */}
+          <FooterBody skeleton />
         </div>
       </div>
     </footer>

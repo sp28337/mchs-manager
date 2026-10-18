@@ -1,6 +1,6 @@
 "use client";
 
-import { FooterDocuments, FooterEmail } from "@/components/shared/site-footer";
+import { FooterBody } from "@/components/shared/site-footer";
 
 /**
  * Подвал рабочего экрана: документы сайта и обращение к оператору.
@@ -57,17 +57,13 @@ export function ProfileFooter() {
           (`px-6`) — то же поле страницы, что у `main`, и отступ рамки
           отсчитывается от него, а не вместо него. */}
       <div className="frame-inset">
-        <div className="space-y-4 border-t border-rule py-6 text-sm">
-          {/* Документы — тем же перечнем, что на остальных страницах
+        <div className="border-t border-rule py-10">
+          {/* Знак, документы и адрес — одним подвалом на все страницы
               (`shared/site-footer.tsx`): политика обязана быть доступна с
               любой страницы, а рабочий экран — та, с которой человек уходит
-              реже всего. */}
-          <FooterDocuments />
-
-          {/* Адрес — той же строкой, что на остальных страницах: спрашивают
-              с той страницы, на которой застал вопрос, а не с той, которую
-              для этого полагается найти. */}
-          <FooterEmail />
+              реже всего, и спрашивают с той страницы, на которой застал
+              вопрос. */}
+          <FooterBody />
         </div>
       </div>
     </footer>

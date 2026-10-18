@@ -1,6 +1,9 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 
+import { ScheduleMark } from "@/components/shared/schedule-mark";
+import { Bone, BoneText } from "@/components/ui/bone";
+import { Logo } from "@/components/ui/logo";
 import { cn } from "@/lib/utils/cn";
 
 /**
@@ -19,17 +22,27 @@ import { cn } from "@/lib/utils/cn";
  * баннер после ответа исчезает, и другого входа к этому выбору у человека
  * нет.
  *
- * --- Почему столбиком и без плашек -----------------------------------------
+ * --- Как он устроен и почему так ---------------------------------------------
  *
- * Документы стояли плитками: плашка, знак, название и строка о том, что
- * внутри. Четыре плитки в ряд в подвале — это самое заметное, что есть на
- * странице ниже календаря, а документы читают раз в жизни. Плитки спорили с
- * тем, ради чего экран открыт.
+ * Подвал — продолжение шапки, а не отдельная вещь внизу страницы. В шапке
+ * слева знак и название сайта, справа меню; в подвале слева те же знак и
+ * название, только тише, а справа — то, чем пользуются реже меню: документы
+ * и адрес. Строка читается снизу вверх так же, как сверху вниз.
  *
- * Теперь это перечень: заголовок «Документы» (белым и жирно — так он
- * читается подписью к списку) и под ним названия серым, по одному в строке,
- * по середине. Ни плашек, ни рамок, ни знаков: ссылку выдаёт наведение —
- * название белеет, — и тот же цвет стоит у фокуса с клавиатуры.
+ * Правые колонки названы тем же голосом, каким подписаны цифры в полосе
+ * итога: узкая гарнитура названий, прописные, разрядка, бледный цвет. Это
+ * не заголовки разделов, а подписи — они говорят, что лежит под ними, и не
+ * спорят с содержимым. Сами названия документов — обычным шрифтом, серые, и
+ * белеют под курсором: как все остальные нажимаемые слова в приложении.
+ *
+ * Ни плашек, ни рамок, ни знаков при ссылках. Прежние плитки были самым
+ * заметным, что есть на странице ниже календаря, а документы читают раз в
+ * жизни; и перечень по середине, который пришёл им на смену, вышел чужим —
+ * весь остальной сайт выровнен по левому краю рамки, и единственная
+ * центрированная колонка читалась как случайный остаток.
+ *
+ * Над всем этим — тонкая черта рамки (`border-rule`), та же, что у блоков
+ * приложения.
  */
 
 /** Почта для связи. */
@@ -41,11 +54,9 @@ export const EMAIL = "grafik1-3@yandex.ru";
  *
  * Названия короче заголовков самих документов: «Политика в отношении
  * обработки персональных данных» в подвале занимает строку целиком, а
- * человек ищет глазами слово «политика». Названия — перечнем для всех
- * подвалов, в том числе и заглушки (`FOOTER_DOCUMENTS`): ей нужна та же
- * длина строк, чтобы высота совпала.
+ * человек ищет глазами слово «политика».
  */
-export const FOOTER_DOCUMENTS: readonly { href: string; label: string }[] = [
+const ДОКУМЕНТЫ: readonly { href: string; label: string }[] = [
   { href: "/terms", label: "Пользовательское соглашение" },
   { href: "/privacy", label: "Политика конфиденциальности" },
   { href: "/consent", label: "Согласие на обработку данных" },
@@ -53,85 +64,123 @@ export const FOOTER_DOCUMENTS: readonly { href: string; label: string }[] = [
 ];
 
 /**
- * Классы перечня — вынесены, чтобы заглушка рабочего экрана
- * (`workspace-skeleton.tsx`) рисовала ту же разметку теми же классами:
- * высота подвала тогда получается сама и совпадает до пикселя, а не
- * подбирается числом.
- *
- * Кегль и интерлиньяж — на списке и на заголовке, а не на ссылках:
- * строка списка берёт высоту от своего кегля, и ссылка внутри неё, не
- * задающая своего, не меняет её.
+ * Подпись колонки: тем же голосом, что подписи под цифрами в полосе итога
+ * (`period-summary.tsx`, `CAPTION_MINOR`), но бледнее цифр, а не чернил
+ * темы при четверти силы — это единственное, что говорит колонке, о чём
+ * она, и читаться должна.
  */
-export const FOOTER_DOCS = "flex flex-col items-center gap-2 text-center";
-export const FOOTER_HEADING = "text-sm font-bold leading-5 text-ink";
-export const FOOTER_LIST = "flex flex-col items-center gap-1.5 text-sm leading-5";
+const ПОДПИСЬ =
+  "block font-display text-xs font-bold uppercase leading-4 tracking-wide text-ink-faint";
 
-/**
- * Название документа: серое, белеет под курсором.
- *
- * Цвет на самой ссылке: наследования тут не происходит — у `a` свой цвет
- * по умолчанию, синий, и он перебивает цвет родителя. `text-ink` — чернила
- * темы: белые на тёмной и тёмные на светлой, то есть «белеет» там, где
- * бумага тёмная, а на светлой темнеет — тем же шагом к основному цвету.
- */
-export const FOOTER_LINK = cn(
+/** Ссылка подвала: серая, белеет под курсором и под фокусом с клавиатуры. */
+const ССЫЛКА = cn(
   "rounded-xs text-ink-muted no-underline transition-colors hover:text-ink",
   "focus-visible:text-ink focus-visible:outline-2 focus-visible:outline-offset-4",
   "focus-visible:outline-ink",
 );
 
-/** Перечень документов — для тех подвалов, что собраны своими руками. */
-export function FooterDocuments({ className }: { className?: string }) {
-  return (
-    <nav aria-labelledby="footer-documents" className={cn(FOOTER_DOCS, className)}>
-      <h2 id="footer-documents" className={FOOTER_HEADING}>
-        Документы
-      </h2>
-      <ul className={FOOTER_LIST}>
-        {FOOTER_DOCUMENTS.map(({ href, label }) => (
-          <li key={href}>
-            <Link href={href} className={FOOTER_LINK}>
-              {label}
-            </Link>
-          </li>
-        ))}
-      </ul>
-    </nav>
-  );
-}
-
 /**
- * Адрес для обращений — строкой под документами.
+ * Подвал целиком, без внешней рамки: знак с названием, документы, адрес.
  *
- * По середине, а не у края: под перечнем документов, стоящим по
- * середине, прижатая в сторону строка читалась бы подписью к одному из
- * них. Середина не принадлежит ни одному названию, и строка читается сама
- * по себе.
+ * `skeleton` рисует ту же разметку теми же классами, но костями вместо
+ * слов: заглушка рабочего экрана (`workspace-skeleton.tsx`) не копирует
+ * подвал, а берёт его, и высота совпадает до пикселя, а не подбирается
+ * числом.
  */
-export function FooterEmail({ className }: { className?: string }) {
+export function FooterBody({ skeleton = false }: { skeleton?: boolean }) {
+  // В заглушке ссылки — не ссылки: нажимать там нечего, а подчёркивание и
+  // цвет под плашкой всё равно не видны.
+  const текст = (содержимое: ReactNode) => (
+    <BoneText skeleton={skeleton}>{содержимое}</BoneText>
+  );
+
   return (
-    // Отступ от перечня — свой, шестнадцать единиц, и он перекрывает
-    // просвет родителя (поля соседей схлопываются, берётся больший).
-    // Строка вплотную под названиями читалась пятой из них, только мельче;
-    // на расстоянии она — отдельная вещь, подпись всего подвала.
-    <p className={cn("mt-16 text-center text-xs text-ink-muted", className)}>
-      Вопросы и обращения:{" "}
-      <a
-        href={`mailto:${EMAIL}`}
-        // Адрес не переносится по дефису: разорванный на «grafik1-» и
-        // «3@yandex.ru» он читается как два куска и не копируется
-        // двойным нажатием.
-        className="whitespace-nowrap text-ink-muted hover:underline"
-      >
-        {EMAIL}
-      </a>
-    </p>
+    <div
+      // Три колонки с `lg`: знак слева, документы и адрес — правым краем.
+      // Ниже — две: знак сверху на всю ширину, под ним документы и адрес. На
+      // телефоне — одна. Просвет между колонками один, и он заметно больше
+      // просвета строк: колонки читаются колонками, а не сплошным текстом.
+      //
+      // `items-start`: все колонки стоят от одной верхней линии. По
+      // умолчанию ячейки растягиваются на высоту самой высокой (списка из
+      // четырёх документов), и знак с названием, выровненный внутри своей
+      // ячейки по середине, повисал на уровне второго-третьего документа —
+      // подвал читался как несобранный.
+      className="grid items-start gap-x-16 gap-y-8 sm:grid-cols-2 lg:grid-cols-[1fr_auto_auto]"
+    >
+      {/* Знак и название — та же пара, что в шапке (`site-header.tsx`),
+          только приглушённая: знак одноцветный, название серое. Цифры
+          графика — те же, что в шапке, и меняются вместе с ним. */}
+      {skeleton ? (
+        <div className="flex items-center gap-2.5 sm:col-span-2 lg:col-span-1">
+          <Bone className="size-6 shrink-0 rounded-md" />
+          <span className="font-display text-lg font-bold uppercase leading-tight tracking-wide">
+            {текст("График 1|3")}
+          </span>
+        </div>
+      ) : (
+        <Link
+          href="/"
+          className={cn(
+            "group flex w-fit items-center gap-2.5 sm:col-span-2 lg:col-span-1",
+            // Цвет на самой ссылке: у `a` свой, синий по умолчанию, и он
+            // перебивает цвет родителя у всего, что цвета не назначило.
+            "rounded-xs text-ink-muted focus-visible:outline-2 focus-visible:outline-offset-4",
+            "focus-visible:outline-ink",
+          )}
+        >
+          <Logo mono className="size-6 shrink-0 text-ink-faint" />
+          <span className="font-display text-lg font-bold uppercase leading-tight tracking-wide whitespace-nowrap text-ink-muted transition-colors group-hover:text-ink">
+            <span className="max-[399px]:sr-only">{"График "}</span>
+            <ScheduleMark />
+          </span>
+        </Link>
+      )}
+
+      <nav aria-labelledby={skeleton ? undefined : "footer-documents"}>
+        <h2 id={skeleton ? undefined : "footer-documents"} className={ПОДПИСЬ}>
+          {текст("Документы")}
+        </h2>
+        <ul className="mt-3 space-y-2 text-sm leading-5">
+          {ДОКУМЕНТЫ.map(({ href, label }) => (
+            <li key={href}>
+              {skeleton ? (
+                текст(label)
+              ) : (
+                <Link href={href} className={ССЫЛКА}>
+                  {label}
+                </Link>
+              )}
+            </li>
+          ))}
+        </ul>
+      </nav>
+
+      <div>
+        <p className={ПОДПИСЬ}>{текст("Вопросы и обращения")}</p>
+        <p className="mt-3 text-sm leading-5">
+          {skeleton ? (
+            текст(EMAIL)
+          ) : (
+            <a
+              href={`mailto:${EMAIL}`}
+              // Адрес не переносится по дефису: разорванный на «grafik1-» и
+              // «3@yandex.ru» он читается как два куска и не копируется
+              // двойным нажатием.
+              className={cn(ССЫЛКА, "whitespace-nowrap")}
+            >
+              {EMAIL}
+            </a>
+          )}
+        </p>
+      </div>
+    </div>
   );
 }
 
 /**
- * Готовый подвал: перечень документов, почта и то, что страница допишет
- * сама (`children`) — оговорки посадочной, время правки на рабочем экране.
+ * Готовый подвал: черта рамки, оговорки страницы (`children`) — на
+ * посадочной они над перечнем — и сам подвал (`FooterBody`).
  */
 export function SiteFooter({
   children,
@@ -142,10 +191,9 @@ export function SiteFooter({
 }) {
   return (
     <footer className={cn("border-t border-rule", className)}>
-      <div className="mx-auto w-full max-w-4xl space-y-6 px-6 py-8 xl:max-w-6xl 2xl:max-w-7xl">
+      <div className="mx-auto w-full max-w-4xl space-y-10 px-6 py-10 xl:max-w-6xl 2xl:max-w-7xl">
         {children}
-        <FooterDocuments />
-        <FooterEmail />
+        <FooterBody />
       </div>
     </footer>
   );
