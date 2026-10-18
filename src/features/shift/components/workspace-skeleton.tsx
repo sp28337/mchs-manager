@@ -320,8 +320,7 @@ function MonthBones({ month }: { month: number }) {
         className: "skeleton-bone mx-auto w-fit rounded-xs bg-paper-raised text-transparent",
       })}
       // Итог собран из тех же кусков, что и настоящий (`MonthBalance` в
-      // `shift-strip.tsx`): норма, факт и отдельная вставка с разницей и
-      // её знаком. Склей их в одну строку — и строчных коробок станет
+      // `shift-strip.tsx`): норма, факт и отдельная вставка с разницей. Склей их в одну строку — и строчных коробок станет
       // меньше, а округление ширины изменится на доли пикселя. Этих долей
       // хватает, чтобы шапка перенеслась на вторую строку не там, где у
       // расчёта, и сетка разъехалась на пятнадцать точек по высоте.
@@ -331,10 +330,7 @@ function MonthBones({ month }: { month: number }) {
           <MetaSep />
           {"192"} ч
           <MetaSep />
-          <span>
-            <span>+</span>
-            {"24"} ч
-          </span>
+          <span>{"24"} ч</span>
         </span>
       }
       days={datesOfMonth(SAMPLE_YEAR, month)}
