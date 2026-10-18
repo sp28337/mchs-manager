@@ -58,14 +58,9 @@ export function AccountScreen() {
     );
   }
 
-  if (account === null) {
-    return (
-      <div className="space-y-6">
-        {error !== null && <Отказ>{error}</Отказ>}
-        <AuthScreen />
-      </div>
-    );
-  }
+  // Отказ входа или регистрации показывает сам лист (`AuthScreen`): внутри
+  // него он стоит над кнопкой, а не отдельной плашкой над страницей.
+  if (account === null) return <AuthScreen />;
 
   return (
     <div className="mx-auto w-full max-w-4xl space-y-6">

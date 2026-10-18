@@ -6,7 +6,7 @@ export function Input({
   className,
   type,
   ...props
-}: React.InputHTMLAttributes<HTMLInputElement>) {
+}: React.ComponentProps<"input">) {
   return (
     <input
       type={type}
