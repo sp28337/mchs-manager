@@ -1,13 +1,15 @@
 "use client";
 
-import { Expand, Shrink, ZoomIn, ZoomOut } from "lucide-react";
-import type { ReactNode } from "react";
+import { Check, Columns3, Expand, Shrink, ZoomIn, ZoomOut } from "lucide-react";
+import { useId, useRef, useState, type ReactNode } from "react";
 
 import { MARK_EMPTY_CLASS } from "@/components/shared/header-action";
-import { KNOB, KNOB_ICON, KNOB_NEST, KnobLabel } from "@/components/ui/knob";
+import { KNOB, KNOB_ICON, KNOB_NEST, KnobLabel, knobOption } from "@/components/ui/knob";
 import { ThemeCorner } from "@/components/ui/theme-toggle";
+import { useDismiss } from "@/components/ui/use-dismiss";
 import { cn } from "@/lib/utils/cn";
 
+import { numberWord } from "../domain/decimal";
 import type { StoredProfile } from "../storage/profile";
 import { CalendarIcon, ShiftsIcon } from "./grid-icons";
 import { MONTHS_MIN, useGridScale } from "./grid-scale";
@@ -49,7 +51,8 @@ import type { YearViewKind } from "./year-view";
  *
  * --- Что стоит над знаком темы ---------------------------------------------
  *
- * С `lg` над ним стоят три знака сетки: «компактно» и два масштаба. Раньше
+ * С `lg` над ним стоят четыре знака сетки: «столбцы» (выбор числа месяцев в
+ * ряду), «компактно» и два масштаба. Раньше
  * они были квадратными кнопками с плашкой в строке над месяцами — единственное
  * управление сеткой на другом языке, чем остальное. Теперь они такие же знаки,
  * как соседи: значок без плашки, подпись выезжает влево при наведении, цвет
@@ -242,6 +245,7 @@ function ScaleKnobs() {
 
   return (
     <div role="group" aria-label="Масштаб сетки" className={SCALE_KNOBS}>
+      <ColumnsKnob months={months} most={most} onPick={setAsked} />
       <ScaleKnob
         name={compact ? "Растянуть по ширине рамки" : "Собрать компактно: ровные ряды по середине"}
         caption={compact ? "Растянуть" : "Компактно"}
@@ -268,6 +272,91 @@ function ScaleKnobs() {
       <span aria-live="polite" className="sr-only">
         {months} {monthsWord(months)} в ряду{compact ? ", компактно" : ""}
       </span>
+    </div>
+  );
+}
+
+/**
+ * Число столбцов — выбором из списка, а не шагами по одному.
+ *
+ * Две лупы меняют масштаб на одну ступень, и перейти от четырёх столбцов к
+ * шести — два нажатия, а обратно — ещё два. Человек, который уже знает, сколько
+ * месяцев хочет видеть в ряду, выбирает число прямо: открыл список, нажал.
+ * Лупы остались: «чуть крупнее» нажимают, не думая о числе.
+ *
+ * «Столбец» здесь — месяц в ряду: сетка строится рядами месяцев, и число
+ * столбцов и есть то, что называет `months` в `grid-scale.tsx`. Выше
+ * `most` список не идёт: больше месяцев, чем влезает в колонку, не показать, и
+ * пункт, который ничего не сделает, только ввёл бы в заблуждение. Нижняя
+ * граница — две: один столбец на всю рамку — уже не сетка года, а одна страница
+ * календаря (довод — в `year-view.tsx`).
+ *
+ * Окошко раскрывается ВЛЕВО от знака: знак стоит у правой кромки окна, и вправо
+ * ему некуда. Выровнено оно по нижнему краю знака и растёт вверх — так же, как
+ * окошки левой колонки растут от своих знаков.
+ */
+function ColumnsKnob({
+  months,
+  most,
+  onPick,
+}: {
+  months: number;
+  most: number;
+  onPick: (asked: number) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const nest = useRef<HTMLDivElement>(null);
+  const id = useId();
+  useDismiss(open, setOpen, nest);
+
+  const choices = Array.from({ length: Math.max(0, most - MONTHS_MIN + 1) }, (_, at) => MONTHS_MIN + at);
+
+  return (
+    <div ref={nest} className={cn(KNOB_NEST, "justify-end")}>
+      {open && (
+        <div
+          id={id}
+          role="group"
+          aria-label="Столбцов в ряду"
+          className={cn(
+            "lit modal-lift absolute bottom-0 right-13 w-44 max-h-[60svh] overflow-y-auto",
+            "rounded-xl bg-paper-raised p-1.5",
+          )}
+        >
+          {choices.map((count) => {
+            const active = count === months;
+            return (
+              <button
+                key={count}
+                type="button"
+                aria-pressed={active}
+                onClick={() => {
+                  onPick(count);
+                  setOpen(false);
+                }}
+                className={knobOption(active)}
+              >
+                {count} {numberWord(count, "столбец", "столбца", "столбцов")}
+                {active ? <Check aria-hidden className="ml-auto text-ink" /> : null}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        aria-expanded={open}
+        aria-controls={id}
+        aria-label={`Столбцов в ряду: ${months}. Выбрать другое число`}
+        className={KNOB}
+      >
+        <KnobLabel side="left">Столбцы</KnobLabel>
+        <span className={cn(KNOB_ICON, MARK_EMPTY_CLASS)}>
+          <Columns3 aria-hidden />
+        </span>
+      </button>
     </div>
   );
 }

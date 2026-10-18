@@ -1,4 +1,4 @@
-import { Moon, Shrink, Sun, ZoomIn, ZoomOut } from "lucide-react";
+import { Columns3, Moon, Shrink, Sun, ZoomIn, ZoomOut } from "lucide-react";
 
 import type { ReactNode } from "react";
 
@@ -193,7 +193,7 @@ export function WorkspaceSkeleton() {
 
             {/* `year-room` — та же метка, что на корне `YearView`: из неё
                 берётся число месяцев в ряду на каждой ширине. */}
-            <div className="year-room space-y-4">
+            <div className="year-room space-y-4 pt-4">
               {/* Сетка месяцев и легенда — тем же строем, что в графике: с
                   1280 точек легенда стоит колонкой слева на экране, ниже —
                   полосой над сеткой. */}
@@ -259,9 +259,12 @@ export function WorkspaceSkeleton() {
           </div>
           <div className={DOCK_RIGHT}>
             {/* Знаки масштаба — как в расчёте, и тоже только с `lg`
-                (`grid-dock.tsx`): та же колонка, те же три знака, чтобы в
+                (`grid-dock.tsx`): та же колонка, те же четыре знака, чтобы в
                 миг подстановки у правой кромки не возникли они из ничего. */}
             <div className={SCALE_KNOBS}>
+              <KnobBone className={MARK_EMPTY_CLASS}>
+                <Columns3 />
+              </KnobBone>
               <KnobBone className={MARK_EMPTY_CLASS}>
                 <Shrink />
               </KnobBone>
@@ -326,11 +329,14 @@ function MonthBones({ month }: { month: number }) {
       // расчёта, и сетка разъехалась на пятнадцать точек по высоте.
       meta={
         <span>
-          {"168"} ч
+          <span className="font-bold">{"168"}</span>{" "}
+          ч
           <MetaSep />
-          {"192"} ч
+          <span className="font-bold">{"192"}</span>{" "}
+          ч
           <MetaSep />
-          <span>{"24"} ч</span>
+          <span className="font-bold">{"24"}</span>{" "}
+          ч
         </span>
       }
       days={datesOfMonth(SAMPLE_YEAR, month)}

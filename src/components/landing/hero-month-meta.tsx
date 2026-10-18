@@ -1,6 +1,6 @@
 "use client";
 
-import { MetaSep } from "@/features/shift/components/month-grid";
+import { META_FIGURE, MetaSep } from "@/features/shift/components/month-grid";
 import { CountedNumber } from "@/components/ui/counted-number";
 import { cn } from "@/lib/utils/cn";
 
@@ -12,7 +12,8 @@ import { useStoryStage } from "./hero-story-store";
  *
  * Построение то же, что у `MonthBalance` в `shift-strip.tsx`: три величины
  * через иглу-разделитель, у разницы только цвет — переработка зелёная,
- * недоработка красная, ноль без цвета; знака «+» и «−» нет, как и в расчёте.
+ * недоработка красная, ноль чернилами; знака «+» и «−» нет, как и в расчёте.
+ * Цифры жирные и чернилами темы, «ч» и иглы тише (`META_FIGURE`) — тоже как там.
  * Числа не подменяются, а доходят до нового значения: тот же `CountedNumber`,
  * что в расчёте. Палец ставит отпуск в июле — и итог июля идёт к нулю на
  * глазах, а не только числа над всей сеткой.
@@ -31,13 +32,20 @@ export function HeroMonthMeta({ layout, index }: { layout: HeroLayout; index: nu
 
   return (
     <span>
-      <CountedNumber value={String(total.norm)} /> ч
+      <span className={META_FIGURE}>
+        <CountedNumber value={String(total.norm)} />
+      </span>{" "}
+      ч
       <MetaSep />
-      <CountedNumber value={String(total.actual)} /> ч
+      <span className={META_FIGURE}>
+        <CountedNumber value={String(total.actual)} />
+      </span>{" "}
+      ч
       <MetaSep />
-      <span className={cn(over && "text-verify", under && "text-signal")}>
-        <CountedNumber value={String(balance)} /> ч
-      </span>
+      <span className={cn(META_FIGURE, over && "text-verify", under && "text-signal")}>
+        <CountedNumber value={String(balance)} />
+      </span>{" "}
+      ч
     </span>
   );
 }

@@ -326,7 +326,7 @@ export function YearView({
   return (
     <div
       ref={room}
-      className={cn("year-room space-y-4", compact && "year-compact")}
+      className={cn("year-room space-y-4 pt-4", compact && "year-compact")}
       // Скрипт назначает ОДНО число — сколько месяцев в ряду. Ширину месяца
       // и кегль в клетке считает из него сама таблица стилей, запросом к
       // мерной коробке (`globals.css`), — потому и заглушка рабочего экрана,

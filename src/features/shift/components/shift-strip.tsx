@@ -35,6 +35,7 @@ import type { AbsenceKind, CalloutKind } from "../domain/value-objects";
 
 import { MONTH_NAMES } from "./month-names";
 import {
+  META_FIGURE,
   MetaSep,
   MonthGrid,
   TODAY_MARK,
@@ -131,15 +132,24 @@ function MonthBalance({ total }: { total: MonthTotal | undefined }) {
           апрель, — а не только наверху. Без нулевого хвоста: «160 ч», а
           не «160,0 ч» (`formatHoursTrim`). */}
       <span className="sr-only">норма </span>
-      <CountedNumber value={hoursTrim(total.normHours)} /> ч
+      <span className={META_FIGURE}>
+        <CountedNumber value={hoursTrim(total.normHours)} />
+      </span>{" "}
+      ч
       <MetaSep />
       <span className="sr-only">отработано </span>
-      <CountedNumber value={hoursTrim(total.actualHours)} /> ч
+      <span className={META_FIGURE}>
+        <CountedNumber value={hoursTrim(total.actualHours)} />
+      </span>{" "}
+      ч
       <MetaSep />
-      <span className={cn(over && "text-verify", under && "text-signal")}>
-        <span className="sr-only">{name} </span>
-        <CountedNumber value={hoursTrim(balance)} /> ч
-      </span>
+      <span className="sr-only">{name} </span>
+      {/* Цвет разницы — единственный признак, что это переработка или
+          недоработка: знака «+» и «−» нет. Ноль — чернилами, как норма и факт. */}
+      <span className={cn(META_FIGURE, over && "text-verify", under && "text-signal")}>
+        <CountedNumber value={hoursTrim(balance)} />
+      </span>{" "}
+      ч
     </span>
   );
 }
