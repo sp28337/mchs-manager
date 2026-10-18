@@ -1,9 +1,7 @@
 "use client";
 
-import { X } from "lucide-react";
 import { useLayoutEffect, useRef, useState } from "react";
 
-import { ABSENCE_MARK, CALLOUT_MARK } from "@/features/shift/components/day-marks";
 import { cn } from "@/lib/utils/cn";
 
 import { HandIcon } from "./hand-icon";
@@ -188,7 +186,7 @@ export function HeroPointer({ layout }: { layout: HeroLayout }) {
  *
  * Только цвет текста, без заливки и рамки: надпись всплывает над клетками без
  * плашки. Вызов — один цвет на все виды (`CALLOUT_TONE`), у отсутствий — по
- * виду; кто не назван, берёт обычные чернила.
+ * виду, смена — зелёный смен; кто не назван, берёт обычные чернила.
  */
 const INK: Partial<Record<HeroEventKind, string>> = {
   annual_leave: "text-signal",
@@ -198,44 +196,31 @@ const INK: Partial<Record<HeroEventKind, string>> = {
   business_trip: "text-errand",
   time_off_in_lieu: "text-rest",
   callout: "text-trace",
+  shift: "text-verify",
 };
 
-/** Знак записи в надписи: та же буква, что стоит на клетке. */
-function glyph(event: HeroEvent): string {
-  return event.kind === "callout" ? CALLOUT_MARK : ABSENCE_MARK[event.kind];
-}
-
 /**
- * Всплывающая надпись: знак и слово, без плашки.
+ * Всплывающая надпись: одно слово, без плашки, рамки и значка.
+ *
+ * Прежде перед словом стоял знак записи — «Б Больничный», «О Отпуск» — и часы у
+ * вызова. Но знак говорил то же, что слово и цвет, а часы на сетке не видны
+ * вовсе и объясняются в подписи сами, когда человек откроет приложение;
+ * в надписи, которая пролетает за секунду, лишнее мешало прочесть главное.
+ * Поэтому осталось слово — название события, а при удалении — «Удалить».
  *
  * Анимация целиком в `globals.css` (`hero-float`): надпись появляется с лёгким
  * приростом, держится мгновение и, поднимаясь, растворяется. Ключ у неё —
  * счётчик нажатий (`HeroPointer`), и каждое нажатие даёт новую.
- *
- * У вызова в надписи стоят часы — «Вызов · 4 ч»: на сетке часы вызова не видны
- * вовсе, а без них число рядом непонятно. У удаления — крестик и одно слово.
  */
 function Chip({ chip, events }: { chip: HeroChip | null; events: readonly HeroEvent[] }) {
   if (chip === null) return null;
 
-  if (chip.remove) {
-    return (
-      <span className="hero-chip flex items-center gap-1.5 text-ink">
-        <X aria-hidden className="size-3.5 opacity-70" strokeWidth={2.5} />
-        Удалить
-      </span>
-    );
-  }
+  if (chip.remove) return <span className="hero-chip text-ink">Удалить</span>;
 
   const event = events[chip.events[0]!]!;
-  const label = event.hours
-    ? `${HERO_EVENT_LABEL[event.kind]} · ${event.hours} ч`
-    : HERO_EVENT_LABEL[event.kind];
-
   return (
-    <span className={cn("hero-chip flex items-center gap-1.5", INK[event.kind] ?? "text-ink")}>
-      <span className="font-mono text-xs leading-none">{glyph(event)}</span>
-      {label}
+    <span className={cn("hero-chip", INK[event.kind] ?? "text-ink")}>
+      {HERO_EVENT_LABEL[event.kind]}
     </span>
   );
 }

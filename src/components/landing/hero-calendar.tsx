@@ -153,9 +153,22 @@ function isShiftStart(day: IsoDate): boolean {
  * плотность меньше. Вызов — свой цвет и своя буква, и он один на все сутки.
  * Тот, кто выучил это на главной, найдёт то же в расчёте.
  */
-function overlayOf(event: HeroEvent, start: boolean): { tone: string; mark: string } {
+function overlayOf(
+  event: HeroEvent,
+  start: boolean,
+  order: number,
+): { tone: string; mark: string } {
   if (event.kind === "callout") {
     return { tone: CALLOUT_TONE, mark: CALLOUT_MARK };
+  }
+  // Смена, поставленная на свободные сутки, выглядит ровно так же, как
+  // смена по графику: заступление в полную силу с часами «16», продолжение —
+  // вполсилы с часами «8». Заступление здесь — первые сутки записи, а не
+  // сутки графика: по графику этих суток смены нет.
+  if (event.kind === "shift") {
+    return order === 0
+      ? { tone: SHIFT_TONE, mark: SHIFT_START_HOURS }
+      : { tone: SHIFT_TAIL_TONE, mark: SHIFT_TAIL_HOURS };
   }
   const tone = start ? ABSENCE_TONE[event.kind] : ABSENCE_TONE_QUIET[event.kind];
   return { tone, mark: ABSENCE_MARK[event.kind] };
@@ -220,12 +233,13 @@ function HeroMonth({
         // клетка, подписанная на свою запись; остальные — статика.
         const event = events.find((item) => item.days.includes(date));
         if (event !== undefined) {
-          const overlay = overlayOf(event, start);
+          const order = event.days.indexOf(date);
+          const overlay = overlayOf(event, start, order);
           return (
             <HeroMarkedCell
               layout={layout}
               eventId={event.id}
-              order={event.days.indexOf(date)}
+              order={order}
               stagger={heroStagger(event.days.length)}
               day={isoOf(month, date)}
               corners={corners}

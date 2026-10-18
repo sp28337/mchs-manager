@@ -49,12 +49,17 @@ const inputs = (
   periodEnd: IsoDate,
   absences: readonly AbsencePeriod[],
   callouts: readonly CalloutPeriod[],
+  shifts: readonly IsoDate[] = [],
 ) => {
   const facts = calendarFactsFor(periodStart, periodEnd, new Map());
   return {
     periodStart,
     periodEnd,
-    cycle: { knownShiftDate: HERO_KNOWN_SHIFT as IsoDate },
+    cycle: {
+      knownShiftDate: HERO_KNOWN_SHIFT as IsoDate,
+      // Смена, поставленная человеком на свободные сутки, — правка графика.
+      overrides: new Map(shifts.map((day) => [day, "shift" as const])),
+    },
     weekly: { hours: FULL_WEEKLY_HOURS, basis: "ст. 91 ТК РФ" },
     calendar: { workingDays: facts.workingDays, preHolidayDays: facts.preHolidayDays },
     holidayDays: facts.holidays,
@@ -73,6 +78,8 @@ const absenceOf = (event: HeroEvent): AbsencePeriod => ({
   kind: event.kind as AbsencePeriod["kind"],
 });
 
+const isAbsence = (event: HeroEvent) => event.kind !== "callout" && event.kind !== "shift";
+
 const calloutOf = (event: HeroEvent): CalloutPeriod => ({
   start: iso(event.month, event.from),
   endInclusive: iso(event.month, event.to),
@@ -81,13 +88,16 @@ const calloutOf = (event: HeroEvent): CalloutPeriod => ({
 });
 
 const placed = (events: readonly HeroEvent[]) => ({
-  absences: events.filter((event) => event.kind !== "callout").map(absenceOf),
+  absences: events.filter(isAbsence).map(absenceOf),
   callouts: events.filter((event) => event.kind === "callout").map(calloutOf),
+  shifts: events
+    .filter((event) => event.kind === "shift")
+    .map((event) => iso(event.month, event.from)),
 });
 
 const totals = (start: IsoDate, end: IsoDate, events: readonly HeroEvent[]): HeroTotals => {
-  const { absences, callouts } = placed(events);
-  const result = calculatePeriod(inputs(start, end, absences, callouts));
+  const { absences, callouts, shifts } = placed(events);
+  const result = calculatePeriod(inputs(start, end, absences, callouts, shifts));
   return {
     norm: Number(result.normHours.toString()),
     actual: Number(result.actualHours.toString()),
@@ -164,10 +174,30 @@ describe.each(LAYOUTS)("первый экран, раскладка %s", (layout
   it("закрашены ровно сутки записи — без хвостов и обрезков", () => {
     for (const event of script.events) {
       const { start, end } = bounds(event.month);
-      const { absences, callouts } = placed([event]);
-      const marked = calculatePeriod(inputs(start, end, absences, callouts))
-        .days.filter((day) => day.absenceKind !== null || day.calloutKind)
-        .map((day) => Number(day.day.slice(8, 10)));
+      const { absences, callouts, shifts } = placed([event]);
+      const days = calculatePeriod(inputs(start, end, absences, callouts, shifts)).days;
+
+      // Смена на свободные сутки: заступление в первые сутки записи и
+      // продолжение во вторые — и по графику смен их там нет.
+      if (event.kind === "shift") {
+        const day = (n: number) => days.find((record) => record.day === iso(event.month, n));
+        expect(day(event.from)?.isShiftStart, `${event.id}: заступление`).toBe(true);
+        expect(day(event.from + 1)?.isShiftStart, `${event.id}: продолжение`).toBe(false);
+        expect(day(event.from + 1)?.hours.toString()).toBe("8");
+        expect(event.days).toEqual([event.from, event.from + 1]);
+        const base = calculatePeriod(inputs(start, end, [], [])).days;
+        for (const n of event.days) {
+          expect(
+            base.find((record) => record.day === iso(event.month, n)),
+            `${event.id}: по графику в ${n}-е смены нет`,
+          ).toBeUndefined();
+        }
+        continue;
+      }
+
+      const marked = days
+        .filter((record) => record.absenceKind !== null || record.calloutKind)
+        .map((record) => Number(record.day.slice(8, 10)));
 
       // Всё, что считает расчёт, закрашено.
       for (const day of marked) expect(event.days, `${event.id}: ${day}`).toContain(day);
@@ -189,8 +219,9 @@ describe.each(LAYOUTS)("первый экран, раскладка %s", (layout
       return record?.isShiftStart === true;
     };
     for (const event of script.events) {
-      // Вызов не смена, а отгул — ровно одна смена: он и ставится на заступление.
-      if (event.kind === "callout" || event.kind === "time_off_in_lieu") continue;
+      // Вызов и лишняя смена не отсутствия, а отгул — ровно одна смена: он и
+      // ставится на заступление.
+      if (!isAbsence(event) || event.kind === "time_off_in_lieu") continue;
       const from = iso(event.month, event.from);
       const to = iso(event.month, event.to);
       // Запись не начинается с хвоста чужой смены и не кончается заступлением.
@@ -210,6 +241,12 @@ describe.each(LAYOUTS)("первый экран, раскладка %s", (layout
 
   it("записи названы теми же словами, что в приложении", () => {
     for (const event of script.events) {
+      // Смена называется короче строки перечня («Поставить смену»): над пальцем
+      // нужно имя того, что поставлено, а не действие.
+      if (event.kind === "shift") {
+        expect(HERO_EVENT_LABEL.shift).toBe("Смена");
+        continue;
+      }
       const real =
         event.kind === "callout" ? CALLOUT_LABELS.callout : ABSENCE_LABELS[event.kind];
       expect(HERO_EVENT_LABEL[event.kind]).toBe(real);
@@ -288,6 +325,14 @@ describe("раскладки сошлись между собой", () => {
     expect([sick!.kind, sick!.from, sick!.to]).toEqual(["sick_leave", 8, 14]);
   });
 
+  it("на узком лишняя смена — двадцать седьмого июля, до отгула", () => {
+    const { events } = HERO_SCRIPTS.narrow;
+    const shift = events.findIndex((event) => event.kind === "shift");
+    const rest = events.findIndex((event) => event.kind === "time_off_in_lieu");
+    expect(events[shift]!.from).toBe(27);
+    expect(shift).toBeLessThan(rest);
+  });
+
   it("на широком: отпуск на весь июль, больничный с начала августа на неделю", () => {
     const [leave, sick, extra] = HERO_SCRIPTS.wide.events;
     expect([leave!.kind, leave!.month, leave!.from, leave!.to]).toEqual(["annual_leave", 7, 1, 31]);
@@ -303,7 +348,12 @@ describe("раскладки сошлись между собой", () => {
       7,
     ]);
     const october = HERO_SCRIPTS.wide.events.filter((event) => event.month === 10);
-    expect(october.map((event) => event.kind)).toEqual(["callout", "time_off_in_lieu"]);
+    // Лишняя смена — до отгула: отгул берут за переработку, она набегает первой.
+    expect(october.map((event) => [event.kind, event.from])).toEqual([
+      ["callout", 7],
+      ["shift", 11],
+      ["time_off_in_lieu", 13],
+    ]);
     expect(october[0]!.hours).toBe(4);
   });
 
