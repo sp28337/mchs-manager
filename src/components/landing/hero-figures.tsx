@@ -1,23 +1,34 @@
 "use client";
 
-import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 
-import { BalanceCaption, BALANCE_SWAP_MS } from "@/components/ui/balance-caption";
-import { CountedNumber } from "@/components/ui/counted-number";
+import { BalanceCaption } from "@/components/ui/balance-caption";
+import { Figure } from "@/components/ui/summary-figure";
 import { cn } from "@/lib/utils/cn";
 
 import { HERO_FIGURE_STEPS, HERO_STAGES, type HeroStage } from "./hero-scenario";
 
 /**
- * Три числа первого экрана — той же плашкой, что в расчёте.
+ * Три числа первого экрана — той же полосой, что в расчёте.
  *
- * --- Почему одна плашка, а не три ----------------------------------------
+ * --- Почему не «похожее», а то же -----------------------------------------
  *
- * Норму, факт и разницу между ними сравнивают друг с другом, и рамка
- * вокруг каждого разрезала бы то, что читается вместе. В расчёте это одна
- * плашка (`MainPlate`), и здесь она обязана быть той же: первый экран
- * показывает не «что-то похожее», а тот самый блок, который человек
- * увидит внутри.
+ * Первый экран обещает то, что человек увидит внутри, и показывать он
+ * обязан тот самый блок. Здесь стояла своя плашка: подпись сбоку от числа,
+ * рамка с заливкой и светом, кегль крупнее у нормы. В расчёте давно всё
+ * иначе — числа лежат прямо на бумаге, столбиком над подписями, равными
+ * колонками, и главные отличаются весом, а не рамкой. Страница, которая
+ * рисует одно, а продаёт другое, ловится на первом же переходе в
+ * приложение.
+ *
+ * Поэтому разметка — та же: `MainPlate` из расчёта отличается от этой
+ * только тем, что считает числа из домена, а здесь они приходят из
+ * сценария. Само число (`Figure`) общее, а не повторённое: правка вида
+ * полосы в расчёте меняет и это место.
+ *
+ * Группа ширины по содержимому и по середине, а не три колонки на всю
+ * плоскость: растянутые, числа стоят островками с пустыми полями между
+ * ними — так было и в расчёте, пока он не перешёл на группу.
  *
  * --- Почему числа перещёлкиваются ----------------------------------------
  *
@@ -43,9 +54,6 @@ import { HERO_FIGURE_STEPS, HERO_STAGES, type HeroStage } from "./hero-scenario"
  * состояние: и отсутствия, и числа при них. Это честнее, чем оставить его
  * с первым кадром истории, которую он не увидит.
  */
-
-const CAPTIONS = ["Норма периода", "Отработано"] as const;
-
 export function HeroFigures({
   className,
   style,
@@ -55,73 +63,25 @@ export function HeroFigures({
 }) {
   const stage = useStageTimeline();
   const under = stage.undertime > 0;
+  const balance = under ? stage.undertime : stage.overtime;
 
   return (
-    // Разметка повторяет `MainPlate` из расчёта: высота, поля, скругление
-    // и разводка чисел по плашке — те же.
-    <dl
-      className={cn(
-        "flex h-14 items-center justify-around gap-x-3 rounded-xl bg-paper-raised px-4 py-2",
-        // Свет лампы — тот же, что у плашки в расчёте: блик по кромке,
-        // обращённой к ней, и тень вниз. Разметка эту плашку повторяет,
-        // значит и освещена она обязана быть так же.
-        "lit",
-        className,
-      )}
-      style={style}
-    >
-      <Figure value={stage.norm} caption={CAPTIONS[0]} emphatic />
-      <Figure value={stage.actual} caption={CAPTIONS[1]} />
-      {/* Третье число — разница, и имя у неё меняется вместе со знаком.
-          Та же деталь, что в расчёте: приставка уезжает, число меняет
-          цвет. */}
-      <Figure
-        value={under ? stage.undertime : stage.overtime}
-        caption={<BalanceCaption under={under} />}
-        tone={under ? "signal" : stage.overtime > 0 ? "verify" : undefined}
-      />
-    </dl>
-  );
-}
-
-/** Число с подписью — тот же `Figure`, что в полосе итога расчёта. */
-function Figure({
-  value,
-  caption,
-  emphatic,
-  tone,
-}: {
-  value: number;
-  caption: ReactNode;
-  emphatic?: boolean;
-  /** Разница: зелёная, пока она переработка, красная — когда недоработка. */
-  tone?: "signal" | "verify";
-}) {
-  return (
-    <div className="min-w-0 sm:flex sm:flex-row-reverse sm:items-center sm:gap-4 text-center">
-      {/* Число и его единица не разрываются переносом: «168» на одной
-          строке и «ч» на следующей читается как другое число. */}
-      <dd
-        className={cn(
-          "whitespace-nowrap font-mono leading-none tabular-nums",
-          emphatic ? "text-xl sm:text-2xl" : "text-lg sm:text-xl",
-          // Цвет меняется вместе с именем разницы, а не когда счётчик
-          // добежит: «пере» уезжает и число краснеет одним движением.
-          // Длительность одна на оба — она приходит оттуда же, откуда её
-          // берёт сама приставка. Ждать конца счёта здесь нечего: в ноль
-          // он не приходит, знак разницы меняется сразу.
-          "transition-colors",
-          tone === "signal" && "text-signal",
-          tone === "verify" && "font-medium text-verify",
-        )}
-        style={{ transitionDuration: `${BALANCE_SWAP_MS}ms` }}
-      >
-        <CountedNumber value={String(value)} />
-        <span className="ml-1 text-xs text-ink-muted sm:text-sm">ч</span>
-      </dd>
-      <dt className="flex h-3.5 items-center justify-center gap-1 whitespace-nowrap text-[11px] leading-tight text-ink-muted">
-        <span className="sm:after:content-[':'] lg:after:content-none">{caption}</span>
-      </dt>
+    // Обёртка держит группу по середине плоскости, а анимацию появления и
+    // отступ от месяца несёт на себе: у самой группы они были бы смещены
+    // её собственной шириной.
+    <div className={cn("flex justify-center", className)} style={style}>
+      <dl className="grid h-14 min-w-0 grid-cols-3 items-center gap-x-2 min-[360px]:gap-x-5">
+        <Figure parts={[{ value: String(stage.norm), unit: "ч" }]} caption="Норма периода" />
+        <Figure parts={[{ value: String(stage.actual), unit: "ч" }]} caption="Отработано" />
+        {/* Третье число — разница, и имя у неё меняется вместе со знаком.
+            Та же деталь, что в расчёте: приставка уезжает, число меняет
+            цвет. Ноль цвета не имеет — как и там. */}
+        <Figure
+          parts={[{ value: String(balance), unit: "ч" }]}
+          caption={<BalanceCaption under={under} />}
+          tone={under ? "signal" : balance > 0 ? "verify" : undefined}
+        />
+      </dl>
     </div>
   );
 }

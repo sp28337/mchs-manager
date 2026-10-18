@@ -15,11 +15,14 @@ import {
   datesOfMonth,
   dayOfMonth,
   daysBetween,
+  weekday,
   type IsoDate,
 } from "@/features/shift/domain/plain-date";
 import { SHIFT_CYCLE_DAYS } from "@/features/shift/domain/value-objects";
 import { SYNC_ENABLED } from "@/features/sync/ui/enabled";
 import { cn } from "@/lib/utils/cn";
+
+import { DEMO_LIST, rowOf } from "./demo-list";
 
 /**
  * Четыре показа к разделу «Как работает».
@@ -153,6 +156,7 @@ function Day({
   tone,
   becomes,
   corners,
+  lift,
   className,
   style,
   children,
@@ -162,8 +166,13 @@ function Day({
   tone: Tone;
   /** Во что эти сутки превращаются по ходу показа. */
   becomes?: Becomes;
-  /** Внутри клетки: кольцо видов и указатель, если нажимают по ней. */
+  /** Внутри клетки: перечень видов и указатель, если нажимают по ней. */
   children?: ReactNode;
+  /**
+   * Номер записи, если по этой клетке нажимают (`DemoEvents`): пока для неё
+   * раскрыт перечень, клетка стоит над размытием месяца.
+   */
+  lift?: number;
   /** Скругления по контуру месяца: их знает сетка, а не клетка. */
   corners?: string;
   className?: string;
@@ -180,6 +189,11 @@ function Day({
       // наличие `corners`, пусть и пустых.
       className={cn(
         "relative",
+        // Над слоем размытия (`demo-scrim`, z-20): окошко на месте суток в
+        // приложении вырезано в размытии, и сутки остаются чёткими. Только
+        // на время своего перечня: у другой записи эти же сутки размыты
+        // вместе с остальными.
+        lift !== undefined && "demo-lift",
         corners !== undefined && "bg-paper-raised lit-tile",
         // Блик лампы гаснет на время, пока сутки показаны другими.
         //
@@ -197,6 +211,7 @@ function Day({
         ...(becomes
           ? vars({ "--step": becomes.step, "--order": becomes.order ?? 0 })
           : null),
+        ...(lift !== undefined ? vars({ "--round": lift }) : null),
       }}
     >
       <div
@@ -605,132 +620,134 @@ function isShiftStart(day: IsoDate): boolean {
 }
 
 /**
- * Грани кольца — те же восемь, что в приложении, и в том же порядке.
+ * Перечень видов у клетки — то же окошко, что раскрывается в расчёте.
  *
- * Кольцо расчёта (`day-ring.tsx`) раскрывает вокруг суток восемь видов:
- * три отпуска, больничный, работа сверх графика, смена, заметка, отгул.
- * Здесь они той же клеткой, теми же буквами и теми же цветами — иначе
- * человек, пришедший внутрь, не узнал бы того, что видел.
+ * --- Почему перечень, а не кольцо -------------------------------------------
  *
- * Легенды при кольце нет: в приложении она объясняет восемь значков
- * словами, а показу объяснять некогда — он длится три четверти секунды, и
- * восемь подписей в нём читались бы мельтешением.
+ * Кольцо из восьми квадратов с одной буквой в расчёте давно заменено:
+ * вокруг дня раскрывается окошко со знаком и названием в строке, и нажимают
+ * по самой строке (`day-ring.tsx`). Показ оставался на кольце — человек,
+ * увидев на главной «восемь букв вокруг дня», внутри находил совсем другое.
+ *
+ * Здесь та же плашка (`lit modal-lift`), те же строки, те же знаки и
+ * названия (`demo-list.ts`), и стоит она сбоку от дня, не закрывая его, —
+ * как в приложении, где перечень уходит туда, где больше места.
+ *
+ * Меры заданы в `em` от кегля самого перечня, а не от кегля показа: в
+ * приложении строка в сорок точек при кегле в шестнадцать, и пропорции
+ * строки, знака и полей должны быть теми же при любом размере показа.
+ * Кегль перечня — три четверти кегля показа, но не мельче двенадцати точек:
+ * на телефоне название читается и мелким, а нечитаемым оно уже нет.
  */
-const RING_FACES: { mark: string; tone: Tone }[] = [
-  { mark: "О", tone: "leave" },
-  { mark: "Д", tone: "trip" },
-  { mark: "У", tone: "study" },
-  { mark: "Б", tone: "sick" },
-  { mark: "Р", tone: "callout" },
-  { mark: "24", tone: "shift" },
-  { mark: "В", tone: "rest" },
-  { mark: "\u270e", tone: "free" },
-];
+const LIST_EM = "max(12px, 0.75em)";
 
 /**
- * Место грани в кольце: восемь клеток вокруг девятой, пустой.
+ * Перечень, раскрытый слева от суток.
  *
- * Пустая середина — не украшение: сквозь неё видно ТЕ САМЫЕ сутки, вокруг
- * которых кольцо и раскрылось. Закрой её — и человек потеряет из виду
- * предмет разговора.
- */
-const RING_PLACES: [col: number, row: number][] = [
-  [1, 1],
-  [2, 1],
-  [3, 1],
-  [1, 2],
-  [3, 2],
-  [1, 3],
-  [2, 3],
-  [3, 3],
-];
-
-/** Общая мера кольца: три клетки в поперечнике, середина — сами сутки. */
-const RING_BOX = cn(
-  "absolute left-1/2 top-1/2 z-30 aspect-square w-[300%]",
-  "-translate-x-1/2 -translate-y-1/2 grid grid-cols-3 grid-rows-3 gap-0.5",
-);
-
-/** Кольцо видов вокруг суток. */
-function DemoRing({ round }: { round: number }) {
-  return (
-    <span className={cn("demo-ring pointer-events-none", RING_BOX)} style={vars({ "--round": round })}>
-      {RING_PLACES.map(([col, row], index) => {
-        const face = RING_FACES[index]!;
-        return (
-          <span
-            key={face.mark}
-            style={{ gridColumn: col, gridRow: row }}
-            className={cn(
-              "flex flex-col items-center justify-center rounded-md border",
-              "bg-paper-raised leading-tight",
-              TONE[face.tone],
-            )}
-          >
-            <span className="font-mono text-[0.72em]">{face.mark}</span>
-          </span>
-        );
-      })}
-    </span>
-  );
-}
-
-/**
- * Рука над кольцом: сперва у самих суток, потом у выбранной грани.
+ * Слева, а не справа, потому что сутки, по которым нажимают, стоят в
+ * правой половине недели (пятница, суббота), и места справа от них нет —
+ * приложение в таком случае делает ровно то же: встаёт на ту сторону, где
+ * места больше.
  *
- * Стоит она в той же сетке три на три, что и кольцо, и в той же ячейке,
- * что выбранная грань. Отсюда и весь её путь: доехать до середины — это
- * сдвинуться ровно на свою же ширину, сколько бы ни было кольцо ростом.
- * Поэтому смещение задано долями самой руки (`--to-x`, `--to-y`), а не
- * точками: показ растёт вместе с разделом, и точки пришлось бы пересчитывать.
+ * Слоёв два: внешний ставит перечень на место (правый край — у левой
+ * кромки суток, середина — против середины месяца: перечень почти во весь
+ * его рост и в приложении прижимается к краям сетки) и ничего не
+ * анимирует, внутренний — сама плашка, раскрывающаяся мягко. Место — в
+ * `globals.css`, там же, где путь руки: обе меры выводятся из одних чисел.
  */
-function DemoRingHand({ round, pick }: { round: number; pick: number }) {
-  const [col, row] = RING_PLACES[pick]!;
+function DemoList({ round, pick, row }: { round: number; pick: number; row: number }) {
   return (
-    <span className={cn("pointer-events-none", RING_BOX)}>
+    <span
+      className="demo-list-spot pointer-events-none absolute z-30"
+      style={{ fontSize: LIST_EM, ...vars({ "--row": row }) }}
+    >
       <span
-        className="demo-hand relative"
-        style={{
-          gridColumn: col,
-          gridRow: row,
-          ...vars({ "--round": round, "--to-x": `${(2 - col) * 100}%`, "--to-y": `${(2 - row) * 100}%` }),
-        }}
+        className="demo-list lit modal-lift block w-[14.5em] rounded-xl bg-paper-raised p-[0.375em]"
+        style={vars({ "--round": round })}
       >
-        <Pointer className="demo-hand-ring left-1/2 top-1/2" />
+        <ul className="grid gap-[0.125em]">
+          {DEMO_LIST.map((row, index) => (
+            <li
+              key={row.key}
+              className={cn(
+                "flex h-[2.5em] items-center gap-[0.625em] rounded-lg px-[0.375em] text-ink",
+                index === pick && "demo-list-pick",
+              )}
+              style={index === pick ? vars({ "--round": round }) : undefined}
+            >
+              <span
+                aria-hidden
+                className={cn(
+                  "relative flex size-[1.75em] shrink-0 items-center justify-center",
+                  "rounded-md border font-mono text-[0.75em] leading-none",
+                  row.tone,
+                )}
+              >
+                {row.corner ? (
+                  <span
+                    aria-hidden
+                    className="absolute right-0 top-0 size-0 border-l-4 border-t-4 border-l-transparent border-t-trace"
+                  />
+                ) : null}
+                {row.mark}
+              </span>
+              <span className="min-w-0 flex-1 truncate text-[0.875em]">{row.label}</span>
+            </li>
+          ))}
+        </ul>
       </span>
     </span>
   );
 }
 
 /**
- * Что ложится на месяц, в каком порядке и какой гранью кольца выбрано.
+ * Рука: сперва у самих суток, потом на выбранной строке перечня.
+ *
+ * Стоит она в центре суток и едет оттуда на строку — влево на ширину
+ * половины клетки, просвет и часть перечня, и по высоте на разницу между
+ * серединой суток и серединой строки. Обе меры выведены в `globals.css`
+ * из тех же чисел, что и разметка: клетка — седьмая часть месяца
+ * (`cqw`), строка — доля кегля перечня.
+ */
+function DemoListHand({ round, pick, row }: { round: number; pick: number; row: number }) {
+  return (
+    <span
+      className="demo-hand pointer-events-none absolute left-1/2 top-1/2 z-30"
+      style={{ fontSize: LIST_EM, ...vars({ "--round": round, "--pick": pick, "--row": row }) }}
+    >
+      <Pointer className="demo-hand-ring left-0 top-0" />
+    </span>
+  );
+}
+
+/**
+ * Что ложится на месяц, в каком порядке и какой строкой перечня выбрано.
  *
  * Числа — настоящие сутки июля: больничный четырьмя днями, отпуск неделей,
- * вызов одними сутками. `pick` — место грани в кольце: по ней и щёлкает
+ * вызов одними сутками. `pick` — место строки в перечне: по ней и щёлкает
  * рука, прежде чем отметка ляжет на сетку.
  *
- * Сутки, по которым нажимают (`from`), взяты из середины месяца нарочно:
- * кольцо втрое шире клетки, и с краю сетки оно вылезало бы за показ — у
- * верхнего ряда за подписи дней недели, у правого столбца за поле. В
- * приложении такое кольцо просто сдвигается к краю окна, но там и места
- * целый экран.
+ * Сутки, по которым нажимают (`from`), стоят в правой половине недели
+ * нарочно: перечень раскрывается влево, на сетку, а не за её правый край.
+ * В приложении он выбирает сторону сам, но показу негде брать запас —
+ * справа от месяца поля нет.
  */
 const MONTH_MARKS: {
   days: number[];
   mark: string;
   tone: Tone;
   step: number;
-  /** Сутки, по которым нажимают: с них кольцо и раскрывается. */
+  /** Сутки, по которым нажимают: у них перечень и раскрывается. */
   from: number;
-  /** Грань кольца, которую выбирают (место в `RING_FACES`). */
+  /** Строка перечня, которую выбирают. */
   pick: number;
 }[] = [
-  { days: [13, 14, 15, 16], mark: "Б", tone: "sick", step: 0, from: 14, pick: 3 },
-  { days: [19, 20, 21, 22, 23, 24, 25], mark: "О", tone: "leave", step: 1, from: 22, pick: 0 },
+  { days: [13, 14, 15, 16], mark: "Б", tone: "sick", step: 0, from: 14, pick: rowOf("sick_leave") },
+  { days: [19, 20, 21, 22, 23, 24, 25], mark: "О", tone: "leave", step: 1, from: 22, pick: rowOf("annual_leave") },
   // Тот же код, что и в самом приложении: в клетке любая работа сверх
   // графика помечается одной буквой (`CALLOUT_MARK`), а чем именно был
   // вызов — резервом, сбором, соревнованиями — говорит подпись.
-  { days: [28], mark: "Р", tone: "callout", step: 2, from: 28, pick: 4 },
+  { days: [28], mark: "Р", tone: "callout", step: 2, from: 28, pick: rowOf("callout") },
 ];
 
 function markFor(date: number, quiet: boolean): Becomes | undefined {
@@ -745,18 +762,24 @@ function markFor(date: number, quiet: boolean): Becomes | undefined {
 
 export function DemoEvents() {
   const days = datesOfMonth(MONTH_YEAR, MONTH_NUMBER);
+  // Место суток в сетке: от строки в месяце зависит, где по высоте встанет
+  // перечень и насколько вниз или вверх поедет рука.
+  const offset = weekday(days[0]!);
 
   return (
     <Panel className="demo-events">
-      <div className="relative w-full max-w-88">
-        {/* Затемнение под кольцом — по одному на каждую запись: они
+      {/* Мера в `cqw` — ширина самого месяца: клетка там седьмая часть, и
+          рука едет на столько, на сколько он сейчас шириной. */}
+      <div className="relative w-full max-w-88 [container-type:inline-size]">
+        {/* Размытие под перечнем — по одному на каждую запись: они
             приходят по очереди, и общее на троих гасло бы и разгоралось
-            трижды за круг одной и той же дорожкой. */}
+            трижды за круг одной и той же дорожкой. Только размытие, без
+            затемнения — как в приложении (`Scrim`, `day-ring.tsx`). */}
         {MONTH_MARKS.map((group, index) => (
           <span
             key={group.mark}
             aria-hidden
-            className="demo-ring-scrim pointer-events-none absolute -inset-1 z-20 rounded-xl bg-paper/70 backdrop-blur-[2px]"
+            className="demo-scrim pointer-events-none absolute -inset-1 z-20 rounded-xl backdrop-blur-[2px]"
             style={vars({ "--round": index })}
           />
         ))}
@@ -772,6 +795,7 @@ export function DemoEvents() {
             // ложится вполголоса, как и в расчёте.
             const becomes = markFor(date, !start && !tail);
             const round = MONTH_MARKS.findIndex((group) => group.from === date);
+            const slot = date - 1 + offset;
 
             return (
               <Day
@@ -780,11 +804,22 @@ export function DemoEvents() {
                 tone={start ? "shift" : tail ? "tail" : "free"}
                 becomes={becomes}
                 corners={corners}
+                // Сутки, по которым нажимают, остаются над размытием —
+                // чёткими, как окошко на месте дня в приложении.
+                lift={round >= 0 ? round : undefined}
               >
                 {round >= 0 ? (
                   <>
-                    <DemoRing round={round} />
-                    <DemoRingHand round={round} pick={MONTH_MARKS[round]!.pick} />
+                    <DemoList
+                      round={round}
+                      pick={MONTH_MARKS[round]!.pick}
+                      row={Math.floor(slot / 7)}
+                    />
+                    <DemoListHand
+                      round={round}
+                      pick={MONTH_MARKS[round]!.pick}
+                      row={Math.floor(slot / 7)}
+                    />
                   </>
                 ) : null}
               </Day>
