@@ -22,28 +22,52 @@ describe("кольцо периода", () => {
     expect(second).toEqual({ from: RING_GAP / 2, to: 180 - RING_GAP / 2, on: false });
   });
 
-  it("кварталы — против часовой стрелки от верха", () => {
+  it("места кольца — против часовой стрелки от верха", () => {
     const middles = ringSegments("quarter", 0).map(({ from, to }) => (from + to) / 2);
-    // Середины: слева вверху, слева внизу, справа внизу, справа вверху.
+    // Середины мест: слева вверху, слева внизу, справа внизу, справа вверху.
     expect(middles).toEqual([315, 225, 135, 45]);
   });
 
-  it("два первых квартала лежат в первом полугодии", () => {
-    const [half] = ringSegments("half_year", 0);
-    if (half === undefined) throw new Error("полугодий нет");
-    for (const quarter of ringSegments("quarter", 0).slice(0, 2)) {
-      expect(quarter.from).toBeGreaterThanOrEqual(half.from);
-      expect(quarter.to).toBeLessThanOrEqual(half.to);
+  it("кварталы идут по часовой стрелке от нижней левой четверти", () => {
+    const middle = (index: number) => {
+      const lit = ringSegments("quarter", index).find((segment) => segment.on);
+      if (lit === undefined) throw new Error("выбранной четверти нет");
+      return (lit.from + lit.to) / 2;
+    };
+    // Первый — слева внизу, второй — слева вверху, третий — справа вверху,
+    // четвёртый — справа внизу.
+    expect([0, 1, 2, 3].map(middle)).toEqual([225, 315, 45, 135]);
+  });
+
+  it("два первых квартала лежат в первом полугодии, два последних — во втором", () => {
+    const lit = (kind: "half_year" | "quarter", index: number) => {
+      const found = ringSegments(kind, index).find((segment) => segment.on);
+      if (found === undefined) throw new Error("выбранного отрезка нет");
+      return found;
+    };
+    const first = lit("half_year", 0);
+    const second = lit("half_year", 1);
+    for (const index of [0, 1]) {
+      const quarter = lit("quarter", index);
+      expect(quarter.from).toBeGreaterThanOrEqual(first.from);
+      expect(quarter.to).toBeLessThanOrEqual(first.to);
+    }
+    for (const index of [2, 3]) {
+      const quarter = lit("quarter", index);
+      expect(quarter.from).toBeGreaterThanOrEqual(second.from);
+      expect(quarter.to).toBeLessThanOrEqual(second.to);
     }
   });
 
-  it("горит ровно выбранный отрезок", () => {
-    for (let index = 0; index < 4; index += 1) {
+  it("горит ровно один отрезок, и у каждой доли свой", () => {
+    const places = [0, 1, 2, 3].map((index) => {
       const lit = ringSegments("quarter", index).flatMap((segment, at) =>
         segment.on ? [at] : [],
       );
-      expect(lit).toEqual([index]);
-    }
+      expect(lit).toHaveLength(1);
+      return lit[0];
+    });
+    expect(new Set(places).size).toBe(4);
   });
 
   it("просвет между соседями везде один и тот же", () => {

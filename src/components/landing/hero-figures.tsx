@@ -6,7 +6,8 @@ import { BalanceCaption } from "@/components/ui/balance-caption";
 import { Figure } from "@/components/ui/summary-figure";
 import { cn } from "@/lib/utils/cn";
 
-import { useHeroStage } from "./hero-stage";
+import { HERO_SCRIPTS, type HeroLayout } from "./hero-story";
+import { useStoryStage } from "./hero-story-store";
 
 /**
  * Три числа первого экрана — той же полосой, что в расчёте, но крупно.
@@ -67,13 +68,15 @@ import { useHeroStage } from "./hero-stage";
  * с первым кадром истории, которую он не увидит.
  */
 export function HeroFigures({
+  layout,
   className,
   style,
 }: {
+  layout: HeroLayout;
   className?: string;
   style?: CSSProperties;
 }) {
-  const stage = useHeroStage();
+  const stage = HERO_SCRIPTS[layout].stages[useStoryStage(layout)]!;
   const under = stage.undertime > 0;
   const balance = under ? stage.undertime : stage.overtime;
 

@@ -1,9 +1,11 @@
-import type { CSSProperties, ReactNode } from "react";
+import type { CSSProperties } from "react";
 
 import {
   ABSENCE_MARK,
   ABSENCE_TONE,
   ABSENCE_TONE_QUIET,
+  CALLOUT_MARK,
+  CALLOUT_TONE,
   SHIFT_TAIL_TONE,
   SHIFT_TONE,
 } from "@/features/shift/components/day-marks";
@@ -17,26 +19,27 @@ import {
   weekday,
   type IsoDate,
 } from "@/features/shift/domain/plain-date";
-import { SHIFT_CYCLE_DAYS, type AbsenceKind } from "@/features/shift/domain/value-objects";
+import { SHIFT_CYCLE_DAYS } from "@/features/shift/domain/value-objects";
 import { cn } from "@/lib/utils/cn";
 
 import { HeroFigures } from "./hero-figures";
+import { HeroMarkedCell } from "./hero-marked-cell";
 import { HeroMonthMeta } from "./hero-month-meta";
+import { HeroPointer } from "./hero-pointer";
 import {
   HERO_KNOWN_SHIFT,
-  HERO_LEAVE,
-  HERO_MARK_AT,
   HERO_MARK_MS,
-  HERO_MARK_STAGGER_MS,
   HERO_MONTHS,
-  HERO_REST,
-  HERO_WAVE_STEP_MS,
+  HERO_SCRIPTS,
   HERO_YEAR,
-} from "./hero-scenario";
-import { HERO_LAST_WAVE, cellWave, headWave, letterWave } from "./hero-wave";
+  heroStagger,
+  type HeroEvent,
+  type HeroLayout,
+} from "./hero-story";
+import { cellWave, headWave, heroLastWave, letterWave } from "./hero-wave";
 
 /**
- * Четыре месяца графика на первом экране посадочной страницы.
+ * Месяцы графика на первом экране посадочной страницы: четыре, а на узком — один.
  *
  * --- Почему не картинка ---------------------------------------------------
  *
@@ -45,7 +48,7 @@ import { HERO_LAST_WAVE, cellWave, headWave, letterWave } from "./hero-wave";
  * прочесть: его приходилось гасить, чтобы не спорил с текстом. Месяцы,
  * собранные той же деталью, что и в расчёте (`MonthGrid`), решают всё
  * сразу: те же клетки, те же цвета, тот же контур, — и они следуют теме
- * сами, читаются на любой ширине и умеют появляться.
+ * сами, читаются на любой ширине и умеют жить.
  *
  * --- Почему четыре месяца, два на два -------------------------------------
  *
@@ -57,7 +60,24 @@ import { HERO_LAST_WAVE, cellWave, headWave, letterWave } from "./hero-wave";
  * Теперь первый экран собран так же: четыре месяца по два в строке, у каждого
  * шапка с названием и итогом, буквы дней недели, клетки с часами смены и
  * буквой «В» у свободных. Месяцы — июль, август, сентябрь, октябрь; почему
- * именно они — в `hero-scenario.ts`.
+ * именно они — в `hero-story.ts`.
+ *
+ * --- Почему на узком экране один --------------------------------------------
+ *
+ * Ниже `md` плоскость не уходит вглубь, а стоит перед читателем — «видом с
+ * фронта», — и на трёхстах точках четыре месяца дали бы клетку в полтора
+ * десятка точек: цифру в ней не разобрать, а палец не разглядеть. Остаётся
+ * один месяц, июль, и история разыгрывается на нём. Обе раскладки собраны в
+ * разметке заранее, а какая видна, решает таблица стилей: так страница не
+ * ждёт сценария и не мигает при повороте экрана.
+ *
+ * --- Что в них происходит ---------------------------------------------------
+ *
+ * Палец (`HeroPointer`) едет по месяцам, нажимает на сутки и ставит запись —
+ * отпуск, больничный, вызов, отгул; сутки ложатся друг за другом, и числа над
+ * сеткой и над каждым месяцем доходят до новых значений. Когда всё поставлено,
+ * палец так же по очереди всё убирает — и круг начинается заново. Сам
+ * рассказ, числа и сроки — в `hero-story.ts`; здесь только разметка.
  *
  * --- Как они выходят из прозрачности --------------------------------------
  *
@@ -75,16 +95,14 @@ import { HERO_LAST_WAVE, cellWave, headWave, letterWave } from "./hero-wave";
  *
  * Направление глубины зависит от раскладки, и обе стороны честные: на
  * широком экране текст СЛЕВА, значит вглубь уходит левый край; на узком
- * месяцы стоят ПОД текстом, и вглубь уходит верхний. Разметка отдаёт в CSS
- * оба порядка волны, а какой из них взять, решает медиазапрос.
+ * месяцы стоят ПОД текстом, и вглубь уходит верхний.
  *
  * --- Как они появляются ----------------------------------------------------
  *
  * Сначала на месте месяцев ничего нет. Потом из глубины наружу проходит
  * волна, и клетки собираются по одной: приходят из размытия, вспыхивают на
- * подлёте и садятся на место, — все четыре месяца одной волной. Когда сетка
- * собрана, над ней встают три числа. Дальше — история: отпуск ложится на
- * август, отгул на октябрь, и числа отвечают.
+ * подлёте и садятся на место. Когда сетка собрана, над ней встают три числа, и
+ * только после этого выезжает палец.
  *
  * Порядок обязателен: числа — это ИТОГ сетки, и появиться раньше неё они
  * не могут, иначе получаются просто две картинки, приехавшие вместе.
@@ -128,90 +146,102 @@ function isShiftStart(day: IsoDate): boolean {
 }
 
 /**
- * Отметка на сутках, если они в отпуске или в отгуле.
+ * Вид суток, накрытых записью, — тот же, что на графике.
  *
- * `at` — срок, когда она проявляется: у группы свой, и внутри группы
- * сутки ложатся подряд (`HERO_MARK_STAGGER_MS`). Тон — полный или тихий: в
- * полный голос только сутки заступления на смену, а продолжение и свободные
- * сутки — вполголоса, как на самом графике (`ABSENCE_TONE_QUIET`).
+ * В полную силу — только сутки заступления на смену; продолжение и свободные
+ * сутки внутри записи — вполголоса (`ABSENCE_TONE_QUIET`): цвет тот же,
+ * плотность меньше. Вызов — свой цвет и своя буква, и он один на все сутки.
+ * Тот, кто выучил это на главной, найдёт то же в расчёте.
  */
-interface Mark {
-  kind: AbsenceKind;
-  at: number;
-  quiet: boolean;
+function overlayOf(event: HeroEvent, start: boolean): { tone: string; mark: string } {
+  if (event.kind === "callout") {
+    return { tone: CALLOUT_TONE, mark: CALLOUT_MARK };
+  }
+  const tone = start ? ABSENCE_TONE[event.kind] : ABSENCE_TONE_QUIET[event.kind];
+  return { tone, mark: ABSENCE_MARK[event.kind] };
 }
 
-function markFor(month: number, date: number, start: boolean): Mark | null {
-  const leave = month === HERO_LEAVE.month ? (HERO_LEAVE.days as readonly number[]).indexOf(date) : -1;
-  if (leave >= 0) {
-    return {
-      kind: "annual_leave",
-      at: (HERO_MARK_AT[1] ?? 0) + leave * HERO_MARK_STAGGER_MS,
-      quiet: !start,
-    };
-  }
-  const rest = month === HERO_REST.month ? (HERO_REST.days as readonly number[]).indexOf(date) : -1;
-  if (rest >= 0) {
-    return {
-      kind: "time_off_in_lieu",
-      at: (HERO_MARK_AT[2] ?? 0) + rest * HERO_MARK_STAGGER_MS,
-      quiet: !start,
-    };
-  }
-  return null;
-}
+const isoOf = (month: number, date: number) =>
+  `${HERO_YEAR}-${String(month).padStart(2, "0")}-${String(date).padStart(2, "0")}` as IsoDate;
 
-function HeroMonth({ month, index }: { month: number; index: number }) {
+function HeroMonth({
+  layout,
+  month,
+  index,
+}: {
+  layout: HeroLayout;
+  month: number;
+  index: number;
+}) {
   const days = datesOfMonth(HERO_YEAR, month);
   const first = days[0]!;
   const offset = weekday(first);
+  const events = HERO_SCRIPTS[layout].events.filter((event) => event.month === month);
 
   return (
     <MonthGrid
       joined
       title={MONTH_NAMES[month - 1]}
-      meta={<HeroMonthMeta month={index} />}
+      meta={<HeroMonthMeta layout={layout} index={index} />}
       // Подпись растёт вместе с клеткой: кегль плоскости считается от её
       // ширины, а подпись — доля от него, в тех же пропорциях, что в расчёте
       // (14 и 11 точек при клетке в 11,7).
       titleClassName="text-[1.2em]"
       metaClassName="text-[0.94em]"
       // Шапка приходит вместе с клетками, а не стоит с первого кадра.
-      headProps={{ className: "hero-cal__cell", style: vars(headWave(index)) }}
+      headProps={{ className: "hero-cal__cell", style: vars(headWave(layout, index)) }}
       days={days}
       // Буквы дней недели собираются вместе с клетками, а не стоят с
       // первого кадра. Их место в волне — на строку ВЫШЕ первой.
       weekdayProps={(column) => ({
         className: "hero-cal__cell text-[0.85em]",
-        style: vars(letterWave(index, column)),
+        style: vars(letterWave(layout, index, column)),
       })}
       // Пустые клетки — вместе со всеми: сами они ничего не показывают, но
       // держат строку, и приходить им положено тем же фронтом, что и
       // соседним числам.
       padProps={(slot) => ({
         className: "hero-cal__cell",
-        style: vars(cellWave(index, slot)),
+        style: vars(cellWave(layout, index, slot)),
       })}
       renderDay={(day, corners) => {
         const slot = offset + daysBetween(first, day);
         const start = isShiftStart(day);
         const tail = isShiftStart(addDays(day, -1));
         const date = dayOfMonth(day);
+        const tone = start
+          ? cn("rounded-md border", SHIFT_TONE)
+          : tail
+            ? cn("rounded-md border", SHIFT_TAIL_TONE)
+            : "text-ink-faint";
+        const mark = start ? SHIFT_START_HOURS : tail ? SHIFT_TAIL_HOURS : FREE_DAY_MARK;
+
+        // Сутки, которые палец когда-нибудь накроет записью, — отдельная
+        // клетка, подписанная на свою запись; остальные — статика.
+        const event = events.find((item) => item.days.includes(date));
+        if (event !== undefined) {
+          const overlay = overlayOf(event, start);
+          return (
+            <HeroMarkedCell
+              layout={layout}
+              eventId={event.id}
+              order={event.days.indexOf(date)}
+              stagger={heroStagger(event.days.length)}
+              day={isoOf(month, date)}
+              corners={corners}
+              wave={cellWave(layout, index, slot)}
+              tone={tone}
+              mark={mark}
+              overlay={overlay.tone}
+              overlayMark={overlay.mark}
+            >
+              {date}
+            </HeroMarkedCell>
+          );
+        }
 
         return (
-          <Cell
-            corners={corners}
-            wave={cellWave(index, slot)}
-            tone={
-              start
-                ? cn("rounded-md border", SHIFT_TONE)
-                : tail
-                  ? cn("rounded-md border", SHIFT_TAIL_TONE)
-                  : "text-ink-faint"
-            }
-            mark={start ? SHIFT_START_HOURS : tail ? SHIFT_TAIL_HOURS : FREE_DAY_MARK}
-            absence={markFor(month, date, start)}
-          >
+          <Cell corners={corners} wave={cellWave(layout, index, slot)} tone={tone} mark={mark}>
             {date}
           </Cell>
         );
@@ -220,31 +250,41 @@ function HeroMonth({ month, index }: { month: number; index: number }) {
   );
 }
 
-export function HeroCalendar({ className }: { className?: string }) {
+/**
+ * Плоскость одной раскладки: числа сверху, месяцы под ними, палец поверх.
+ *
+ * Широкая и узкая — две отдельные плоскости, а не одна, что перестраивается: у
+ * них разные месяцы, разные числа над ними и разная история. Какая из них видна,
+ * решает таблица стилей по ширине окна (`className`), а часы истории (`HeroPointer`
+ * и остальные подписчики) идут только у той, что на экране.
+ */
+function HeroPlane({ layout, className }: { layout: HeroLayout; className: string }) {
+  const script = HERO_SCRIPTS[layout];
+  const wide = layout === "wide";
+
   const months = (
     // Просвет между месяцами и между строками — те же, что у сетки в расчёте
     // (`gap-x-6 gap-y-5` при кегле 11,7), только в `em` плоскости: растёт
     // вместе с ней.
-    <div className="grid grid-cols-2 items-start gap-x-[1.9em] gap-y-[1.6em]">
-      {HERO_MONTHS.map((month, index) => (
-        <HeroMonth key={month} month={month} index={index} />
+    <div
+      className={cn(
+        "grid items-start gap-x-[1.9em] gap-y-[1.6em]",
+        wide ? "grid-cols-2" : "grid-cols-1",
+      )}
+    >
+      {HERO_MONTHS[layout].map((month, index) => (
+        <HeroMonth key={month} layout={layout} month={month} index={index} />
       ))}
     </div>
   );
 
   return (
+    // Шаг волны у раскладок разный: клеток в узкой втрое меньше, и тот же шаг
+    // собрал бы её втрое быстрее — а сборка должна занимать три четверти секунды
+    // на любой.
     <div
-      aria-hidden
-      className={cn("hero-cal select-none flex flex-col justify-center", className)}
-      // Длительность появления отметки и шаг волны уходят в CSS отсюда: в
-      // сценарии на них построено всё расписание, и записать их вторым
-      // числом в правиле значило бы завести второй источник той же величины.
-      style={
-        {
-          "--mark-ms": HERO_MARK_MS,
-          "--cal-step": `${HERO_WAVE_STEP_MS}ms`,
-        } as CSSProperties
-      }
+      className={cn("hero-cal__stage flex justify-center", className)}
+      style={{ "--cal-step": `${script.waveStepMs}ms` } as CSSProperties}
     >
       {/* Сцена задаёт перспективу, плоскость — наклон. Точка схода одна на
           весь блок и стоит там, где стоит читатель: у ближнего края.
@@ -263,34 +303,49 @@ export function HeroCalendar({ className }: { className?: string }) {
           Почему не `backdrop-filter` одним слоем: маска его в Chromium не
           ограничивает, когда родитель повёрнут в трёх измерениях, — и
           размытым оказывается весь месяц целиком, до последней клетки. */}
-      <div className="hero-cal__stage flex justify-center">
-        <div
-          className={cn(
-            // Ширина плоскости — вся колонка: четыре месяца на ней и так
-            // мельче клетки настенного календаря, ужимать их ещё нечем. На
-            // телефоне и узком планшете её держат поля, на широком экране —
-            // колонка. Кегль внутри считается от ширины самой плоскости
-            // (`.hero-cal__months`), а не ступенями по окну.
-            "hero-cal__plane w-full max-w-160 sm:max-w-176 md:max-w-none",
-          )}
-        >
-          {/* Числа — той же полосой, что в расчёте, но крупно, и по
-              середине плоскости: они верхний край того же листа, что и
-              месяцы под ними. Растворяются они вместе с ними — маска
-              общая, она назначена плоскости. */}
-          <HeroFigures
-            className="hero-cal__figures mb-5 sm:mb-7"
-            style={vars({ "--i": HERO_LAST_WAVE })}
-          />
+      <div
+        className={cn(
+          "hero-cal__plane",
+          // Широкая — вся колонка. Узкая стоит перед читателем и уже её на
+          // седьмую часть: во всю ширину телефона клетка выходила крупной и
+          // оттого тесной. С 360 точек, не раньше: на 320 плоскость и так
+          // впритык.
+          wide ? "w-full" : "w-[88%] max-w-104 max-[359px]:w-full sm:max-w-128",
+        )}
+      >
+        <HeroFigures
+          layout={layout}
+          className="hero-cal__figures mb-5 sm:mb-7"
+          style={vars({ "--i": heroLastWave(layout) })}
+        />
 
-          <div className="hero-cal__box">
-            <div className="hero-cal__stack hero-cal__months">
-              <div className="hero-cal__layer hero-cal__layer--haze">{months}</div>
-              <div className="hero-cal__layer hero-cal__layer--sharp">{months}</div>
-            </div>
+        <div className="hero-cal__box">
+          <div className={cn("hero-cal__stack hero-cal__months", !wide && "hero-cal__months--single")}>
+            <div className="hero-cal__layer hero-cal__layer--haze">{months}</div>
+            <div className="hero-cal__layer hero-cal__layer--sharp">{months}</div>
           </div>
+          {/* Палец — над обоими слоями, в той же плоскости. */}
+          <HeroPointer layout={layout} />
         </div>
       </div>
+    </div>
+  );
+}
+
+export function HeroCalendar({ className }: { className?: string }) {
+  return (
+    <div
+      aria-hidden
+      className={cn("hero-cal select-none flex flex-col justify-center", className)}
+      // Длительность появления отметки уходит в CSS отсюда: в сценарии на ней
+      // построено всё расписание, и записать её вторым числом в правиле
+      // значило бы завести второй источник той же величины.
+      style={{ "--mark-ms": HERO_MARK_MS } as CSSProperties}
+    >
+      {/* Порог — `md`, тот же, что у раскладки всего первого экрана и у часов
+          истории (`hero-story-store.ts`). */}
+      <HeroPlane layout="wide" className="max-md:hidden" />
+      <HeroPlane layout="narrow" className="md:hidden" />
     </div>
   );
 }
@@ -300,104 +355,36 @@ function vars(style: object): CSSProperties {
 }
 
 /**
- * Клетка суток — та же, что в расчёте: плашка месяца снизу, вид суток
- * сверху. Разделены они не ради красоты: сомкнутый месяц держит форму
- * внешним контуром, и скругления углов принадлежат плашке, а цвет смены —
- * тому, что внутри неё.
- */
-/**
- * Вид отсутствия поверх смены — вторым слоем, а не заменой первого.
+ * Клетка суток, на которую записей не ляжет, — та же, что в расчёте: плашка
+ * месяца снизу, вид суток сверху. Разделены они не ради красоты: сомкнутый
+ * месяц держит форму внешним контуром, и скругления углов принадлежат плашке, а
+ * цвет смены — тому, что внутри неё.
  *
- * Клетка сначала собирается как смена и только потом становится отгулом
- * или отпуском: в этом вся история первого экрана. Подменить содержимое
- * нечем — страница отдаётся статикой, — поэтому отсутствие лежит поверх и
- * проявляется в свой срок. Заливка у него сплошная, и от смены под ним
- * ничего не просвечивает.
- *
- * Цвета и буквы — те же, что в легенде расчёта (`day-marks.ts`): отгул за
- * переработку и отпуск человек потом встретит внутри ровно такими. В полную
- * силу — сутки заступления, вполголоса — продолжение смены и свободные сутки
- * внутри отпуска, как и на графике.
- *
- * Срок проявления у каждой отметки свой и приходит из сценария
- * (`hero-scenario.ts`): тот же, по которому перещёлкиваются числа. Двух
- * источников времени быть не должно — разойдись они, и клетка пометится
- * посреди счёта.
+ * Клетка с записью — своя, клиентская (`HeroMarkedCell`): та же разметка, но
+ * подписанная на историю.
  */
 function Cell({
   corners,
-  wave: index,
+  wave,
   tone,
   mark,
-  absence,
   children,
 }: {
   corners: string;
   wave: { "--ix": number; "--iy": number };
   tone: string;
   mark: string;
-  absence: Mark | null;
-  children: ReactNode;
+  children: React.ReactNode;
 }) {
   return (
-    // Слой отсутствия лежит НАД клеткой, а не внутри вида смены: у того
-    // своя рамка, а `inset-0` отсчитывается от её внутреннего края — и
-    // из-под накладки по всему периметру выглядывала зелёная нитка в
-    // пиксель. У самой клетки рамки нет, и накладка закрывает её целиком.
     <div
-      className={cn(
-        "hero-cal__cell relative bg-paper-raised lit-tile",
-        // Клетка с отметкой всплывает над соседними.
-        //
-        // Отметка появляется с подскоком — на середине хода она крупнее
-        // клетки, — и это ровно тот кадр, ради которого подскок и
-        // задуман: «здесь только что отметили». Но клетки идут по
-        // порядку, и следующая рисуется ПОВЕРХ предыдущей: раздувшаяся
-        // отметка уезжала под соседа справа и снизу, будто её обрезали.
-        //
-        // Слой на единицу выше остальных, а не на время анимации: клетки
-        // стоят вплотную и не перекрываются ничем, кроме этого подскока,
-        // так что поднятой она может оставаться всегда — переключать
-        // слой по ходу анимации значило бы завести состояние там, где
-        // хватает порядка.
-        absence ? "z-1000" : "z-999",
-        // Блик лампы на клетке под отметкой гаснет.
-        //
-        // Он рисуется накладкой поверх содержимого клетки (`lit-tile` в
-        // `globals.css`), то есть лежит и поверх отметки, а отметка
-        // появляется с подскоком и на середине хода крупнее клетки —
-        // и замкнутый светлый контур оказывается ВНУТРИ красного, будто
-        // под ним лежит ещё одна клетка и лампа светит на неё.
-        //
-        // Гасить его классом, а не тем же `hero-cal__under`: рамка гаснет
-        // у ВИДА СМЕНЫ внутри клетки, а блик принадлежит самой клетке —
-        // это разные коробки.
-        absence && "hero-cal__unlit",
-        corners,
-      )}
-      // Срок отметки живёт на клетке, а внутренние слои берут его по
-      // наследству: разъехаться трём срокам нельзя, а одному — нечем.
-      style={vars(absence ? { ...index, "--at": absence.at } : index)}
+      className={cn("hero-cal__cell relative bg-paper-raised lit-tile", corners)}
+      style={vars(wave)}
     >
       <div
         className={cn(
           "flex aspect-square w-full flex-col items-center justify-center leading-tight",
           tone,
-          // Под отметкой рамка гаснет.
-          //
-          // Накладка отсутствия полупрозрачна — это её собственный тон, тот
-          // же, что в расчёте, — и сквозь неё была видна рамка смены,
-          // лежащей ниже. На подскоке, когда накладка вырастает крупнее
-          // клетки, зелёный контур и вовсе оказывался ВНУТРИ отметки
-          // отдельным прямоугольником.
-          //
-          // Гаснет она ровно тогда, когда отметка садится: срок и
-          // длительность те же, что у самой отметки, — они приходят одной
-          // переменной.
-          absence && "hero-cal__under",
-          // Тихая накладка просвечивает, и под ней гаснет весь вид клетки, а
-          // не только рамка (`.hero-cal__under--quiet`).
-          absence?.quiet && "hero-cal__under--quiet",
         )}
       >
         <span className="font-mono text-[1em]">{children}</span>
@@ -406,19 +393,6 @@ function Cell({
             со сменой — выше, и ряд чисел пошёл бы волной. */}
         <span className="font-mono text-[0.7em]">{mark}</span>
       </div>
-
-      {absence ? (
-        <span
-          className={cn(
-            "hero-cal__absence absolute inset-0 flex flex-col items-center justify-center",
-            "rounded-md border leading-tight",
-            (absence.quiet ? ABSENCE_TONE_QUIET : ABSENCE_TONE)[absence.kind],
-          )}
-        >
-          <span className="font-mono text-[1em]">{children}</span>
-          <span className="font-mono text-[0.7em]">{ABSENCE_MARK[absence.kind]}</span>
-        </span>
-      ) : null}
     </div>
   );
 }

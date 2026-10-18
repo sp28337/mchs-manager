@@ -23,6 +23,7 @@ import { SYNC_ENABLED } from "@/features/sync/ui/enabled";
 import { cn } from "@/lib/utils/cn";
 
 import { DEMO_LIST, rowOf } from "./demo-list";
+import { HandIcon } from "./hand-icon";
 
 /**
  * Четыре показа к разделу «Как работает».
@@ -263,14 +264,7 @@ function Pointer({ className, style }: { className?: string; style?: CSSProperti
       style={style}
     >
       <span className="demo-pointer__ring absolute -left-2 -top-2 size-10 rounded-full border-2 border-ink/25" />
-      <svg viewBox="0 0 24 24" className="size-7 drop-shadow-md" aria-hidden fill="none">
-        <path
-          d="M9.2 12.4V5.1a1.35 1.35 0 0 1 2.7 0v5.2m0-1.1a1.35 1.35 0 0 1 2.7 0v1.3m0-0.9a1.35 1.35 0 0 1 2.7 0v1.2m0-0.5a1.35 1.35 0 0 1 2.7 0v3.9c0 3.2-2.1 5.8-5.4 5.8h-1.2c-2 0-3.2-.8-4.1-2.2l-2.6-4c-.5-.8-.2-1.7.6-2.1.7-.4 1.6-.2 2 .5z"
-          className="fill-paper stroke-ink"
-          strokeWidth="1.5"
-          strokeLinejoin="round"
-        />
-      </svg>
+      <HandIcon />
     </span>
   );
 }
