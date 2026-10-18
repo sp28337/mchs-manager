@@ -1,15 +1,15 @@
-import { Moon, Sun, ZoomIn, ZoomOut } from "lucide-react";
+import { Moon, Shrink, Sun, ZoomIn, ZoomOut } from "lucide-react";
 
 import type { ReactNode } from "react";
 
 import { LegendMark, MARK_EMPTY_CLASS, MARK_EMPTY_TEXT } from "@/components/shared/header-action";
-import { Bone, BoneText } from "@/components/ui/bone";
+import { BoneText } from "@/components/ui/bone";
 import { FooterBody } from "@/components/shared/site-footer";
 import { KNOB_ICON, KNOB_NEST } from "@/components/ui/knob";
 import { cn } from "@/lib/utils/cn";
 
 import { datesOfMonth, dayOfMonth } from "../domain/plain-date";
-import { DOCK, DOCK_LEFT, SHIFTS_ON } from "./grid-dock";
+import { DOCK, DOCK_LEFT, DOCK_RIGHT, SCALE_KNOBS, SHIFTS_ON } from "./grid-dock";
 import { CalendarIcon, PeriodIcon, ShiftsIcon, YearMark } from "./grid-icons";
 import { LiveSignal } from "./live-mode";
 import { MetaSep, MonthGrid, YEAR_BOX, YEAR_GRID } from "./month-grid";
@@ -194,24 +194,6 @@ export function WorkspaceSkeleton() {
             {/* `year-room` — та же метка, что на корне `YearView`: из неё
                 берётся число месяцев в ряду на каждой ширине. */}
             <div className="year-room space-y-4">
-              {/* Над сеткой — только масштаб и только с `lg`, как в расчёте
-                  (`year-view.tsx`): остальное управление — знаками нижнего
-                  ряда. Кнопки подняты и ловят свет: те же девять десятых
-                  рема, то же скругление, тот же `lit`, что у настоящих. */}
-              <div className="hidden items-center lg:flex">
-                <div className="ml-auto flex items-center gap-1">
-                  {/* Три кнопки, как в расчёте: раскладка («компактно») и два
-                      масштаба. */}
-                  <Bone className="lit size-9 rounded-xl" />
-                  <Bone className="lit size-9 rounded-xl" />
-                  <Bone className="lit size-9 rounded-xl" />
-                  <span className="sr-only">
-                    <ZoomIn aria-hidden />
-                    <ZoomOut aria-hidden />
-                  </span>
-                </div>
-              </div>
-
               {/* Сетка месяцев и легенда — тем же строем, что в графике: с
                   1280 точек легенда стоит колонкой слева на экране, ниже —
                   полосой над сеткой. */}
@@ -275,12 +257,28 @@ export function WorkspaceSkeleton() {
               <LiveSignal on={false} className={MARK_EMPTY_CLASS} />
             </KnobBone>
           </div>
-          {/* Тема — той же картинкой, что у настоящего знака: солнце или
-              месяц по классу темы на `html`, без сценария. */}
-          <KnobBone>
-            <Sun className={cn("dark:hidden", MARK_EMPTY_CLASS)} />
-            <Moon className={cn("hidden dark:block", MARK_EMPTY_CLASS)} />
-          </KnobBone>
+          <div className={DOCK_RIGHT}>
+            {/* Знаки масштаба — как в расчёте, и тоже только с `lg`
+                (`grid-dock.tsx`): та же колонка, те же три знака, чтобы в
+                миг подстановки у правой кромки не возникли они из ничего. */}
+            <div className={SCALE_KNOBS}>
+              <KnobBone className={MARK_EMPTY_CLASS}>
+                <Shrink />
+              </KnobBone>
+              <KnobBone className={MARK_EMPTY_CLASS}>
+                <ZoomIn />
+              </KnobBone>
+              <KnobBone className={MARK_EMPTY_CLASS}>
+                <ZoomOut />
+              </KnobBone>
+            </div>
+            {/* Тема — той же картинкой, что у настоящего знака: солнце или
+                месяц по классу темы на `html`, без сценария. */}
+            <KnobBone>
+              <Sun className={cn("dark:hidden", MARK_EMPTY_CLASS)} />
+              <Moon className={cn("hidden dark:block", MARK_EMPTY_CLASS)} />
+            </KnobBone>
+          </div>
         </div>
       </main>
 

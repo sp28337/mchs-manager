@@ -22,6 +22,7 @@ import { ChangesList } from "./changes-list";
 import { DayRing } from "./day-ring";
 import { ExplorerDock } from "./explorer-dock";
 import { GridDock } from "./grid-dock";
+import { GridScaleProvider } from "./grid-scale";
 import { WorkspaceMenuItems } from "./header-tools";
 import { scrollMonthUnderBar, topmostVisibleMonth } from "./month-anchor";
 import { useConfirmSwitch } from "./open-profile";
@@ -583,7 +584,9 @@ export function Workspace({
           : undefined;
 
   return (
-    <>
+    // Масштаб сетки живёт здесь: месяцы в разделе, а знаки масштаба — у кромки
+    // окна, вне него (`grid-scale.tsx`).
+    <GridScaleProvider>
       {/* Шапка рисуется отсюда, а не с экрана вокруг: в ней стоят
           настройки и выгрузка профиля, а им нужен профиль вместе с
           выбранным периодом — он живёт здесь. Тянуть его наверх значило бы
@@ -907,7 +910,7 @@ export function Workspace({
       </main>
 
       <ProfileFooter onOpenSection={openSection} />
-    </>
+    </GridScaleProvider>
   );
 }
 

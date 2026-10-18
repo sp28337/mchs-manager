@@ -116,10 +116,19 @@ export const TODAY_MARK = "inset-ring-2 inset-ring-signal";
  * Знак «|» моноширинного шрифта — во всю высоту строки и той же толщины,
  * что штрихи цифр: в подписи из трёх чисел две черты читались ещё двумя
  * знаками, наравне с числами. Разделителю это не нужно — он разметка, а не
- * содержание. Поэтому вместо знака — волосок в одну точку, ниже строчных
- * букв и в цвет подписи на треть силы: он делит строку и не просит
- * взгляда. Программе чтения его нет вовсе (`aria-hidden`): «вертикальная
- * черта» между числами вслух ничего не значит.
+ * содержание. Поэтому вместо знака — игла, та же, что делит цифры графика в
+ * названии сайта (`.mark-needle`, `schedule-mark.tsx`): короче цифр,
+ * сходящая в точку к обоим концам, в цвет подписи вполсилы. Он делит строку
+ * и не просит взгляда. Программе чтения его нет вовсе (`aria-hidden`):
+ * «вертикальная черта» между числами вслух ничего не значит.
+ *
+ * --- Почему тоньше, чем в названии сайта ------------------------------------
+ *
+ * В названии игла в полторы точки: там она одна на всю шапку и стоит между
+ * двумя цифрами крупного кегля. Здесь их по две в каждом из двенадцати
+ * месяцев, подпись мелкая, и такая же игла читалась бы заметнее самих
+ * чисел. Поэтому — в одну точку. Ширина места, занятого ею, при этом осталась
+ * прежней, и заглушка рабочего экрана совпадает с расчётом до доли пикселя.
  *
  * --- Почему отдельной деталью ----------------------------------------------
  *
@@ -137,7 +146,7 @@ export function MetaSep() {
   return (
     <span
       aria-hidden
-      className="mx-2 inline-block h-2.5 w-px bg-current align-middle opacity-30"
+      className="mark-needle mx-2 inline-block h-2.5 w-px bg-current align-middle opacity-50"
     />
   );
 }
@@ -151,6 +160,17 @@ export interface MonthGridProps {
   title?: ReactNode;
   /** Итог месяца справа от названия: смены, часы, число правок. */
   meta?: ReactNode;
+  /**
+   * Добавки к шапке месяца — классы и стиль, и кегль названия с итогом.
+   *
+   * Нужны посадочной странице: месяц там СОБИРАЕТСЯ волной вместе с клетками
+   * и стоит на плоскости, кегль которой считается от ширины окна, — и
+   * подпись обязана приходить в свой срок и расти вместе с клеткой, а не
+   * стоять в 14 и 11 точках. В расчёте они не нужны: там подписи постоянные.
+   */
+  headProps?: { className?: string; style?: CSSProperties };
+  titleClassName?: string;
+  metaClassName?: string;
   /** Подряд идущие дни ОДНОГО месяца. */
   days: readonly IsoDate[];
   /**
@@ -206,6 +226,9 @@ export interface MonthGridProps {
 export function MonthGrid({
   title,
   meta,
+  headProps,
+  titleClassName,
+  metaClassName,
   days,
   renderDay,
   joined,
@@ -247,9 +270,24 @@ export function MonthGrid({
       )}
     >
       {title ? (
-        <div className="flex flex-wrap items-baseline justify-between gap-x-3 border-b border-rule pb-1">
-          <h3 className="font-display text-sm font-bold uppercase tracking-wide">{title}</h3>
-          {meta ? <p className="font-mono text-[11px] text-ink-muted">{meta}</p> : null}
+        <div
+          className={cn(
+            "flex flex-wrap items-baseline justify-between gap-x-3 border-b border-rule pb-1",
+            headProps?.className,
+          )}
+          style={headProps?.style}
+        >
+          <h3
+            className={cn(
+              "font-display text-sm font-bold uppercase tracking-wide",
+              titleClassName,
+            )}
+          >
+            {title}
+          </h3>
+          {meta ? (
+            <p className={cn("font-mono text-[11px] text-ink-muted", metaClassName)}>{meta}</p>
+          ) : null}
         </div>
       ) : null}
 

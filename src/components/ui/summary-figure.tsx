@@ -82,12 +82,30 @@ const CAPTION_BASE = cn(
 const CAPTION = cn(CAPTION_BASE, "font-bold min-[42.5rem]:text-sm");
 const CAPTION_MINOR = cn(CAPTION_BASE, "min-[42.5rem]:text-xs");
 
+/**
+ * Крупная подпись — для первого экрана посадочной (`size="hero"`).
+ *
+ * Те же гарнитура, регистр, разрядка и цвет, что у обычной: отличается один
+ * кегль. Там числа стоят на фоне календаря в полэкрана, и числа и подписи
+ * обычного размера терялись на нём, как мелкая плашка на большом листе.
+ * Ступени — по ширине окна: 10 точек на самом узком телефоне (три подписи в
+ * колонках по 79 точек иначе не помещаются, и «НОРМА ПЕРИОДА» обрезается по
+ * краю плоскости), 12 с 340, 14 с `md`, 16 с `xl`.
+ */
+const CAPTION_HERO = cn(
+  "flex h-6 items-center justify-center whitespace-nowrap",
+  "font-display font-bold uppercase leading-tight tracking-wide",
+  MARK_EMPTY_TEXT,
+  "text-[10px] min-[340px]:text-xs md:text-sm xl:text-base",
+);
+
 export function Figure({
   parts,
   caption,
   tone,
   still,
   minor,
+  size,
 }: {
   parts: readonly FigurePart[];
   caption: ReactNode;
@@ -96,7 +114,13 @@ export function Figure({
   still?: boolean;
   /** Мелкий итог: число на ступень меньше. */
   minor?: boolean;
+  /**
+   * `hero` — число крупнее обычного, для первого экрана. Построение то же:
+   * число над подписью, жирное, единица блёклая; крупнее только кегль.
+   */
+  size?: "hero";
 }) {
+  const hero = size === "hero";
   return (
     // Число над подписью, оба по середине колонки и по середине высоты.
     <div
@@ -117,10 +141,17 @@ export function Figure({
           // чисел разного роста совпадают. Без этого блоки разной высоты,
           // выровненные по середине, сдвигали подписи мелких итогов на пару
           // точек относительно главных.
-          "flex h-5 items-end justify-center whitespace-nowrap font-mono leading-none text-center min-[42.5rem]:h-6",
-          minor
-            ? "text-lg min-[42.5rem]:text-xl"
-            : "text-xl font-bold min-[42.5rem]:text-2xl",
+          "flex items-end justify-center whitespace-nowrap font-mono leading-none text-center",
+          // Крупное — своя лесенка: на первом экране число стоит на фоне
+          // месяцев, а не в строке под шапкой, и растёт с шириной окна.
+          hero
+            ? "h-9 text-3xl font-bold md:h-11 md:text-4xl xl:h-14 xl:text-5xl"
+            : cn(
+                "h-5 min-[42.5rem]:h-6",
+                minor
+                  ? "text-lg min-[42.5rem]:text-xl"
+                  : "text-xl font-bold min-[42.5rem]:text-2xl",
+              ),
           // Сами цифры — обычными чернилами темы (от страницы), а тон
           // разницы — зелёный и красный — говорит о переработке и
           // недоработке. Цвет бургера (`MARK_EMPTY_TEXT`) — у БУКВ полосы:
@@ -145,14 +176,20 @@ export function Figure({
                 бургера; у числа с тоном тоже: «ч» при зелёном числе серое,
                 как везде. */}
             {part.unit ? (
-              <span className={cn("ml-1 text-xs font-normal min-[42.5rem]:text-sm", MARK_EMPTY_TEXT)}>
+              <span
+                className={cn(
+                  "ml-1 font-normal",
+                  hero ? "text-base md:text-xl xl:text-2xl" : "text-xs min-[42.5rem]:text-sm",
+                  MARK_EMPTY_TEXT,
+                )}
+              >
                 {part.unit}
               </span>
             ) : null}
           </span>
         ))}
       </dd>
-      <dt className={minor ? CAPTION_MINOR : CAPTION}>{caption}</dt>
+      <dt className={hero ? CAPTION_HERO : minor ? CAPTION_MINOR : CAPTION}>{caption}</dt>
     </div>
   );
 }

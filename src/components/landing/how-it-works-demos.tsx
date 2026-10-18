@@ -93,12 +93,14 @@ const TONE = {
 } as const;
 
 /**
- * Те же освобождения вполголоса — на сутках, где смены не было.
+ * Те же освобождения вполголоса — на продолжении смены и на сутках без смены.
  *
  * Ровно то же правило, что в расчёте (`ABSENCE_TONE_QUIET` в
- * `shift-strip.tsx`): отпуск идёт подряд, и в свободные сутки внутри него
- * человек всё равно ничего не пропустил. Полным цветом такие сутки кричали
- * бы наравне с пропущенной сменой, и месяц читался бы как сплошная потеря.
+ * `day-marks.ts`): в полную силу стоят лишь сутки заступления на смену, а
+ * её продолжение и свободные сутки внутри отпуска показывают протяжённость,
+ * и ничего сверх этого человек в них не пропустил. Полным цветом такие сутки
+ * кричали бы наравне с пропущенной сменой, и месяц читался бы как сплошная
+ * потеря.
  */
 const TONE_QUIET: Partial<Record<Tone, string>> = {
   leave: "border-dashed border-signal/20 bg-signal-soft/40 text-signal/70",
@@ -128,7 +130,7 @@ interface Becomes {
   step: number;
   /** Место внутри группы: период ложится днями подряд, а не разом. */
   order?: number;
-  /** Сутки без смены: отметка ложится вполголоса (`TONE_QUIET`). */
+  /** Не заступление на смену: отметка ложится вполголоса (`TONE_QUIET`). */
   quiet?: boolean;
 }
 
@@ -230,8 +232,8 @@ function Day({
           className={cn(
             "demo-became absolute inset-0 flex flex-col items-center justify-center",
             "rounded-md border leading-tight",
-            // Вполголоса — на свободных сутках: там смены не было, и
-            // терять человеку было нечего (`TONE_QUIET`).
+            // Вполголоса — на продолжении смены и на свободных сутках: в полную
+            // силу стоят лишь сутки заступления (`TONE_QUIET`).
             (becomes.quiet ? TONE_QUIET[becomes.tone] : undefined) ?? TONE[becomes.tone],
           )}
         >
@@ -791,9 +793,11 @@ export function DemoEvents() {
             const date = dayOfMonth(day);
             const start = isShiftStart(day);
             const tail = isShiftStart(addDays(day, -1));
-            // Сутки без смены — те, где терять было нечего: отметка на них
-            // ложится вполголоса, как и в расчёте.
-            const becomes = markFor(date, !start && !tail);
+            // В полный голос — только сутки заступления на смену; продолжение
+            // смены и свободные сутки вполголоса, как и в расчёте: там тоже
+            // различаются заступление и продолжение — цвет тот же, плотность
+            // меньше (`ABSENCE_TONE_QUIET`).
+            const becomes = markFor(date, !start);
             const round = MONTH_MARKS.findIndex((group) => group.from === date);
             const slot = date - 1 + offset;
 

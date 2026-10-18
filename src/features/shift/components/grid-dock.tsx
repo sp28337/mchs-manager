@@ -1,5 +1,6 @@
 "use client";
 
+import { Expand, Shrink, ZoomIn, ZoomOut } from "lucide-react";
 import type { ReactNode } from "react";
 
 import { MARK_EMPTY_CLASS } from "@/components/shared/header-action";
@@ -9,6 +10,7 @@ import { cn } from "@/lib/utils/cn";
 
 import type { StoredProfile } from "../storage/profile";
 import { CalendarIcon, ShiftsIcon } from "./grid-icons";
+import { MONTHS_MIN, useGridScale } from "./grid-scale";
 import { LegendButton } from "./legend-button";
 import { LiveModeKnob } from "./live-mode";
 import { YearPicker } from "./period-picker";
@@ -44,6 +46,20 @@ import type { YearViewKind } from "./year-view";
  * раздвигает (`ui/knob.tsx`), окошки легенды и года раскрываются вправо от
  * знака, а не вверх, где стоят остальные знаки. У темы подпись выезжает
  * влево.
+ *
+ * --- Что стоит над знаком темы ---------------------------------------------
+ *
+ * С `lg` над ним стоят три знака сетки: «компактно» и два масштаба. Раньше
+ * они были квадратными кнопками с плашкой в строке над месяцами — единственное
+ * управление сеткой на другом языке, чем остальное. Теперь они такие же знаки,
+ * как соседи: значок без плашки, подпись выезжает влево при наведении, цвет
+ * пустых клеток знака сайта. Колонка растёт вверх от кромки, где стоит знак
+ * темы, — так же, как левая от легенды.
+ *
+ * Ниже `lg` их нет вовсе: на телефоне месяц и так занимает экран, растить его
+ * некуда, а мельчить — значит получить клетку, в которую не попасть пальцем.
+ * Скрыты они стилями, а не условием в разметке: ряд общий с заглушкой
+ * (`workspace-skeleton.tsx`), где скрипта нет.
  *
  * --- Почему выбранное видно цветом, а не плашкой ---------------------------
  *
@@ -97,6 +113,18 @@ export const DOCK = cn(
  * порядке — ближе к кромке то, что раньше стояло левее.
  */
 export const DOCK_LEFT = "max-md:contents md:flex md:flex-col-reverse md:items-start";
+
+/**
+ * Правая группа: до `lg` — один знак темы, как раньше; с `lg` — колонка,
+ * в которой над темой стоят знаки масштаба. Колонка прижата к правому краю,
+ * а её нижний конец — у кромки окна, где стоит тема: знаки масштаба идут в
+ * разметке перед ней, и в колонке сверху вниз это «компактно», «крупнее»,
+ * «мельче», тема.
+ */
+export const DOCK_RIGHT = "max-lg:contents lg:flex lg:flex-col lg:items-end";
+
+/** Знаки масштаба — только с `lg`, ниже них нет (довод — в шапке файла). */
+export const SCALE_KNOBS = "contents max-lg:hidden";
 
 /**
  * Показанный график: значок чернилами названия сайта (`HEADER_WORD`), а
@@ -164,7 +192,124 @@ export function GridDock({
         <LiveModeKnob profile={profile} onChange={onChange} />
       </div>
 
-      <ThemeCorner docked />
+      <div className={DOCK_RIGHT}>
+        <ScaleKnobs />
+        <ThemeCorner docked />
+      </div>
+    </div>
+  );
+}
+
+/**
+ * «Месяц» или «месяца» — для программы чтения.
+ *
+ * Она произносит итог нажатия вслух, и «4 месяц в ряду» там слышно так же
+ * отчётливо, как читалось бы на экране. Форм нужно две: пределы масштаба —
+ * от двух до восьми, и «один месяц» в этот отрезок не попадает.
+ */
+function monthsWord(count: number): string {
+  return count >= 5 ? "месяцев" : "месяца";
+}
+
+/**
+ * Знаки сетки месяцев: «компактно» и два масштаба.
+ *
+ * Состояние общее с сеткой (`grid-scale.tsx`): знаки здесь, месяцы там.
+ *
+ * --- Что делает «компактно» -----------------------------------------------
+ *
+ * Масштаб задаёт размер месяца, а эта кнопка — как месяцы встают в ряды. По
+ * ширине рамки ряд заполнен до края, и неполный остаток стоит по середине
+ * отдельной строкой; компактно все ряды одной длины (шесть месяцев — два
+ * ряда по три), и вся сетка — по середине рамки, не растянутая на неё.
+ *
+ * Кнопка называет действие, а не состояние: значок и подпись показывают,
+ * что произойдёт при нажатии — собрать или растянуть.
+ *
+ * --- Почему нет подписи «Масштаб» ------------------------------------------
+ *
+ * Две лупы — со знаком плюс и со знаком минус — объясняют себя сами. Для
+ * программы чтения подписи остались при самих кнопках, а итог нажатия
+ * объявляется вслух: у ползунка это делал `aria-valuetext`, у пары кнопок
+ * сказать о том, что изменилось, больше некому.
+ *
+ * Упёршись в предел, знак не исчезает, а остаётся на месте бледным:
+ * пропавший сдвинул бы соседний под самым пальцем, а человеку нужно видеть,
+ * что мельче уже некуда.
+ */
+function ScaleKnobs() {
+  const { compact, months, most, setAsked, setCompact } = useGridScale();
+
+  return (
+    <div role="group" aria-label="Масштаб сетки" className={SCALE_KNOBS}>
+      <ScaleKnob
+        name={compact ? "Растянуть по ширине рамки" : "Собрать компактно: ровные ряды по середине"}
+        caption={compact ? "Растянуть" : "Компактно"}
+        onClick={() => setCompact(!compact)}
+      >
+        {compact ? <Expand aria-hidden /> : <Shrink aria-hidden />}
+      </ScaleKnob>
+      <ScaleKnob
+        name="Крупнее: меньше месяцев в ряду"
+        caption="Крупнее"
+        disabled={months <= MONTHS_MIN}
+        onClick={() => setAsked(Math.max(MONTHS_MIN, months - 1))}
+      >
+        <ZoomIn aria-hidden />
+      </ScaleKnob>
+      <ScaleKnob
+        name="Мельче: больше месяцев в ряду"
+        caption="Мельче"
+        disabled={months >= most}
+        onClick={() => setAsked(Math.min(most, months + 1))}
+      >
+        <ZoomOut aria-hidden />
+      </ScaleKnob>
+      <span aria-live="polite" className="sr-only">
+        {months} {monthsWord(months)} в ряду{compact ? ", компактно" : ""}
+      </span>
+    </div>
+  );
+}
+
+/** Знак масштаба: тот же, что у темы, — значок без плашки, подпись влево. */
+function ScaleKnob({
+  name,
+  caption,
+  disabled,
+  onClick,
+  children,
+}: {
+  name: string;
+  caption: string;
+  disabled?: boolean;
+  onClick: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <div className={cn(KNOB_NEST, "justify-end")}>
+      <button
+        type="button"
+        aria-label={name}
+        disabled={disabled}
+        onClick={onClick}
+        className={cn(KNOB, "disabled:pointer-events-none")}
+      >
+        <KnobLabel side="left">{caption}</KnobLabel>
+        {/* Цвет — на самом значке, а не на кнопке: бледность
+            (`MARK_EMPTY_CLASS`) — это прозрачность, и на кнопке она
+            погасила бы заодно и выезжающую подпись. Упёршийся в предел знак
+            бледнее обычного, но не исчезает. */}
+        <span
+          className={cn(
+            KNOB_ICON,
+            MARK_EMPTY_CLASS,
+            "transition-opacity group-disabled/press:opacity-10",
+          )}
+        >
+          {children}
+        </span>
+      </button>
     </div>
   );
 }
