@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 
 import { SiteFooter } from "@/components/shared/site-footer";
 import { SiteHeader } from "@/components/shared/site-header";
-import { OpenScheduleItem } from "@/components/shared/header-menu";
+import { AccountMenuItems } from "@/features/shift/components/header-tools";
 import { AccountScreen } from "@/features/sync/ui/account-screen";
 
 export const metadata: Metadata = {
@@ -28,9 +28,10 @@ export default function AccountPage() {
     // подвал уходит за нижнюю кромку окна и показывается прокруткой, а не
     // висит под содержимым посреди бумаги.
     <>
-      {/* Переход к расчёту — строкой в меню, а не словом в шапке:
-          справа на всех страницах одно и то же «МЕНЮ». */}
-      <SiteHeader menu={<OpenScheduleItem />} />
+      {/* В меню — те же пункты, что на расчёте: настройки, события,
+          статистика, графики, «Сохранить» (`AccountMenuItems`). Справа на
+          всех страницах одно и то же «МЕНЮ», и в нём одно и то же. */}
+      <SiteHeader menu={<AccountMenuItems />} />
       <main className="mx-auto w-full max-w-[2000px] min-h-[var(--fold-min-h)] px-6 pt-24 pb-16">
         <AccountScreen />
       </main>

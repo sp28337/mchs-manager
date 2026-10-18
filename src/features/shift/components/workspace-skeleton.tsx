@@ -70,11 +70,10 @@ const MONTHS = Array.from({ length: 12 }, (_, index) => index + 1);
  * оказалась уже той, что встанет на её место.
  */
 const LEFT_FIGURES = [
-  // Единица — «смены»: самое широкое из трёх склонений, а склонение живого
-  // числа заглушке неизвестно. Колонку всё равно держит подпись, а не число
-  // с единицей, так что расхождение в одну букву раскладки не трогает.
-  { value: "92", unit: "смены", caption: "По графику" },
-  { value: "92", unit: "смены", caption: "Отработано" },
+  // Единица — «см», как в расчёте: сокращение не склоняется, и заглушке не
+  // нужно гадать про окончание.
+  { value: "92", unit: "см", caption: "По графику" },
+  { value: "92", unit: "см", caption: "Отработано" },
 ] as const;
 
 const RIGHT_FIGURES = [
@@ -158,15 +157,15 @@ export function WorkspaceSkeleton() {
         >
           {/* Мелкие итоги появляются там же, где в расчёте. Тот меряет
               строку и открывает их парами — по одной с каждой стороны, —
-              и пороги у него приходятся на 548 точек (первая пара) и на
-              786 (вторая): замер с шагом в одну точку, окно менялось на
+              и пороги у него приходятся на 542 точки (первая пара) и на
+              785 (вторая): замер с шагом в одну точку, окно менялось на
               месте. Пороги задают подписи и числа, а не профиль, поэтому
               от него они почти не зависят. Заглушка мерить не умеет,
               поэтому держит те же пороги числами. */}
           <div
             className={cn(
               "relative flex items-center justify-center px-6 pb-3",
-              "min-[548px]:grid min-[548px]:grid-cols-[1fr_auto_1fr] min-[548px]:justify-normal min-[548px]:gap-x-8",
+              "min-[542px]:grid min-[542px]:grid-cols-[1fr_auto_1fr] min-[542px]:justify-normal min-[542px]:gap-x-8",
             )}
           >
             <MainPlateBone />
@@ -174,11 +173,11 @@ export function WorkspaceSkeleton() {
             {/* Слева — к главным, то есть вправо; справа — влево. */}
             <div className={cn(SIDE_BONE, "col-start-1 row-start-1 justify-self-end")}>
               <FigureBone {...LEFT_FIGURES[0]} minor />
-              <FigureBone {...LEFT_FIGURES[1]} minor className="hidden min-[786px]:flex" />
+              <FigureBone {...LEFT_FIGURES[1]} minor className="hidden min-[785px]:flex" />
             </div>
             <div className={cn(SIDE_BONE, "col-start-3 row-start-1 justify-self-start")}>
               <FigureBone {...RIGHT_FIGURES[0]} minor />
-              <FigureBone {...RIGHT_FIGURES[1]} minor className="hidden min-[786px]:flex" />
+              <FigureBone {...RIGHT_FIGURES[1]} minor className="hidden min-[785px]:flex" />
             </div>
           </div>
         </div>
@@ -395,7 +394,7 @@ function MonthBones({ month }: { month: number }) {
  * пока мелким итогам нет места.
  */
 const SIDE_BONE =
-  "hidden h-14 min-w-0 grid-flow-col auto-cols-fr items-center gap-x-5 min-[548px]:grid";
+  "hidden h-14 min-w-0 grid-flow-col auto-cols-fr items-center gap-x-5 min-[542px]:grid";
 
 /**
  * Главные числа: то же построение, что в расчёте (`MainPlate`) — три
@@ -417,8 +416,8 @@ function MainPlateBone() {
         // средняя колонка (`1fr auto 1fr`) считала бы её нижней границей
         // ноль, и стороны сжимали бы её: на 1114–1250 точках колонки
         // выходили вдвое уже подписей.
-        "min-[548px]:col-start-2 min-[548px]:row-start-1 min-[548px]:min-w-max min-[548px]:shrink-0",
-        "min-[548px]:gap-x-5",
+        "min-[542px]:col-start-2 min-[542px]:row-start-1 min-[542px]:min-w-max min-[542px]:shrink-0",
+        "min-[542px]:gap-x-5",
       )}
     >
       <FigureBone value="1972" unit="ч" caption="Норма периода" />

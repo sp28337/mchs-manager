@@ -1,8 +1,43 @@
 "use client";
 
-import { CalendarRange, ChartColumn, FolderOpen, Save, Settings } from "lucide-react";
+import {
+  CalendarDays,
+  CalendarRange,
+  ChartColumn,
+  FolderOpen,
+  Save,
+  Settings,
+} from "lucide-react";
 
 import { MenuItem } from "@/components/shared/header-menu";
+
+/**
+ * Адреса разделов рабочего экрана: `/calculator#settings` открывает его
+ * сразу на настройках.
+ *
+ * Нужны странице учётной записи. Раздел рабочего экрана — состояние
+ * самого экрана, а не адрес, и из другой страницы до него иначе не
+ * дотянуться: нажатие по строке меню там должно привести на расчёт уже с
+ * открытым разделом, а не на расчёт, где его ещё предстоит открыть.
+ * Рабочий экран читает адрес один раз при открытии и тут же стирает его
+ * (`sectionFromHash`).
+ */
+export const SECTION_HASH = {
+  settings: "settings",
+  events: "events",
+  stats: "stats",
+  graphs: "graphs",
+  save: "save",
+} as const;
+
+export type SectionHash = (typeof SECTION_HASH)[keyof typeof SECTION_HASH];
+
+/** Раздел из адреса страницы или `null`, если адрес ни о каком не просит. */
+export function sectionFromHash(): SectionHash | null {
+  if (typeof window === "undefined") return null;
+  const name = window.location.hash.slice(1);
+  return Object.values(SECTION_HASH).find((hash) => hash === name) ?? null;
+}
 
 /**
  * Действия рабочего экрана — строками в меню шапки.
@@ -80,6 +115,52 @@ export function WorkspaceMenuItems({
         Графики
       </MenuItem>
       <MenuItem icon={Save} onClick={onSave}>
+        Сохранить
+      </MenuItem>
+    </>
+  );
+}
+
+/**
+ * Те же пункты меню — со страницы учётной записи.
+ *
+ * --- Зачем ------------------------------------------------------------------
+ *
+ * Шапка одна на весь сайт, и меню в ней должно быть узнаваемым: человек,
+ * который заходит на страницу учётной записи из расчёта, ищет в нём то же,
+ * что и там, — настройки, события, статистику, графики, «Сохранить». Одной
+ * строки «Открыть график», как было, мало: до настроек получалось два
+ * перехода вместо одного нажатия.
+ *
+ * Строки здесь — ссылки, а не действия: раздела, который можно было бы
+ * открыть, на этой странице нет. Каждая ведёт на расчёт с адресом раздела
+ * (`SECTION_HASH`), и тот открывается сразу. «Открыть график» остаётся
+ * первой: это единственный путь назад к расчёту без раздела, а название
+ * сайта ведёт на посадочную.
+ *
+ * Отдельным компонентом без свойств — по той же причине, что
+ * `OpenScheduleItem`: страница серверная, а значок пункта — функция, и
+ * через границу сервера и клиента её не передать.
+ */
+export function AccountMenuItems() {
+  return (
+    <>
+      <MenuItem icon={CalendarDays} href="/calculator">
+        Открыть график
+      </MenuItem>
+      <MenuItem icon={Settings} href={`/calculator#${SECTION_HASH.settings}`}>
+        Настройки
+      </MenuItem>
+      <MenuItem icon={CalendarRange} href={`/calculator#${SECTION_HASH.events}`}>
+        События
+      </MenuItem>
+      <MenuItem icon={ChartColumn} href={`/calculator#${SECTION_HASH.stats}`}>
+        Статистика
+      </MenuItem>
+      <MenuItem icon={FolderOpen} href={`/calculator#${SECTION_HASH.graphs}`}>
+        Графики
+      </MenuItem>
+      <MenuItem icon={Save} href={`/calculator#${SECTION_HASH.save}`}>
         Сохранить
       </MenuItem>
     </>

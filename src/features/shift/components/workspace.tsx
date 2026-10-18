@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import { Hint } from "@/components/ui/hint";
 import { ThemeCorner } from "@/components/ui/theme-toggle";
@@ -22,7 +22,7 @@ import { ChangesList } from "./changes-list";
 import { DayRing } from "./day-ring";
 import { ExplorerDock } from "./explorer-dock";
 import { GridDock } from "./grid-dock";
-import { WorkspaceMenuItems } from "./header-tools";
+import { SECTION_HASH, sectionFromHash, WorkspaceMenuItems } from "./header-tools";
 import { scrollMonthUnderBar, topmostVisibleMonth } from "./month-anchor";
 import { useConfirmSwitch } from "./open-profile";
 import { PeriodPicker } from "./period-picker";
@@ -230,7 +230,23 @@ export function Workspace({
    * посередине дырка, которой никто не просил.
    */
   const [switched, setSwitched] = useState(false);
-  const [settingsOpen, setSettingsOpen] = useState(false);
+
+  /**
+   * Раздел, с которым пришли на экран: `/calculator#settings` и подобные.
+   *
+   * Так пункты меню со страницы учётной записи приводят сразу к нужному
+   * разделу (`AccountMenuItems`). Читается один раз при открытии экрана и
+   * кладётся в начальные состояния ниже, а не открывается эффектом: эффект
+   * показал бы сперва расчёт и лишь потом подменил его — то самое мигание,
+   * которое `switched` (выше) и придуман убирать. Адрес стирается сразу
+   * же, эффектом ниже: перезагрузка страницы не должна снова открывать
+   * раздел, который человек уже закрыл.
+   *
+   * Экран строится только на клиенте (профиль читается из браузера), так
+   * что расхождения с разметкой сервера здесь нет.
+   */
+  const [entrance] = useState(sectionFromHash);
+  const [settingsOpen, setSettingsOpen] = useState(entrance === SECTION_HASH.settings);
   const showSettings = settingsOpen;
 
   /**
@@ -289,7 +305,7 @@ export function Workspace({
    * браузер, поджав страницу до новой высоты, показал бы статистику с
    * середины.
    */
-  const [statsOpen, setStatsOpen] = useState(false);
+  const [statsOpen, setStatsOpen] = useState(entrance === SECTION_HASH.stats);
 
   /**
    * Чужой профиль, выбранный в статистике, — наверху страницы.
@@ -348,7 +364,7 @@ export function Workspace({
    * отметки меняют числа, и видеть их вместе полезно. Откат прокрутки —
    * тот же, что у остальных разделов, по той же причине.
    */
-  const [eventsOpen, setEventsOpen] = useState(false);
+  const [eventsOpen, setEventsOpen] = useState(entrance === SECTION_HASH.events);
 
   function toggleEvents() {
     setSwitched(true);
@@ -378,7 +394,7 @@ export function Workspace({
    * список короче двенадцати календарных сеток, и без отката браузер
    * поджал бы страницу сам, показав проводник с середины.
    */
-  const [explorerOpen, setExplorerOpen] = useState(false);
+  const [explorerOpen, setExplorerOpen] = useState(entrance === SECTION_HASH.graphs);
   const explorerTools = useExplorerTools();
 
   function toggleExplorer() {
@@ -514,6 +530,23 @@ export function Workspace({
    * него, исчезло бы, не успев показаться.
    */
   const saveToFile = useSaveToFile(profile);
+
+  // Адрес раздела отработал своё — стираем его; «Сохранить» из меню
+  // учётной записи (`#save`) не раздел, а окно, и открывается здесь, когда
+  // всё нужное уже есть. Однажды: строгая проверка React выполняет эффект
+  // дважды, и второе окно поверх первого не нужно.
+  const askedSave = useRef(false);
+  useEffect(() => {
+    if (window.location.hash !== "") {
+      window.history.replaceState(null, "", window.location.pathname + window.location.search);
+    }
+    if (entrance === SECTION_HASH.save && !askedSave.current) {
+      askedSave.current = true;
+      saveToFile.ask();
+    }
+    // Один раз при открытии экрана: `entrance` прочитан тогда же.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   /**
    * Какой раздел показан вместо расчёта — и чем он закрывается.
