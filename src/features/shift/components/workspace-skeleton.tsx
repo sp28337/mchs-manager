@@ -13,7 +13,7 @@ import { datesOfMonth, dayOfMonth } from "../domain/plain-date";
 import { DOCK, DOCK_LEFT, DOCK_RIGHT, SCALE_KNOBS, SHIFTS_ON } from "./grid-dock";
 import { CalendarIcon, PeriodIcon, ShiftsIcon, YearMark } from "./grid-icons";
 import { LiveSignal } from "./live-mode";
-import { MetaSep, MonthGrid, YEAR_BOX, YEAR_GRID } from "./month-grid";
+import { META_UNIT, MetaSep, MonthGrid, YEAR_BOX, YEAR_GRID } from "./month-grid";
 import { MONTH_NAMES } from "./month-names";
 
 /**
@@ -331,13 +331,13 @@ function MonthBones({ month }: { month: number }) {
       meta={
         <span>
           <span className="font-bold">{"168"}</span>
-          ч
+          <span className={META_UNIT}>ч</span>
           <MetaSep />
           <span className="font-bold">{"192"}</span>
-          ч
+          <span className={META_UNIT}>ч</span>
           <MetaSep />
           <span className="font-bold">{"24"}</span>
-          ч
+          <span className={META_UNIT}>ч</span>
         </span>
       }
       days={datesOfMonth(SAMPLE_YEAR, month)}

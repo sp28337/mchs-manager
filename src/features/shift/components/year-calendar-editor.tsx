@@ -31,6 +31,7 @@ import {
 } from "../schemas";
 import { MONTH_NAMES } from "./month-names";
 import {
+  META_UNIT,
   MetaSep,
   MonthGrid,
   TODAY_MARK,
@@ -185,7 +186,8 @@ function MonthMeta({ facts, edited }: { facts: MonthFacts; edited: number }) {
           <MetaSep />
           <span className="text-ink-faint">
             {"−"}
-            <CountedNumber value={String(facts.preHolidayHours)} />ч
+            <CountedNumber value={String(facts.preHolidayHours)} />
+            <span className={META_UNIT}>ч</span>
           </span>
         </>
       ) : null}

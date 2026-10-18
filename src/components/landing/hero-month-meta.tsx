@@ -1,6 +1,6 @@
 "use client";
 
-import { META_FIGURE, MetaSep } from "@/features/shift/components/month-grid";
+import { META_FIGURE, META_UNIT, MetaSep } from "@/features/shift/components/month-grid";
 import { CountedNumber } from "@/components/ui/counted-number";
 import { cn } from "@/lib/utils/cn";
 
@@ -35,17 +35,17 @@ export function HeroMonthMeta({ layout, index }: { layout: HeroLayout; index: nu
       <span className={META_FIGURE}>
         <CountedNumber value={String(total.norm)} />
       </span>
-      ч
+      <span className={META_UNIT}>ч</span>
       <MetaSep />
       <span className={META_FIGURE}>
         <CountedNumber value={String(total.actual)} />
       </span>
-      ч
+      <span className={META_UNIT}>ч</span>
       <MetaSep />
       <span className={cn(META_FIGURE, over && "text-verify", under && "text-signal")}>
         <CountedNumber value={String(balance)} />
       </span>
-      ч
+      <span className={META_UNIT}>ч</span>
     </span>
   );
 }

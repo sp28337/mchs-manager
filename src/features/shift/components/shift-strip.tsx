@@ -36,6 +36,7 @@ import type { AbsenceKind, CalloutKind } from "../domain/value-objects";
 import { MONTH_NAMES } from "./month-names";
 import {
   META_FIGURE,
+  META_UNIT,
   MetaSep,
   MonthGrid,
   TODAY_MARK,
@@ -135,13 +136,13 @@ function MonthBalance({ total }: { total: MonthTotal | undefined }) {
       <span className={META_FIGURE}>
         <CountedNumber value={hoursTrim(total.normHours)} />
       </span>
-      ч
+      <span className={META_UNIT}>ч</span>
       <MetaSep />
       <span className="sr-only">отработано </span>
       <span className={META_FIGURE}>
         <CountedNumber value={hoursTrim(total.actualHours)} />
       </span>
-      ч
+      <span className={META_UNIT}>ч</span>
       <MetaSep />
       <span className="sr-only">{name} </span>
       {/* Цвет разницы — единственный признак, что это переработка или
@@ -149,7 +150,7 @@ function MonthBalance({ total }: { total: MonthTotal | undefined }) {
       <span className={cn(META_FIGURE, over && "text-verify", under && "text-signal")}>
         <CountedNumber value={hoursTrim(balance)} />
       </span>
-      ч
+      <span className={META_UNIT}>ч</span>
     </span>
   );
 }
