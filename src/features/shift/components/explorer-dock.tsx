@@ -2,6 +2,7 @@
 
 import { FolderPlus, Plus, Upload, type LucideIcon } from "lucide-react";
 
+import { MARK_EMPTY_CLASS } from "@/components/shared/header-action";
 import { KNOB, KNOB_ICON, KNOB_NEST, KnobLabel } from "@/components/ui/knob";
 import { ThemeCorner } from "@/components/ui/theme-toggle";
 import { cn } from "@/lib/utils/cn";
@@ -84,7 +85,11 @@ function ActionKnob({
   return (
     <div className={KNOB_NEST}>
       <button type="button" aria-label={name} onClick={onClick} className={KNOB}>
-        <span className={cn(KNOB_ICON, "text-ink-muted")}>
+        {/* Цвет — ровно тот же, что у знаков календаря и темы: «пустые»
+            части знака сайта (`MARK_EMPTY_CLASS`). Знаки проводника стоят
+            рядом с ними одним набором, и любой иной полутон читался бы как
+            знаки из разных мест. */}
+        <span className={cn(KNOB_ICON, MARK_EMPTY_CLASS)}>
           <Icon aria-hidden />
         </span>
         <KnobLabel>{caption}</KnobLabel>

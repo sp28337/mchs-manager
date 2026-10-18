@@ -141,6 +141,10 @@ export function SyncProvider({ children }: { children: ReactNode }) {
   const email = useRef<string | null>(null);
   /** Продолжение сессии затевается один раз на вкладку. */
   const продолжено = useRef(false);
+  /** Продолжение сейчас идёт: второе параллельно не нужно и опасно. */
+  const идётВосстановление = useRef(false);
+  /** Продолжение не удалось из-за сети и повторится, когда она вернётся. */
+  const сессияЖдёт = useRef(false);
   const идёт = useRef(false);
   /** Просьба, пришедшая во время прохода: проход повторится. */
   const ждёт = useRef(false);
@@ -231,13 +235,74 @@ export function SyncProvider({ children }: { children: ReactNode }) {
 
   // --- Продолжение сессии при открытии страницы -----------------------------
 
+  const продолжить = useCallback(async () => {
+    // Два продолжения разом — это два обновления токена, а предъявленный
+    // дважды refresh-токен сервер считает кражей и гасит всю семью. Поэтому
+    // пока одно не кончилось, второе не начинается, кто бы ни просил.
+    if (идётВосстановление.current) return;
+    идётВосстановление.current = true;
+
+    try {
+      const открыто = await session.restore(получить());
+
+      if (открыто === null) {
+        сессияЖдёт.current = false;
+        setState((было) => ({ ...было, phase: "signed-out" }));
+        return;
+      }
+
+      сессияЖдёт.current = false;
+      dataKey.current = открыто.dataKey;
+      email.current = открыто.session.account.email;
+      wrapped.current = открыто.session.wrapped_dek_pwd ?? null;
+
+      setState((было) => ({
+        ...было,
+        phase: "idle",
+        account: открыто.session.account,
+        pending: [],
+      }));
+
+      await sync();
+    } catch (error) {
+      if (isNetworkError(error)) {
+        // Страницу открыли без сервера: нет сети, или сервер не поднят. Это
+        // не поломка и не повод для следа с трассой в консоли — одна
+        // строка, и всё. Сессию при этом ещё НЕ продолжили: ключ данных
+        // не поднят, и `sync()` до него не дойдёт, сколько ни проси. Поэтому
+        // продолжение ждёт возвращения сети (`online`, возврат на вкладку) и
+        // повторяется само; без этого человек, открывший страницу в метро,
+        // так и сидел бы «без сети» до перезагрузки, хотя сеть давно есть.
+        сессияЖдёт.current = true;
+        console.debug("сессия не продолжена: сервер недоступен, повторю позже");
+        setState((было) => ({ ...было, phase: "offline", error: null, stalled: false }));
+        return;
+      }
+
+      // Молча терять причину нельзя: продолжение сессии ломается
+      // редко, а разбирать такое приходится по одному следу в чужой
+      // консоли.
+      console.warn("не удалось продолжить сессию", error);
+      сессияЖдёт.current = false;
+
+      setState((было) => ({
+        ...было,
+        phase: "signed-out",
+        error: СЕССИЯ_КОНЧИЛАСЬ,
+        // Всё, кроме сети, человек не увидит, пока ему не скажут.
+        stalled: true,
+      }));
+    } finally {
+      идётВосстановление.current = false;
+    }
+  }, [sync, получить]);
+
   useEffect(() => {
     if (!SYNC_ENABLED || продолжено.current) return;
 
-    // Один раз на вкладку, а не один раз на монтирование: строгая
+    // Первый раз — один на вкладку, а не один на монтирование: строгая
     // проверка React монтирует эффекты дважды, и два продолжения сессии
-    // означали бы два обновления токена — а предъявленный дважды
-    // refresh-токен сервер считает кражей и гасит всю семью.
+    // означали бы два обновления токена (см. `продолжить`).
     продолжено.current = true;
 
     // Отмены по размонтированию здесь нет намеренно, и это не
@@ -248,44 +313,8 @@ export function SyncProvider({ children }: { children: ReactNode }) {
     // токена уходило, а состояние и первый проход синхронизации — нет.
     // Запоздавшая запись состояния после размонтирования безвредна:
     // провайдер живёт столько же, сколько вкладка.
-    void (async () => {
-      try {
-        const открыто = await session.restore(получить());
-
-        if (открыто === null) {
-          setState((было) => ({ ...было, phase: "signed-out" }));
-          return;
-        }
-
-        dataKey.current = открыто.dataKey;
-        email.current = открыто.session.account.email;
-        wrapped.current = открыто.session.wrapped_dek_pwd ?? null;
-
-        setState((было) => ({
-          ...было,
-          phase: "idle",
-          account: открыто.session.account,
-          pending: [],
-        }));
-
-        await sync();
-      } catch (error) {
-        // Молча терять причину нельзя: продолжение сессии ломается
-        // редко, а разбирать такое приходится по одному следу в чужой
-        // консоли.
-        console.warn("не удалось продолжить сессию", error);
-
-        setState((было) => ({
-          ...было,
-          phase: isNetworkError(error) ? "offline" : "signed-out",
-          error: isNetworkError(error) ? null : СЕССИЯ_КОНЧИЛАСЬ,
-          // Нет сети — не беда и не повод: правки уедут сами. Всё
-          // остальное человек не увидит, пока ему не скажут.
-          stalled: !isNetworkError(error),
-        }));
-      }
-    })();
-  }, [sync, получить]);
+    void продолжить();
+  }, [продолжить]);
 
   // --- Правки, сеть, возвращение на вкладку ---------------------------------
 
@@ -299,9 +328,16 @@ export function SyncProvider({ children }: { children: ReactNode }) {
 
     const отписки = [subscribeToStoredProfile(правка), subscribeToLibrary(правка)];
 
-    const сеть = () => void sync();
+    // Сессия ещё не продолжена — сеть возвращается к ней, а не к проходу:
+    // у прохода без ключа данных идти некуда.
+    const сеть = () => void (сессияЖдёт.current ? продолжить() : sync());
     const вкладка = () => {
       if (document.visibilityState !== "visible") return;
+
+      if (сессияЖдёт.current) {
+        void продолжить();
+        return;
+      }
 
       setState((было) => {
         const давно =
@@ -320,7 +356,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
       document.removeEventListener("visibilitychange", вкладка);
       if (таймер.current !== null) window.clearTimeout(таймер.current);
     };
-  }, [sync, позже]);
+  }, [sync, позже, продолжить]);
 
   // --- Действия человека ----------------------------------------------------
 
