@@ -12,7 +12,7 @@ import { cn } from "@/lib/utils/cn";
 import { numberWord } from "../domain/decimal";
 import type { StoredProfile } from "../storage/profile";
 import { CalendarIcon, ShiftsIcon } from "./grid-icons";
-import { MONTHS_MIN, useGridScale } from "./grid-scale";
+import { MONTHS_MIN, ZOOM_MIN, useGridScale } from "./grid-scale";
 import { LegendButton } from "./legend-button";
 import { LiveModeKnob } from "./live-mode";
 import { YearPicker } from "./period-picker";
@@ -243,10 +243,10 @@ function monthsWord(count: number): string {
 function ScaleKnobs() {
   const { compact, pinned, months, columns, most, setAsked, setColumns, setCompact } =
     useGridScale();
-  // Крупнее некуда: два месяца в ряду, а при выбранных столбцах — когда они
-  // заняли рамку целиком (месяц больше не стал бы). Мельче некуда — на
-  // пределе ширины в обоих случаях.
-  const smallest = pinned === null ? MONTHS_MIN : columns;
+  // Крупнее некуда: три месяца в ряду, а при выбранных столбцах — когда они
+  // заняли рамку целиком (месяц больше не стал бы) или месяц дошёл до трёх в
+  // ряду. Мельче некуда — на пределе ширины в обоих случаях.
+  const smallest = Math.max(ZOOM_MIN, pinned === null ? 0 : columns);
 
   return (
     <div role="group" aria-label="Масштаб сетки" className={SCALE_KNOBS}>
@@ -305,8 +305,8 @@ function ScaleKnobs() {
  * закрепление, и столбцы снова ведёт масштаб, как до выбора. Выше `most`
  * список не идёт: больше месяцев, чем влезает в колонку, не показать, и
  * пункт, который ничего не сделает, только ввёл бы в заблуждение. Нижняя
- * граница — две: один столбец на всю рамку — уже не сетка года, а одна страница
- * календаря (довод — в `year-view.tsx`).
+ * граница — один: на широком экране он не занимает всю рамку, а стоит по
+ * середине месяцем той же ширины, что при трёх в ряду (довод — в `year-view.tsx`).
  *
  * Окошко раскрывается ВЛЕВО от знака: знак стоит у правой кромки окна, и вправо
  * ему некуда. Выровнено оно по нижнему краю знака и растёт вверх — так же, как
