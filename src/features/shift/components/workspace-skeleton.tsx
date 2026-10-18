@@ -193,8 +193,11 @@ export function WorkspaceSkeleton() {
             <h2 className="flex items-center gap-2 text-xl sr-only">Календарь</h2>
 
             {/* `year-room` — та же метка, что на корне `YearView`: из неё
-                берётся число месяцев в ряду на каждой ширине. */}
-            <div className="year-room space-y-4 pt-4">
+                берётся число месяцев в ряду на каждой ширине. `year-compact`
+                стягивает сетку до трёх столбцов раскладки по умолчанию
+                (`.year-room` в `globals.css`) и стоит всегда, как у корня
+                при умолчании. */}
+            <div className="year-room year-compact space-y-4 pt-4">
               {/* Сетка месяцев и легенда — тем же строем, что в графике: с
                   1280 точек легенда стоит колонкой слева на экране, ниже —
                   полосой над сеткой. */}

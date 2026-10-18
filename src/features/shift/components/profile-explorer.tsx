@@ -5,7 +5,9 @@ import {
   ChevronRight,
   GripVertical,
   Pencil,
+  Search,
   Trash2,
+  X,
 } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 
@@ -218,6 +220,8 @@ export function ProfileExplorer({
   const [removing, setRemoving] = useState<Removal | null>(null);
   /** «Имя занято» — о переименовании; у действий шапки свой сказ. */
   const [taken, setTaken] = useState<string | null>(null);
+  /** Поиск помнит папку, в которой набран: ушёл в другую — запрос не действует. */
+  const [search, setSearch] = useState({ text: "", folder: ROOT_FOLDER_ID });
 
   /**
    * Есть ли на этом экране наведение.
@@ -241,9 +245,20 @@ export function ProfileExplorer({
   const current =
     library.folders.find((folder) => folder.id === tools.folderId) ?? library.folders[0]!;
   const path = folderPath(library, current.id);
-  const folders = library.folders.filter((folder) => folder.parentId === current.id);
+
+  // Поиск идёт по всем графикам и папкам сразу, а не только по открытой
+  // папке: искать то, что лежит неизвестно где, и есть его смысл.
+  const query = search.folder === current.id ? search.text : "";
+  const needle = query.trim().toLowerCase();
+  const searching = needle !== "";
+  const matches = (name: string) => name.toLowerCase().includes(needle);
+  const folders = library.folders.filter((folder) =>
+    searching
+      ? folder.id !== ROOT_FOLDER_ID && matches(folder.name)
+      : folder.parentId === current.id,
+  );
   const entries = library.entries
-    .filter((entry) => entry.folderId === current.id)
+    .filter((entry) => (searching ? matches(entry.name) : entry.folderId === current.id))
     .sort((a, b) => b.savedAt.localeCompare(a.savedAt));
 
   const { drag, handlers } = useEntryDrag({ onDrop: moveEntry });
@@ -327,6 +342,51 @@ export function ProfileExplorer({
     // от папок ещё на ступень (`mt-6` ниже), и в колонке отступ
     // складывается с просветом, а не спорит с ним.
     <div className="flex flex-col gap-4">
+      {/* Поиск — по середине, без рамки: заливка на полтона темнее бумаги, а
+          не контур. Фокус виден сменой заливки: обводка у поля, в которое
+          попадают нажатием, оставалась бы на нём после каждого клика. */}
+      <label className="relative mx-auto block w-full max-w-md">
+        <span className="sr-only">Поиск по графикам и папкам</span>
+        <Search
+          aria-hidden
+          className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-ink-faint"
+        />
+        <input
+          type="search"
+          value={query}
+          onChange={(event) => setSearch({ text: event.target.value, folder: current.id })}
+          onKeyDown={(event) => {
+            if (event.key === "Escape" && query !== "") {
+              event.preventDefault();
+              setSearch({ text: "", folder: current.id });
+            }
+          }}
+          placeholder="Поиск"
+          title="Поиск по названиям графиков и папок"
+          autoComplete="off"
+          maxLength={200}
+          className={cn(
+            "h-10 w-full rounded-xl border-0 bg-paper-sunken pr-10 pl-10 text-sm text-ink",
+            "outline-none transition-colors placeholder:text-ink-faint focus:bg-paper-raised",
+            "[&::-webkit-search-cancel-button]:hidden [&::-webkit-search-decoration]:hidden",
+          )}
+        />
+        {query !== "" ? (
+          <button
+            type="button"
+            aria-label="Очистить поиск"
+            onClick={() => setSearch({ text: "", folder: current.id })}
+            className={cn(
+              "absolute right-2 top-1/2 inline-flex size-6 -translate-y-1/2 cursor-pointer",
+              "items-center justify-center rounded-lg text-ink-faint transition-colors hover:text-ink",
+              "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink",
+            )}
+          >
+            <X aria-hidden className="size-4" />
+          </button>
+        ) : null}
+      </label>
+
       {/* Путь до открытой папки: с вложенностью «назад» перестало означать
           «в самый верх», и вернуться человек вправе на любую ступень.
           Каждое колено — ещё и место, куда можно перетащить профиль наверх.
@@ -357,7 +417,7 @@ export function ProfileExplorer({
           стоят: они — знаки у нижней кромки окна, там же, где знаки
           календаря (`explorer-dock.tsx`). В самом верху проводника путь
           не нужен, и строки над списком нет вовсе. */}
-      {path.length > 1 ? (
+      {path.length > 1 && !searching ? (
         <nav
           aria-label="Где мы в проводнике"
           className="flex min-w-0 flex-wrap items-center gap-2"
@@ -512,9 +572,11 @@ export function ProfileExplorer({
 
       {entries.length === 0 && folders.length === 0 ? (
         <p className="rounded-xl bg-paper-raised px-4 py-6 text-center text-sm text-ink-muted lit">
-          {current.id === ROOT_FOLDER_ID
-            ? "Здесь будут ваши графики. Создайте новый график или загрузите сохранённый файл."
-            : "Папка пуста. Перетащите сюда график за полоску слева от имени."}
+          {searching
+            ? `Ничего не найдено по запросу «${query.trim()}».`
+            : current.id === ROOT_FOLDER_ID
+              ? "Здесь будут ваши графики. Создайте новый график или загрузите сохранённый файл."
+              : "Папка пуста. Перетащите сюда график за полоску слева от имени."}
         </p>
       ) : null}
 

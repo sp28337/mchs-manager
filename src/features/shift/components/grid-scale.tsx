@@ -62,13 +62,18 @@ export const MONTHS_CAP = 6;
 export const ZOOM_MIN = 3;
 
 /**
- * Сколько месяцев в ряду при первом открытии широкого экрана — четыре.
+ * Раскладка у человека, который её ещё не трогал: три столбца, а месяц — на
+ * ступень мельче самой крупной (`ZOOM_MIN` + 1, то есть четыре месяца в ширину).
+ * Выбранные столбцы закреплены, как если бы он выбрал их сам, а сетка стоит по
+ * середине рамки, не растянутая на неё.
  *
- * Столько же было и раньше: экран, открытый впервые, выглядит ровно так же,
- * как выглядел. Ниже `lg` число задаёт `globals.css`: кнопок масштаба там
- * нет, и менять его некому.
+ * Те же числа записаны в `globals.css` (`.year-room` с `lg`): заглушка рабочего
+ * экрана, где скрипта нет, обязана встать той же раскладкой, какой её увидят через
+ * мгновение. Менять — в обоих местах. Ниже `lg` число задаёт `globals.css`:
+ * кнопок масштаба там нет, и менять его некому.
  */
-export const DEFAULT_MONTHS = 4;
+export const DEFAULT_MONTHS = ZOOM_MIN + 1;
+export const DEFAULT_COLUMNS = 3;
 
 /**
  * Что сетка видит на самом деле: сколько месяцев в ширину (размер месяца),
@@ -154,11 +159,14 @@ export function GridScaleProvider({ children }: { children: ReactNode }) {
   // с разметкой, собранной на сервере.
   const [saved] = useState(readSaved);
   const [asked, setAsked] = useState(saved?.asked ?? DEFAULT_MONTHS);
-  const [pinned, setPinned] = useState<number | null>(saved?.pinned ?? null);
+  // Сохранённое «Авто» (`null`) — выбор человека и умолчанием не затирается.
+  const [pinned, setPinned] = useState<number | null>(
+    saved === null ? DEFAULT_COLUMNS : saved.pinned,
+  );
   const [compact, setCompact] = useState(saved?.compact ?? false);
   const [limits, setLimits] = useState<GridLimits>({
     months: DEFAULT_MONTHS,
-    columns: DEFAULT_MONTHS,
+    columns: DEFAULT_COLUMNS,
     most: MONTHS_CAP,
   });
 
