@@ -18,6 +18,7 @@ import { todayIso, type IsoDate } from "../domain/plain-date";
 import { monthTotalsFor } from "../model/derive";
 import type { StoredProfile } from "../storage/profile";
 import { MONTHS_CAP, ZOOM_MIN, useGridScale } from "./grid-scale";
+import { holidayMarksFor } from "./holiday-marks";
 import { anchorCurrentMonth } from "./month-anchor";
 import type { StatutoryChoice } from "./period-picker";
 import { ShiftStrip } from "./shift-strip";
@@ -194,6 +195,14 @@ export function YearView({
   const monthTotals = useMemo(
     () => monthTotalsFor(profile, calculation.periodStart, calculation.periodEnd, upcoming),
     [profile, calculation.periodStart, calculation.periodEnd, upcoming],
+  );
+
+  // Значки праздников для клеток графика: по производственному календарю с
+  // правками человека, один раз на отрезок (`holiday-marks.tsx`).
+  const holidays = useMemo(
+    () =>
+      holidayMarksFor(calculation.periodStart, calculation.periodEnd, profile.calendarOverrides),
+    [calculation.periodStart, calculation.periodEnd, profile.calendarOverrides],
   );
 
   const room = useRef<HTMLDivElement>(null);
@@ -381,6 +390,7 @@ export function YearView({
           upcoming={upcoming}
           gridClassName={GRID}
           dayNotes={profile.dayNotes}
+          holidays={holidays}
           onPickDay={onPickDay}
           onMoveShift={onMoveShift}
         />

@@ -29,6 +29,7 @@ import {
   DAY_TYPE_TONE,
   type DayType,
 } from "../schemas";
+import { HolidayIcon, holidayMarkAt } from "./holiday-marks";
 import { MONTH_NAMES } from "./month-names";
 import {
   META_UNIT,
@@ -473,8 +474,13 @@ function DayButton({
   const month = (MONTH_NAMES[monthIndex(item.day)] ?? "").toLowerCase();
   const weekdayName = WEEKDAY_LABELS[weekday(item.day)] ?? "";
 
+  // Праздник по производственному календарю — со значком в правом верхнем
+  // углу, как в графике смен (`holiday-marks.tsx`).
+  const holiday = holidayMarkAt(item.day, item.dayType, item.source);
+
   const label =
     `${date} ${month}, ${weekdayName} — ${DAY_TYPE_LABELS[item.dayType].toLowerCase()}` +
+    (holiday ? `, ${holiday.title}` : "") +
     (item.source === "override" ? ", изменено вами" : "") +
     // Красный контур незрячий читатель не увидит — «сегодня» сказано и
     // словом, как в графике смен.
@@ -540,6 +546,7 @@ function DayButton({
             className="absolute -left-px -top-px size-1.5 rounded-full bg-ink"
           />
         ) : null}
+        {holiday ? <HolidayIcon mark={holiday} /> : null}
         {/* Заметка помечается тем же углом, что в графике: одна пометка на
             обе сетки, иначе её пришлось бы искать по-разному. */}
         {note ? (

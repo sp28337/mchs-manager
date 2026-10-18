@@ -197,7 +197,7 @@ export function Workspace({
   // Правка суток двигает разницу над сеткой, и приращение всплывает над
   // клеткой, которую правили (`balance-pop.tsx`). Считается по тому же
   // расчёту, что числа наверху, — по `calculation`, а не по `shown`.
-  const { note: noteDayEdit, pop: balancePop } = useBalancePop(calculation);
+  const { note: noteDayEdit, release: releaseDayEdit, pop: balancePop } = useBalancePop(calculation);
 
   /**
    * Настройки — не окно, а другое содержимое ЭТОЙ страницы.
@@ -857,6 +857,8 @@ export function Workspace({
               onMoveShift={(from, to) => {
                 noteDayEdit(to);
                 onChange((previous) => withShiftMoved(previous, from, to));
+                // Перенос — одно действие без вопросов: разговор кончен сразу.
+                releaseDayEdit();
               }}
             />
           </section>
@@ -874,12 +876,17 @@ export function Workspace({
         kind={yearView === "calendar" ? "calendar" : "shifts"}
         profile={profile}
         onChange={(change) => {
-          // Каждая правка суток из перечня — одна отметка для надписи с
-          // приращением: она ставится ДО правки и ждёт пересчёта.
+          // Каждая правка суток из перечня — отметка для надписи с
+          // приращением: ставится ДО правки. Надпись ждёт, пока перечень и
+          // окно срока или времени не закроются (`onClose` ниже), — у отпуска,
+          // больничного и вызова правка идёт в два приёма.
           if (ringDay !== null) noteDayEdit(ringDay);
           onChange(change);
         }}
-        onClose={() => setRingDay(null)}
+        onClose={() => {
+          releaseDayEdit();
+          setRingDay(null);
+        }}
       />
       {balancePop}
 

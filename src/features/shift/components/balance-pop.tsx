@@ -40,9 +40,23 @@ import type { IsoDate } from "../domain/plain-date";
  * учётный период, смена профиля. «−120» над случайной клеткой в этих случаях
  * было бы ложью — человек ничего не ставил. Поэтому правка суток сама
  * отмечается (`note`), перед тем как попасть в профиль, а пересчёт, пришедший
- * следом, эту отметку забирает. Отметка живёт секунду: правка, не изменившая
- * профиль (то же событие поставили поверх такого же), расчёт не пересчитывает,
- * и отметка не должна дожидаться чужого пересчёта.
+ * следом, эту отметку забирает.
+ *
+ * --- Когда надпись появляется ----------------------------------------------
+ *
+ * Не в миг нажатия, а когда разговор о сутках ЗАКОНЧЕН (`release`). У отпуска,
+ * больничного и вызова нажатие в перечне — только начало: следом спрашивают срок
+ * или время, и запись в профиль ложится сразу на одни сутки, а потом
+ * продлевается. Надпись «−24» над клеткой, пока окно срока ещё открыто, показала
+ * бы то, чего в итоге не будет, — человек вот-вот выберет неделю. Поэтому
+ * отметка держится (`held`) до закрытия перечня и окна срока, а надпись берёт
+ * разницу между числом ДО первой правки и числом ПОСЛЕ последней — одну на
+ * весь разговор, как бы много правок в нём ни было. Закрыл окно срока, не
+ * выбирая, — запись остаётся на одних сутках, и надпись покажет их.
+ *
+ * Отметка, после которой профиль не изменился (то же событие поставили поверх
+ * такого же), пересчёта не вызывает — и ждёт его секунду, не дольше, чтобы не
+ * дожидаться чужого пересчёта.
  *
  * --- Движение ----------------------------------------------------------------
  *
@@ -54,8 +68,24 @@ import type { IsoDate } from "../domain/plain-date";
  * вставленный вместе с текстом, такой слой не озвучивается).
  */
 
-/** Сколько живёт отметка правки, мс: от нажатия до пересчёта — доли секунды. */
+/**
+ * Сколько ждёт пересчёта отметка, которую уже отпустили, мс: от закрытия
+ * перечня до пересчёта — доли секунды. Пока перечень или окно срока открыты,
+ * отметка держится сколько угодно (`held`).
+ */
 const FRESH_MS = 1000;
+
+/** Разговор о сутках: от первой правки до закрытия перечня. */
+interface Edit {
+  /** Сутки, над которыми встанет надпись. */
+  day: IsoDate;
+  /** Разница ДО первой правки разговора. */
+  base: Decimal;
+  /** Перечень или окно срока ещё открыты — надписи рано. */
+  held: boolean;
+  /** Когда отпустили, мс. */
+  releasedAt: number;
+}
 
 interface Pop {
   /** Новое приращение — новая надпись: по ключу анимация идёт заново. */
@@ -75,27 +105,56 @@ function signed(calculation: PeriodCalculation): Decimal {
 export function useBalancePop(calculation: PeriodCalculation): {
   /** Отметить правку суток — звать ДО того, как она попадёт в профиль. */
   note: (day: IsoDate) => void;
+  /** Разговор о сутках закончен: можно показать надпись, когда придёт пересчёт. */
+  release: () => void;
   /** Что вставить в разметку рабочего экрана. */
   pop: ReactNode;
 } {
   const last = useRef<Decimal>(signed(calculation));
-  const pending = useRef<{ day: IsoDate; at: number } | null>(null);
+  const pending = useRef<Edit | null>(null);
   const counter = useRef(0);
   const [shown, setShown] = useState<Pop | null>(null);
+  // Отпускание отметки — не пересчёт, но показать надпись нужно после него и
+  // без нового пересчёта: счётчик заставляет эффект пройти ещё раз, когда
+  // профиль и всё остальное уже дошли до нового состояния.
+  const [released, setReleased] = useState(0);
 
   const note = useCallback((day: IsoDate) => {
-    pending.current = { day, at: performance.now() };
+    const open = pending.current;
+    pending.current = {
+      day,
+      // Разница «до» — от ПЕРВОЙ правки разговора: продление срока
+      // следующей правкой не должно стирать то, что было до всего. Но только
+      // пока разговор идёт: отпущенная отметка принадлежит уже закончившемуся.
+      base: open?.held ? open.base : last.current,
+      held: true,
+      releasedAt: 0,
+    };
+  }, []);
+
+  const release = useCallback(() => {
+    const open = pending.current;
+    if (open === null) return;
+    open.held = false;
+    open.releasedAt = performance.now();
+    setReleased((count) => count + 1);
   }, []);
 
   useEffect(() => {
     const now = signed(calculation);
-    const delta = now.minus(last.current);
     last.current = now;
 
     const edit = pending.current;
-    if (edit === null) return;
+    if (edit === null || edit.held) return;
+    if (performance.now() - edit.releasedAt > FRESH_MS) {
+      pending.current = null;
+      return;
+    }
+    // Разницы нет: пересчёт, возможно, ещё в пути. Отметка ждёт его до конца
+    // своей секунды, а не снимается сразу.
+    const delta = now.minus(edit.base);
+    if (delta.isZero()) return;
     pending.current = null;
-    if (performance.now() - edit.at > FRESH_MS || delta.isZero()) return;
 
     // Клетки нет в окне — надписи негде встать, и показывать её над пустым
     // местом незачем: число наверху всё равно изменилось.
@@ -115,7 +174,7 @@ export function useBalancePop(calculation: PeriodCalculation): {
       left: box.left + box.width / 2,
       top: box.top + box.height / 2,
     });
-  }, [calculation]);
+  }, [calculation, released]);
 
   const pop = (
     <>
@@ -151,5 +210,5 @@ export function useBalancePop(calculation: PeriodCalculation): {
     </>
   );
 
-  return { note, pop };
+  return { note, release, pop };
 }

@@ -34,6 +34,7 @@ import {
 import type { AbsenceKind, CalloutKind } from "../domain/value-objects";
 
 import { MONTH_NAMES } from "./month-names";
+import { HolidayIcon, type HolidayMark } from "./holiday-marks";
 import {
   META_FIGURE,
   META_UNIT,
@@ -161,6 +162,7 @@ export function ShiftStrip({
   upcoming,
   gridClassName,
   dayNotes,
+  holidays,
   onPickDay,
   onMoveShift,
 }: {
@@ -182,6 +184,12 @@ export function ShiftStrip({
   gridClassName?: string;
   /** Заметки к суткам: их наличие видно прямо в клетке. */
   dayNotes: Readonly<Record<string, string>>;
+  /**
+   * Праздничные сутки по производственному календарю: значок в углу клетки
+   * (`holiday-marks.tsx`). Без него клетки остаются без значков — так сетка и
+   * стоит в заглушке, где календаря ещё нет.
+   */
+  holidays?: ReadonlyMap<IsoDate, HolidayMark>;
   /** Нажатие по клетке: открыть правку этих суток. */
   onPickDay: (day: IsoDate) => void;
   /**
@@ -279,6 +287,7 @@ export function ShiftStrip({
                 records={byDay.get(day) ?? []}
                 covered={calculation.absentDays.get(day) ?? null}
                 note={dayNotes[day]}
+                holiday={holidays?.get(day) ?? null}
                 corners={corners}
                 upcoming={upcoming != null && day >= upcoming}
                 today={day === today}
@@ -403,6 +412,7 @@ function DayCell({
   records,
   covered,
   note,
+  holiday,
   corners,
   upcoming,
   today,
@@ -419,6 +429,8 @@ function DayCell({
    */
   covered: AbsenceKind | null;
   note?: string;
+  /** Праздник по производственному календарю: значок в правом верхнем углу. */
+  holiday: HolidayMark | null;
   /** Скругления углов: их знает сетка, а не клетка. */
   corners: string;
   /** Сутки ещё не наступили: показаны, но в расчёт не входят. */
@@ -546,6 +558,9 @@ function DayCell({
   // содержимое клетки.
   const full =
     label +
+    // Праздник назван словом: значок в углу мелкий и читается образом, а
+    // незрячему читателю недоступен вовсе.
+    (holiday ? `. ${holiday.title}` : "") +
     (today ? ". Сегодня" : "") +
     (note ? `. Заметка: ${note}` : "") +
     (upcoming ? ". Ещё не наступило, в расчёт не входит" : "");
@@ -632,6 +647,10 @@ function DayCell({
         )}
       >
         <span className="sr-only">{full}</span>
+        {/* Значок праздника — в правом верхнем углу, поверх клетки и не двигая
+            ничего: на мелком масштабе он сам сходит на нет по ширине месяца
+            (`.holiday-mark`). От угла заметки он отступает на пять точек. */}
+        {holiday ? <HolidayIcon mark={holiday} /> : null}
         {/* Угол вместо цвета: цвет клетки уже занят видом суток, и второй
             смысл на том же канале означал бы, что ни один не читается. */}
         {note ? (
