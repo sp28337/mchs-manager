@@ -506,7 +506,7 @@ function ProfileFooterBones() {
     // что у графика (`frame-inset`).
     <footer aria-hidden className="mx-auto mt-10 w-full px-6 2xl:max-w-[2000px]">
       <div className="frame-inset">
-        <div className="border-t border-rule py-10">
+        <div className="py-10">
           {/* Тот же подвал, что у расчёта (`shared/site-footer.tsx`), только
               костями: высота получается сама, а не подбирается числом. */}
           <FooterBody skeleton />
