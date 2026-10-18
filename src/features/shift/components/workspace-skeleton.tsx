@@ -200,6 +200,9 @@ export function WorkspaceSkeleton() {
                   рема, то же скругление, тот же `lit`, что у настоящих. */}
               <div className="hidden items-center lg:flex">
                 <div className="ml-auto flex items-center gap-1">
+                  {/* Три кнопки, как в расчёте: раскладка («компактно») и два
+                      масштаба. */}
+                  <Bone className="lit size-9 rounded-xl" />
                   <Bone className="lit size-9 rounded-xl" />
                   <Bone className="lit size-9 rounded-xl" />
                   <span className="sr-only">

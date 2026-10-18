@@ -1,6 +1,6 @@
 "use client";
 
-import { ZoomIn, ZoomOut } from "lucide-react";
+import { Expand, Shrink, ZoomIn, ZoomOut } from "lucide-react";
 import {
   useEffect,
   useLayoutEffect,
@@ -22,6 +22,7 @@ import type { StoredProfile } from "../storage/profile";
 import { anchorCurrentMonth } from "./month-anchor";
 import type { StatutoryChoice } from "./period-picker";
 import { ShiftStrip } from "./shift-strip";
+import { balancedColumns, monthsInPeriod } from "./year-columns";
 import { YearCalendarEditor } from "./year-calendar-editor";
 
 export type { StatutoryChoice };
@@ -216,33 +217,35 @@ export function YearView({
 
   const room = useRef<HTMLDivElement>(null);
   const [asked, setAsked] = useState(DEFAULT_MONTHS);
+  // Компактно: месяцы собраны в ровные ряды и стоят по середине, а не
+  // растянуты на всю ширину рамки (`balancedColumns`).
+  const [compact, setCompact] = useState(false);
   const [roomWidth, setRoomWidth] = useState(0);
 
   /**
    * Ширина колонки под сетку — замером, а не догадкой.
    *
-   * Из неё следует, сколько месяцев в ряд ВООБЩЕ поместится: ниже девяти
+   * Из неё следует, сколько месяцев в ряду ВООБЩЕ поместится: ниже девяти
    * рем клетка перестаёт читаться.
    *
-   * Мерить нужно САМУ СЕТКУ, а не эту обёртку. С `xl` рядом с сеткой
-   * встаёт легенда и забирает у неё около трёхсот точек: на окне 1280
-   * обёртка 1232 точки, а сетка 836, и по обёртке масштаб разрешал семь
-   * месяцев в ряду там, где помещается пять. Клетка выходила в четырнадцать
-   * точек — с числом, которое в неё не влезает.
+   * Мерить нужно мерную коробку (`.year-box`), а не саму сетку. В компактной
+   * раскладке сетка уже коробки — она собрана в ровные ряды и стоит по
+   * середине, — и по ней предел «сколько влезает» сам себя сужал бы: чем
+   * компактнее, тем меньше месяцев разрешено, тем компактнее. Коробка от
+   * раскладки не зависит: это всегда вся колонка под сетку.
    *
-   * Пока период пуст, сетки нет вовсе; тогда берётся обёртка — показывать
+   * Пока период пуст, коробки нет вовсе; тогда берётся обёртка — показывать
    * всё равно нечего, а ноль сломал бы расчёт кегля.
    *
    * Наблюдатель, а не разовый замер: колонку меняет и ширина окна, и
-   * появление полосы прокрутки, и переход через порог, на котором легенда
-   * встаёт сбоку.
+   * появление полосы прокрутки.
    */
   useLayoutEffect(() => {
     const box = room.current;
     if (box === null) return;
     const measure = () => {
-      const grid = box.querySelector(".year-grid");
-      setRoomWidth(grid instanceof HTMLElement ? grid.clientWidth : box.clientWidth);
+      const column = box.querySelector(".year-box");
+      setRoomWidth(column instanceof HTMLElement ? column.clientWidth : box.clientWidth);
     };
     measure();
     const watcher = new ResizeObserver(measure);
@@ -335,11 +338,17 @@ export function YearView({
   // в эту колонку, и на нём кнопка гаснет.
   const most = Math.max(MONTHS_MIN, Math.min(MONTHS_CAP, fits));
   const months = Math.min(asked, most);
+  // Колонок в компактной раскладке: `months` задаёт ширину месяца (масштаб), а
+  // колонок может быть меньше — ровно столько, чтобы все ряды вышли одной
+  // длины. Без компактности колонок столько же, сколько и месяцев в ряду.
+  const columns = compact
+    ? balancedColumns(monthsInPeriod(calculation.periodStart, calculation.periodEnd), months)
+    : months;
 
   return (
     <div
       ref={room}
-      className="year-room space-y-4"
+      className={cn("year-room space-y-4", compact && "year-compact")}
       // Скрипт назначает ОДНО число — сколько месяцев в ряду. Ширину месяца
       // и кегль в клетке считает из него сама таблица стилей, запросом к
       // мерной коробке (`globals.css`), — потому и заглушка рабочего экрана,
@@ -347,7 +356,11 @@ export function YearView({
       //
       // Ниже `lg` число задаёт тоже `globals.css`: там оно зависит от ширины
       // экрана, а кнопок масштаба нет и менять его некому.
-      style={zoomable ? ({ "--months": months } as CSSProperties) : undefined}
+      style={
+        zoomable
+          ? ({ "--months": months, "--columns": columns } as CSSProperties)
+          : undefined
+      }
     >
       {/* Над сеткой — только масштаб.
           -----------------------------------------------------------------
@@ -363,6 +376,30 @@ export function YearView({
       <div className="hidden items-center lg:flex">
         {zoomable ? (
           <div className="ml-auto flex items-center gap-1">
+            {/* Раскладка: по ширине рамки или компактно.
+                ---------------------------------------------------------
+                Рядом с масштабом, потому что они о том же — о том, как
+                лёг год, — и работают вместе: масштаб задаёт размер месяца,
+                а эта кнопка — как месяцы встают в ряды. По ширине рамки
+                ряд заполнен до края, и неполный остаток стоит по середине
+                отдельной строкой; компактно все ряды одной длины (шесть
+                месяцев — два ряда по три), и вся сетка — по середине рамки,
+                не растянутая на неё.
+
+                Кнопка называет действие, а не состояние: значок и подпись
+                показывают, что произойдёт при нажатии — собрать или
+                растянуть. */}
+            <ZoomButton
+              label={
+                compact
+                  ? "Растянуть по ширине рамки"
+                  : "Собрать компактно: ровные ряды по середине"
+              }
+              disabled={false}
+              onClick={() => setCompact(!compact)}
+            >
+              {compact ? <Expand aria-hidden /> : <Shrink aria-hidden />}
+            </ZoomButton>
             {/* Подписи «Масштаб» перед кнопками больше нет.
                 ---------------------------------------------------------
                 Две лупы — со знаком плюс и со знаком минус — объясняют
@@ -395,7 +432,7 @@ export function YearView({
                 изменилось, больше некому, а изменение это и есть весь
                 смысл нажатия. */}
             <span aria-live="polite" className="sr-only">
-              {months} {monthsWord(months)} в ряду
+              {months} {monthsWord(months)} в ряду{compact ? ", компактно" : ""}
             </span>
           </div>
         ) : null}
