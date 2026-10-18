@@ -11,7 +11,7 @@ import {
   type ReactNode,
 } from "react";
 
-import { subscribeToLibrary } from "@/features/shift/storage/library";
+import { forgetEverything, subscribeToLibrary } from "@/features/shift/storage/library";
 import { subscribeToStoredProfile } from "@/features/shift/storage/profile";
 
 import { ApiClient } from "../api/client";
@@ -90,10 +90,18 @@ export interface SyncState {
   freshRecoveryKey: string | null;
 }
 
+/** Чем кончился выход: ушёл или остановлен непереданными правками. */
+export type LogoutResult = "done" | "unsynced";
+
 export interface SyncActions {
   register: (данные: { email: string; password: string }) => Promise<void>;
   login: (данные: { email: string; password: string }) => Promise<void>;
-  logout: () => Promise<void>;
+  /**
+   * Выйти. Графики с устройства уходят (`forgetEverything`), поэтому сначала
+   * всё, что ещё не доехало до сервера, отправляется: не удалось — выход не
+   * происходит и отвечает `"unsynced"`; `force` выходит всё равно.
+   */
+  logout: (options?: { force?: boolean }) => Promise<LogoutResult>;
   syncNow: () => Promise<void>;
   resolve: (itemId: string, choice: "local" | "remote") => Promise<void>;
   changePassword: (данные: {
@@ -149,6 +157,17 @@ export function SyncProvider({ children }: { children: ReactNode }) {
   /** Просьба, пришедшая во время прохода: проход повторится. */
   const ждёт = useRef(false);
   const таймер = useRef<number | null>(null);
+  /**
+   * На устройстве есть то, чего нет на сервере.
+   *
+   * Истина, пока первый проход сессии не прошёл: что лежало на устройстве до
+   * него, неизвестно. Гаснет с проходом, в который попали все правки на
+   * этот миг; любая правка включает снова (`правок` отличает «правка пришла
+   * во время прохода» от «после»: в проход она не попала).
+   */
+  const неотправлено = useRef(true);
+  /** Сколько правок устройства видела эта вкладка: метка для `неотправлено`. */
+  const правок = useRef(0);
 
   const получить = useCallback((): ApiClient => {
     client.current ??= new ApiClient();
@@ -171,10 +190,12 @@ export function SyncProvider({ children }: { children: ReactNode }) {
     }
 
     идёт.current = true;
+    const взято = правок.current;
     setState((было) => ({ ...было, phase: "syncing", error: null }));
 
     try {
       const report = await syncOnce({ client: получить(), dataKey: dataKey.current });
+      if (правок.current === взято) неотправлено.current = false;
 
       setState((было) => ({
         ...было,
@@ -224,6 +245,41 @@ export function SyncProvider({ children }: { children: ReactNode }) {
       await sync();
     }
   }, [получить]);
+
+  /** Дождаться, пока кончится идущий проход. */
+  const дождаться = useCallback(async () => {
+    for (let раз = 0; раз < 100 && идёт.current; раз += 1) {
+      await new Promise<void>((готово) => window.setTimeout(готово, 100));
+    }
+  }, []);
+
+  /**
+   * Всё ли, что есть на устройстве, лежит на сервере. Если нет — пробует
+   * отправить прямо сейчас, не дожидаясь отложенного прохода.
+   *
+   * «Всё» — это удачный проход и ни одного нерешённого расхождения: ответ на
+   * вопрос о расхождении решает, чья версия настроек останется, и стереть
+   * устройство до ответа значило бы выбрать за человека.
+   */
+  const сдано = useCallback(async (): Promise<boolean> => {
+    if (dataKey.current === null) return true;
+    if (таймер.current !== null) {
+      window.clearTimeout(таймер.current);
+      таймер.current = null;
+    }
+    // Проходов до трёх: принятое с другого устройства тоже пишется в
+    // хранилище и выглядит правкой (`правка` ниже), так что первый проход
+    // мог закончиться «есть что отправлять» из-за собственной находки.
+    // Следующий, в который уже ничего не приходит, это снимает.
+    for (let раз = 0; раз < 3; раз += 1) {
+      await дождаться();
+      await sync();
+      await дождаться();
+      if (!неотправлено.current) break;
+    }
+    if (неотправлено.current) return false;
+    return (await readPending()).length === 0;
+  }, [дождаться, sync]);
 
   const позже = useCallback(() => {
     if (таймер.current !== null) window.clearTimeout(таймер.current);
@@ -322,6 +378,8 @@ export function SyncProvider({ children }: { children: ReactNode }) {
     if (!SYNC_ENABLED) return;
 
     const правка = () => {
+      правок.current += 1;
+      неотправлено.current = true;
       setState((было) => (было.dirty ? было : { ...было, dirty: true }));
       позже();
     };
@@ -414,18 +472,33 @@ export function SyncProvider({ children }: { children: ReactNode }) {
           await sync();
         }),
 
-      logout: async () =>
-        действие(async () => {
-          await session.logout(получить());
+      logout: async (options) =>
+        действие<LogoutResult>(async () => {
+          // Графики уйдут с устройства вместе с выходом, и всё, что не
+          // доехало до сервера, ушло бы вместе с ними.
+          if (options?.force !== true && !(await сдано())) return "unsynced";
+
+          // Не ответил сервер — не повод остаться «вошедшим» без ключа:
+          // `session.logout` стирает ключ и ревизии с устройства в любом
+          // случае, а серверная сессия без ключа ни к чему не даёт доступа
+          // и догаснет сама.
+          await session.logout(получить()).catch(() => undefined);
 
           dataKey.current = null;
           wrapped.current = null;
           email.current = null;
 
+          // Стирается до сброса состояния: события хранилища пометили бы его
+          // «есть правки», а оно уже не вошедшего.
+          forgetEverything();
+          неотправлено.current = true;
+
           setState(() => ({
             ...ПУСТО,
             phase: "signed-out",
           }));
+
+          return "done";
         }),
 
       syncNow: sync,
@@ -494,7 +567,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
         setState((было) => ({ ...было, error: null, stalled: false }));
       },
     }),
-    [действие, получить, sync],
+    [действие, получить, sync, сдано],
   );
 
   const значение = useMemo<SyncValue>(() => ({ ...state, actions }), [state, actions]);
@@ -526,7 +599,7 @@ export function useSync(): SyncValue {
       actions: {
         register: async () => undefined,
         login: async () => undefined,
-        logout: async () => undefined,
+        logout: async () => "done",
         syncNow: async () => undefined,
         resolve: async () => undefined,
         changePassword: async () => undefined,

@@ -43,7 +43,7 @@
 
 import { z } from "zod";
 
-import { exportProfile, storedProfileSchema, type StoredProfile } from "./profile";
+import { clearProfile, exportProfile, storedProfileSchema, type StoredProfile } from "./profile";
 
 /** Перечень папок и записей. Сами профили лежат каждый своим ключом. */
 const INDEX_KEY = "shift-schedule.library";
@@ -340,6 +340,53 @@ export function forgetActive(): void {
   remove(ACTIVE_KEY);
   if (id === null) return;
   deleteEntry(id);
+}
+
+/**
+ * Убрать с устройства ВСЕ графики — вместе с проводником и открытым профилем.
+ *
+ * Зовётся выходом из учётной записи (`sync-provider.tsx`). Графики, которые
+ * лежат на устройстве, — это уже не «то, что человек когда-то завёл здесь»:
+ * с первого прохода синхронизации весь проводник зеркалится в учётную запись
+ * и приезжает на каждое устройство, где в неё вошли. Оставить его после
+ * выхода значило бы оставить чужие графики следующему, кто сядет за этот
+ * браузер, а самому человеку — старые графики, которые вылезают в проводнике
+ * при каждом новом (`forgetActive` стирает один, открытый, остальные
+ * остаются). Ключ данных при выходе уходит с устройства (`clearVault`), и
+ * открытый текст графиков при этом лежать не должен.
+ *
+ * Копия остаётся на сервере и вернётся при следующем входе; до выхода
+ * `sync-provider` убеждается, что все правки уже там.
+ *
+ * Снимки ищутся обходом хранилища по префиксу, а не по перечню: испорченный
+ * перечень заменяется пустым, а снимки остаются лежать своими ключами
+ * (`loadLibrary`), и стереть надо и их.
+ *
+ * Настройки показа (масштаб сетки, тема, цвета) остаются: это вкус браузера,
+ * а не данные учётной записи.
+ */
+export function forgetEverything(): void {
+  for (const key of keysWithPrefix(ENTRY_PREFIX)) remove(key);
+  remove(INDEX_KEY);
+  remove(ACTIVE_KEY);
+  clearProfile();
+  announce();
+}
+
+/** Ключи хранилища, начинающиеся с `prefix`. */
+function keysWithPrefix(prefix: string): string[] {
+  const keys: string[] = [];
+  if (typeof window === "undefined") return keys;
+  try {
+    const storage = window.localStorage;
+    for (let at = 0; at < storage.length; at += 1) {
+      const key = storage.key(at);
+      if (key !== null && key.startsWith(prefix)) keys.push(key);
+    }
+  } catch {
+    // Хранилище недоступно — стирать нечего.
+  }
+  return keys;
 }
 
 /**

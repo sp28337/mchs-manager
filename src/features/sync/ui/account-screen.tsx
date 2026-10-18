@@ -27,6 +27,7 @@ import { cn } from "@/lib/utils/cn";
 import { LEGAL_URLS } from "../legal";
 import { AuthScreen, PasswordField, PasswordStrength, toSchedule } from "./auth-screen";
 import { оценить } from "./password-strength";
+import { useLogout } from "./logout-dialog";
 import { когда } from "./presence";
 import { RecoveryKeyCard } from "./recovery-key-card";
 import { useSync } from "./sync-provider";
@@ -155,7 +156,8 @@ function Значок({
 }
 
 function Profile() {
-  const { account, busy, actions } = useSync();
+  const { account, busy } = useSync();
+  const logout = useLogout();
   if (account === null) return null;
 
   return (
@@ -183,10 +185,11 @@ function Profile() {
       )}
 
       <Кнопки>
-        <Button variant="ghost" disabled={busy} onClick={() => void actions.logout()}>
+        <Button variant="ghost" disabled={busy} onClick={logout.ask}>
           <LogOut aria-hidden /> Выйти
         </Button>
       </Кнопки>
+      {logout.dialog}
     </div>
   );
 }

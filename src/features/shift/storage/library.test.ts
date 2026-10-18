@@ -8,6 +8,7 @@ import {
   detachActive,
   folderPath,
   forgetActive,
+  forgetEverything,
   freeName,
   importEntry,
   importProfileFile,
@@ -44,6 +45,10 @@ function stubWindow(): void {
       getItem: (key: string) => cells.get(key) ?? null,
       setItem: (key: string, value: string) => void cells.set(key, value),
       removeItem: (key: string) => void cells.delete(key),
+      key: (at: number) => [...cells.keys()][at] ?? null,
+      get length() {
+        return cells.size;
+      },
     },
     dispatchEvent: () => true,
     addEventListener: () => {},
@@ -141,6 +146,52 @@ describe("удаление профиля с устройства", () => {
     expect(loadLibrary().entries).toHaveLength(0);
     expect(readEntryProfile(id)).toBeNull();
     expect(activeEntryId()).toBeNull();
+  });
+});
+
+describe("выход из учётной записи", () => {
+  it("уносит с устройства все графики, а не только открытый", () => {
+    syncActiveIntoLibrary(profileNamed("Открытый"));
+    const open = activeEntryId()!;
+    const other = importEntry(profileNamed("Другой"));
+    const third = importEntry(profileNamed("Третий"));
+    window.localStorage.setItem("shift-schedule.profile", JSON.stringify(profileNamed("Открытый")));
+
+    forgetEverything();
+
+    expect(loadLibrary().entries).toHaveLength(0);
+    expect(activeEntryId()).toBeNull();
+    for (const id of [open, other.id, third.id]) expect(readEntryProfile(id)).toBeNull();
+    expect(window.localStorage.getItem("shift-schedule.profile")).toBeNull();
+  });
+
+  it("стирает и снимки, которых нет в испорченном перечне", () => {
+    const orphan = importEntry(profileNamed("Осиротевший"));
+    window.localStorage.setItem("shift-schedule.library", "{это не json");
+
+    forgetEverything();
+
+    expect(readEntryProfile(orphan.id)).toBeNull();
+  });
+
+  it("не трогает настройки показа", () => {
+    window.localStorage.setItem("shift-schedule.grid-scale", "{}");
+    window.localStorage.setItem("shift-schedule.appearance", "{}");
+
+    forgetEverything();
+
+    expect(window.localStorage.getItem("shift-schedule.grid-scale")).toBe("{}");
+    expect(window.localStorage.getItem("shift-schedule.appearance")).toBe("{}");
+  });
+
+  it("после него новый график — единственный", () => {
+    syncActiveIntoLibrary(profileNamed("Старый"));
+    importEntry(profileNamed("Ещё старый"));
+
+    forgetEverything();
+    syncActiveIntoLibrary(profileNamed("Новый"));
+
+    expect(loadLibrary().entries.map((entry) => entry.name)).toEqual(["Новый"]);
   });
 });
 

@@ -28,6 +28,7 @@ import {
 } from "@/components/shared/header-action";
 import { Materialize } from "@/components/ui/materialize";
 import { SYNC_ENABLED } from "@/features/sync/ui/enabled";
+import { useLogout } from "@/features/sync/ui/logout-dialog";
 import { useSync } from "@/features/sync/ui/sync-provider";
 import { cn } from "@/lib/utils/cn";
 
@@ -110,7 +111,8 @@ export function HeaderMenu({
    */
   compact?: boolean;
 }) {
-  const { account, actions } = useSync();
+  const { account } = useSync();
+  const logout = useLogout();
   const путь = usePathname();
 
   // Открыто не «да или нет», а «на какой странице открыто»: переход
@@ -281,7 +283,7 @@ export function HeaderMenu({
                         Учётная запись
                       </MenuItem>
                     )}
-                    <MenuItem icon={LogOut} onClick={() => void actions.logout()}>
+                    <MenuItem icon={LogOut} onClick={logout.ask}>
                       Выйти
                     </MenuItem>
                   </>
@@ -291,6 +293,10 @@ export function HeaderMenu({
           </div>
         </Закрыть.Provider>
       )}
+
+      {/* Вне раскрывающегося списка: нажатие по строке «Выйти» закрывает меню,
+          а окно с вопросом должно пережить это закрытие. */}
+      {logout.dialog}
     </div>
   );
 }
