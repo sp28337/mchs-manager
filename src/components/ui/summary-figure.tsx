@@ -106,6 +106,7 @@ export function Figure({
   still,
   minor,
   size,
+  hint,
 }: {
   parts: readonly FigurePart[];
   caption: ReactNode;
@@ -119,11 +120,18 @@ export function Figure({
    * число над подписью, жирное, единица блёклая; крупнее только кегль.
    */
   size?: "hero";
+  /**
+   * Что это за число — строкой подсказок внизу окна (`info-bar.tsx`) и
+   * всплывающей подсказкой там, где строки нет. Первый экран подсказок не
+   * даёт: числа там — картинка, а не величины человека.
+   */
+  hint?: string;
 }) {
   const hero = size === "hero";
   return (
     // Число над подписью, оба по середине колонки и по середине высоты.
     <div
+      title={hint}
       className={cn(
         "flex min-w-0 flex-col items-center justify-center gap-1",
         still && "shrink-0",

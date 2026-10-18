@@ -546,7 +546,7 @@ function DayButton({
             className="absolute -left-px -top-px size-1.5 rounded-full bg-ink"
           />
         ) : null}
-        {holiday ? <HolidayIcon mark={holiday} /> : null}
+        {holiday ? <HolidayIcon /> : null}
         {/* Заметка помечается тем же углом, что в графике: одна пометка на
             обе сетки, иначе её пришлось бы искать по-разному. */}
         {note ? (

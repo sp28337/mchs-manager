@@ -6,6 +6,7 @@ import {
   PT_Sans_Narrow,
 } from "next/font/google";
 
+import { InfoBar } from "@/components/shared/info-bar";
 import { Lamp } from "@/components/shared/lamp";
 import { LAMP_MARK_SCRIPT } from "@/components/shared/lamp-colour";
 import { MONTH_ANCHOR_SCRIPT } from "@/features/shift/components/month-anchor";
@@ -198,6 +199,12 @@ export default function RootLayout({
             нельзя, движок сафари рисует его там как попало
             (`globals.css`). */}
         <div aria-hidden className="veil-over" />
+
+        {/* Строка подсказок у нижней кромки — одна на всё приложение, как и
+            дымка рядом: читает `title` и `data-hint` у того, на что навели
+            (`info-bar.tsx`). Стоит выше нижней дымки и ниже закреплённых
+            рядов знаков, а на телефоне и в узком окне её нет вовсе. */}
+        <InfoBar />
 
         {/* Затемнение под открытым окном. Своим слоем, а не родным
             `::backdrop`: тот рисуется в верхнем слое браузера, выше любого

@@ -336,6 +336,8 @@ interface MinorItem {
   value: string;
   unit?: string;
   caption: string;
+  /** Подсказка в строке внизу окна: что это за число. */
+  hint: string;
 }
 
 /**
@@ -359,17 +361,29 @@ function sideItems(calculation: PeriodCalculation): {
         value: String(calculation.scheduledShifts),
         unit: "см",
         caption: "По графику",
+        hint: "По графику: сколько смен приходится на период по вашему графику, считая и те, что попали на отпуск.",
       },
       {
         value: String(calculation.workedShifts),
         unit: "см",
         caption: "Отработано",
+        hint: "Отработано: сколько из этих смен вы отработали — без пришедшихся на отпуск и другие освобождения.",
       },
     ],
     right: [
       // Слово «часы» в подписи не нужно: единица «ч» стоит при числе.
-      { value: hoursTrim(calculation.nightHours), unit: "ч", caption: "Ночные" },
-      { value: hoursTrim(calculation.holidayHours), unit: "ч", caption: "Праздничные" },
+      {
+        value: hoursTrim(calculation.nightHours),
+        unit: "ч",
+        caption: "Ночные",
+        hint: "Ночные: часы, отработанные ночью, — с 22:00 до 06:00 (ст. 96 ТК РФ). Входят в отработанные.",
+      },
+      {
+        value: hoursTrim(calculation.holidayHours),
+        unit: "ч",
+        caption: "Праздничные",
+        hint: "Праздничные: часы, отработанные в праздничные дни по производственному календарю. Входят в отработанные.",
+      },
     ],
   };
 }
@@ -391,13 +405,14 @@ function MinorFigure({
   value,
   unit,
   caption,
+  hint,
   tight,
 }: MinorItem & {
   /** Эталон: по содержимому, без отсчёта числа в пути. */
   tight?: boolean;
 }) {
   return (
-    <Figure parts={[{ value, unit }]} caption={caption} still={tight} minor />
+    <Figure parts={[{ value, unit }]} caption={caption} hint={hint} still={tight} minor />
   );
 }
 
@@ -487,18 +502,27 @@ function MainPlate({
       <Figure
         parts={[{ value: hoursTrim(calculation.normHours), unit: "ч" }]}
         caption="Норма периода"
+        hint="Норма периода: сколько часов нужно отработать за учётный период по производственному календарю. Отпуск и другие освобождения норму уменьшают."
         still={tight}
       />
       <FigureSep />
       <Figure
         parts={[{ value: hoursTrim(calculation.actualHours), unit: "ч" }]}
         caption="Отработано"
+        hint="Отработано: часы ваших смен и вызовов за период. Смены, пришедшиеся на отпуск и другие освобождения, не считаются."
         still={tight}
       />
       <FigureSep />
       <Figure
         parts={overtimeParts(balance, inShifts, shiftHours)}
         caption={<BalanceCaption under={under} />}
+        hint={
+          under
+            ? "Недоработка: отработано меньше нормы. Разница между отработанным и нормой периода."
+            : balance.greaterThan(0)
+              ? "Переработка: отработано больше нормы. Разница между отработанным и нормой периода."
+              : "Разница между отработанным и нормой периода: сейчас отработано ровно по норме."
+        }
         // Ноль — это попадание в норму, и цвета у него нет: ни зелёного,
         // ни красного. Сигнальным становится только то, что требует
         // разговора с работодателем.
