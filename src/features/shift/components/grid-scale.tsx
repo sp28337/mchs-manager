@@ -4,7 +4,9 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -103,10 +105,57 @@ interface GridScale extends GridLimits {
 
 const GridScaleContext = createContext<GridScale | null>(null);
 
+/**
+ * Что запоминается между открытиями: желание человека, а не то, что вышло на
+ * экране. Размер окна на другом устройстве другой, и «шесть столбцов» там
+ * сожмутся до того, что влезает (`most`), — а когда окно расширят, вернутся.
+ *
+ * Хранится в браузере, отдельно от графика: это вкус к раскладке, а не часть
+ * расчёта, и в файл с графиком и на сервер он не уезжает.
+ */
+const STORAGE_KEY = "shift-schedule.grid-scale";
+
+interface Saved {
+  asked: number;
+  pinned: number | null;
+  compact: boolean;
+}
+
+const isCount = (value: unknown): value is number =>
+  typeof value === "number" && Number.isInteger(value) && value >= MONTHS_MIN && value <= MONTHS_CAP;
+
+/** Сохранённое или `null`; испорченное и чужое отбрасывается целиком. */
+function readSaved(): Saved | null {
+  try {
+    const raw = window.localStorage.getItem(STORAGE_KEY);
+    if (raw === null) return null;
+    const data: unknown = JSON.parse(raw);
+    if (typeof data !== "object" || data === null) return null;
+    const { asked, pinned, compact } = data as Record<string, unknown>;
+    if (!isCount(asked) || typeof compact !== "boolean") return null;
+    if (pinned !== null && !isCount(pinned)) return null;
+    return { asked, pinned, compact };
+  } catch {
+    return null;
+  }
+}
+
+function writeSaved(saved: Saved) {
+  try {
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(saved));
+  } catch {
+    // Хранилище закрыто или полно — раскладка просто не запомнится.
+  }
+}
+
 export function GridScaleProvider({ children }: { children: ReactNode }) {
-  const [asked, setAsked] = useState(DEFAULT_MONTHS);
-  const [pinned, setPinned] = useState<number | null>(null);
-  const [compact, setCompact] = useState(false);
+  // Рабочий экран открывается только после чтения профиля, то есть уже в
+  // браузере, и читать хранилище при первой отрисовке можно без расхождения
+  // с разметкой, собранной на сервере.
+  const [saved] = useState(readSaved);
+  const [asked, setAsked] = useState(saved?.asked ?? DEFAULT_MONTHS);
+  const [pinned, setPinned] = useState<number | null>(saved?.pinned ?? null);
+  const [compact, setCompact] = useState(saved?.compact ?? false);
   const [limits, setLimits] = useState<GridLimits>({
     months: DEFAULT_MONTHS,
     columns: DEFAULT_MONTHS,
@@ -136,6 +185,16 @@ export function GridScaleProvider({ children }: { children: ReactNode }) {
     },
     [limits.columns],
   );
+
+  // Первый проход пропускается: пока человек ничего не менял, писать нечего.
+  const touched = useRef(false);
+  useEffect(() => {
+    if (!touched.current) {
+      touched.current = true;
+      return;
+    }
+    writeSaved({ asked, pinned, compact });
+  }, [asked, pinned, compact]);
 
   const value = useMemo<GridScale>(
     () => ({ asked, pinned, compact, ...limits, setAsked, setColumns, setCompact, report }),
