@@ -18,6 +18,7 @@ import {
 } from "../model/derive";
 import { openEntry, type LibraryEntry } from "../storage/library";
 import type { StoredProfile } from "../storage/profile";
+import { useBalancePop } from "./balance-pop";
 import { ChangesList } from "./changes-list";
 import { DayRing } from "./day-ring";
 import { ExplorerDock } from "./explorer-dock";
@@ -192,6 +193,11 @@ export function Workspace({
   // Первые сутки, которые ещё не наступили. Граница расчёта исключающая,
   // то есть это ровно она: «по сегодня» кончается завтрашним днём.
   const upcoming = profile.liveMode ? periodEnd : null;
+
+  // Правка суток двигает разницу над сеткой, и приращение всплывает над
+  // клеткой, которую правили (`balance-pop.tsx`). Считается по тому же
+  // расчёту, что числа наверху, — по `calculation`, а не по `shown`.
+  const { note: noteDayEdit, pop: balancePop } = useBalancePop(calculation);
 
   /**
    * Настройки — не окно, а другое содержимое ЭТОЙ страницы.
@@ -848,9 +854,10 @@ export function Workspace({
               onPickDay={(day) => setRingDay(day)}
               // Перенос смены — одно событие, и в профиль он попадает одной
               // правкой: снять здесь, назначить там (`withShiftMoved`).
-              onMoveShift={(from, to) =>
-                onChange((previous) => withShiftMoved(previous, from, to))
-              }
+              onMoveShift={(from, to) => {
+                noteDayEdit(to);
+                onChange((previous) => withShiftMoved(previous, from, to));
+              }}
             />
           </section>
         </FadeIn>
@@ -866,9 +873,15 @@ export function Workspace({
         day={ringDay}
         kind={yearView === "calendar" ? "calendar" : "shifts"}
         profile={profile}
-        onChange={onChange}
+        onChange={(change) => {
+          // Каждая правка суток из перечня — одна отметка для надписи с
+          // приращением: она ставится ДО правки и ждёт пересчёта.
+          if (ringDay !== null) noteDayEdit(ringDay);
+          onChange(change);
+        }}
         onClose={() => setRingDay(null)}
       />
+      {balancePop}
 
       {/* Вопрос «сначала сохранить нынешний в файл?» — он один на все пути
           смены профиля, поэтому и стоит здесь, а не в проводнике. */}
