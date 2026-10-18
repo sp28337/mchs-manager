@@ -159,15 +159,15 @@ export function WorkspaceSkeleton() {
         >
           {/* Мелкие итоги появляются там же, где в расчёте. Тот меряет
               строку и открывает их парами — по одной с каждой стороны, —
-              и пороги у него приходятся на 542 точки (первая пара) и на
-              785 (вторая): замер с шагом в одну точку, окно менялось на
+              и пороги у него приходятся на 545 точек (первая пара) и на
+              791 (вторая): замер с шагом в одну точку, окно менялось на
               месте. Пороги задают подписи и числа, а не профиль, поэтому
               от него они почти не зависят. Заглушка мерить не умеет,
               поэтому держит те же пороги числами. */}
           <div
             className={cn(
               "relative flex items-center justify-center px-6 pb-3",
-              "min-[542px]:grid min-[542px]:grid-cols-[1fr_auto_1fr] min-[542px]:justify-normal min-[542px]:gap-x-8",
+              "min-[545px]:grid min-[545px]:grid-cols-[1fr_auto_1fr] min-[545px]:justify-normal min-[545px]:gap-x-8",
             )}
           >
             <MainPlateBone />
@@ -175,11 +175,11 @@ export function WorkspaceSkeleton() {
             {/* Слева — к главным, то есть вправо; справа — влево. */}
             <div className={cn(SIDE_BONE, "col-start-1 row-start-1 justify-self-end")}>
               <FigureBone {...LEFT_FIGURES[0]} minor />
-              <FigureBone {...LEFT_FIGURES[1]} minor className="hidden min-[785px]:flex" />
+              <FigureBone {...LEFT_FIGURES[1]} minor className="hidden min-[791px]:flex" />
             </div>
             <div className={cn(SIDE_BONE, "col-start-3 row-start-1 justify-self-start")}>
               <FigureBone {...RIGHT_FIGURES[0]} minor />
-              <FigureBone {...RIGHT_FIGURES[1]} minor className="hidden min-[785px]:flex" />
+              <FigureBone {...RIGHT_FIGURES[1]} minor className="hidden min-[791px]:flex" />
             </div>
           </div>
         </div>
@@ -399,7 +399,7 @@ function MonthBones({ month }: { month: number }) {
  * пока мелким итогам нет места.
  */
 const SIDE_BONE =
-  "hidden h-14 min-w-0 grid-flow-col auto-cols-fr items-center gap-x-5 min-[542px]:grid";
+  "hidden h-14 min-w-0 grid-flow-col auto-cols-fr items-center gap-x-5 min-[545px]:grid";
 
 /**
  * Главные числа: то же построение, что в расчёте (`MainPlate`) — три
@@ -422,8 +422,8 @@ function MainPlateBone() {
         // средняя колонка (`1fr auto 1fr`) считала бы её нижней границей
         // ноль, и стороны сжимали бы её: на 1114–1250 точках колонки
         // выходили вдвое уже подписей.
-        "min-[542px]:col-start-2 min-[542px]:row-start-1 min-[542px]:min-w-max min-[542px]:shrink-0",
-        "min-[542px]:gap-x-2.5",
+        "min-[545px]:col-start-2 min-[545px]:row-start-1 min-[545px]:min-w-max min-[545px]:shrink-0",
+        "min-[545px]:gap-x-2.5",
       )}
     >
       <FigureBone value="1972" unit="ч" caption="Норма периода" />
@@ -482,7 +482,7 @@ function FigureBone({
           "font-display uppercase leading-tight tracking-wide",
           MARK_EMPTY_TEXT,
           "text-[11px] min-[340px]:text-xs",
-          minor ? "min-[42.5rem]:text-xs" : "font-bold min-[42.5rem]:text-sm",
+          minor ? "font-bold min-[42.5rem]:text-xs" : "font-bold min-[42.5rem]:text-sm",
         )}
       >
         <BoneText skeleton>{caption}</BoneText>
