@@ -3,7 +3,7 @@
 import { X } from "lucide-react";
 import { useLayoutEffect, useRef, useState } from "react";
 
-import { ABSENCE_MARK, ABSENCE_TONE, CALLOUT_MARK, CALLOUT_TONE } from "@/features/shift/components/day-marks";
+import { ABSENCE_MARK, CALLOUT_MARK } from "@/features/shift/components/day-marks";
 import { cn } from "@/lib/utils/cn";
 
 import { HandIcon } from "./hand-icon";
@@ -13,6 +13,7 @@ import {
   HERO_SCRIPTS,
   type HeroChip,
   type HeroEvent,
+  type HeroEventKind,
   type HeroLayout,
 } from "./hero-story";
 import { useStoryPointer } from "./hero-story-store";
@@ -48,20 +49,31 @@ import { useStoryPointer } from "./hero-story-store";
  * первым суткам: мгновенно поставить его у цели значило бы показать, что он тут
  * и был.
  *
- * --- Что у него в подсказке ---------------------------------------------------------
+ * --- Что у него вместо подсказки ----------------------------------------------------
  *
- * Рядом с нажатием на миг встаёт плашка с тем, что выбрано, — знак и слово, как
- * в строке перечня видов у дня. Перечень целиком показан ниже, в разделе «Как
- * работает»; здесь, на лёгком фоне, достаточно одной строки: она называет, ЧТО
- * ставит палец, а числа рядом показывают, что из этого вышло.
+ * Нажатие выпускает в воздух надпись — знак и слово, — как в играх, когда
+ * подобрал что-то и над героем всплывает «+10 опыта»: она появляется над
+ * местом нажатия, на миг замирает и, уходя вверх, испаряется. Ни плашки, ни
+ * рамки у неё нет: плашка с рамкой над рукой читалась окошком, а не событием,
+ * и висела, пока рука стояла. Надпись называет, ЧТО поставил палец, а числа
+ * рядом показывают, что из этого вышло; сама же она проходит и исчезает, не
+ * мешая клеткам.
+ *
+ * Читается она без плашки за счёт цвета записи — тот же, каким она закрашена
+ * на сетке, — и бумажного ореола вокруг букв: на светлой теме он белый, на
+ * тёмной — тёмный, и буквы не тонут в клетках позади.
+ *
+ * Стоит надпись НЕ на пальце, а в коробке месяцев на месте нажатия: рука
+ * после нажатия сразу едет дальше, и надпись, ехавшая бы с ней, тянулась бы
+ * следом, как привязанная. Взлетает она с того места, где её выпустили.
  */
 
 /** Кончик пальца в рисунке руки: от левого верхнего угла, точки. */
 const TIP_X = 12;
 const TIP_Y = 4;
 
-/** Палец, подъехавший близко к левому краю плоскости, подпись ставит вправо. */
-const SIDE_EDGE = 150;
+/** Насколько выше кончика пальца встаёт низ надписи, точки. */
+const CHIP_LIFT = 10;
 
 /** Сумма смещений вёрстки от клетки до коробки. */
 function offsetWithin(element: HTMLElement, box: HTMLElement): { x: number; y: number } {
@@ -115,7 +127,6 @@ export function HeroPointer({ layout }: { layout: HeroLayout }) {
         element.style.transition = "";
       }
       element.style.transform = `translate3d(${centre.x - TIP_X}px, ${centre.y - TIP_Y}px, 0)`;
-      element.dataset.side = centre.x < SIDE_EDGE ? "right" : "left";
     };
 
     if (pointer.visible) place();
@@ -131,67 +142,100 @@ export function HeroPointer({ layout }: { layout: HeroLayout }) {
     return () => watcher.disconnect();
   }, [pointer.visible, pointer.day]);
 
+  // Надпись взлетает с места нажатия — того, куда рука к этому мигу доехала.
+  const spot = useRef<HTMLSpanElement>(null);
+  useLayoutEffect(() => {
+    const element = spot.current;
+    const box = root.current?.parentElement;
+    if (!element || !box || pointer.day === null || pointer.press === 0) return;
+    const centre = cellCentre(box, pointer.day);
+    if (centre === null) return;
+    element.style.left = `${centre.x}px`;
+    element.style.top = `${centre.y - TIP_Y - CHIP_LIFT}px`;
+    // Только по нажатию, а не по смене суток: рука поехала дальше — а надпись
+    // уже взлетела, и ей оставаться там, где её выпустили.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pointer.press]);
+
   const script = HERO_SCRIPTS[layout];
 
   return (
-    <div
-      ref={root}
-      aria-hidden
-      data-visible={pointer.visible}
-      className="hero-pointer"
-      style={{ "--hero-move": `${HERO_MOVE_MS}ms` } as React.CSSProperties}
-    >
-      {/* Круг от нажатия расходится заново при каждом нажатии: ключ — счётчик
-          нажатий, и элемент пересоздаётся, а с ним и анимация. */}
-      <span key={pointer.press} className="hero-pointer__ring" />
-      <HandIcon />
-      <Chip chip={pointer.chip ?? lastChip} events={script.events} shown={pointer.chip !== null} />
-    </div>
+    <>
+      <div
+        ref={root}
+        aria-hidden
+        data-visible={pointer.visible}
+        className="hero-pointer"
+        style={{ "--hero-move": `${HERO_MOVE_MS}ms` } as React.CSSProperties}
+      >
+        {/* Круг от нажатия расходится заново при каждом нажатии: ключ — счётчик
+            нажатий, и элемент пересоздаётся, а с ним и анимация. */}
+        <span key={pointer.press} className="hero-pointer__ring" />
+        <HandIcon />
+      </div>
+
+      {/* Надпись — отдельно от пальца: после нажатия он едет дальше, а она
+          остаётся там, где её выпустили, и уходит вверх. */}
+      <span ref={spot} aria-hidden className="hero-chip-spot">
+        <Chip key={pointer.press} chip={lastChip} events={script.events} />
+      </span>
+    </>
   );
 }
 
-/** Знак записи в подписи: тот же, каким вид суток нарисован в клетке и в перечне. */
-function sign(event: HeroEvent): { mark: string; tone: string } {
-  if (event.kind === "callout") return { mark: CALLOUT_MARK, tone: CALLOUT_TONE };
-  return { mark: ABSENCE_MARK[event.kind], tone: ABSENCE_TONE[event.kind] };
+/**
+ * Цвет надписи — тот же, каким запись закрашена на сетке и в легенде расчёта.
+ *
+ * Только цвет текста, без заливки и рамки: надпись всплывает над клетками без
+ * плашки. Вызов — один цвет на все виды (`CALLOUT_TONE`), у отсутствий — по
+ * виду; кто не назван, берёт обычные чернила.
+ */
+const INK: Partial<Record<HeroEventKind, string>> = {
+  annual_leave: "text-signal",
+  extra_leave: "text-trip",
+  sick_leave: "text-sick",
+  study_leave: "text-study",
+  business_trip: "text-errand",
+  time_off_in_lieu: "text-rest",
+  callout: "text-trace",
+};
+
+/** Знак записи в надписи: та же буква, что стоит на клетке. */
+function glyph(event: HeroEvent): string {
+  return event.kind === "callout" ? CALLOUT_MARK : ABSENCE_MARK[event.kind];
 }
 
-function Chip({
-  chip,
-  events,
-  shown,
-}: {
-  chip: HeroChip | null;
-  events: readonly HeroEvent[];
-  shown: boolean;
-}) {
+/**
+ * Всплывающая надпись: знак и слово, без плашки.
+ *
+ * Анимация целиком в `globals.css` (`hero-float`): надпись появляется с лёгким
+ * приростом, держится мгновение и, поднимаясь, растворяется. Ключ у неё —
+ * счётчик нажатий (`HeroPointer`), и каждое нажатие даёт новую.
+ *
+ * У вызова в надписи стоят часы — «Вызов · 4 ч»: на сетке часы вызова не видны
+ * вовсе, а без них число рядом непонятно. У удаления — крестик и одно слово.
+ */
+function Chip({ chip, events }: { chip: HeroChip | null; events: readonly HeroEvent[] }) {
   if (chip === null) return null;
-  const picked = chip.events.map((index) => events[index]!);
-  const first = sign(picked[0]!);
 
-  // Вызов называется вместе с часами: «Вызов · 4 ч» — в строке перечня их нет,
-  // а на сетке часы вызова не видны вовсе, и без них число рядом непонятно.
-  const labels = picked.map((event) =>
-    event.hours ? `${HERO_EVENT_LABEL[event.kind]} · ${event.hours} ч` : HERO_EVENT_LABEL[event.kind],
-  );
+  if (chip.remove) {
+    return (
+      <span className="hero-chip flex items-center gap-1.5 text-ink">
+        <X aria-hidden className="size-3.5 opacity-70" strokeWidth={2.5} />
+        Удалить
+      </span>
+    );
+  }
+
+  const event = events[chip.events[0]!]!;
+  const label = event.hours
+    ? `${HERO_EVENT_LABEL[event.kind]} · ${event.hours} ч`
+    : HERO_EVENT_LABEL[event.kind];
 
   return (
-    <span
-      data-shown={shown}
-      className={cn(
-        "hero-chip lit modal-lift flex items-center gap-2 whitespace-nowrap",
-        "rounded-lg bg-paper-raised py-1 pl-1 pr-2.5 text-xs text-ink",
-      )}
-    >
-      <span
-        className={cn(
-          "grid size-5 shrink-0 place-items-center rounded-md border font-mono text-[10px] leading-none",
-          chip.remove ? "border-rule bg-paper-sunken text-ink-muted" : first.tone,
-        )}
-      >
-        {chip.remove ? <X aria-hidden className="size-3" /> : first.mark}
-      </span>
-      {chip.remove ? `Убрать: ${labels.join(", ")}` : labels[0]}
+    <span className={cn("hero-chip flex items-center gap-1.5", INK[event.kind] ?? "text-ink")}>
+      <span className="font-mono text-xs leading-none">{glyph(event)}</span>
+      {label}
     </span>
   );
 }
