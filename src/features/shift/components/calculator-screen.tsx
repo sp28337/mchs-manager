@@ -107,7 +107,7 @@ export function CalculatorScreen() {
               те доли секунды, пока идёт возврат на главную: пустая
               страница на её месте читалась бы как поломка. */}
           <p className="sr-only" role="status">
-            {empty ? "Профиля нет, открываем главную" : "Открываем ваш профиль"}
+            {empty ? "Графика нет, открываем главную" : "Открываем ваш график"}
           </p>
           <WorkspaceSkeleton />
         </>
@@ -127,7 +127,7 @@ function CorruptNotice({ reason, raw }: { reason: string; raw: string }) {
   return (
     <section className="space-y-3 rounded-xl bg-signal-soft px-4 py-3 text-sm">
       <p>
-        <strong>Сохранённый профиль не читается</strong> ({reason}). Заполните
+        <strong>Сохранённый график не читается</strong> ({reason}). Заполните
         анкету заново — или сначала заберите старые данные файлом, чтобы
         внесённые отпуска не пропали.
       </p>
@@ -139,7 +139,7 @@ function CorruptNotice({ reason, raw }: { reason: string; raw: string }) {
           const url = URL.createObjectURL(new Blob([raw], { type: "application/json" }));
           const link = document.createElement("a");
           link.href = url;
-          link.download = "профиль-повреждён.json";
+          link.download = "график-повреждён.json";
           link.click();
           URL.revokeObjectURL(url);
         }}

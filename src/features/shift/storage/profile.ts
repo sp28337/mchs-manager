@@ -421,7 +421,7 @@ export function loadProfile(): LoadResult {
   try {
     parsed = JSON.parse(raw);
   } catch {
-    return { status: "corrupt", reason: "файл профиля не читается как JSON", raw };
+    return { status: "corrupt", reason: "файл графика не читается как JSON", raw };
   }
 
   const result = storedProfileSchema.safeParse(parsed);
@@ -576,8 +576,8 @@ export function importProfile(text: string): StoredProfile {
     const first = result.error.issues[0];
     throw new Error(
       first
-        ? `Это не файл профиля: ${first.path.join(".")} — ${first.message}`
-        : "Это не файл профиля.",
+        ? `Это не файл графика: ${first.path.join(".")} — ${first.message}`
+        : "Это не файл графика.",
     );
   }
   return result.data;

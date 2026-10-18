@@ -20,6 +20,7 @@ import { openEntry, type LibraryEntry } from "../storage/library";
 import type { StoredProfile } from "../storage/profile";
 import { ChangesList } from "./changes-list";
 import { DayRing } from "./day-ring";
+import { ExplorerDock } from "./explorer-dock";
 import { GridDock } from "./grid-dock";
 import { WorkspaceMenuItems } from "./header-tools";
 import { scrollMonthUnderBar, topmostVisibleMonth } from "./month-anchor";
@@ -522,7 +523,7 @@ export function Workspace({
    * друга на экране.
    */
   const раздел = explorerOpen
-    ? { label: "Профили", close: toggleExplorer }
+    ? { label: "Графики", close: toggleExplorer }
     : showSettings
       ? { label: "Настройки", close: toggleSettings }
       : statsOpen
@@ -674,9 +675,13 @@ export function Workspace({
         <FadeIn key="explorer" delayMs={REVEAL_DELAY_MS} instant={!switched}>
           {/* Верхнего поля нет: имя и числа отсюда убраны, и список
               начинается сразу под шапкой. */}
-          <section aria-labelledby="explorer-heading" className="space-y-4 pt-2">
+          {/* `frame-inset` — рамка той же ширины, что у графика (`.year-room`):
+              страницы, между которыми человек переключается из меню, не
+              должны прыгать по ширине, а знаки проводника стоят в поле,
+              которое эта рамка оставляет слева. */}
+          <section aria-labelledby="explorer-heading" className="frame-inset space-y-4 pt-2">
             <h2 id="explorer-heading" className="sr-only">
-              Профили
+              Графики
             </h2>
             <ProfileExplorer
               tools={explorerTools}
@@ -702,7 +707,7 @@ export function Workspace({
             className="mx-auto w-full max-w-[44rem] space-y-4"
           >
             <h2 id="settings-heading" className="sr-only">
-              Настройки профиля
+              Настройки графика
             </h2>
             <SettingsPanel profile={profile} onChange={onChange} />
             <DangerActions onForget={onForget} onChange={onChange} showReset={false} />
@@ -835,7 +840,11 @@ export function Workspace({
           тема — о самом окне, и в настройках она нужна ровно так же, как
           на сетке. Стоит он там же, где кончается ряд, и при открытии
           раздела не сдвигается ни на точку. */}
-      {showSettings || explorerOpen || statsOpen || eventsOpen ? (
+      {explorerOpen ? (
+        // У проводника свои знаки — «Папка», «График», «Из файла»: на том же
+        // месте и в том же виде, что у календаря (`explorer-dock.tsx`).
+        <ExplorerDock tools={explorerTools} />
+      ) : showSettings || statsOpen || eventsOpen ? (
         <ThemeCorner />
       ) : (
         <GridDock

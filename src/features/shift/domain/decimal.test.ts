@@ -124,4 +124,17 @@ describe("форма слова при числе", () => {
     expect(shiftsWord(11)).toBe("смен");
     expect(shiftsWord(21)).toBe("смена");
   });
+
+  it("в полосе итога «91 смена» и «90 смен»", () => {
+    // Слово при числе в полосе итога склоняется по самому числу
+    // (`sideItems` в `period-summary.tsx`): те же примеры, что в подписях.
+    expect(shiftsWord(91)).toBe("смена");
+    expect(shiftsWord(90)).toBe("смен");
+    expect(shiftsWord(92)).toBe("смены");
+    expect(shiftsWord(0)).toBe("смен");
+    // Двенадцать — исключение из «на 2 — смены», и сто двенадцать тоже.
+    expect(shiftsWord(12)).toBe("смен");
+    expect(shiftsWord(112)).toBe("смен");
+    expect(shiftsWord(111)).toBe("смен");
+  });
 });

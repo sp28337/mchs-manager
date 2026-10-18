@@ -217,7 +217,7 @@ function useSheets(open: StoredProfile): { sheets: Sheet[]; library: Library } {
     if (!list.some((it) => it.open)) {
       list.unshift({
         id: LOOSE,
-        name: open.displayName.trim() === "" ? "Открытый профиль" : open.displayName,
+        name: open.displayName.trim() === "" ? "Открытый график" : open.displayName,
         folderId: ROOT_FOLDER_ID,
         profile: open,
         open: true,
@@ -328,7 +328,7 @@ function choicesOf(library: Library, sheets: readonly Sheet[]): Choice[] {
       // Корень — это и есть «все»: свод по нему и свод по всем профилям —
       // одно и то же, и двух значений у одного выбора быть не должно.
       value: root ? "all" : encode({ kind: "folder", id: folder.id }),
-      label: `${root ? "Все профили" : folder.name} (${inside.length})`,
+      label: `${root ? "Все графики" : folder.name} (${inside.length})`,
       depth,
       folder: true,
     });
@@ -2078,17 +2078,17 @@ function ProfileTable({
   return (
     <section className={cn(PLATE, "space-y-2")}>
       <h3 className="font-display text-sm font-bold uppercase tracking-wide">
-        По профилям
+        По графикам
       </h3>
       <div className="overflow-x-auto">
         <table className="w-full min-w-[38rem] border-collapse text-sm">
           <caption className="sr-only">
-            Норма, отработанные, ночные и праздничные часы по профилям
+            Норма, отработанные, ночные и праздничные часы по графикам
           </caption>
           <thead>
             <tr className="text-[11px] uppercase tracking-wide text-ink-faint">
               <th scope="col" className="py-2 pr-3 text-left font-medium">
-                Профиль
+                График
               </th>
               <Head>Норма</Head>
               <Head>Факт</Head>
@@ -2152,7 +2152,7 @@ function ProfileName({
       <button
         type="button"
         onClick={() => onPick(sheet.id)}
-        title={`Статистика профиля «${sheet.name}»`}
+        title={`Статистика графика «${sheet.name}»`}
         className={cn(
           "inline-flex max-w-full cursor-pointer items-center gap-1.5 rounded-md",
           "text-left underline decoration-rule-strong underline-offset-4",

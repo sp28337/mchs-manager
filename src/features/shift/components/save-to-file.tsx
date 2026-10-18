@@ -138,7 +138,7 @@ function SaveDialog({
     <Modal
       open={open}
       onClose={onClose}
-      title="Сохранить профиль в файл"
+      title="Сохранить график в файл"
       className={over ? "modal-over-modal" : undefined}
     >
       <div className="space-y-4">

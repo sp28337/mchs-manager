@@ -106,7 +106,7 @@ export function ProfileName({
   const гнездо = useRef<HTMLDivElement>(null);
   const id = useId();
   const вШапке = place === "header";
-  const имя = profile.displayName || "Имя профиля";
+  const имя = profile.displayName || "Имя графика";
   const выбор = others.length > 0;
 
   // Закрывается всеми способами, какими обязано: `Esc`, нажатие мимо, уход
@@ -172,7 +172,7 @@ export function ProfileName({
             aria-controls={id}
             // Имя кнопки — само имя профиля и то, что нажатие делает:
             // «Петров И. С.» без продолжения не говорит, что за ним выбор.
-            aria-label={`${имя}. Выбрать другой профиль`}
+            aria-label={`${имя}. Выбрать другой график`}
             className={cn(
               // Указатель над текстом везде стрелка (`globals.css`), и
               // «палец» — единственный признак нажимаемого. У имени он тем
@@ -199,7 +199,7 @@ export function ProfileName({
         <div
           id={id}
           role="group"
-          aria-label="Другие профили"
+          aria-label="Другие графики"
           className={cn(
             // `lit modal-lift` — та же живая кайма и тень, что у меню в
             // шапке: окошко лежит поверх страницы на той же высоте. Выше
@@ -212,7 +212,7 @@ export function ProfileName({
             вШапке ? "left-0" : "left-1/2 -translate-x-1/2",
           )}
         >
-          <p className="px-2.5 pt-1.5 pb-1 text-xs text-ink-muted">Открыть другой профиль</p>
+          <p className="px-2.5 pt-1.5 pb-1 text-xs text-ink-muted">Открыть другой график</p>
           {перечень.map((entry) => (
             <button
               key={entry.id}

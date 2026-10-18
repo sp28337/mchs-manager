@@ -77,10 +77,10 @@ export function WorkspaceMenuItems({
         Статистика
       </MenuItem>
       <MenuItem icon={FolderOpen} onClick={onToggleExplorer}>
-        Открыть профиль
+        Графики
       </MenuItem>
       <MenuItem icon={Save} onClick={onSave}>
-        Сохранить в файл
+        Сохранить
       </MenuItem>
     </>
   );

@@ -141,7 +141,7 @@ export function CreateProfileModal({
     // означают выбор наугад, а удаление — лотерею с данными за год.
     if (nameTaken(displayName)) {
       setError(
-        `Профиль «${displayName}» уже есть. Дайте новому другое имя — в проводнике ` +
+        `График «${displayName}» уже есть. Дайте новому другое имя — в проводнике ` +
           `они различаются только им.`,
       );
       return;
@@ -149,7 +149,7 @@ export function CreateProfileModal({
     try {
       onCreated({ ...draft, displayName });
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Не удалось сохранить профиль.");
+      setError(cause instanceof Error ? cause.message : "Не удалось сохранить график.");
     }
   }
 
@@ -171,7 +171,7 @@ export function CreateProfileModal({
       open={open}
       onClose={onClose}
       sheet
-      title="Создать профиль"
+      title="Создать график"
     >
       <div className="space-y-5">
         {notice}
@@ -193,7 +193,7 @@ export function CreateProfileModal({
           </Button>
           <Button type="button" variant="outline" onClick={fromFile}>
             <Upload aria-hidden />
-            Открыть профиль из файла
+            Открыть график из файла
           </Button>
         </div>
       </div>

@@ -81,7 +81,7 @@ export default function NotFound() {
         {/* Главное сообщение этой страницы, а не примечание к ней. */}
         <div className="max-w-prose border-l-2 border-verify bg-verify-soft px-4 py-3">
           <p className="text-sm">
-            <strong>Расчёт не потерян.</strong> Профиль, отпуска и всё
+            <strong>Расчёт не потерян.</strong> График, отпуска и всё
             внесённое хранятся в вашем браузере, а не на этой странице.
             Откройте график — данные будут на месте.
           </p>

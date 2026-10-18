@@ -801,7 +801,7 @@ export function DemoEvents() {
 
    Утверждение «данные никуда не уходят» проверяемое, и показать его нужно
    так же — не замком с надписью «безопасно», а тем, что происходит на
-   самом деле: человек выбирает «Сохранить в файл» в меню шапки, называет
+   самом деле: человек выбирает «Сохранить» в меню шапки, называет
    файл, и файл ложится на то же устройство.
 
    Шапка, меню и окно здесь настоящие: тот же кружок, те же четыре строки
@@ -840,9 +840,9 @@ export function DemoStorage() {
           <MenuRow icon={Settings}>Настройки</MenuRow>
           <MenuRow icon={CalendarRange}>События</MenuRow>
           <MenuRow icon={ChartColumn}>Статистика</MenuRow>
-          <MenuRow icon={FolderOpen}>Открыть профиль</MenuRow>
+          <MenuRow icon={FolderOpen}>Графики</MenuRow>
           <MenuRow icon={Save} className="demo-save-button">
-            Сохранить в файл
+            Сохранить
           </MenuRow>
           <Pointer className="demo-tap-save bottom-1 right-6" />
         </div>
@@ -854,7 +854,7 @@ export function DemoStorage() {
         <div className="demo-dialog lit modal-lift col-start-1 row-start-1 self-start rounded-xl bg-paper-raised">
           <div className="flex items-center gap-3 px-4 pt-3 pb-1">
             <p className="min-w-0 flex-1 font-display text-[0.8em] font-bold uppercase leading-6 tracking-wide">
-              Сохранить профиль в файл
+              Сохранить график в файл
             </p>
             <span className="grid size-7 shrink-0 place-items-center rounded-lg text-ink-muted">
               <X aria-hidden className="size-4" />

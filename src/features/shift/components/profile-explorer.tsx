@@ -3,13 +3,9 @@
 import {
   ChevronLeft,
   ChevronRight,
-  FolderPlus,
   GripVertical,
   Pencil,
-  Plus,
   Trash2,
-  Upload,
-  type LucideIcon,
 } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 
@@ -73,16 +69,17 @@ import { useEntryDrag } from "./use-entry-drag";
  * нечему описывать: графиков у человека единицы, а путь из трёх колен на
  * телефоне не показать, не отняв у списка всю ширину.
  *
- * --- Почему действия стоят в меню шапки ------------------------------------
+ * --- Где стоят действия ----------------------------------------------------
  *
- * «Создать папку», «Создать профиль», «Загрузить из файла» встают НА МЕСТО
- * обычных действий рабочего экрана — тех самых «Настройки», «Статистика»,
- * «Открыть», из которых сюда и пришли (`header-tools.tsx`). Пока открыт
- * проводник, у страницы другие действия, и меню у неё другое.
+ * «Создать папку», «Создать график», «Загрузить из файла» — знаки у
+ * нижней кромки окна (`explorer-dock.tsx`), того же вида и на том же месте,
+ * где у календаря знаки легенды, графика, года и «Онлайн». Своя полоса
+ * кнопок внутри проводника была бы лишней строкой сверху — после шапки, —
+ * и отодвигала бы сам список ещё ниже на экране, где его и так немного.
  *
- * Своя полоса кнопок внутри проводника была бы лишней строкой сверху —
- * после шапки, имени и цифр, — и отодвигала бы сам список ещё ниже на
- * экране, где его и так немного.
+ * Рамка списка — той же ширины, что рамка графика (`.frame-inset` в
+ * `globals.css`): страницы, между которыми человек переключается, не должны
+ * прыгать по ширине.
  */
 
 /**
@@ -90,12 +87,12 @@ import { useEntryDrag } from "./use-entry-drag";
  *
  * Живёт отдельным крючком с тех пор, как кнопки стояли в шапке: нажимали
  * на них в одном месте, а происходило от них другое — в проводнике. Теперь
- * кнопки переехали в сам проводник (строка пути), но состояние осталось
- * здесь: его читает и рабочий экран — по нему он знает, что проводник
- * занят созданием папки или профиля.
+ * действия — знаки у нижней кромки окна (`explorer-dock.tsx`), но
+ * состояние осталось здесь: его читает и рабочий экран — по нему он знает,
+ * что проводник занят созданием папки или графика.
  */
 export interface ExplorerTools {
-  /** Три действия — для кнопок в строке пути. */
+  /** Три действия — для знаков у нижней кромки окна. */
   newFolder: () => void;
   newProfile: () => void;
   importFile: () => void;
@@ -117,45 +114,6 @@ export interface ExplorerTools {
    * одной и той же плашке над списком, а не в двух разных местах.
    */
   say: (message: string | null) => void;
-}
-
-/**
- * Действие проводника: плашка со значком, а на широком экране ещё и слово.
- *
- * Вид тот же, что у плашек пути слева в этой же строке и что был у кнопок
- * прежней шапки: поднятая бумага, свет лампы по кромке, скругление в
- * четырнадцать точек. Ниже 640 точек от кнопки остаётся значок — три
- * слова рядом с именем папки на телефоне в строку не встают, — а имя
- * действия достаётся программе чтения.
- */
-function ExplorerAction({
-  icon: Icon,
-  title,
-  onClick,
-  children,
-}: {
-  icon: LucideIcon;
-  /** Имя действия целиком: его читает программа чтения и показывает подсказка. */
-  title: string;
-  onClick: () => void;
-  children: string;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-label={title}
-      title={title}
-      className={cn(
-        "lit inline-flex h-8 shrink-0 cursor-pointer items-center gap-2 rounded-xl",
-        "bg-paper-raised px-2 sm:px-3 text-sm font-medium text-ink",
-        "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink",
-      )}
-    >
-      <Icon aria-hidden className="size-4.5 shrink-0 text-ink-muted" />
-      <span className="max-sm:sr-only">{children}</span>
-    </button>
-  );
 }
 
 export function useExplorerTools(): ExplorerTools {
@@ -218,12 +176,12 @@ function fileNotice(imported: ImportedFile): string | null {
 
   const born = [
     imported.folders > 0 ? `папок: ${imported.folders}` : null,
-    imported.entries > 0 ? `профилей: ${imported.entries}` : null,
+    imported.entries > 0 ? `графиков: ${imported.entries}` : null,
   ].filter((it) => it !== null);
   if (born.length > 0) said.push(`Из файла заведено ${born.join(", ")}.`);
 
   if (imported.updated > 0) {
-    said.push(`Обновлено профилей: ${imported.updated}.`);
+    said.push(`Обновлено графиков: ${imported.updated}.`);
   }
 
   if (said.length === 0 && imported.kept > 0) {
@@ -233,7 +191,7 @@ function fileNotice(imported: ImportedFile): string | null {
   // Профиль, которому не хватило места в хранилище, пропущен — и человек,
   // перенёсший проводник, обязан узнать, что перенёсся он не весь.
   if (imported.skipped > 0) {
-    said.push(`Не поместилось в хранилище браузера профилей: ${imported.skipped}.`);
+    said.push(`Не поместилось в хранилище браузера графиков: ${imported.skipped}.`);
   }
 
   return said.length === 0 ? null : said.join(" ");
@@ -345,7 +303,7 @@ export function ProfileExplorer({
         // почему — сказано над списком.
         if (nameTaken(name, renaming.id)) {
           setTaken(
-            `Профиль «${name}» уже есть. У двух одинаковых имён в списке ` +
+            `График «${name}» уже есть. У двух одинаковых имён в списке ` +
               `не отличить одно от другого.`,
           );
           setRenaming(null);
@@ -395,22 +353,10 @@ export function ProfileExplorer({
           Ступени между верхом и открытой папкой — плашки помельче, и
           разделяет их галочка, а не косая черта: та же стрелка, что и
           слева, только повёрнутая, — одним знаком меньше в строке. */}
-      {/* Путь и три действия — одной строкой.
-          -------------------------------------------------------------
-          Действия («Папка», «Профиль», «Из файла») стояли в шапке, пока
-          шапка была рядом кнопок. С меню их туда не вернуть: пока открыт
-          проводник, кнопка в шапке закрывает его, и список не открыть
-          вовсе (`shared/header-menu.tsx`).
-
-          Отдельной полосы они при этом не получили: встали в ту же
-          строку, где и путь до открытой папки, — справа, за именем. Своя
-          полоса была бы ещё одной строкой сверху и отодвинула бы список
-          ещё ниже на экране, где его и так немного.
-
-          Строка стоит всегда, даже когда пути нет (в самом верху
-          проводника): иначе три действия прыгали бы с места на место при
-          заходе в папку. */}
-      <div className="flex min-h-8 flex-wrap items-center gap-x-4 gap-y-3">
+      {/* Три действия («Папка», «График», «Из файла») здесь больше не
+          стоят: они — знаки у нижней кромки окна, там же, где знаки
+          календаря (`explorer-dock.tsx`). В самом верху проводника путь
+          не нужен, и строки над списком нет вовсе. */}
       {path.length > 1 ? (
         <nav
           aria-label="Где мы в проводнике"
@@ -432,7 +378,7 @@ export function ProfileExplorer({
                   onClick={() => tools.openFolder(folder.id)}
                   data-glow={drag?.over === folder.id ? "on" : undefined}
                   aria-label={
-                    folder.id === ROOT_FOLDER_ID ? "Ко всем профилям" : folder.name
+                    folder.id === ROOT_FOLDER_ID ? "Ко всем графикам" : folder.name
                   }
                   className={cn(
                     "lit inline-flex h-8 shrink-0 cursor-pointer items-center justify-center",
@@ -458,23 +404,6 @@ export function ProfileExplorer({
           )}
         </nav>
       ) : null}
-
-      <div className="ml-auto flex shrink-0 items-center gap-2">
-        <ExplorerAction icon={FolderPlus} title="Создать папку" onClick={tools.newFolder}>
-          Папка
-        </ExplorerAction>
-        <ExplorerAction icon={Plus} title="Создать профиль" onClick={tools.newProfile}>
-          Профиль
-        </ExplorerAction>
-        <ExplorerAction
-          icon={Upload}
-          title="Загрузить профиль из файла"
-          onClick={tools.importFile}
-        >
-          Из файла
-        </ExplorerAction>
-      </div>
-      </div>
 
       {(tools.error ?? taken) !== null ? (
         <p className="rounded-xl bg-signal-soft px-4 py-3 text-sm">{tools.error ?? taken}</p>
@@ -584,8 +513,8 @@ export function ProfileExplorer({
       {entries.length === 0 && folders.length === 0 ? (
         <p className="rounded-xl bg-paper-raised px-4 py-6 text-center text-sm text-ink-muted lit">
           {current.id === ROOT_FOLDER_ID
-            ? "Здесь будут ваши графики. Создайте новый профиль или загрузите сохранённый файл."
-            : "Папка пуста. Перетащите сюда профиль за полоску слева от имени."}
+            ? "Здесь будут ваши графики. Создайте новый график или загрузите сохранённый файл."
+            : "Папка пуста. Перетащите сюда график за полоску слева от имени."}
         </p>
       ) : null}
 
@@ -613,7 +542,7 @@ export function ProfileExplorer({
           if (removing.kind === "folder") deleteFolder(removing.id);
           else deleteEntry(removing.id);
         }}
-        title={removing?.kind === "folder" ? "Удалить папку?" : "Удалить профиль?"}
+        title={removing?.kind === "folder" ? "Удалить папку?" : "Удалить график?"}
         confirm="Удалить"
         destructive
         icon={<Trash2 aria-hidden />}
@@ -626,7 +555,7 @@ export function ProfileExplorer({
         ) : (
           <>
             <p>
-              Профиль «{removing?.name}» и все его данные будут удалены. Это
+              График «{removing?.name}» и все его данные будут удалены. Это
               действие нельзя отменить.
             </p>
             {/* С учётной записью удаление уезжает на сервер надгробием и
@@ -634,7 +563,7 @@ export function ProfileExplorer({
                 копию на телефоне, должен знать, что убирает её везде. */}
             {account === null ? null : (
               <p className="text-ink-muted">
-                Профиль пропадёт и на других ваших устройствах: он удалится из
+                График пропадёт и на других ваших устройствах: он удалится из
                 учётной записи.
               </p>
             )}
@@ -924,14 +853,14 @@ function EntryCard({
             <button
               type="button"
               onClick={onOpen}
-              aria-label={`Открыть профиль «${entry.name}»`}
+              aria-label={`Открыть график «${entry.name}»`}
               className="absolute inset-0 cursor-pointer rounded-xl focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ink"
             />
 
             <button
               type="button"
               {...grip}
-              aria-label={`Перетащить профиль «${entry.name}» в папку`}
+              aria-label={`Перетащить график «${entry.name}» в папку`}
               title="Перетащите в папку или нажмите, чтобы выбрать её"
               className={cn(
                 // Прокрутка на ручке выключена заранее: менять
@@ -964,7 +893,7 @@ function EntryCard({
             ) : null}
 
             <span className="relative flex shrink-0 items-center">
-              <IconButton label={`Переименовать профиль «${entry.name}»`} onClick={onRename}>
+              <IconButton label={`Переименовать график «${entry.name}»`} onClick={onRename}>
                 <Pencil aria-hidden className="size-4" />
               </IconButton>
               {/* Открытый профиль отсюда не удаляется: стереть то, что
@@ -975,8 +904,8 @@ function EntryCard({
               <IconButton
                 label={
                   active
-                    ? "Открытый профиль удаляется из настроек"
-                    : `Удалить профиль «${entry.name}»`
+                    ? "Открытый график удаляется из настроек"
+                    : `Удалить график «${entry.name}»`
                 }
                 onClick={onDelete}
                 disabled={active}

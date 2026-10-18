@@ -50,7 +50,7 @@ export function RegisterForm({ onCreated, notice }: RegisterFormProps) {
               onClick={() => setOpen(true)}
             >
               <CtaIcon />
-              Заполнить профиль
+              Заполнить график
             </Button>
           }
         />

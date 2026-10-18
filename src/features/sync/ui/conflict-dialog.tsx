@@ -48,7 +48,7 @@ export function SyncConflicts() {
   const нельзя = занят || busy;
 
   return (
-    <Modal open onClose={() => undefined} title="Профиль настроен по-разному" sheet>
+    <Modal open onClose={() => undefined} title="График настроен по-разному" sheet>
       <div className="space-y-4">
         <p className="text-sm text-ink-muted">
           График <span className="text-ink">«{строка.name}»</span> правили на двух
