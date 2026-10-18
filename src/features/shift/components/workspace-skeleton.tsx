@@ -4,6 +4,12 @@ import type { ReactNode } from "react";
 
 import { LegendMark, MARK_EMPTY_CLASS, MARK_EMPTY_TEXT } from "@/components/shared/header-action";
 import { Bone, BoneText } from "@/components/ui/bone";
+import {
+  FOOTER_DOCS,
+  FOOTER_DOCUMENTS,
+  FOOTER_HEADING,
+  FOOTER_LIST,
+} from "@/components/shared/site-footer";
 import { KNOB_ICON, KNOB_NEST } from "@/components/ui/knob";
 import { cn } from "@/lib/utils/cn";
 
@@ -484,7 +490,7 @@ function FigureBone({
 }
 
 /**
- * Подвал профиля: плитки документов и адрес для обращений.
+ * Подвал профиля: перечень документов и адрес для обращений.
  *
  * Ровно то, что стоит в `ProfileFooter`, и ничего сверх того. Здесь долго
  * лежал прежний подвал — рассказ «Где лежат ваши данные» на три абзаца,
@@ -501,51 +507,34 @@ function FigureBone({
 function ProfileFooterBones() {
   return (
     // Те же поля, ширина и просвет сверху, что у настоящего подвала
-    // (`ProfileFooter`): он тоже стоит после `main`.
+    // (`ProfileFooter`): он тоже стоит после `main`, и рамка у него та же,
+    // что у графика (`frame-inset`).
     <footer aria-hidden className="mx-auto mt-10 w-full px-6 2xl:max-w-[2000px]">
-      <div className="space-y-4 border-t border-rule py-6 text-sm">
-        {/* Плитки документов: та же сетка и та же начинка, что в подвале
-            расчёта (`shared/site-footer.tsx`), — высота плитки и переносы
-            названия получаются сами, а не подобраны числом. */}
-        <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
-          {ДОКУМЕНТЫ_КОСТИ.map((документ) => (
-            <span
-              key={документ.label}
-              className="flex items-center gap-3 rounded-xl bg-paper-raised px-3 py-2.5"
-            >
-              <Bone className="size-7 shrink-0 rounded-lg" />
-              <span className="min-w-0">
-                <BoneText skeleton className="block text-xs leading-4">
-                  {документ.label}
-                </BoneText>
-                <BoneText skeleton className="block text-[11px] leading-4">
-                  {документ.note}
-                </BoneText>
-              </span>
+      <div className="frame-inset">
+        <div className="space-y-4 border-t border-rule py-6 text-sm">
+          {/* Перечень документов: те же классы и те же слова, что у
+              настоящего (`shared/site-footer.tsx`), — высота получается
+              сама, а не подбирается числом. */}
+          <div className={FOOTER_DOCS}>
+            <span className={FOOTER_HEADING}>
+              <BoneText skeleton>Документы</BoneText>
             </span>
-          ))}
-        </div>
+            <ul className={FOOTER_LIST}>
+              {FOOTER_DOCUMENTS.map((документ) => (
+                <li key={документ.href}>
+                  <BoneText skeleton>{документ.label}</BoneText>
+                </li>
+              ))}
+            </ul>
+          </div>
 
-        {/* Строка адреса — теми же словами и тем же кеглем, что в подвале
-            расчёта: её высота и переносы получаются сами. */}
-        <p className="mt-16 text-center text-xs text-ink-muted">
-          <BoneText skeleton>Вопросы и обращения: grafik1-3@yandex.ru</BoneText>
-        </p>
+          {/* Строка адреса — теми же словами и тем же кеглем, что в подвале
+              расчёта: её высота и переносы получаются сами. */}
+          <p className="mt-16 text-center text-xs text-ink-muted">
+            <BoneText skeleton>Вопросы и обращения: grafik1-3@yandex.ru</BoneText>
+          </p>
+        </div>
       </div>
     </footer>
   );
 }
-
-/**
- * Названия документов для плиток заглушки.
- *
- * Своей копией, а не ввозом из подвала: заглушке нужна только длина строк,
- * а знаки и адреса ссылок — нет. Разойдутся в длине — разойдётся высота
- * плитки, и это видно глазом; разойдутся в словах — не видно ничего.
- */
-const ДОКУМЕНТЫ_КОСТИ = [
-  { label: "Пользовательское соглашение", note: "Условия работы приложения" },
-  { label: "Политика конфиденциальности", note: "Какие данные обрабатываются" },
-  { label: "Согласие на обработку данных", note: "Что принимается при регистрации" },
-  { label: "Настройки cookie", note: "Разрешить счётчик или отказать" },
-] as const;
