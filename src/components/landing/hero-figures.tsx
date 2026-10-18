@@ -3,6 +3,7 @@
 import type { CSSProperties } from "react";
 
 import { BalanceCaption } from "@/components/ui/balance-caption";
+import { FigureSep, FIGURE_TRIO } from "@/components/ui/figure-sep";
 import { Figure } from "@/components/ui/summary-figure";
 import { cn } from "@/lib/utils/cn";
 
@@ -85,17 +86,26 @@ export function HeroFigures({
     // отступ от месяца несёт на себе: у самой группы они были бы смещены
     // её собственной шириной.
     <div className={cn("flex justify-center", className)} style={style}>
-      <dl className="grid min-w-0 grid-cols-3 items-center gap-x-3 min-[360px]:gap-x-5 md:gap-x-7 xl:gap-x-10">
+      {/* Зазоры вдвое меньше прежних (12, 20, 28 и 40 точек): между числами
+          стоят иглы, и каждая делит просвет надвое (`FIGURE_TRIO`). */}
+      <dl
+        className={cn(
+          "min-w-0 gap-x-1.5 min-[360px]:gap-x-2.5 md:gap-x-3.5 xl:gap-x-5",
+          FIGURE_TRIO,
+        )}
+      >
         <Figure
           size="hero"
           parts={[{ value: String(stage.norm), unit: "ч" }]}
           caption="Норма периода"
         />
+        <FigureSep size="hero" />
         <Figure
           size="hero"
           parts={[{ value: String(stage.actual), unit: "ч" }]}
           caption="Отработано"
         />
+        <FigureSep size="hero" />
         {/* Третье число — разница, и имя у неё меняется вместе со знаком.
             Та же деталь, что в расчёте: приставка уезжает, число меняет
             цвет. Ноль цвета не имеет — как и там. */}

@@ -194,7 +194,7 @@ export function YearView({
   // кнопки стоят у кромки окна, а не над сеткой, и менять их состояние
   // больше не здесь. Компактно: месяцы собраны в ровные ряды и стоят по
   // середине, а не растянуты на всю ширину рамки (`balancedColumns`).
-  const { asked, compact, report } = useGridScale();
+  const { asked, pinned, compact, report } = useGridScale();
   const [roomWidth, setRoomWidth] = useState(0);
 
   /**
@@ -312,21 +312,34 @@ export function YearView({
   // Мельчить дальше некуда: предел — это столько месяцев, сколько влезает
   // в эту колонку, и на нём кнопка гаснет.
   const most = Math.max(MONTHS_MIN, Math.min(MONTHS_CAP, fits));
-  const months = Math.min(asked, most);
+  // Выбранные столбцы закреплены: лупа их не двигает, а ширина колонки — её
+  // предел, как и у масштаба (больше, чем влезает, не показать). Месяц при
+  // этом не крупнее, чем нужно, чтобы столбцы заняли рамку: поэтому число
+  // месяцев в ширину не меньше числа столбцов, и «крупнее» на нём гаснет.
+  const stuck = pinned === null ? null : Math.min(pinned, most);
+  const months = stuck === null ? Math.min(asked, most) : Math.max(stuck, Math.min(asked, most));
   // Знакам масштаба нужно знать, во что он упёрся, чтобы погасить кнопку,
   // которой дальше некуда. Считает это сетка — по замеру своей колонки.
-  useEffect(() => report({ months, most }), [report, months, most]);
+  const across = stuck ?? months;
+  useEffect(
+    () => report({ months, columns: across, most }),
+    [report, months, across, most],
+  );
   // Колонок в компактной раскладке: `months` задаёт ширину месяца (масштаб), а
   // колонок может быть меньше — ровно столько, чтобы все ряды вышли одной
-  // длины. Без компактности колонок столько же, сколько и месяцев в ряду.
+  // длины. Без компактности колонок столько же, сколько и в ряду: месяцев,
+  // если столбцы не выбраны, и выбранных, если выбраны.
   const columns = compact
-    ? balancedColumns(monthsInPeriod(calculation.periodStart, calculation.periodEnd), months)
-    : months;
+    ? balancedColumns(monthsInPeriod(calculation.periodStart, calculation.periodEnd), across)
+    : across;
+  // Сетка уже рамки, когда её стягивает компактность или когда столбцов
+  // меньше, чем месяцев в ширину (лупой уменьшили выбранное число).
+  const narrowed = compact || columns < months;
 
   return (
     <div
       ref={room}
-      className={cn("year-room space-y-4 pt-4", compact && "year-compact")}
+      className={cn("year-room space-y-4 pt-4", narrowed && "year-compact")}
       // Скрипт назначает ОДНО число — сколько месяцев в ряду. Ширину месяца
       // и кегль в клетке считает из него сама таблица стилей, запросом к
       // мерной коробке (`globals.css`), — потому и заглушка рабочего экрана,

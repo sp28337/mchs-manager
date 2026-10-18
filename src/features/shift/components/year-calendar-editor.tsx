@@ -185,7 +185,7 @@ function MonthMeta({ facts, edited }: { facts: MonthFacts; edited: number }) {
           <MetaSep />
           <span className="text-ink-faint">
             {"−"}
-            <CountedNumber value={String(facts.preHolidayHours)} /> ч
+            <CountedNumber value={String(facts.preHolidayHours)} />ч
           </span>
         </>
       ) : null}

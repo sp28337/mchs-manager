@@ -3,6 +3,7 @@
 import { useLayoutEffect, useRef, useState } from "react";
 
 import { BalanceCaption } from "@/components/ui/balance-caption";
+import { FigureSep, FIGURE_TRIO } from "@/components/ui/figure-sep";
 import { Figure, type FigurePart } from "@/components/ui/summary-figure";
 import { cn } from "@/lib/utils/cn";
 
@@ -464,8 +465,11 @@ function MainPlate({
         // Три колонки поровну, а числа с подписями — по середине каждой и
         // по середине высоты: `items-center` у сетки, `justify-center` у
         // каждого блока. Высота та же, что у сторон рядом, — полоса не
-        // растёт.
-        "grid h-14 grid-cols-3 items-center",
+        // растёт. Между числами — иглы (`FIGURE_TRIO`), и поэтому зазор
+        // ниже вдвое меньше прежних 8 и 20 точек: игла стоит посередине, а
+        // просвет в сумме тот же.
+        "h-14",
+        FIGURE_TRIO,
         // Одна по середине строки: ширина — по содержимому, а на самом
         // узком телефоне группа сжимается (`min-w-0`), и просвет уже.
         //
@@ -475,8 +479,8 @@ function MainPlate({
         // Наименьшая ширина — по содержимому: тогда стороны делят остаток,
         // а не главные числа, и подписи не налезают друг на друга.
         alone && !tight
-          ? "min-w-0 gap-x-2 min-[360px]:gap-x-5"
-          : "min-w-max shrink-0 gap-x-5",
+          ? "min-w-0 gap-x-1 min-[360px]:gap-x-2.5"
+          : "min-w-max shrink-0 gap-x-2.5",
         className,
       )}
     >
@@ -485,11 +489,13 @@ function MainPlate({
         caption="Норма периода"
         still={tight}
       />
+      <FigureSep />
       <Figure
         parts={[{ value: hoursTrim(calculation.actualHours), unit: "ч" }]}
         caption="Отработано"
         still={tight}
       />
+      <FigureSep />
       <Figure
         parts={overtimeParts(balance, inShifts, shiftHours)}
         caption={<BalanceCaption under={under} />}

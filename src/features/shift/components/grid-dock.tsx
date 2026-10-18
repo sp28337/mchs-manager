@@ -241,11 +241,16 @@ function monthsWord(count: number): string {
  * что мельче уже некуда.
  */
 function ScaleKnobs() {
-  const { compact, months, most, setAsked, setCompact } = useGridScale();
+  const { compact, pinned, months, columns, most, setAsked, setColumns, setCompact } =
+    useGridScale();
+  // Крупнее некуда: два месяца в ряду, а при выбранных столбцах — когда они
+  // заняли рамку целиком (месяц больше не стал бы). Мельче некуда — на
+  // пределе ширины в обоих случаях.
+  const smallest = pinned === null ? MONTHS_MIN : columns;
 
   return (
     <div role="group" aria-label="Масштаб сетки" className={SCALE_KNOBS}>
-      <ColumnsKnob months={months} most={most} onPick={setAsked} />
+      <ColumnsKnob columns={columns} pinned={pinned !== null} most={most} onPick={setColumns} />
       <ScaleKnob
         name={compact ? "Растянуть по ширине рамки" : "Собрать компактно: ровные ряды по середине"}
         caption={compact ? "Растянуть" : "Компактно"}
@@ -254,15 +259,23 @@ function ScaleKnobs() {
         {compact ? <Expand aria-hidden /> : <Shrink aria-hidden />}
       </ScaleKnob>
       <ScaleKnob
-        name="Крупнее: меньше месяцев в ряду"
+        name={
+          pinned === null
+            ? "Крупнее: меньше месяцев в ряду"
+            : "Крупнее: те же столбцы, месяцы больше"
+        }
         caption="Крупнее"
-        disabled={months <= MONTHS_MIN}
-        onClick={() => setAsked(Math.max(MONTHS_MIN, months - 1))}
+        disabled={months <= smallest}
+        onClick={() => setAsked(Math.max(smallest, months - 1))}
       >
         <ZoomIn aria-hidden />
       </ScaleKnob>
       <ScaleKnob
-        name="Мельче: больше месяцев в ряду"
+        name={
+          pinned === null
+            ? "Мельче: больше месяцев в ряду"
+            : "Мельче: те же столбцы, месяцы меньше"
+        }
         caption="Мельче"
         disabled={months >= most}
         onClick={() => setAsked(Math.min(most, months + 1))}
@@ -270,7 +283,9 @@ function ScaleKnobs() {
         <ZoomOut aria-hidden />
       </ScaleKnob>
       <span aria-live="polite" className="sr-only">
-        {months} {monthsWord(months)} в ряду{compact ? ", компактно" : ""}
+        {columns} {monthsWord(columns)} в ряду
+        {pinned !== null ? ", столбцы выбраны" : ""}
+        {compact ? ", компактно" : ""}
       </span>
     </div>
   );
@@ -284,9 +299,11 @@ function ScaleKnobs() {
  * месяцев хочет видеть в ряду, выбирает число прямо: открыл список, нажал.
  * Лупы остались: «чуть крупнее» нажимают, не думая о числе.
  *
- * «Столбец» здесь — месяц в ряду: сетка строится рядами месяцев, и число
- * столбцов и есть то, что называет `months` в `grid-scale.tsx`. Выше
- * `most` список не идёт: больше месяцев, чем влезает в колонку, не показать, и
+ * «Столбец» здесь — месяц в ряду: сетка строится рядами месяцев. Выбранное
+ * число ЗАКРЕПЛЯЕТСЯ (`pinned` в `grid-scale.tsx`): лупы после него меняют
+ * размер месяцев, а не число столбцов. Первым пунктом — «Авто»: он снимает
+ * закрепление, и столбцы снова ведёт масштаб, как до выбора. Выше `most`
+ * список не идёт: больше месяцев, чем влезает в колонку, не показать, и
  * пункт, который ничего не сделает, только ввёл бы в заблуждение. Нижняя
  * граница — две: один столбец на всю рамку — уже не сетка года, а одна страница
  * календаря (довод — в `year-view.tsx`).
@@ -296,13 +313,16 @@ function ScaleKnobs() {
  * окошки левой колонки растут от своих знаков.
  */
 function ColumnsKnob({
-  months,
+  columns,
+  pinned,
   most,
   onPick,
 }: {
-  months: number;
+  columns: number;
+  /** Число закреплено выбором; иначе столбцы ведёт масштаб. */
+  pinned: boolean;
   most: number;
-  onPick: (asked: number) => void;
+  onPick: (columns: number | null) => void;
 }) {
   const [open, setOpen] = useState(false);
   const nest = useRef<HTMLDivElement>(null);
@@ -323,8 +343,20 @@ function ColumnsKnob({
             "rounded-xl bg-paper-raised p-1.5",
           )}
         >
+          <button
+            type="button"
+            aria-pressed={!pinned}
+            onClick={() => {
+              onPick(null);
+              setOpen(false);
+            }}
+            className={knobOption(!pinned)}
+          >
+            Авто
+            {!pinned ? <Check aria-hidden className="ml-auto text-ink" /> : null}
+          </button>
           {choices.map((count) => {
-            const active = count === months;
+            const active = pinned && count === columns;
             return (
               <button
                 key={count}
@@ -349,7 +381,7 @@ function ColumnsKnob({
         onClick={() => setOpen(!open)}
         aria-expanded={open}
         aria-controls={id}
-        aria-label={`Столбцов в ряду: ${months}. Выбрать другое число`}
+        aria-label={`Столбцов в ряду: ${columns}${pinned ? "" : " (авто)"}. Выбрать другое число`}
         className={KNOB}
       >
         <KnobLabel side="left">Столбцы</KnobLabel>

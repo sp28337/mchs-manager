@@ -134,13 +134,13 @@ function MonthBalance({ total }: { total: MonthTotal | undefined }) {
       <span className="sr-only">норма </span>
       <span className={META_FIGURE}>
         <CountedNumber value={hoursTrim(total.normHours)} />
-      </span>{" "}
+      </span>
       ч
       <MetaSep />
       <span className="sr-only">отработано </span>
       <span className={META_FIGURE}>
         <CountedNumber value={hoursTrim(total.actualHours)} />
-      </span>{" "}
+      </span>
       ч
       <MetaSep />
       <span className="sr-only">{name} </span>
@@ -148,7 +148,7 @@ function MonthBalance({ total }: { total: MonthTotal | undefined }) {
           недоработка: знака «+» и «−» нет. Ноль — чернилами, как норма и факт. */}
       <span className={cn(META_FIGURE, over && "text-verify", under && "text-signal")}>
         <CountedNumber value={hoursTrim(balance)} />
-      </span>{" "}
+      </span>
       ч
     </span>
   );

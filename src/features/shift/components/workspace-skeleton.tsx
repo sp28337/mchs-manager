@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 import { LegendMark, MARK_EMPTY_CLASS, MARK_EMPTY_TEXT } from "@/components/shared/header-action";
 import { BoneText } from "@/components/ui/bone";
 import { FooterBody } from "@/components/shared/site-footer";
+import { FigureSep, FIGURE_TRIO } from "@/components/ui/figure-sep";
 import { KNOB_ICON, KNOB_NEST } from "@/components/ui/knob";
 import { cn } from "@/lib/utils/cn";
 
@@ -329,13 +330,13 @@ function MonthBones({ month }: { month: number }) {
       // расчёта, и сетка разъехалась на пятнадцать точек по высоте.
       meta={
         <span>
-          <span className="font-bold">{"168"}</span>{" "}
+          <span className="font-bold">{"168"}</span>
           ч
           <MetaSep />
-          <span className="font-bold">{"192"}</span>{" "}
+          <span className="font-bold">{"192"}</span>
           ч
           <MetaSep />
-          <span className="font-bold">{"24"}</span>{" "}
+          <span className="font-bold">{"24"}</span>
           ч
         </span>
       }
@@ -413,19 +414,22 @@ function MainPlateBone() {
   return (
     <dl
       className={cn(
-        "grid h-14 grid-cols-3 items-center",
-        "min-w-0 gap-x-2 min-[360px]:gap-x-5",
+        "h-14",
+        FIGURE_TRIO,
+        "min-w-0 gap-x-1 min-[360px]:gap-x-2.5",
         // В сетке со сторонами группа не уже своего содержимого — как
         // настоящая (`min-w-max`, довод — в `MainPlate`). С `min-w-0`
         // средняя колонка (`1fr auto 1fr`) считала бы её нижней границей
         // ноль, и стороны сжимали бы её: на 1114–1250 точках колонки
         // выходили вдвое уже подписей.
         "min-[542px]:col-start-2 min-[542px]:row-start-1 min-[542px]:min-w-max min-[542px]:shrink-0",
-        "min-[542px]:gap-x-5",
+        "min-[542px]:gap-x-2.5",
       )}
     >
       <FigureBone value="1972" unit="ч" caption="Норма периода" />
+      <FigureSep />
       <FigureBone value="2192" unit="ч" caption="Отработано" />
+      <FigureSep />
       <FigureBone value="220" unit="ч" caption="Переработка" />
     </dl>
   );

@@ -26,11 +26,20 @@ import {
  *
  * --- Что хранится ---------------------------------------------------------
  *
- * Желание человека — `asked` (сколько месяцев в ряду он просил) и `compact`
- * — и то, что из этого вышло на самом деле: `months` и `most`. Вторые считает
- * сетка по замеру колонки — сколько влезает, — и сообщает сюда. Знакам они
- * нужны, чтобы погасить кнопку, которой дальше некуда: «мельче» на пределе
- * ширины, «крупнее» на двух месяцах.
+ * Желание человека — `asked` (сколько месяцев в ряду он просил), `pinned`
+ * (сколько столбцов выбрал из списка) и `compact` — и то, что из этого вышло
+ * на самом деле: `months`, `columns` и `most`. Вторые считает сетка по замеру
+ * колонки — сколько влезает, — и сообщает сюда. Знакам они нужны, чтобы
+ * погасить кнопку, которой дальше некуда: «мельче» на пределе ширины,
+ * «крупнее» на двух месяцах или на выбранном числе столбцов.
+ *
+ * --- Два числа, а не одно ---------------------------------------------------
+ *
+ * Пока человек столбцы не выбирал, их ровно столько, сколько месяцев в ряду, —
+ * это одно число, и лупы двигают его. Выбрав число из списка, он называет
+ * СТОЛБЦЫ, и они закрепляются: лупы больше не меняют их, а меняют только
+ * размер месяца. Крупнее некуда, когда выбранные столбцы заняли всю рамку;
+ * мельче — сетка сужается и стоит по середине, столбцов в ней столько же.
  */
 
 /**
@@ -52,17 +61,34 @@ export const MONTHS_CAP = 8;
  */
 export const DEFAULT_MONTHS = 4;
 
-/** Что сетка видит на самом деле: сколько месяцев в ряду и сколько влезло бы. */
+/**
+ * Что сетка видит на самом деле: сколько месяцев в ширину (размер месяца),
+ * сколько столбцов получилось и сколько влезло бы.
+ *
+ * Без выбранных столбцов `columns` равно `months`. С выбранными `months` не
+ * меньше `columns`: месяц уже не стал бы больше, чем нужно, чтобы столбцы
+ * заняли рамку.
+ */
 export interface GridLimits {
   months: number;
+  columns: number;
   most: number;
 }
 
 interface GridScale extends GridLimits {
   asked: number;
+  /** Столбцы, выбранные из списка; `null` — не выбирал, их ведёт масштаб. */
+  pinned: number | null;
   /** Месяцы собраны в ровные ряды и стоят по середине рамки. */
   compact: boolean;
   setAsked: (asked: number) => void;
+  /**
+   * Закрепить число столбцов (`null` — снова вести их масштабом).
+   *
+   * Месяц при этом встаёт во всю рамку: сетка с выбранным числом столбцов
+   * сперва занимает её целиком, а мельчить её дальше — дело лупы.
+   */
+  setColumns: (columns: number | null) => void;
   setCompact: (compact: boolean) => void;
   /** Сетка сообщает, во что упёрся масштаб; больше этого никто не зовёт. */
   report: (limits: GridLimits) => void;
@@ -72,9 +98,11 @@ const GridScaleContext = createContext<GridScale | null>(null);
 
 export function GridScaleProvider({ children }: { children: ReactNode }) {
   const [asked, setAsked] = useState(DEFAULT_MONTHS);
+  const [pinned, setPinned] = useState<number | null>(null);
   const [compact, setCompact] = useState(false);
   const [limits, setLimits] = useState<GridLimits>({
     months: DEFAULT_MONTHS,
+    columns: DEFAULT_MONTHS,
     most: MONTHS_CAP,
   });
 
@@ -82,13 +110,29 @@ export function GridScaleProvider({ children }: { children: ReactNode }) {
   // подписано: сообщает она после каждой отрисовки, а меняется он редко.
   const report = useCallback((next: GridLimits) => {
     setLimits((previous) =>
-      previous.months === next.months && previous.most === next.most ? previous : next,
+      previous.months === next.months &&
+      previous.columns === next.columns &&
+      previous.most === next.most
+        ? previous
+        : next,
     );
   }, []);
 
+  // Выбор столбцов ставит и размер: месяц — во всю рамку на этом числе. А
+  // «снова вести масштабом» оставляет то, что человек видит сейчас: число
+  // месяцев в ряду становится равным столбцам, которые были, — сетка не
+  // прыгает.
+  const setColumns = useCallback(
+    (next: number | null) => {
+      setPinned(next);
+      setAsked(next ?? limits.columns);
+    },
+    [limits.columns],
+  );
+
   const value = useMemo<GridScale>(
-    () => ({ asked, compact, ...limits, setAsked, setCompact, report }),
-    [asked, compact, limits, report],
+    () => ({ asked, pinned, compact, ...limits, setAsked, setColumns, setCompact, report }),
+    [asked, pinned, compact, limits, report, setColumns],
   );
 
   return <GridScaleContext.Provider value={value}>{children}</GridScaleContext.Provider>;

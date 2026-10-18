@@ -34,17 +34,17 @@ export function HeroMonthMeta({ layout, index }: { layout: HeroLayout; index: nu
     <span>
       <span className={META_FIGURE}>
         <CountedNumber value={String(total.norm)} />
-      </span>{" "}
+      </span>
       ч
       <MetaSep />
       <span className={META_FIGURE}>
         <CountedNumber value={String(total.actual)} />
-      </span>{" "}
+      </span>
       ч
       <MetaSep />
       <span className={cn(META_FIGURE, over && "text-verify", under && "text-signal")}>
         <CountedNumber value={String(balance)} />
-      </span>{" "}
+      </span>
       ч
     </span>
   );
