@@ -9,7 +9,7 @@ import {
   Settings,
 } from "lucide-react";
 
-import { MenuItem } from "@/components/shared/header-menu";
+import { HelpMenuItem, MenuItem } from "@/components/shared/header-menu";
 
 import { SECTION_HASH } from "./section-hash";
 
@@ -91,6 +91,7 @@ export function WorkspaceMenuItems({
       <MenuItem icon={Save} onClick={onSave}>
         Сохранить
       </MenuItem>
+      <HelpMenuItem />
     </>
   );
 }
@@ -116,7 +117,7 @@ export function WorkspaceMenuItems({
  * `OpenScheduleItem`: страница серверная, а значок пункта — функция, и
  * через границу сервера и клиента её не передать.
  */
-export function AccountMenuItems() {
+export function AccountMenuItems({ help = true }: { help?: boolean }) {
   return (
     <>
       <MenuItem icon={CalendarDays} href="/calculator">
@@ -137,6 +138,7 @@ export function AccountMenuItems() {
       <MenuItem icon={Save} href={`/calculator#${SECTION_HASH.save}`}>
         Сохранить
       </MenuItem>
+      {help ? <HelpMenuItem /> : null}
     </>
   );
 }

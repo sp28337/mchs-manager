@@ -13,23 +13,19 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import Link from "next/link";
-import {
-  useCallback,
-  useId,
-  useState,
-  useSyncExternalStore,
-  type ReactNode,
-} from "react";
+import { useRouter } from "next/navigation";
+import { useId, useState, type ReactNode } from "react";
 
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Label } from "@/components/ui/label";
 import { SectionLayout } from "@/components/ui/section-layout";
+import { useHashSection } from "@/components/ui/use-hash-section";
 import { Card, Field } from "@/components/ui/panel";
 import { cn } from "@/lib/utils/cn";
 
 import { LEGAL_URLS } from "../legal";
-import { AuthScreen, PasswordField, PasswordStrength } from "./auth-screen";
+import { AuthScreen, PasswordField, PasswordStrength, toSchedule } from "./auth-screen";
 import { оценить } from "./password-strength";
 import { когда } from "./presence";
 import { RecoveryKeyCard } from "./recovery-key-card";
@@ -44,33 +40,12 @@ const SECTIONS: readonly { id: SectionId; title: string; icon: LucideIcon }[] = 
   { id: "data", title: "Мои данные", icon: ShieldCheck },
 ];
 
-function subscribeToHash(callback: () => void) {
-  window.addEventListener("hashchange", callback);
-  return () => window.removeEventListener("hashchange", callback);
-}
-
-/** Открытый раздел; живёт и в адресе (`#sync`), чтобы на него можно было сослаться. */
-function useSection(): [SectionId, (id: SectionId) => void] {
-  const hash = useSyncExternalStore(
-    subscribeToHash,
-    () => window.location.hash.slice(1),
-    () => "",
-  );
-  const section = SECTIONS.find((item) => item.id === hash)?.id ?? "profile";
-
-  const choose = useCallback((id: SectionId) => {
-    // Без прокрутки к якорю и без записи в историю; подписчикам об этом
-    // сообщаем сами — `replaceState` `hashchange` не вызывает.
-    window.history.replaceState(null, "", `#${id}`);
-    window.dispatchEvent(new HashChangeEvent("hashchange"));
-  }, []);
-
-  return [section, choose];
-}
+const SECTION_IDS = SECTIONS.map((section) => section.id);
 
 export function AccountScreen() {
   const { enabled, account, error, freshRecoveryKey, actions } = useSync();
-  const [section, choose] = useSection();
+  const [section, choose] = useHashSection(SECTION_IDS);
+  const router = useRouter();
 
   if (!enabled) {
     return (
@@ -98,7 +73,15 @@ export function AccountScreen() {
       {error !== null && <Отказ>{error}</Отказ>}
 
       {freshRecoveryKey !== null && (
-        <RecoveryKeyCard recoveryKey={freshRecoveryKey} onDone={actions.forgetRecoveryKey} />
+        <RecoveryKeyCard
+          recoveryKey={freshRecoveryKey}
+          onDone={() => {
+            // Ключ записан — человеку пора к графику, ради которого он
+            // заводил учётную запись.
+            actions.forgetRecoveryKey();
+            router.push(toSchedule());
+          }}
+        />
       )}
 
       <SectionLayout

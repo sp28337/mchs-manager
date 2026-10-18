@@ -7,7 +7,7 @@ export const dynamic = "force-static";
 const SITE = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
 
 /**
- * Посадочная страница и четыре документа.
+ * Посадочная страница, справка и четыре документа.
  *
  * Калькулятора здесь нет намеренно — он закрыт от индексации (`robots.ts`):
  * форма без единого слова о том, зачем её заполнять, в выдаче бесполезна.
@@ -29,6 +29,12 @@ export default function sitemap(): MetadataRoute.Sitemap {
       lastModified: now,
       changeFrequency: "yearly",
       priority: 1,
+    },
+    {
+      url: `${SITE}/help`,
+      lastModified: now,
+      changeFrequency: "monthly" as const,
+      priority: 0.5,
     },
     ...ДОКУМЕНТЫ.map((путь) => ({
       url: `${SITE}${путь}`,

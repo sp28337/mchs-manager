@@ -2,6 +2,7 @@
 
 import { Eye, EyeOff, KeyRound, LogIn, Mail, UserPlus } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   useCallback,
   useId,
@@ -15,6 +16,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Card, Field } from "@/components/ui/panel";
 import { Segmented, SegmentedItem } from "@/components/ui/segmented";
+import { hasStoredProfile } from "@/features/shift/storage/profile";
 import { cn } from "@/lib/utils/cn";
 
 import { LEGAL_URLS, LEGAL_VERSIONS } from "../legal";
@@ -53,8 +55,14 @@ import { useSync } from "./sync-provider";
  * регистрации стоит человеку ключа шифрования — восстановить его потом
  * нечем, кроме ключа восстановления. Глаз у поля дешевле.
  */
+/** Куда идти после входа: к графику, а если его нет — к окну, где его строят. */
+export function toSchedule(): string {
+  return hasStoredProfile() ? "/calculator" : "/#build";
+}
+
 export function AuthScreen() {
   const { busy, actions } = useSync();
+  const router = useRouter();
   const [выбор, setВыбор] = useState<"login" | "register" | null>(null);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -104,10 +112,21 @@ export function AuthScreen() {
     const данные = { email: email.trim(), password };
 
     if (регистрация) {
+      // Регистрация остаётся на странице: на ней показывается ключ
+      // восстановления, и уйти раньше, чем он записан, значит потерять его.
       await actions.register(данные).catch(() => undefined);
-    } else {
-      await actions.login(данные).catch(() => undefined);
+      return;
     }
+
+    // Вошедший приходит за своим графиком, а не за страницей учётной записи.
+    // К этому моменту первый проход синхронизации закончен (`login` ждёт его),
+    // и график с другого устройства уже лежит здесь: есть он — открываем,
+    // нет — просим построить.
+    const вошёл = await actions.login(данные).then(
+      () => true,
+      () => false,
+    );
+    if (вошёл) router.push(toSchedule());
   };
 
   return (

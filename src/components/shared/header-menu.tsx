@@ -1,6 +1,13 @@
 "use client";
 
-import { CalendarDays, LogIn, LogOut, UserRound, type LucideIcon } from "lucide-react";
+import {
+  CalendarDays,
+  CircleQuestionMark,
+  LogIn,
+  LogOut,
+  UserRound,
+  type LucideIcon,
+} from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -364,6 +371,20 @@ export function OpenScheduleItem() {
   return (
     <MenuItem icon={CalendarDays} href="/calculator">
       Открыть график
+    </MenuItem>
+  );
+}
+
+/**
+ * Справка — строкой меню на любой странице.
+ *
+ * Отдельным компонентом без свойств — по той же причине, что и
+ * `OpenScheduleItem`: страницы серверные, а значок пункта — функция.
+ */
+export function HelpMenuItem() {
+  return (
+    <MenuItem icon={CircleQuestionMark} href="/help">
+      Справка
     </MenuItem>
   );
 }

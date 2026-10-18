@@ -42,7 +42,7 @@ export function RecoveryKeyCard({
           variant={записал ? "signal" : "outline"}
           onClick={() => (записал ? onDone() : setЗаписал(true))}
         >
-          {записал ? "Да, ключ записан — скрыть" : "Я записал ключ"}
+          {записал ? "Да, ключ записан — к графику" : "Я записал ключ"}
         </Button>
       </div>
 

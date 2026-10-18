@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
-import { OpenScheduleItem } from "@/components/shared/header-menu";
+import { HelpMenuItem, OpenScheduleItem } from "@/components/shared/header-menu";
 import { SiteHeader } from "@/components/shared/site-header";
 
 /**
@@ -66,7 +66,14 @@ export default function NotFound() {
           а не плашкой «График» в шапке: справа везде одно и то же
           «МЕНЮ». Сам расчёт к тому же назван ниже, в перечне всего, что
           на сайте есть. */}
-      <SiteHeader menu={<OpenScheduleItem />} />
+      <SiteHeader
+        menu={
+          <>
+            <OpenScheduleItem />
+            <HelpMenuItem />
+          </>
+        }
+      />
 
       <main className="mx-auto flex min-h-lvh w-full max-w-3xl flex-col justify-center gap-6 px-6 pb-16 pt-26">
         <p className="font-mono text-6xl leading-none text-ink-faint sm:text-7xl">404</p>

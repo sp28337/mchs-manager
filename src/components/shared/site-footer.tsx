@@ -205,6 +205,15 @@ export function FooterBody({
               )}
             </li>
           ))}
+          <li>
+            {skeleton ? (
+              текст("Справка")
+            ) : (
+              <Link href="/help" className={ССЫЛКА}>
+                Справка
+              </Link>
+            )}
+          </li>
         </ul>
       </nav>
 

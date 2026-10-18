@@ -6,7 +6,7 @@ import { HeroCta } from "@/components/landing/hero-cta";
 import { HOW_STEPS, HowItWorks } from "@/components/landing/how-it-works";
 import { SYNC_ENABLED } from "@/features/sync/ui/enabled";
 import { cn } from "@/lib/utils/cn";
-import { OpenScheduleItem } from "@/components/shared/header-menu";
+import { HelpMenuItem, OpenScheduleItem } from "@/components/shared/header-menu";
 import { SiteFooter } from "@/components/shared/site-footer";
 import { SiteHeader } from "@/components/shared/site-header";
 import { ThemeCorner } from "@/components/ui/theme-toggle";
@@ -300,7 +300,15 @@ export default function LandingPage() {
           ряд рядом со словом «ВХОД» читались как ещё одно действие
           страницы, а на телефоне занимали ту самую середину строки, из
           которой название сайта и так еле помещается. */}
-      <SiteHeader className="items-center" menu={<OpenScheduleItem />} />
+      <SiteHeader
+        className="items-center"
+        menu={
+          <>
+            <OpenScheduleItem />
+            <HelpMenuItem />
+          </>
+        }
+      />
 
       <main className="mx-auto w-full max-w-4xl px-6 xl:max-w-6xl 2xl:max-w-7xl">
         <LandingHero cta={<HeroCta />} />

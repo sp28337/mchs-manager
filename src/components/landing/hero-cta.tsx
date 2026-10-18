@@ -13,6 +13,13 @@ import {
 
 import { ctaClass, CtaIcon, CtaLabel, ToCalculator } from "./to-calculator";
 
+function subscribeToHash(callback: () => void) {
+  window.addEventListener("hashchange", callback);
+  return () => window.removeEventListener("hashchange", callback);
+}
+
+const readBuildHash = () => window.location.hash === "#build";
+
 /**
  * Кнопка первого экрана: «Построить график» или «Открыть график».
  *
@@ -54,6 +61,20 @@ export function HeroCta() {
   const built = useSyncExternalStore(subscribeToStoredProfile, hasStoredProfile, () => false);
   const router = useRouter();
   const [open, setOpen] = useState(false);
+  const [dismissed, setDismissed] = useState(false);
+  // Окно просят открыть адресом `/#build` — так сюда приходит вошедший в
+  // учётную запись, у которого графика ещё нет (`auth-screen.tsx`).
+  const requested = useSyncExternalStore(subscribeToHash, readBuildHash, () => false);
+  const shown = open || (requested && !dismissed);
+
+  const close = () => {
+    setOpen(false);
+    setDismissed(true);
+    // Закрытое окно не должно вернуться при обновлении страницы.
+    if (requested) {
+      window.history.replaceState(null, "", window.location.pathname + window.location.search);
+    }
+  };
 
   // Обе надписи — через `CtaLabel`: он держит ширину по самой длинной из
   // них, и подмена одной на другую ничего не двигает. Зачем это нужно —
@@ -73,8 +94,8 @@ export function HeroCta() {
       </button>
 
       <CreateProfileModal
-        open={open}
-        onClose={() => setOpen(false)}
+        open={shown}
+        onClose={close}
         onCreated={(profile, file) => {
           // Профиль пишется здесь, а не на странице расчёта: та узнала бы
           // о нём только из хранилища и первым делом показала бы заглушку
