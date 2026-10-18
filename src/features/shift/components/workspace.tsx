@@ -22,11 +22,12 @@ import { ChangesList } from "./changes-list";
 import { DayRing } from "./day-ring";
 import { ExplorerDock } from "./explorer-dock";
 import { GridDock } from "./grid-dock";
-import { SECTION_HASH, sectionFromHash, WorkspaceMenuItems } from "./header-tools";
+import { WorkspaceMenuItems } from "./header-tools";
 import { scrollMonthUnderBar, topmostVisibleMonth } from "./month-anchor";
 import { useConfirmSwitch } from "./open-profile";
 import { PeriodPicker } from "./period-picker";
 import { PeriodSummary, REVEAL_DELAY_MS } from "./period-summary";
+import { SECTION_HASH, sectionFromHash, type SectionHash } from "./section-hash";
 import { ProfileExplorer, useExplorerTools, useLibrary } from "./profile-explorer";
 import { ProfileFooter } from "./profile-footer";
 import { ProfileName } from "./profile-name";
@@ -408,6 +409,22 @@ export function Workspace({
     setStatsOpen(false);
     setEventsOpen(false);
     setStatsShown(null);
+  }
+
+  /**
+   * Открыть раздел из подвала («Навигация», `shared/site-footer.tsx`).
+   *
+   * Именно открыть, а не переключить: пункт подвала называет раздел, и
+   * нажатие по «Настройкам» при открытых настройках не должно их закрывать.
+   * Остальные разделы закрываются сами (`toggle*`), страница при этом
+   * возвращается к началу: подвал стоит внизу, а раздел начинается вверху.
+   */
+  function openSection(section: SectionHash) {
+    if (section === SECTION_HASH.settings && !settingsOpen) toggleSettings();
+    else if (section === SECTION_HASH.stats && !statsOpen) toggleStats();
+    else if (section === SECTION_HASH.events && !eventsOpen) toggleEvents();
+    else if (section === SECTION_HASH.graphs && !explorerOpen) toggleExplorer();
+    else window.scrollTo(0, 0);
   }
 
   /**
@@ -889,7 +906,7 @@ export function Workspace({
       )}
       </main>
 
-      <ProfileFooter />
+      <ProfileFooter onOpenSection={openSection} />
     </>
   );
 }

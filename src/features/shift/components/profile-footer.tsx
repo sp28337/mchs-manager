@@ -2,6 +2,8 @@
 
 import { FooterBody } from "@/components/shared/site-footer";
 
+import type { SectionHash } from "./section-hash";
+
 /**
  * Подвал рабочего экрана: документы сайта и обращение к оператору.
  *
@@ -43,7 +45,12 @@ import { FooterBody } from "@/components/shared/site-footer";
  * остальных страниц.
  */
 
-export function ProfileFooter() {
+export function ProfileFooter({
+  onOpenSection,
+}: {
+  /** Открыть раздел рабочего экрана на месте — пункты «Навигации». */
+  onOpenSection: (section: SectionHash) => void;
+}) {
   return (
     // Подвал стоит после `main`, а не в нём (`workspace.tsx`): тот не ниже
     // окна, и подвал за ним уходит за нижнюю кромку. Отсюда свои поля и
@@ -58,12 +65,14 @@ export function ProfileFooter() {
           отсчитывается от него, а не вместо него. */}
       <div className="frame-inset">
         <div className="border-t border-rule py-10">
-          {/* Знак, документы и адрес — одним подвалом на все страницы
-              (`shared/site-footer.tsx`): политика обязана быть доступна с
-              любой страницы, а рабочий экран — та, с которой человек уходит
-              реже всего, и спрашивают с той страницы, на которой застал
-              вопрос. */}
-          <FooterBody />
+          {/* Оговорка, навигация, документы и адрес — одним подвалом на все
+              страницы (`shared/site-footer.tsx`): политика обязана быть
+              доступна с любой страницы, а рабочий экран — та, с которой
+              человек уходит реже всего, и спрашивают с той страницы, на
+              которой застал вопрос. Разделы из «Навигации» открываются
+              здесь же, на месте: ссылка на ту же страницу не пересоздала бы
+              экран. */}
+          <FooterBody onOpenSection={onOpenSection} />
         </div>
       </div>
     </footer>
