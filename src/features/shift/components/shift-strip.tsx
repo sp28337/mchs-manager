@@ -627,7 +627,7 @@ function DayCell({
                 ? ABSENCE_TONE[shift.absenceKind]
                 : ABSENCE_TONE_QUIET[shift.absenceKind],
             ),
-          calloutKinds.length > 0 && "border border-trace bg-trace-soft text-trace",
+          calloutKinds.length > 0 && "border border-callout bg-callout-soft text-callout",
           calloutKinds.length > 1 && "border-2 rounded-xl",
           // Гашение — последним: оно поверх любого вида суток, каким бы
           // тот ни был. Сами цвета остаются, чтобы будущую смену было

@@ -34,7 +34,7 @@ import { ProfileExplorer, useExplorerTools, useLibrary } from "./profile-explore
 import { ProfileFooter } from "./profile-footer";
 import { ProfileName } from "./profile-name";
 import { useSaveToFile } from "./save-to-file";
-import { DangerActions, SettingsPanel } from "./settings-panel";
+import { SettingsScreen } from "./settings-screen";
 import { Statistics } from "./statistics";
 import { CalendarNote } from "./year-calendar-editor";
 import {
@@ -761,15 +761,8 @@ export function Workspace({
               она же ширина, на которой вопрос и ответ видны одним
               взглядом. Проводнику такой предел не нужен: он раскладывает
               плитки, и чем шире экран, тем больше их видно разом. */}
-          <section
-            aria-labelledby="settings-heading"
-            className="mx-auto w-full max-w-[44rem] space-y-4"
-          >
-            <h2 id="settings-heading" className="sr-only">
-              Настройки графика
-            </h2>
-            <SettingsPanel profile={profile} onChange={onChange} />
-            <DangerActions onForget={onForget} onChange={onChange} showReset={false} />
+          <section aria-label="Настройки графика">
+            <SettingsScreen profile={profile} onChange={onChange} onForget={onForget} />
           </section>
         </FadeIn>
       ) : eventsOpen ? (

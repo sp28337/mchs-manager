@@ -121,6 +121,17 @@
   --fps-excused: #575d63;
   --fps-excused-soft: #e9eaec;
 
+  /* Отпуск и вызов — свои имена, а не `signal` и `trace` напрямую: эти два
+     цвета заняты ещё и недоработкой, ссылками и тревогами, а свой цвет
+     события человек вправе поменять, не перекрасив всё остальное
+     (`appearance.ts`). По умолчанию — те же, что были. Ссылка на сигнальный и
+     след разворачивается на корне, где стоит и тема, поэтому на графите это
+     светлые варианты сами. */
+  --fps-leave: var(--fps-signal);
+  --fps-leave-soft: var(--fps-signal-soft);
+  --fps-callout: var(--fps-trace);
+  --fps-callout-soft: var(--fps-trace-soft);
+
   /* -- Атмосфера --------------------------------------------------------
      Свечение под первым экраном и грань панели. На светлой теме и то и
      другое едва заметно: белую панель на светло-серой странице держит
@@ -253,6 +264,10 @@
   --color-errand-soft: var(--fps-errand-soft);
   --color-excused: var(--fps-excused);
   --color-excused-soft: var(--fps-excused-soft);
+  --color-leave: var(--fps-leave);
+  --color-leave-soft: var(--fps-leave-soft);
+  --color-callout: var(--fps-callout);
+  --color-callout-soft: var(--fps-callout-soft);
 
   /* -- Типографика ------------------------------------------------------
      Три роли, три гарнитуры, и каждая выбрана под кириллицу первым делом:

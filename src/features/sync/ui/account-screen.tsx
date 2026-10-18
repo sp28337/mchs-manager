@@ -24,6 +24,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Label } from "@/components/ui/label";
+import { SectionLayout } from "@/components/ui/section-layout";
 import { Card, Field } from "@/components/ui/panel";
 import { cn } from "@/lib/utils/cn";
 
@@ -90,8 +91,6 @@ export function AccountScreen() {
     );
   }
 
-  const current = SECTIONS.find((item) => item.id === section) ?? SECTIONS[0]!;
-
   return (
     <div className="mx-auto w-full max-w-4xl space-y-6">
       <h1 className="text-xl font-medium text-ink">Учётная запись</h1>
@@ -102,62 +101,26 @@ export function AccountScreen() {
         <RecoveryKeyCard recoveryKey={freshRecoveryKey} onDone={actions.forgetRecoveryKey} />
       )}
 
-      <div className="grid grid-cols-[minmax(0,1fr)] gap-6 md:grid-cols-[14rem_minmax(0,1fr)] md:gap-10">
-        <div className="space-y-6 md:sticky md:top-24 md:self-start">
-          <nav
-            aria-label="Разделы учётной записи"
-            className="flex flex-wrap gap-1 md:flex-col"
-          >
-            {SECTIONS.map(({ id, title, icon: Icon }) => {
-              const active = id === section;
-              return (
-                <button
-                  key={id}
-                  type="button"
-                  aria-current={active ? "true" : undefined}
-                  onClick={() => choose(id)}
-                  className={cn(
-                    "flex cursor-pointer items-center gap-2.5 rounded-lg px-3 py-2",
-                    "text-left text-sm whitespace-nowrap transition-colors hover:bg-paper-sunken",
-                    "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ink",
-                    active ? "bg-paper-sunken font-medium text-ink" : "text-ink-muted",
-                  )}
-                >
-                  <Icon aria-hidden className="size-4.5 shrink-0" />
-                  {title}
-                </button>
-              );
-            })}
-          </nav>
-
-          <p className="hidden text-xs leading-5 text-ink-faint md:block">
-            Приложение работает и без учётной записи. Она добавляет копию на
-            сервере и перенос между устройствами.{" "}
+      <SectionLayout
+        label="Разделы учётной записи"
+        sections={SECTIONS}
+        active={section}
+        onSelect={choose}
+        footer={
+          <p>
+            Приложение работает и без учётной записи. Она добавляет копию на сервере и
+            перенос между устройствами.{" "}
             <Link href={LEGAL_URLS.policy} className="underline hover:no-underline">
               Политика обработки данных
             </Link>
           </p>
-        </div>
-
-        <section aria-labelledby="account-section" className="min-w-0 space-y-4">
-          <h2 id="account-section" className="flex items-center gap-2 text-md font-medium text-ink">
-            <current.icon aria-hidden className="size-5 text-ink-muted" />
-            {current.title}
-          </h2>
-          {section === "profile" && <Profile />}
-          {section === "sync" && <Sync />}
-          {section === "access" && <Access />}
-          {section === "data" && <MyData />}
-        </section>
-      </div>
-
-      <p className="text-xs leading-5 text-ink-faint md:hidden">
-        Приложение работает и без учётной записи. Она добавляет копию на сервере
-        и перенос между устройствами.{" "}
-        <Link href={LEGAL_URLS.policy} className="underline hover:no-underline">
-          Политика обработки данных
-        </Link>
-      </p>
+        }
+      >
+        {section === "profile" && <Profile />}
+        {section === "sync" && <Sync />}
+        {section === "access" && <Access />}
+        {section === "data" && <MyData />}
+      </SectionLayout>
     </div>
   );
 }

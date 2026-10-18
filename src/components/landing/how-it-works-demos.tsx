@@ -80,13 +80,13 @@ const TONE = {
   /** Свободные сутки. */
   free: "border-transparent text-ink-faint",
   /** Освобождение от работы, «О» в легенде расчёта. */
-  leave: "border-dashed border-signal/50 bg-signal-soft text-signal",
+  leave: "border-dashed border-leave/50 bg-leave-soft text-leave",
   /** Освобождение от работы, «Б» в легенде расчёта. */
   sick: "border-dashed border-sick/50 bg-sick-soft text-sick",
   /** Отгул за переработку. */
   rest: "border-dashed border-rest/50 bg-rest-soft text-rest",
   /** Работа помимо графика. */
-  callout: "border-trace bg-trace-soft text-trace",
+  callout: "border-callout bg-callout-soft text-callout",
   /** Дополнительный отпуск. */
   trip: "border-dashed border-trip/50 bg-trip-soft text-trip",
   /** Учебный отпуск. */
@@ -104,7 +104,7 @@ const TONE = {
  * потеря.
  */
 const TONE_QUIET: Partial<Record<Tone, string>> = {
-  leave: "border-dashed border-signal/20 bg-signal-soft/40 text-signal/70",
+  leave: "border-dashed border-leave/20 bg-leave-soft/40 text-leave/70",
   sick: "border-dashed border-sick/20 bg-sick-soft/40 text-sick/70",
   rest: "border-dashed border-rest/20 bg-rest-soft/40 text-rest/70",
   trip: "border-dashed border-trip/20 bg-trip-soft/40 text-trip/70",

@@ -6,6 +6,7 @@ import {
   PT_Sans_Narrow,
 } from "next/font/google";
 
+import { APPEARANCE_MARK_SCRIPT } from "@/components/shared/appearance";
 import { InfoBar } from "@/components/shared/info-bar";
 import { Lamp } from "@/components/shared/lamp";
 import { LAMP_MARK_SCRIPT } from "@/components/shared/lamp-colour";
@@ -175,6 +176,10 @@ export default function RootLayout({
                 под двадцатикратным замедлением метки в этот момент ещё не
                 было. */}
             <script dangerouslySetInnerHTML={{ __html: LAMP_MARK_SCRIPT }} />
+            {/* Свои цвета событий и света лампы — тем же способом и по тому же
+                доводу: до первой отрисовки, иначе сетка мигала бы умолчанием
+                перед выбранным (`appearance.ts`). */}
+            <script dangerouslySetInnerHTML={{ __html: APPEARANCE_MARK_SCRIPT }} />
             {children}
           </Providers>
         </div>

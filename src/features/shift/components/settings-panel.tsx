@@ -11,6 +11,7 @@ import { Card, Field } from "@/components/ui/panel";
 import { Select } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { useSync } from "@/features/sync/ui/sync-provider";
+import { cn } from "@/lib/utils/cn";
 
 import {
   CUSTOM_PATTERN_ID,
@@ -82,14 +83,23 @@ import { TimeField } from "./time-field";
  */
 export type SettingsPanelPurpose = "settings" | "create";
 
+/**
+ * Какая часть панели нужна: всё сразу (окно «Создать профиль») или одна из двух
+ * карточек — как показывать расчёт (`display`) либо вопросы анкеты
+ * (`schedule`). Страница настроек раскладывает их по разным разделам.
+ */
+export type SettingsPanelPart = "all" | "display" | "schedule";
+
 export function SettingsPanel({
   profile,
   onChange,
   purpose = "settings",
+  part = "all",
 }: {
   profile: StoredProfile;
   onChange: (change: (previous: StoredProfile) => StoredProfile) => void;
   purpose?: SettingsPanelPurpose;
+  part?: SettingsPanelPart;
 }) {
   const nameId = useId();
   const normId = useId();
@@ -154,7 +164,7 @@ export function SettingsPanel({
           Теперь сказанное однажды не повторяется: состояние показывает
           тумблер, а что этот режим вообще значит — подсказка у вопроса,
           как у графика, нормы и всего остального. */}
-      {purpose === "settings" ? (
+      {purpose === "settings" && part !== "schedule" ? (
         <Card>
           <Field
             label="Онлайн"
@@ -195,6 +205,8 @@ export function SettingsPanel({
         </Card>
       ) : null}
 
+      {part === "display" ? null : (
+      <>
       {/* Вопросы о человеке и его графике — второй карточкой, в том
           порядке, в каком они следуют друг из друга: график задаёт
           продолжительность смены, норма и дата от него не зависят, но
@@ -454,6 +466,8 @@ export function SettingsPanel({
         onChange={onChange}
         onClose={() => setTune(null)}
       />
+      </>
+      )}
     </div>
   );
 }
@@ -689,11 +703,14 @@ export function DangerActions({
   onChange,
   onForget,
   showReset = true,
+  start = false,
 }: {
   onChange: (change: (previous: StoredProfile) => StoredProfile) => void;
   onForget?: () => void;
   /** Сброс не показывается там, где сбрасывать нечего. */
   showReset?: boolean;
+  /** Кнопки у левого края и без верхнего отступа — внутри раздела, а не в конце страницы. */
+  start?: boolean;
 }) {
   const [asking, setAsking] = useState<"reset" | "forget" | null>(null);
   // Нужна одна вещь: есть ли учётная запись. От неё зависит, что́
@@ -702,8 +719,13 @@ export function DangerActions({
   const { account } = useSync();
 
   return (
-    <div className="pt-4">
-      <div className="flex flex-wrap items-center justify-evenly gap-2">
+    <div className={start ? undefined : "pt-4"}>
+      <div
+        className={cn(
+          "flex flex-wrap items-center gap-2",
+          start ? "justify-start" : "justify-evenly",
+        )}
+      >
         {showReset ? (
           <Button
             type="button"

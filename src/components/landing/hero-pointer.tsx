@@ -189,13 +189,13 @@ export function HeroPointer({ layout }: { layout: HeroLayout }) {
  * виду, смена — зелёный смен; кто не назван, берёт обычные чернила.
  */
 const INK: Partial<Record<HeroEventKind, string>> = {
-  annual_leave: "text-signal",
+  annual_leave: "text-leave",
   extra_leave: "text-trip",
   sick_leave: "text-sick",
   study_leave: "text-study",
   business_trip: "text-errand",
   time_off_in_lieu: "text-rest",
-  callout: "text-trace",
+  callout: "text-callout",
   shift: "text-verify",
 };
 

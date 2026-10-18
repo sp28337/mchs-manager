@@ -85,7 +85,7 @@ export const ABSENCE_MARK: Record<AbsenceKind, string> = {
  * на следующий вопрос — почему именно не состоялась.
  */
 export const ABSENCE_TONE: Record<AbsenceKind, string> = {
-  annual_leave: "border-dashed border-signal/50 bg-signal-soft text-signal rounded-md",
+  annual_leave: "border-dashed border-leave/50 bg-leave-soft text-leave rounded-md",
   extra_leave: "border-dashed border-trip/50 bg-trip-soft text-trip rounded-md",
   sick_leave: "border-dashed border-sick/50 bg-sick-soft text-sick rounded-md",
   time_off_in_lieu: "border-dashed border-rest/50 bg-rest-soft text-rest rounded-md",
@@ -121,7 +121,7 @@ export const ABSENCE_TONE: Record<AbsenceKind, string> = {
  * тише, чем на самой смене.
  */
 export const ABSENCE_TONE_QUIET: Record<AbsenceKind, string> = {
-  annual_leave: "border-dashed border-signal/20 bg-signal-soft/40 text-signal/70 rounded-md",
+  annual_leave: "border-dashed border-leave/20 bg-leave-soft/40 text-leave/70 rounded-md",
   extra_leave: "border-dashed border-trip/20 bg-trip-soft/40 text-trip/70 rounded-md",
   sick_leave: "border-dashed border-sick/20 bg-sick-soft/40 text-sick/70 rounded-md",
   time_off_in_lieu: "border-dashed border-rest/20 bg-rest-soft/40 text-rest/70 rounded-md",
@@ -138,7 +138,7 @@ export const ABSENCE_TONE_QUIET: Record<AbsenceKind, string> = {
  * оттенков одного значения человек не различит. Цвет здесь говорит только
  * «это работа помимо графика», и такой он один.
  */
-export const CALLOUT_TONE = "border-trace bg-trace-soft text-trace";
+export const CALLOUT_TONE = "border-callout bg-callout-soft text-callout";
 
 /**
  * Смена, её продолжение и выходной.

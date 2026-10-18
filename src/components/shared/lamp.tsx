@@ -8,6 +8,7 @@ import {
   LAMP_STORAGE_KEY,
   type LampColourId,
 } from "./lamp-colour";
+import { clearLampColour } from "./use-appearance";
 
 /**
  * Лампа над страницей.
@@ -758,6 +759,10 @@ export function Lamp() {
 
   function switchColour() {
     if (colour === null) return;
+    // Свой цвет света, выбранный в настройках, перебивает выбор лампы, и
+    // нажатие ничего бы не меняло на глаз. Нажимая на лампу, человек просит
+    // её собственный свет — свой цвет при этом снимается.
+    clearLampColour();
     const index = LAMP_COLOURS.findIndex((option) => option.id === colour);
     const next = LAMP_COLOURS[(index + 1) % LAMP_COLOURS.length]!.id;
 
