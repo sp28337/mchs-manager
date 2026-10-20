@@ -320,6 +320,56 @@ export async function syncOnce(options: SyncOptions): Promise<SyncReport> {
   }
 }
 
+/**
+ * Есть ли на устройстве то, что ещё не уехало на сервер.
+ *
+ * Тот же вопрос, на который отвечает проход («только у нас: новый или правленый с
+ * прошлой синхронизации», пункт 4 в `syncOnce`), но без сети и без записи: нужен
+ * там, где отправлять нельзя, а узнать надо — пока человек не принял обновлённое
+ * согласие (`consent-renewal.tsx`), проход не идёт, и выход не может «сдать» правки
+ * сервером. Чужие правки на сервере не смотрятся: вопрос про устройство.
+ *
+ * Условия те же, что в проходе: новый или изменённый профиль, изменённый указатель,
+ * подтверждённый сервером и стёртый здесь элемент (надо отправить надгробие), а
+ * также любой неотвеченный вопрос о расхождении.
+ */
+export async function hasUnsentChanges(
+  now: () => string = () => new Date().toISOString(),
+): Promise<boolean> {
+  if ((await readPending()).length > 0) return true;
+
+  const bases = new Map<string, Envelope>();
+  const revs = new Map<string, number>();
+
+  for (const строка of await readMirror()) {
+    const конверт = parseEnvelopeFor(строка.base, строка.kind, строка.itemId);
+    if (конверт !== null) bases.set(строка.itemId, конверт);
+    revs.set(строка.itemId, строка.rev);
+  }
+
+  const локальные = readLocalItems(bases, now());
+
+  const было = bases.get(INDEX_ID);
+  const base = было?.kind === "index" ? было.body : null;
+  const индексМенялся =
+    base === null ? !пустойУказатель(локальные.index.body) : !deepEqual(base, локальные.index.body);
+  if (индексМенялся) return true;
+
+  const свои = new Set<string>();
+
+  for (const профиль of локальные.profiles) {
+    свои.add(профиль.id);
+    const основа = bases.get(профиль.id);
+    if (основа?.kind !== "profile" || !deepEqual(основа.body, профиль.body)) return true;
+  }
+
+  for (const [id, rev] of revs) {
+    if (id !== INDEX_ID && rev > 0 && !свои.has(id)) return true;
+  }
+
+  return false;
+}
+
 /** Указатель, в котором нечего синхронизировать: одна папка grafik13. */
 function пустойУказатель(body: IndexBody): boolean {
   return (

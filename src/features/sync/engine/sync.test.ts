@@ -8,6 +8,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import {
   loadLibrary,
   readEntryProfile,
+  removeEntry,
   writeEntry,
   writeIndex,
 } from "@/features/shift/storage/library";
@@ -33,7 +34,7 @@ import {
   type SyncMeta,
 } from "../store/vault";
 import { FakeServer } from "./fake-server";
-import { resolvePending, syncOnce } from "./sync";
+import { hasUnsentChanges, resolvePending, syncOnce } from "./sync";
 
 // jsdom не приносит WebCrypto, а шифрование здесь настоящее: ставим тот,
 // что есть в Node. Подмена именно `crypto`, а не `crypto.subtle`: в jsdom
@@ -556,5 +557,81 @@ describe("углы, в которые легко не заглянуть", () =>
     expect(
       Object.keys(window.localStorage).some((ключ) => ключ.includes("mirror")),
     ).toBe(false);
+  });
+});
+
+describe("есть ли на устройстве непереданное", () => {
+  // Нужно там, где отправлять нельзя, а узнать надо: пока не принято обновлённое
+  // согласие, проход не идёт, и выход без этого ответа либо пугал бы потерей
+  // правок, которых нет, либо молча терял настоящие.
+
+  it("на чистом устройстве — нет", async () => {
+    expect(await hasUnsentChanges()).toBe(false);
+  });
+
+  it("новый график, не уехавший на сервер, — есть", async () => {
+    завести(профиль());
+
+    expect(await hasUnsentChanges()).toBe(true);
+  });
+
+  it("после синхронизации — нет, и подсчёт ничего не отправляет и не пишет", async () => {
+    завести(профиль());
+    await синхронизировать();
+    const ревизия = server.rev;
+    const зеркало = await readMirror();
+
+    expect(await hasUnsentChanges()).toBe(false);
+    expect(server.rev).toBe(ревизия);
+    expect(await readMirror()).toEqual(зеркало);
+  });
+
+  it("правка уехавшего графика — есть", async () => {
+    завести(профиль());
+    await синхронизировать();
+
+    writeEntry(ПРОФИЛЬ_ID, { ...профиль(), displayName: "Другое имя", savedAt: "2026-03-02T10:00:00.000Z" });
+
+    expect(await hasUnsentChanges()).toBe(true);
+  });
+
+  it("график, стёртый здесь после синхронизации, — есть: надо отправить надгробие", async () => {
+    завести(профиль());
+    await синхронизировать();
+
+    removeEntry(ПРОФИЛЬ_ID);
+
+    expect(await hasUnsentChanges()).toBe(true);
+  });
+
+  it("принятое с другого устройства, когда проход устоялся, — нет", async () => {
+    // Первый проход на чистом устройстве принимает чужое, а второй ещё успевает
+    // отправить его нормализованным видом (поэтому `сдано` в провайдере делает до
+    // трёх проходов). Когда всё устоялось, принятое своей правкой не считается.
+    завести(профиль());
+    await синхронизировать();
+
+    await чистое();
+    await saveDataKey(dataKey.handle);
+    await синхронизировать();
+    await синхронизировать();
+
+    expect(await hasUnsentChanges()).toBe(false);
+  });
+
+  it("неотвеченный вопрос о расхождении — есть", async () => {
+    завести(профиль());
+    await синхронизировать();
+    await writePending({
+      itemId: ПРОФИЛЬ_ID,
+      rev: 2,
+      name: "Петров И. С.",
+      fields: ["displayName"],
+      remote: { fmt: 1, kind: "profile", id: ПРОФИЛЬ_ID, updatedAt: "2026-03-02T10:00:00.000Z", body: профиль() },
+      local: { fmt: 1, kind: "profile", id: ПРОФИЛЬ_ID, updatedAt: "2026-03-02T10:00:00.000Z", body: профиль() },
+      at: "2026-03-02T10:00:00.000Z",
+    } as PendingRow);
+
+    expect(await hasUnsentChanges()).toBe(true);
   });
 });

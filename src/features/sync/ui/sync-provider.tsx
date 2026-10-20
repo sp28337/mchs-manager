@@ -18,7 +18,7 @@ import { ApiClient } from "../api/client";
 import { isApiError, isNetworkError } from "../api/errors";
 import type { Account } from "../api/schemas";
 import type { DataKey } from "../crypto";
-import { resolvePending, syncOnce, type SyncReport } from "../engine/sync";
+import { hasUnsentChanges, resolvePending, syncOnce, type SyncReport } from "../engine/sync";
 import type { ConsentActs } from "../legal";
 import * as session from "../session";
 import { readPending, type PendingRow } from "../store/vault";
@@ -281,6 +281,13 @@ export function SyncProvider({ children }: { children: ReactNode }) {
    */
   const сдано = useCallback(async (): Promise<boolean> => {
     if (dataKey.current === null) return true;
+
+    // Согласие не принято — проход не идёт, и «дождаться отправки» нечего: флаг
+    // `неотправлено` так и остался бы поднятым, и выход всякий раз грозил бы
+    // потерей правок, даже если их не было. Отвечает честный подсчёт: есть ли на
+    // устройстве то, что ещё не уехало.
+    if (ждётСогласия.current) return !(await hasUnsentChanges());
+
     if (таймер.current !== null) {
       window.clearTimeout(таймер.current);
       таймер.current = null;
