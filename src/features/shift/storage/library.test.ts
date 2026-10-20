@@ -239,12 +239,10 @@ describe("выход из учётной записи", () => {
   });
 
   it("не трогает настройки показа", () => {
-    window.localStorage.setItem("shift-schedule.grid-scale", "{}");
     window.localStorage.setItem("shift-schedule.appearance", "{}");
 
     forgetEverything();
 
-    expect(window.localStorage.getItem("shift-schedule.grid-scale")).toBe("{}");
     expect(window.localStorage.getItem("shift-schedule.appearance")).toBe("{}");
   });
 

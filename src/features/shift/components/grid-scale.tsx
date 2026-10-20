@@ -6,10 +6,11 @@ import {
   useContext,
   useEffect,
   useMemo,
-  useRef,
   useState,
   type ReactNode,
 } from "react";
+
+import { useMediaQuery } from "@/lib/hooks/use-media-query";
 
 /**
  * Масштаб и раскладка сетки месяцев — общие для сетки и для знаков у кромки.
@@ -24,7 +25,17 @@ import {
  *
  * Побочная выгода: масштаб больше не сбрасывается, когда человек заходит в
  * настройки и возвращается. Сетка при этом перемонтировалась и открывалась
- * на четырёх месяцах в ряду, как будто ничего не выбирали.
+ * на умолчании, как будто ничего не выбирали.
+ *
+ * --- Почему ничего не запоминается --------------------------------------------
+ *
+ * Масштаб, столбцы и «компактно» живут, пока открыт рабочий экран, и каждое
+ * новое открытие страницы начинается с раскладки по умолчанию для ширины окна.
+ * Прежде выбор писался в браузер и возвращался при следующем заходе. Но
+ * раскладка по умолчанию подобрана под ширину — на 1280 и на 1920 точках она
+ * разная, — а запомненный выбор, сделанный на одном окне, на другом выходил
+ * неверным, и человек не понимал, почему график «не такой, как должен быть».
+ * Умолчание всегда годится, а выбор — на один сеанс.
  *
  * --- Что хранится ---------------------------------------------------------
  *
@@ -62,18 +73,36 @@ export const MONTHS_CAP = 6;
 export const ZOOM_MIN = 3;
 
 /**
- * Раскладка у человека, который её ещё не трогал: три столбца, а месяц — на
- * ступень мельче самой крупной (`ZOOM_MIN` + 1, то есть четыре месяца в ширину).
- * Выбранные столбцы закреплены, как если бы он выбрал их сам, а сетка стоит по
- * середине рамки, не растянутая на неё.
+ * Раскладка у человека, который её ещё не трогал: три столбца, закреплённые
+ * (`DEFAULT_COLUMNS`), а размер месяца зависит от ширины окна:
  *
- * Те же числа записаны в `globals.css` (`.year-room` с `lg`): заглушка рабочего
- * экрана, где скрипта нет, обязана встать той же раскладкой, какой её увидят через
- * мгновение. Менять — в обоих местах. Ниже `lg` число задаёт `globals.css`:
- * кнопок масштаба там нет, и менять его некому.
+ * * с 1024 до 1480 точек включительно — самый крупный (`ZOOM_MIN`, три месяца
+ *   в ширину): три столбца занимают рамку целиком. Окно тесное, и мелкая
+ *   сетка на нём оставляла бы пустые поля, а клетка выходит всё равно не
+ *   крупнее, чем нужно, чтобы читать числа;
+ * * выше 1480 — на ступень мельче (`ZOOM_MIN + 1`, четыре месяца в ширину):
+ *   три столбца стоят по середине рамки, не растянутые на неё. Клетка на таком
+ *   окне иначе превращалась бы в плиту.
+ *
+ * Граница — `WIDE_QUERY`, в `rem`, как все пороги приложения: 92,5 рем — это
+ * 1480 точек при обычном кегле браузера. Выше неё — строго больше, так что на
+ * самих 1480 ещё крупный размер.
+ *
+ * Те же числа записаны в `globals.css` (`.year-room` с `lg` и выше 92,5 рем):
+ * заглушка рабочего экрана, где скрипта нет, обязана встать той же раскладкой,
+ * какой её увидят через мгновение. Менять — в обоих местах. Ниже `lg` число
+ * задаёт `globals.css`: кнопок масштаба там нет, и менять его некому.
+ *
+ * Пока человек масштаб не трогал, размер месяца следует за шириной окна: окно
+ * растянули за 1480 — месяц стал на ступень мельче. После первого нажатия на
+ * лупу или выбора столбцов его выбор остаётся, каким бы окно ни стало.
  */
-export const DEFAULT_MONTHS = ZOOM_MIN + 1;
+export const WIDE_QUERY = "(width > 92.5rem)";
 export const DEFAULT_COLUMNS = 3;
+
+export function defaultMonths(wide: boolean): number {
+  return wide ? ZOOM_MIN + 1 : ZOOM_MIN;
+}
 
 /**
  * Что сетка видит на самом деле: сколько месяцев в ширину (размер месяца),
@@ -111,61 +140,24 @@ interface GridScale extends GridLimits {
 const GridScaleContext = createContext<GridScale | null>(null);
 
 /**
- * Что запоминается между открытиями: желание человека, а не то, что вышло на
- * экране. Размер окна на другом устройстве другой, и «шесть столбцов» там
- * сожмутся до того, что влезает (`most`), — а когда окно расширят, вернутся.
- *
- * Хранится в браузере, отдельно от графика: это вкус к раскладке, а не часть
- * расчёта, и в файл с графиком и на сервер он не уезжает.
+ * Ключ, под которым раньше хранилась раскладка. Больше его никто не читает и
+ * не пишет; провайдер стирает остатки при открытии, чтобы в браузере не
+ * лежало настройки, которая ни на что не влияет.
  */
-const STORAGE_KEY = "shift-schedule.grid-scale";
-
-interface Saved {
-  asked: number;
-  pinned: number | null;
-  compact: boolean;
-}
-
-const isCount = (value: unknown): value is number =>
-  typeof value === "number" && Number.isInteger(value) && value >= MONTHS_MIN && value <= MONTHS_CAP;
-
-/** Сохранённое или `null`; испорченное и чужое отбрасывается целиком. */
-function readSaved(): Saved | null {
-  try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (raw === null) return null;
-    const data: unknown = JSON.parse(raw);
-    if (typeof data !== "object" || data === null) return null;
-    const { asked, pinned, compact } = data as Record<string, unknown>;
-    if (!isCount(asked) || typeof compact !== "boolean") return null;
-    if (pinned !== null && !isCount(pinned)) return null;
-    return { asked, pinned, compact };
-  } catch {
-    return null;
-  }
-}
-
-function writeSaved(saved: Saved) {
-  try {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(saved));
-  } catch {
-    // Хранилище закрыто или полно — раскладка просто не запомнится.
-  }
-}
+const LEGACY_STORAGE_KEY = "shift-schedule.grid-scale";
 
 export function GridScaleProvider({ children }: { children: ReactNode }) {
   // Рабочий экран открывается только после чтения профиля, то есть уже в
-  // браузере, и читать хранилище при первой отрисовке можно без расхождения
+  // браузере, и ширину окна можно читать при первой отрисовке без расхождения
   // с разметкой, собранной на сервере.
-  const [saved] = useState(readSaved);
-  const [asked, setAsked] = useState(saved?.asked ?? DEFAULT_MONTHS);
-  // Сохранённое «Авто» (`null`) — выбор человека и умолчанием не затирается.
-  const [pinned, setPinned] = useState<number | null>(
-    saved === null ? DEFAULT_COLUMNS : saved.pinned,
-  );
-  const [compact, setCompact] = useState(saved?.compact ?? false);
+  const wide = useMediaQuery(WIDE_QUERY);
+  // `null` — человек масштаб не трогал, и месяц следует за шириной окна.
+  const [chosen, setChosen] = useState<number | null>(null);
+  const asked = chosen ?? defaultMonths(wide);
+  const [pinned, setPinned] = useState<number | null>(DEFAULT_COLUMNS);
+  const [compact, setCompact] = useState(false);
   const [limits, setLimits] = useState<GridLimits>({
-    months: DEFAULT_MONTHS,
+    months: asked,
     columns: DEFAULT_COLUMNS,
     most: MONTHS_CAP,
   });
@@ -189,23 +181,30 @@ export function GridScaleProvider({ children }: { children: ReactNode }) {
   const setColumns = useCallback(
     (next: number | null) => {
       setPinned(next);
-      setAsked(next ?? limits.columns);
+      setChosen(next ?? limits.columns);
     },
     [limits.columns],
   );
 
-  // Первый проход пропускается: пока человек ничего не менял, писать нечего.
-  const touched = useRef(false);
   useEffect(() => {
-    if (!touched.current) {
-      touched.current = true;
-      return;
+    try {
+      window.localStorage.removeItem(LEGACY_STORAGE_KEY);
+    } catch {
+      // Хранилище закрыто — стирать нечего.
     }
-    writeSaved({ asked, pinned, compact });
-  }, [asked, pinned, compact]);
+  }, []);
 
   const value = useMemo<GridScale>(
-    () => ({ asked, pinned, compact, ...limits, setAsked, setColumns, setCompact, report }),
+    () => ({
+      asked,
+      pinned,
+      compact,
+      ...limits,
+      setAsked: setChosen,
+      setColumns,
+      setCompact,
+      report,
+    }),
     [asked, pinned, compact, limits, report, setColumns],
   );
 
