@@ -1,10 +1,10 @@
 "use client";
 
 import { Check, Monitor, Moon, Sun } from "lucide-react";
-import { useTheme } from "next-themes";
 import { useEffect, useId, useRef, useState } from "react";
 
 import { MARK_EMPTY_CLASS } from "@/components/shared/header-action";
+import { useTheme } from "@/components/shared/theme-provider";
 import { KNOB, KNOB_ICON, KNOB_NEST, KnobLabel } from "@/components/ui/knob";
 import { MENU_LIST, MENU_ROW_HOVER } from "@/components/ui/menu-row";
 import { useDismiss } from "@/components/ui/use-dismiss";
@@ -112,7 +112,7 @@ export function ThemeToggle() {
  *
  * Поэтому знак показывает не ВЫБОР, а то, что человек и так видит перед
  * собой: светлую тему солнцем, тёмную месяцем. Делает это таблица стилей
- * по классу на `html` (`next-themes`, `attribute="class"`), то есть ещё
+ * по классу на `html` (`shared/theme-provider.tsx`), то есть ещё
  * до того, как выполнится хоть одна строка нашего кода. Какое из трёх
  * положений выбрано — сказано в окошке, где об этом и спрашивают.
  */

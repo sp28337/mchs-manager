@@ -10,6 +10,7 @@ import { APPEARANCE_MARK_SCRIPT } from "@/components/shared/appearance";
 import { InfoBar } from "@/components/shared/info-bar";
 import { Lamp } from "@/components/shared/lamp";
 import { LAMP_MARK_SCRIPT } from "@/components/shared/lamp-colour";
+import { THEME_MARK_SCRIPT } from "@/components/shared/theme";
 import { MONTH_ANCHOR_SCRIPT } from "@/features/shift/components/month-anchor";
 import { VeilAnchor } from "@/components/shared/veil-anchor";
 
@@ -151,6 +152,14 @@ export default function RootLayout({
             калькулятора в ней разное главное действие, и общая шапка на
             оба означала бы либо пустое место, либо кнопку не к месту. */}
         <div className="overflow-x-clip">
+          {/* Класс темы — до первой отрисовки: `light` или `dark` на `html`,
+              чтобы страница не мигала чужой темой (`shared/theme.ts`). Сценарий
+              стоит здесь, в серверном компоненте, а не в клиентском провайдере:
+              `<script>`, отрисованный клиентским компонентом, React 19 в режиме
+              разработки считает ошибкой — скрипты в таких компонентах не
+              выполняются. Первым в обёртке — раньше сценариев лампы и цветов
+              ниже: им нужен уже готовый класс. */}
+          <script dangerouslySetInnerHTML={{ __html: THEME_MARK_SCRIPT }} />
           <Providers>
             {/* Свет включается ДО первой отрисовки.
                 ---------------------------------------------------------
@@ -167,10 +176,10 @@ export default function RootLayout({
                 же ключом хранилища и тем же умолчанием по теме
                 (`lamp-colour.ts`).
 
-                Место у него единственное возможное — ВНУТРИ провайдера
-                темы и перед содержимым. После него: класс `dark` кладёт
-                своим таким же сценарием `next-themes`, и до того читать
-                было бы нечего. Перед содержимым: сценарий в конце страницы
+                Место у него единственное возможное — после сценария темы
+                (он выше) и перед содержимым. После сценария темы: класс
+                `dark` кладёт он, и до того читать было бы нечего. Перед
+                содержимым: сценарий в конце страницы
                 выполняется после разбора всей разметки, а на медленном
                 устройстве браузер успевает нарисовать её раньше — замером
                 под двадцатикратным замедлением метки в этот момент ещё не

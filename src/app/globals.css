@@ -1,7 +1,8 @@
 @import "tailwindcss";
 
-/* Тёмная тема переключается КЛАССОМ, а не системной настройкой: роль
-   `next-themes` — дать человеку выбор, а не угадать его (Tailwind v4,
+/* Тёмная тема переключается КЛАССОМ, а не системной настройкой: задача
+   провайдера темы (`shared/theme-provider.tsx`) — дать человеку выбор, а не
+   угадать его (Tailwind v4,
    разд. Dark mode: «override the dark variant to apply when the `dark`
    class is present»). */
 @custom-variant hover (&:hover);

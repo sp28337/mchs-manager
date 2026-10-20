@@ -1,9 +1,8 @@
 "use client";
 
-import { ThemeProvider } from "next-themes";
-
 import { CookieBanner } from "@/components/shared/cookie-banner";
 import { Metrika } from "@/components/shared/metrika";
+import { ThemeProvider } from "@/components/shared/theme-provider";
 import { SyncProvider } from "@/features/sync/ui/sync-provider";
 
 /**
@@ -28,18 +27,19 @@ import { SyncProvider } from "@/features/sync/ui/sync-provider";
  * тема — честный перевод этого языка, но именно перевод; впервые открывший
  * сайт должен увидеть подлинник.
  *
- * Системная настройка при этом никуда не делась: `enableSystem` оставлен, и
- * «Как в системе» стоит третьим положением переключателя в подвале
+ * Системная настройка при этом никуда не делась: «Как в системе» стоит
+ * третьим положением переключателя в подвале
  * (`ui/theme-toggle.tsx`). Меняется одно — что показывать тому, кто ещё
  * ничего не выбрал.
  *
- * Мигания от этого не будет: `next-themes` кладёт класс своим сценарием в
- * шапке документа, до первой отрисовки, и с тёмным умолчанием кладёт его
- * сразу — а не после опроса системы.
+ * Мигания от этого не будет: класс кладёт сценарий из разметки
+ * (`THEME_MARK_SCRIPT` в `shared/theme.ts`, он стоит в `layout.tsx`) до первой
+ * отрисовки, и с тёмным умолчанием кладёт его сразу — а не после опроса
+ * системы.
  */
 export function Providers({ children }: { children: React.ReactNode }) {
   return (
-    <ThemeProvider attribute="class" defaultTheme="dark" enableSystem disableTransitionOnChange>
+    <ThemeProvider>
       <SyncProvider>
         {children}
         {/* Счётчик и вопрос о нём — на каждой странице и в самом конце
