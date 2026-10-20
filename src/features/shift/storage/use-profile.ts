@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { forgetActive, syncActiveIntoLibrary } from "./library";
+import { forgetActive, openLatestEntry, syncActiveIntoLibrary } from "./library";
 import {
   clearProfile,
   loadProfile,
@@ -75,7 +75,24 @@ export function useProfile(): UseProfile {
   const current = useRef<StoredProfile | null>(null);
 
   useEffect(() => {
-    const result = loadProfile();
+    let result = loadProfile();
+
+    // Открытого графика нет, а в проводнике они есть — открывается самый
+    // свежий, а не форма «построить». Так бывает после удаления графика в
+    // прежних версиях (оно стирало открытый, а проводник оставлял) и после
+    // входа на устройство, куда графики приехали, пока ни один не открыт.
+    if (result.status === "empty") {
+      const adopted = openLatestEntry();
+      if (adopted !== null) {
+        try {
+          result = { status: "ok", profile: saveProfile(adopted) };
+        } catch {
+          // Хранилище не приняло запись — остаёмся с пустым: ничего не
+          // потеряно, а о недоступном хранилище скажет первая же правка.
+        }
+      }
+    }
+
     current.current = result.status === "ok" ? result.profile : null;
     // Отражение в проводник — при чтении, а не только при записи. Так в
     // список сохранённых графиков попадает профиль, заведённый до появления
@@ -152,8 +169,19 @@ export function useProfile(): UseProfile {
     forgetActive();
     current.current = null;
     setTouched(false);
+
+    // Удалён один график, а не все: если в проводнике остались другие, на
+    // экран встаёт самый свежий из них. Прежде здесь всегда был пустой
+    // экран — расчёт уводил на главную, где кнопка говорила «Построить
+    // график», а «Открыть график» из меню тут же возвращала обратно, хотя
+    // остальные графики лежали на месте.
+    const next = openLatestEntry();
+    if (next !== null) {
+      write(next);
+      return;
+    }
     setState({ status: "empty" });
-  }, []);
+  }, [write]);
 
   return { state, save, update, forget, touched };
 }

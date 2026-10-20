@@ -10,6 +10,7 @@ import {
   forgetActive,
   forgetEverything,
   freeName,
+  hasGraphs,
   importEntry,
   importProfileFile,
   librarySnapshot,
@@ -17,6 +18,7 @@ import {
   moveEntry,
   nameTaken,
   openEntry,
+  openLatestEntry,
   openProfileFile,
   profileFileText,
   readEntryProfile,
@@ -146,6 +148,68 @@ describe("удаление профиля с устройства", () => {
     expect(loadLibrary().entries).toHaveLength(0);
     expect(readEntryProfile(id)).toBeNull();
     expect(activeEntryId()).toBeNull();
+  });
+});
+
+describe("после удаления открытого графика", () => {
+  const at = (name: string, savedAt: string): StoredProfile => ({
+    ...profileNamed(name),
+    savedAt,
+  });
+
+  it("открывается самый свежий из оставшихся", () => {
+    importEntry(at("Давний", "2025-01-01T00:00:00.000Z"));
+    const fresh = importEntry(at("Свежий", "2026-05-01T00:00:00.000Z"));
+    importEntry(at("Средний", "2025-09-01T00:00:00.000Z"));
+
+    const opened = openLatestEntry();
+
+    expect(opened?.displayName).toBe("Свежий");
+    expect(activeEntryId()).toBe(fresh.id);
+  });
+
+  it("пропускает запись с нечитаемым снимком", () => {
+    const broken = importEntry(at("Битый", "2026-06-01T00:00:00.000Z"));
+    importEntry(at("Целый", "2025-02-01T00:00:00.000Z"));
+    window.localStorage.setItem(`shift-schedule.library.entry.${broken.id}`, "{не json");
+
+    expect(openLatestEntry()?.displayName).toBe("Целый");
+  });
+
+  it("без записей открывать нечего", () => {
+    expect(openLatestEntry()).toBeNull();
+    expect(activeEntryId()).toBeNull();
+  });
+
+  it("удаление одного из нескольких оставляет на что опереться", () => {
+    syncActiveIntoLibrary(profileNamed("Открытый"));
+    importEntry(at("Соседний", "2026-01-01T00:00:00.000Z"));
+
+    forgetActive();
+
+    expect(openLatestEntry()?.displayName).toBe("Соседний");
+  });
+});
+
+describe("есть ли что открыть", () => {
+  it("пусто — нет", () => {
+    expect(hasGraphs()).toBe(false);
+  });
+
+  it("только запись в проводнике — есть", () => {
+    importEntry(profileNamed("Лежит в проводнике"));
+    expect(hasGraphs()).toBe(true);
+  });
+
+  it("только открытый профиль — есть", () => {
+    window.localStorage.setItem("shift-schedule.profile", JSON.stringify(profileNamed("Открытый")));
+    expect(hasGraphs()).toBe(true);
+  });
+
+  it("запись с нечитаемым снимком — не считается", () => {
+    const entry = importEntry(profileNamed("Битый"));
+    window.localStorage.setItem(`shift-schedule.library.entry.${entry.id}`, "{не json");
+    expect(hasGraphs()).toBe(false);
   });
 });
 

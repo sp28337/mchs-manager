@@ -43,7 +43,14 @@
 
 import { z } from "zod";
 
-import { clearProfile, exportProfile, storedProfileSchema, type StoredProfile } from "./profile";
+import {
+  clearProfile,
+  exportProfile,
+  hasStoredProfile,
+  storedProfileSchema,
+  subscribeToStoredProfile,
+  type StoredProfile,
+} from "./profile";
 
 /** Перечень папок и записей. Сами профили лежат каждый своим ключом. */
 const INDEX_KEY = "shift-schedule.library";
@@ -315,6 +322,57 @@ export function openEntry(id: string): StoredProfile | null {
   if (profile === null) return null;
   writeActiveId(id);
   return profile;
+}
+
+/**
+ * Открыть самую свежую из записей, у которых снимок читается.
+ *
+ * Нужна двум местам, и оба про одно — человеку есть что открыть, а открытого
+ * графика нет:
+ *
+ * * удалён открытый график, а в проводнике остались другие (`use-profile.ts`,
+ *   `forget`): удаление стирает один график, а не весь проводник, и ответом на
+ *   него должен быть соседний график, а не пустой экран, из которого дорога
+ *   одна — на главную с кнопкой «Построить график»;
+ * * на устройстве осталось такое состояние от прежних версий, где удаление
+ *   оставляло проводник без открытого графика (`use-profile.ts`, чтение).
+ *
+ * «Самая свежая» — по времени последней правки: человек возвращается к тому,
+ * с чем работал последним. Запись с нечитаемым снимком пропускается, а не
+ * останавливает выбор.
+ */
+export function openLatestEntry(): StoredProfile | null {
+  const entries = [...loadLibrary().entries].sort((a, b) => b.savedAt.localeCompare(a.savedAt));
+
+  for (const entry of entries) {
+    const profile = openEntry(entry.id);
+    if (profile !== null) return profile;
+  }
+  return null;
+}
+
+/**
+ * Есть ли на устройстве хоть один график, который можно открыть: открытый
+ * профиль или читаемый снимок в проводнике.
+ *
+ * Посадочная страница и вход решают по нему, куда вести человека — в расчёт
+ * или в окно, где график строят. Смотреть на один открытый профиль мало:
+ * проводник может хранить графики и без открытого (`openLatestEntry`), и
+ * «Построить график» человеку, у которого их три, — неправда.
+ */
+export function hasGraphs(): boolean {
+  if (hasStoredProfile()) return true;
+  return loadLibrary().entries.some((entry) => readEntryProfile(entry.id) !== null);
+}
+
+/** Подписка на всё, от чего зависит `hasGraphs`: открытый профиль и проводник. */
+export function subscribeToGraphs(onChange: () => void): () => void {
+  const unsubscribeProfile = subscribeToStoredProfile(onChange);
+  const unsubscribeLibrary = subscribeToLibrary(onChange);
+  return () => {
+    unsubscribeProfile();
+    unsubscribeLibrary();
+  };
 }
 
 /**

@@ -16,7 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { InsideModal } from "@/components/ui/modal";
-import { hasStoredProfile } from "@/features/shift/storage/profile";
+import { hasGraphs } from "@/features/shift/storage/library";
 import { cn } from "@/lib/utils/cn";
 
 import { LEGAL_URLS, LEGAL_VERSIONS } from "../legal";
@@ -61,7 +61,7 @@ import { useSync } from "./sync-provider";
 
 /** Куда идти после входа: к графику, а если его нет — к окну, где его строят. */
 export function toSchedule(): string {
-  return hasStoredProfile() ? "/calculator" : "/#build";
+  return hasGraphs() ? "/calculator" : "/#build";
 }
 
 type Mode = "login" | "register";

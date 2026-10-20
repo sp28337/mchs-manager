@@ -4,12 +4,12 @@ import { useRouter } from "next/navigation";
 import { useState, useSyncExternalStore } from "react";
 
 import { CreateProfileModal } from "@/features/shift/components/create-profile-modal";
-import { openProfileFile } from "@/features/shift/storage/library";
 import {
-  hasStoredProfile,
-  saveProfile,
-  subscribeToStoredProfile,
-} from "@/features/shift/storage/profile";
+  hasGraphs,
+  openProfileFile,
+  subscribeToGraphs,
+} from "@/features/shift/storage/library";
+import { saveProfile } from "@/features/shift/storage/profile";
 
 import { ctaClass, CtaIcon, CtaLabel, ToCalculator } from "./to-calculator";
 
@@ -58,7 +58,7 @@ const readBuildHash = () => window.location.hash === "#build";
  * там есть что показывать, и попадает сразу после создания профиля.
  */
 export function HeroCta() {
-  const built = useSyncExternalStore(subscribeToStoredProfile, hasStoredProfile, () => false);
+  const built = useSyncExternalStore(subscribeToGraphs, hasGraphs, () => false);
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [dismissed, setDismissed] = useState(false);
