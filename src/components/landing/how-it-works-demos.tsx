@@ -869,7 +869,7 @@ export function DemoStorage() {
         {/* Меню — то самое, что открывает кружок: пять действий
             рабочего экрана. Нажимают здесь по последнему. Кайма — та же
             живая, что у меню в приложении (`lit`). */}
-        <div className="demo-menu lit modal-lift relative col-start-1 row-start-1 w-60 self-start justify-self-end rounded-xl bg-paper-raised p-1.5">
+        <div className="demo-menu lit modal-lift relative col-start-1 row-start-1 w-60 self-start justify-self-end rounded-xl bg-paper-raised p-1.5 grid gap-1">
           <MenuRow icon={Settings}>Настройки</MenuRow>
           <MenuRow icon={CalendarRange}>События</MenuRow>
           <MenuRow icon={ChartColumn}>Статистика</MenuRow>

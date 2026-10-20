@@ -4,6 +4,7 @@ import { User } from "lucide-react";
 import { useEffect, useId, useRef, useState } from "react";
 
 import { cn } from "@/lib/utils/cn";
+import { MENU_LIST, MENU_ROW_HOVER } from "@/components/ui/menu-row";
 
 import type { LibraryEntry } from "../storage/library";
 import type { StoredProfile } from "../storage/profile";
@@ -208,12 +209,13 @@ export function ProfileName({
             "lit modal-lift absolute top-full z-50 mt-2 w-64 max-w-[calc(100vw-3rem)]",
             "pop-in [--pop-y:-6px]",
             "max-h-[60svh] overflow-y-auto rounded-xl bg-paper-raised p-1.5 text-left",
+            MENU_LIST,
             // В шапке — от левого края имени, вниз; над цифрами — по
             // середине, под самим именем: оно там стоит по центру.
             вШапке ? "left-0" : "left-1/2 -translate-x-1/2",
           )}
         >
-          <p className="px-2.5 pt-1.5 pb-1 text-xs text-ink-muted">Открыть другой график</p>
+          <p className="px-2.5 pt-1.5 pb-0.5 text-xs text-ink-muted">Открыть другой график</p>
           {перечень.map((entry) => (
             <button
               key={entry.id}
@@ -224,7 +226,8 @@ export function ProfileName({
               }}
               className={cn(
                 "flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-sm text-ink",
-                "cursor-pointer transition-colors hover:bg-paper-sunken",
+                "cursor-pointer",
+                MENU_ROW_HOVER,
                 "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ink",
               )}
             >

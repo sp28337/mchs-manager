@@ -2,6 +2,7 @@ import type { LucideIcon } from "lucide-react";
 import { useId, type ReactNode } from "react";
 
 import { cn } from "@/lib/utils/cn";
+import { MENU_ROW_HOVER } from "@/components/ui/menu-row";
 
 export interface LayoutSection<Id extends string> {
   id: Id;
@@ -51,7 +52,8 @@ export function SectionLayout<Id extends string>({
                   onClick={() => onSelect(id)}
                   className={cn(
                     "flex cursor-pointer items-center gap-2.5 rounded-lg px-3 py-2",
-                    "text-left text-sm whitespace-nowrap transition-colors hover:bg-paper-sunken",
+                    "text-left text-sm whitespace-nowrap",
+                    MENU_ROW_HOVER,
                     "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ink",
                     on ? "bg-paper-sunken font-medium text-ink" : "text-ink-muted",
                   )}

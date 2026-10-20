@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 
 import { HEADER_WORD } from "@/components/shared/header-action";
+import { MENU_ROW_HOVER } from "@/components/ui/menu-row";
 import { cn } from "@/lib/utils/cn";
 
 /**
@@ -170,7 +171,8 @@ export const KNOB_POPOVER = cn(
 export function knobOption(active: boolean): string {
   return cn(
     "flex w-full cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-2",
-    "text-left text-sm transition-colors hover:bg-paper-sunken",
+    "text-left text-sm",
+    MENU_ROW_HOVER,
     "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ink",
     // Значки — в девять десятых рема, как на кнопках шапки: доли кольца
     // периода в шестнадцати точках уже не различить.

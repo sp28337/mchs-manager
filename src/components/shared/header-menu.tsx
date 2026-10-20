@@ -27,6 +27,7 @@ import {
   MenuMark,
 } from "@/components/shared/header-action";
 import { Materialize } from "@/components/ui/materialize";
+import { MENU_LIST, MENU_ROW_HOVER } from "@/components/ui/menu-row";
 import { SYNC_ENABLED } from "@/features/sync/ui/enabled";
 import { useLogout } from "@/features/sync/ui/logout-dialog";
 import { useSync } from "@/features/sync/ui/sync-provider";
@@ -289,10 +290,10 @@ export function HeaderMenu({
               </p>
             )}
 
-            {items !== undefined && <div className="p-1.5">{items}</div>}
+            {items !== undefined && <div className={cn("p-1.5", MENU_LIST)}>{items}</div>}
 
             {SYNC_ENABLED && !(наЗаписи && account === null) && (
-              <div className={cn("p-1.5", items !== undefined && "border-t border-rule")}>
+              <div className={cn("p-1.5", MENU_LIST, items !== undefined && "border-t border-rule")}>
                 {account === null ? (
                   <MenuItem icon={LogIn} href="/account">
                     Войти
@@ -433,7 +434,8 @@ const COMPACT_WORD = "max-[510px]:sr-only";
 
 const ПУНКТ = cn(
   "flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-sm text-ink",
-  "cursor-pointer transition-colors hover:bg-paper-sunken",
+  "cursor-pointer",
+  MENU_ROW_HOVER,
   "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ink",
   "[&_svg]:size-4 [&_svg]:shrink-0 [&_svg]:text-ink-muted",
 );

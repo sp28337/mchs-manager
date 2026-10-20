@@ -4,6 +4,7 @@ import { Check } from "lucide-react";
 import { Fragment, useId, useRef, useState } from "react";
 
 import { KNOB, KNOB_ICON, KNOB_NEST, KNOB_POPOVER, KnobLabel, knobOption } from "@/components/ui/knob";
+import { MENU_LIST } from "@/components/ui/menu-row";
 import { useDismiss } from "@/components/ui/use-dismiss";
 import { cn } from "@/lib/utils/cn";
 
@@ -172,13 +173,14 @@ export function PeriodPicker({
             "lit modal-lift absolute left-1/2 top-full z-100 mt-2 w-64 max-w-[calc(100vw-3rem)]",
             "pop-in [--pop-y:-6px]",
             "-translate-x-1/2 rounded-xl bg-paper-raised p-1.5",
+            MENU_LIST,
           )}
         >
           {partGroups().map((group, at) => (
             <Fragment key={group[0]?.kind}>
               {/* Черта между видами: год, полугодия, кварталы читаются
                   тремя ступенями сужения, а не семью строками подряд. */}
-              {at > 0 ? <div aria-hidden className="mx-2.5 my-1 border-t border-rule" /> : null}
+              {at > 0 ? <div aria-hidden className="mx-2.5 my-0.5 border-t border-rule" /> : null}
               {group.map((part) => {
                 const active = part.kind === statutory.kind && part.index === statutory.index;
                 return (
@@ -246,6 +248,7 @@ export function YearPicker({
             // раскрывается вправо от знака, как у легенды (`KNOB_POPOVER`).
             "left-1/2 w-36 -translate-x-1/2 p-1.5 md:translate-x-0",
             "max-h-[60svh]",
+            MENU_LIST,
           )}
         >
           {yearChoices(accountingYear).map((option) => {

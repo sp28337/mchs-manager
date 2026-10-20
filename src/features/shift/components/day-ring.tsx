@@ -11,6 +11,7 @@ import {
 import { createPortal } from "react-dom";
 
 import { cn } from "@/lib/utils/cn";
+import { MENU_LIST, MENU_ROW_HOVER } from "@/components/ui/menu-row";
 
 import { formatDayMonthRu } from "../domain/format";
 import type { IsoDate } from "../domain/plain-date";
@@ -773,7 +774,7 @@ function Ring({
               "day-list lit modal-lift fixed z-[115] overflow-y-auto rounded-xl bg-paper-raised p-1.5",
             )}
           >
-            <ul className={cn("grid gap-0.5", list.columns === 2 ? "grid-cols-2" : "grid-cols-1")}>
+            <ul className={cn(MENU_LIST, list.columns === 2 ? "grid-cols-2" : "grid-cols-1")}>
               {ring.map((slot, index) => {
                 const rowFace = faceOf(slot, shift);
                 const on =
@@ -817,7 +818,8 @@ function Ring({
                       title={name}
                       className={cn(
                         "flex h-10 w-full cursor-pointer items-center gap-2.5 rounded-lg px-1.5",
-                        "text-left text-sm text-ink transition-colors hover:bg-paper-sunken",
+                        "text-left text-sm text-ink",
+                        MENU_ROW_HOVER,
                         "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ink",
                       )}
                     >

@@ -536,7 +536,7 @@ function DayList() {
     { tone: CALLOUT_TONE, mark: CALLOUT_MARK, label: "Вызов" },
   ];
   return (
-    <span className="lit flex w-44 flex-col gap-0.5 rounded-xl bg-paper-raised p-1.5 text-left text-sm text-ink">
+    <span className="lit flex w-44 flex-col gap-1 rounded-xl bg-paper-raised p-1.5 text-left text-sm text-ink">
       {rows.map((row) => (
         <span key={row.label} className="flex h-9 items-center gap-2 px-1">
           <span

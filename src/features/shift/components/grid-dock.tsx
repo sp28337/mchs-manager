@@ -5,6 +5,7 @@ import { useId, useRef, useState, type ReactNode } from "react";
 
 import { MARK_EMPTY_CLASS } from "@/components/shared/header-action";
 import { KNOB, KNOB_ICON, KNOB_NEST, KnobLabel, knobOption } from "@/components/ui/knob";
+import { MENU_LIST } from "@/components/ui/menu-row";
 import { ThemeCorner } from "@/components/ui/theme-toggle";
 import { useDismiss } from "@/components/ui/use-dismiss";
 import { cn } from "@/lib/utils/cn";
@@ -342,6 +343,7 @@ function ColumnsKnob({
             "lit modal-lift absolute bottom-0 right-13 w-44 max-h-[60svh] overflow-y-auto",
             "pop-in [--pop-origin:100%_100%] [--pop-x:6px]",
             "rounded-xl bg-paper-raised p-1.5",
+            MENU_LIST,
           )}
         >
           <button

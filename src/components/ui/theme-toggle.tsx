@@ -6,6 +6,7 @@ import { useEffect, useId, useRef, useState } from "react";
 
 import { MARK_EMPTY_CLASS } from "@/components/shared/header-action";
 import { KNOB, KNOB_ICON, KNOB_NEST, KnobLabel } from "@/components/ui/knob";
+import { MENU_LIST, MENU_ROW_HOVER } from "@/components/ui/menu-row";
 import { useDismiss } from "@/components/ui/use-dismiss";
 import { cn } from "@/lib/utils/cn";
 
@@ -170,6 +171,7 @@ export function ThemeCorner({
             "lit modal-lift absolute bottom-full right-0 mb-2 w-52 max-w-[calc(100vw-3rem)]",
             "pop-in [--pop-origin:100%_100%] [--pop-y:6px]",
             "overflow-hidden rounded-xl bg-paper-raised p-1.5",
+            MENU_LIST,
           )}
         >
           {OPTIONS.map(({ value, label, Icon }) => {
@@ -188,7 +190,8 @@ export function ThemeCorner({
                 }}
                 className={cn(
                   "flex w-full cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-2",
-                  "text-left text-sm transition-colors hover:bg-paper-sunken",
+                  "text-left text-sm",
+                  MENU_ROW_HOVER,
                   "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ink",
                   "[&_svg]:size-4 [&_svg]:shrink-0",
                   active ? "bg-paper-sunken font-medium text-ink" : "text-ink-muted",
