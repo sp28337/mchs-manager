@@ -426,6 +426,31 @@ export function Workspace({
    * Остальные разделы закрываются сами (`toggle*`), страница при этом
    * возвращается к началу: подвал стоит внизу, а раздел начинается вверху.
    */
+  /**
+   * Удаление открытого графика — и возврат к графику.
+   *
+   * Удаляют из настроек, и после удаления на месте открытого встаёт соседний
+   * график (`forget` в `use-profile.ts`), а если других нет — расчёт уходит на
+   * главную сам (`calculator-screen.tsx`). Раздел же оставался открытым: человек
+   * видел настройки уже другого графика и сам должен был закрывать их, чтобы
+   * дойти до самого графика. Поэтому раздел закрывается вместе с удалением, и
+   * страница начинается с верха — календаря оставшегося графика.
+   *
+   * Закрываются все разделы, не только настройки: удалить можно и из любого
+   * места, куда ведёт этот вызов, и оставшемуся графику нужен календарь, а не
+   * чужой раздел.
+   */
+  function forgetAndShowGraph() {
+    setSwitched(true);
+    setSettingsOpen(false);
+    setExplorerOpen(false);
+    setStatsOpen(false);
+    setEventsOpen(false);
+    setStatsShown(null);
+    window.scrollTo(0, 0);
+    onForget();
+  }
+
   function openSection(section: SectionHash) {
     if (section === SECTION_HASH.settings && !settingsOpen) toggleSettings();
     else if (section === SECTION_HASH.stats && !statsOpen) toggleStats();
@@ -762,7 +787,7 @@ export function Workspace({
               взглядом. Проводнику такой предел не нужен: он раскладывает
               плитки, и чем шире экран, тем больше их видно разом. */}
           <section aria-label="Настройки графика">
-            <SettingsScreen profile={profile} onChange={onChange} onForget={onForget} />
+            <SettingsScreen profile={profile} onChange={onChange} onForget={forgetAndShowGraph} />
           </section>
         </FadeIn>
       ) : eventsOpen ? (
@@ -928,7 +953,7 @@ export function Workspace({
 }
 
 /**
- * Появление содержимого — плавным проступанием, а не рывком.
+ * Появление содержимого — плавным проступанием из прозрачности, а не рывком.
  *
  * Настройки и календарь занимают одно и то же место на экране по очереди,
  * а не разом: у них слишком разная высота, чтобы стоять друг под другом
@@ -987,13 +1012,13 @@ function FadeIn({
   return (
     <div
       className={cn(
-        // Расфокусировка, оседающая в резкость вместе с прозрачностью, —
-        // тот же приём, что у слова рядом со знаком сайта и у имён закладок
-        // (`Materialize`). Здесь не сам компонент: тот рассчитан на строку
-        // текста (`inline-block`), а тут — блок в колонку страницы, и
-        // сжимать его в строчный элемент значило бы сломать его ширину.
-        "transition-[opacity,filter] duration-300 ease-out",
-        shown ? "opacity-100 blur-none" : "opacity-0 blur-[6px]",
+        // Только прозрачность, без расфокусировки. Блюр, оседающий в резкость,
+        // здесь был (как у слова рядом со знаком сайта, `Materialize`), но на
+        // целой странице — календаре, настройках, статистике — он читался как
+        // «график показали не в фокусе», а не как появление. Слову на кнопке он
+        // идёт, блоку во всю колонку — нет.
+        "transition-opacity duration-300 ease-out",
+        shown ? "opacity-100" : "opacity-0",
       )}
     >
       {children}

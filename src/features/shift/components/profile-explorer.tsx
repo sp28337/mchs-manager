@@ -13,7 +13,6 @@ import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "re
 
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Input } from "@/components/ui/input";
-import { useSync } from "@/features/sync/ui/sync-provider";
 import { useMediaQuery } from "@/lib/hooks/use-media-query";
 import { cn } from "@/lib/utils/cn";
 
@@ -39,6 +38,7 @@ import {
 } from "../storage/library";
 import { type StoredProfile } from "../storage/profile";
 import { CreateProfileModal } from "./create-profile-modal";
+import { DeleteGraphDialog } from "./delete-graph-dialog";
 import { pickProfileFile } from "./pick-profile-file";
 import { useEntryDrag } from "./use-entry-drag";
 
@@ -212,12 +212,17 @@ export function ProfileExplorer({
   onOpenEntry: (entry: LibraryEntry) => void;
 }) {
   const { library, activeId } = useLibrary();
-  // Только затем, чтобы честно сказать в диалоге удаления, куда ещё
-  // доедет удаление: с учётной записью — на сервер и на другие устройства.
-  const { account } = useSync();
   const list = useRef<HTMLUListElement>(null);
   const [renaming, setRenaming] = useState<Rename | null>(null);
+  // Что удаляют — остаётся в состоянии и после закрытия окна: окно закрывается
+  // не мгновенно, и обнулённое состояние на глазах меняло бы его текст. Открыто
+  // оно или нет — отдельно (`asking`).
   const [removing, setRemoving] = useState<Removal | null>(null);
+  const [asking, setAsking] = useState(false);
+  const askToRemove = (removal: Removal) => {
+    setRemoving(removal);
+    setAsking(true);
+  };
   /** «Имя занято» — о переименовании; у действий шапки свой сказ. */
   const [taken, setTaken] = useState<string | null>(null);
   /** Поиск помнит папку, в которой набран: ушёл в другую — запрос не действует. */
@@ -495,7 +500,7 @@ export function ProfileExplorer({
                 onCommit={commitRename}
                 onCancel={() => setRenaming(null)}
                 onOpen={() => tools.openFolder(folder.id)}
-                onDelete={() => setRemoving({ kind: "folder", id: folder.id, name: folder.name })}
+                onDelete={() => askToRemove({ kind: "folder", id: folder.id, name: folder.name })}
               />
             ))}
           {tools.addingFolder ? (
@@ -565,7 +570,7 @@ export function ProfileExplorer({
             onRename={() => setRenaming({ kind: "entry", id: entry.id, value: entry.name })}
             onCommit={commitRename}
             onCancel={() => setRenaming(null)}
-            onDelete={() => setRemoving({ kind: "entry", id: entry.id, name: entry.name })}
+            onDelete={() => askToRemove({ kind: "entry", id: entry.id, name: entry.name })}
           />
         ))}
       </ul>
@@ -596,41 +601,32 @@ export function ProfileExplorer({
         </div>
       ) : null}
 
-      <ConfirmDialog
-        open={removing !== null}
-        onClose={() => setRemoving(null)}
+      {/* Вопрос об удалении графика — тот же, что в настройках
+          (`DeleteGraphDialog`): одно действие, одно окно. */}
+      <DeleteGraphDialog
+        open={asking && removing?.kind === "entry"}
+        name={removing?.name ?? ""}
+        onClose={() => setAsking(false)}
         onConfirm={() => {
-          if (removing === null) return;
-          if (removing.kind === "folder") deleteFolder(removing.id);
-          else deleteEntry(removing.id);
+          if (removing?.kind === "entry") deleteEntry(removing.id);
         }}
-        title={removing?.kind === "folder" ? "Удалить папку?" : "Удалить график?"}
+      />
+
+      <ConfirmDialog
+        open={asking && removing?.kind === "folder"}
+        onClose={() => setAsking(false)}
+        onConfirm={() => {
+          if (removing?.kind === "folder") deleteFolder(removing.id);
+        }}
+        title="Удалить папку?"
         confirm="Удалить"
         destructive
         icon={<Trash2 aria-hidden />}
       >
-        {removing?.kind === "folder" ? (
-          <p>
-            Папка «{removing.name}» исчезнет, а всё, что в ней лежало,
-            поднимется на ступень выше. Данные не пропадут.
-          </p>
-        ) : (
-          <>
-            <p>
-              График «{removing?.name}» и все его данные будут удалены. Это
-              действие нельзя отменить.
-            </p>
-            {/* С учётной записью удаление уезжает на сервер надгробием и
-                оттуда — на остальные устройства. Человек, убирающий лишнюю
-                копию на телефоне, должен знать, что убирает её везде. */}
-            {account === null ? null : (
-              <p className="text-ink-muted">
-                График пропадёт и на других ваших устройствах: он удалится из
-                учётной записи.
-              </p>
-            )}
-          </>
-        )}
+        <p>
+          Папка «{removing?.name}» исчезнет, а всё, что в ней лежало,
+          поднимется на ступень выше. Данные не пропадут.
+        </p>
       </ConfirmDialog>
 
       <CreateProfileModal

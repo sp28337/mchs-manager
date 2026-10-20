@@ -57,14 +57,20 @@ const readBuildHash = () => window.location.hash === "#build";
  * есть график — кнопка остаётся ссылкой. В расчёт человек попадает, когда
  * там есть что показывать, и попадает сразу после создания профиля.
  */
-export function HeroCta() {
+export function HeroCta({ answersAddress = true }: { answersAddress?: boolean }) {
   const built = useSyncExternalStore(subscribeToGraphs, hasGraphs, () => false);
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [dismissed, setDismissed] = useState(false);
   // Окно просят открыть адресом `/#build` — так сюда приходит вошедший в
   // учётную запись, у которого графика ещё нет (`auth-screen.tsx`).
-  const requested = useSyncExternalStore(subscribeToHash, readBuildHash, () => false);
+  //
+  // Откликается на адрес только одна кнопка из двух на странице
+  // (`answersAddress`): вторая стоит в конце «Как работает» и по тому же адресу
+  // открывала бы второе такое же окно поверх первого — закрыв верхнее, человек
+  // видел бы под ним точно такое же.
+  const hashRequested = useSyncExternalStore(subscribeToHash, readBuildHash, () => false);
+  const requested = answersAddress && hashRequested;
   const shown = open || (requested && !dismissed);
 
   const close = () => {

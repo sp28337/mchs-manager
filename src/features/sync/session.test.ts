@@ -9,7 +9,16 @@ import { ApiClient } from "./api/client";
 import { encryptJson, decryptJson, KDF_V1, parseRecoveryKey } from "./crypto";
 import { LEGAL_VERSIONS } from "./legal";
 import * as session from "./session";
-import { clearVault, forgetVault, loadDataKey, readMeta } from "./store/vault";
+import {
+  clearVault,
+  forgetVault,
+  loadDataKey,
+  readMeta,
+  readMirror,
+  readPending,
+  writeMirror,
+  writePending,
+} from "./store/vault";
 
 if (globalThis.crypto?.subtle === undefined) {
   Object.defineProperty(globalThis, "crypto", { value: webcrypto, configurable: true });
@@ -46,6 +55,8 @@ class ПоддельныйСервер {
   последнийВход: { email: string; verifier: string } | null = null;
   выходов = 0;
   удалений: { verifier: string }[] = [];
+  /** Какой идентификатор сервер называет аккаунтом: у двух аккаунтов он разный. */
+  идАккаунта = "11111111-1111-1111-1111-111111111111";
 
   readonly fetch = async (input: string, init?: RequestInit): Promise<Response> => {
     const url = new URL(input);
@@ -106,7 +117,7 @@ class ПоддельныйСервер {
       wrapped_dek_pwd: this.аккаунт?.wrapped_dek_pwd,
       kdf: ДЕШЁВЫЕ,
       account: {
-        id: "11111111-1111-1111-1111-111111111111",
+        id: this.идАккаунта,
         email: this.аккаунт?.email ?? АДРЕС,
         email_verified: false,
         created_at: "2026-03-01T10:00:00.000Z",
@@ -213,6 +224,70 @@ describe("вход", () => {
     const вход = await session.login(client, { email: АДРЕС, password: ПАРОЛЬ });
 
     expect(await decryptJson(вход.dataKey, ref, блоб)).toEqual({ fmt: 1, часов: 172.5 });
+  });
+});
+
+describe("чьё это устройство", () => {
+  // Гость строит график, не входя, и потом входит. Слой сессии не трогает
+  // графики — он отвечает, были ли они этого аккаунта (`continued`), а стирает
+  // их провайдер (`sync-provider.tsx`). Здесь проверяется именно ответ и то,
+  // что вместе с чужим аккаунтом уходят чужие ревизии.
+  const строкаЗеркала = {
+    itemId: "6f1e0000-0000-0000-0000-0000000000a1",
+    kind: "profile" as const,
+    rev: 3,
+    base: { fmt: 1 },
+  };
+
+  it("регистрация — не продолжение: что лежало на устройстве, к аккаунту не относится", async () => {
+    const итог = await session.register(client, { email: АДРЕС, password: ПАРОЛЬ });
+
+    expect(итог.continued).toBe(false);
+  });
+
+  it("вход на устройстве, где аккаунта не было, — не продолжение", async () => {
+    await session.register(client, { email: АДРЕС, password: ПАРОЛЬ });
+    await session.logout(client);
+
+    const вход = await session.login(client, { email: АДРЕС, password: ПАРОЛЬ });
+
+    // После выхода устройство ничьё: графики на нём построены гостем.
+    expect(вход.continued).toBe(false);
+  });
+
+  it("повторный вход тем же аккаунтом продолжает устройство и его ревизии", async () => {
+    // Сессия кончилась в фоне, ключ остался: графики на устройстве — его, с
+    // правками, которые могли не доехать. Стирать их нельзя.
+    await session.register(client, { email: АДРЕС, password: ПАРОЛЬ });
+    await writeMirror(строкаЗеркала);
+
+    const вход = await session.login(client, { email: АДРЕС, password: ПАРОЛЬ });
+
+    expect(вход.continued).toBe(true);
+    expect(await readMirror()).toHaveLength(1);
+  });
+
+  it("вход другим аккаунтом — не продолжение, и чужие ревизии и вопросы уходят", async () => {
+    await session.register(client, { email: АДРЕС, password: ПАРОЛЬ });
+    await writeMirror(строкаЗеркала);
+    await writePending({
+      itemId: строкаЗеркала.itemId,
+      rev: 4,
+      name: "Чужой график",
+      fields: ["name"],
+      remote: {},
+      local: {},
+      at: "2026-03-01T10:00:00.000Z",
+    });
+    server.идАккаунта = "22222222-2222-2222-2222-222222222222";
+
+    const вход = await session.login(client, { email: АДРЕС, password: ПАРОЛЬ });
+
+    expect(вход.continued).toBe(false);
+    expect(await readMirror()).toEqual([]);
+    expect(await readPending()).toEqual([]);
+    expect((await readMeta())?.accountId).toBe("22222222-2222-2222-2222-222222222222");
+    expect((await readMeta())?.cursor).toBe(0);
   });
 });
 

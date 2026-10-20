@@ -42,11 +42,31 @@ import { unwrapDataKey } from "./crypto/dek";
 import { derivePasswordKeys } from "./crypto/kdf";
 import { consentPayload } from "./legal";
 import { claimSchema } from "./api/schemas";
-import { clearVault, loadDataKey, readMeta, saveDataKey, writeMeta } from "./store/vault";
+import {
+  clearVault,
+  dropMirror,
+  dropPending,
+  loadDataKey,
+  readMeta,
+  readMirror,
+  readPending,
+  saveDataKey,
+  writeMeta,
+} from "./store/vault";
 
 export interface Unlocked {
   session: Session;
   dataKey: DataKey;
+  /**
+   * Устройство уже принадлежало этому аккаунту: сессия кончилась, и человек
+   * вошёл снова. Графики на нём — этого аккаунта, и стирать их нельзя: в них
+   * могут быть правки, которые не успели уехать.
+   *
+   * Ложь — у регистрации и у входа на устройстве, где этого аккаунта не было
+   * (ни одного, или другой). Графики, что там лежат, построены гостем или
+   * принадлежат кому-то другому, и в этот аккаунт они не относятся.
+   */
+  continued: boolean;
 }
 
 /** Параметры вывода ключа для этого адреса. Ответ один и для незнакомого. */
@@ -96,11 +116,12 @@ export async function register(
     }),
   );
 
-  await принять(client, ответ, ключи.dataKey);
+  const continued = await принять(client, ответ, ключи.dataKey);
 
   return {
     session: ответ,
     dataKey: ключи.dataKey,
+    continued,
     recoveryKey: ключи.recoveryKey,
     recoveryKeyPrinted: formatRecoveryKey(ключи.recoveryKey),
   };
@@ -128,9 +149,9 @@ export async function login(
 
   const dataKey = await unwrapDataKey(ответ.wrapped_dek_pwd, wrappingKey, "password");
 
-  await принять(client, ответ, dataKey);
+  const continued = await принять(client, ответ, dataKey);
 
-  return { session: ответ, dataKey };
+  return { session: ответ, dataKey, continued };
 }
 
 /**
@@ -151,7 +172,7 @@ export async function restore(client: ApiClient): Promise<Unlocked | null> {
   const dataKey: DataKey = { handle };
   await запомнить(ответ.account);
 
-  return { session: ответ, dataKey };
+  return { session: ответ, dataKey, continued: true };
 }
 
 /** Выход: сессия на сервере гаснет, ключ и ревизии уходят с устройства. */
@@ -312,18 +333,33 @@ export async function recoverFinish(
   });
 }
 
-async function принять(client: ApiClient, ответ: Session, dataKey: DataKey): Promise<void> {
+async function принять(
+  client: ApiClient,
+  ответ: Session,
+  dataKey: DataKey,
+): Promise<boolean> {
   client.setAccessToken(ответ.access_token);
   await saveDataKey(dataKey.handle);
-  await запомнить(ответ.account);
+  return запомнить(ответ.account);
 }
 
-async function запомнить(account: Account): Promise<void> {
+/** Записывает, чьё это устройство; отвечает, был ли это тот же аккаунт. */
+async function запомнить(account: Account): Promise<boolean> {
   const было = await readMeta();
 
   // Курсор сбрасывается, если аккаунт другой: ревизии у каждого свои, и
   // выбирать «изменения после 42» из чужой истории нельзя.
   const свой = было?.accountId === account.id;
+
+  // Вместе с курсором уходит и то, что помнилось о чужом аккаунте: «каким
+  // элемент был на сервере» и вопросы о расхождениях. Графики этого
+  // устройства при смене аккаунта стираются (`sync-provider.tsx`), и оставленное
+  // зеркало читалось бы как «человек удалил всё это у себя» — удаления,
+  // которых он не делал, ушли бы на сервер.
+  if (!свой) {
+    for (const строка of await readMirror()) await dropMirror(строка.itemId);
+    for (const строка of await readPending()) await dropPending(строка.itemId);
+  }
 
   await writeMeta({
     accountId: account.id,
@@ -331,4 +367,6 @@ async function запомнить(account: Account): Promise<void> {
     cursor: свой ? (было?.cursor ?? 0) : 0,
     syncedAt: свой ? (было?.syncedAt ?? null) : null,
   });
+
+  return свой;
 }

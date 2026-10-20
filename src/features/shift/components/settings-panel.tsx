@@ -32,6 +32,7 @@ import {
 } from "../model/derive";
 import { resetCalendar, type StoredProfile } from "../storage/profile";
 import { DateField } from "./date-field";
+import { DeleteGraphDialog } from "./delete-graph-dialog";
 import { formatHoursTrim as hoursTrim } from "../domain/decimal";
 import { shiftMinutes } from "../domain/shift-hours";
 import { HoursField, weeklyHoursFieldError } from "./hours-field";
@@ -775,31 +776,12 @@ export function DangerActions({
         </p>
       </ConfirmDialog>
 
-      <ConfirmDialog
+      <DeleteGraphDialog
         open={asking === "forget"}
+        name={forgetName}
         onClose={() => setAsking(null)}
         onConfirm={() => onForget?.()}
-        title="Удалить график?"
-        confirm="Удалить"
-        icon={<Trash2 aria-hidden />}
-        destructive
-      >
-        {/* Имя — тем же рукописным шрифтом, что названия графика в шапке
-            расчёта (`profile-name.tsx`): человек узнаёт свой график по
-            написанию, а не по строке чужого шрифта. Без кавычек: другая
-            гарнитура и так отделяет имя от текста. Рукописная гарнитура
-            мельче печатной при том же кегле, поэтому здесь она на ступень
-            крупнее окружающего текста. Длинное имя переносится, а не
-            выталкивает окно. Имя — снимок на момент нажатия (`forgetName`),
-            а не живое: окно закрывается дольше, чем меняется график. */}
-        <p>
-          График{" "}
-          <span className="font-hand text-xl leading-none break-words text-ink">
-            {forgetName || "Имя графика"}
-          </span>{" "}
-          и все его данные будут удалены без возможности восстановления.
-        </p>
-      </ConfirmDialog>
+      />
     </div>
   );
 }

@@ -433,6 +433,29 @@ export function SyncProvider({ children }: { children: ReactNode }) {
     [],
   );
 
+  /**
+   * Графики, построенные до входа, в аккаунт не попадают.
+   *
+   * Человек, не входя, строит график и потом входит в свою учётную запись, —
+   * а в ней свои графики. Первый проход слил бы то, что лежит на устройстве, с
+   * тем, что лежит на сервере, и гостевой график оказался бы среди его
+   * настоящих. При входе человек должен увидеть то, что хранится в аккаунте, и
+   * только это; при регистрации аккаунт пуст, и первый график он строит уже
+   * внутри него.
+   *
+   * Стирается ПОСЛЕ удачного входа: неверный пароль график не трогает. И не
+   * стирается, если устройство и так принадлежало этому аккаунту (`continued`:
+   * сессия кончилась, человек вошёл снова) — там графики его, и в них могут
+   * быть правки, которые не успели уехать.
+   *
+   * Стирание само сообщает «есть правки» (`subscribeToLibrary`); первый проход
+   * сразу за ним, так что лишнего отправлять нечего — устройство пусто.
+   */
+  const убратьГрафикиГостя = useCallback((продолжение: boolean) => {
+    if (продолжение) return;
+    forgetEverything();
+  }, []);
+
   const actions = useMemo<SyncActions>(
     () => ({
       register: async (данные) =>
@@ -442,6 +465,8 @@ export function SyncProvider({ children }: { children: ReactNode }) {
           dataKey.current = итог.dataKey;
           email.current = итог.session.account.email;
           wrapped.current = итог.session.wrapped_dek_pwd ?? null;
+
+          убратьГрафикиГостя(итог.continued);
 
           setState((было) => ({
             ...было,
@@ -461,6 +486,8 @@ export function SyncProvider({ children }: { children: ReactNode }) {
           dataKey.current = итог.dataKey;
           email.current = итог.session.account.email;
           wrapped.current = итог.session.wrapped_dek_pwd ?? null;
+
+          убратьГрафикиГостя(итог.continued);
 
           setState((было) => ({
             ...было,
@@ -567,7 +594,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
         setState((было) => ({ ...было, error: null, stalled: false }));
       },
     }),
-    [действие, получить, sync, сдано],
+    [действие, получить, sync, сдано, убратьГрафикиГостя],
   );
 
   const значение = useMemo<SyncValue>(() => ({ ...state, actions }), [state, actions]);
