@@ -258,7 +258,7 @@ paths:
       tags: [account]
       summary: Удалить аккаунт со всеми данными
       description: >
-        Уничтожает блобы, историю, обёртки, адрес, согласие и журнал входов.
+        Уничтожает блобы, историю, обёртки, адрес, записи о принятых документах и журнал входов.
         Остаётся обезличенная строка аудита. Резервные копии догоняют
         удаление по своему сроку (30 дней).
       requestBody:
@@ -274,6 +274,30 @@ paths:
         "204": { description: Удалено }
         "401": { $ref: "#/components/responses/Unauthorized" }
         "429": { $ref: "#/components/responses/RateLimited" }
+
+  /account/consents:
+    post:
+      tags: [account]
+      summary: Принять заново согласие и соглашение
+      description: >
+        Нужна, когда текст согласия или соглашения изменился после
+        регистрации: прежнее согласие относится к прежнему тексту. Те же две
+        отметки, что при регистрации, и тот же отказ без них. Записываются
+        только устаревшие документы; повтор ничего не меняет.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ConsentRequest" }
+      responses:
+        "200":
+          description: Аккаунт с обновлёнными `consents` и пустым `consent_pending`
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Account" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { description: "consent_required: не поставлены обе отметки или версия устарела" }
+        "422": { $ref: "#/components/responses/Validation" }
 
   /account/password:
     post:
@@ -492,13 +516,7 @@ components:
         wrapped_dek_pwd: { $ref: "#/components/schemas/Base64Url" }
         wrapped_dek_rec: { $ref: "#/components/schemas/Base64Url" }
         kdf_version: { type: string }
-        consent:
-          type: object
-          required: [policy_version, consent_version, terms_version]
-          properties:
-            policy_version: { type: string, examples: ["2026-10-11"] }
-            consent_version: { type: string, examples: ["2026-10-11"] }
-            terms_version: { type: string, examples: ["2026-10-11"] }
+        consent: { $ref: "#/components/schemas/ConsentRequest" }
 
     Session:
       type: object
@@ -514,17 +532,55 @@ components:
         kdf: { $ref: "#/components/schemas/KdfParams" }
         account: { $ref: "#/components/schemas/Account" }
 
+    ConsentRequest:
+      type: object
+      description: >
+        Что человек принял. Согласие на обработку оформляется отдельно от иных
+        документов (ч. 1 ст. 9 152-ФЗ), поэтому действий два — две отметки.
+        Оба признака обязаны быть `true`: без них запрос не согласие, а три
+        версии без сведений о том, что человек что-либо отметил. Версии
+        должны быть действующими; хэш текста сервер берёт из манифеста сам.
+      required:
+        - policy_version
+        - consent_version
+        - terms_version
+        - accepted_terms_and_policy
+        - accepted_personal_data
+      properties:
+        policy_version: { type: string, examples: ["2026-10-20"] }
+        consent_version: { type: string, examples: ["2026-10-20"] }
+        terms_version: { type: string, examples: ["2026-10-20"] }
+        accepted_terms_and_policy:
+          type: boolean
+          description: Отметка «принимаю соглашение и политику».
+        accepted_personal_data:
+          type: boolean
+          description: Отдельная отметка «даю согласие на обработку».
+
     Consent:
       type: object
-      required: [kind, version, accepted_at]
+      description: >
+        Принятая редакция одного документа. По строке на документ; повторное
+        принятие добавляет строку, а не переписывает прежнюю.
+      required: [kind, version, accepted_at, via]
       properties:
         kind: { type: string, enum: [policy, consent, terms] }
         version: { type: string }
+        sha256:
+          description: Хэш тела принятого текста; у строк, перенесённых из прежней схемы, его нет.
+          anyOf:
+            - { type: string }
+            - { type: "null" }
+        via: { type: string, enum: [registration, renewal] }
         accepted_at: { type: string, format: date-time }
+        ip:
+          anyOf:
+            - { type: string }
+            - { type: "null" }
 
     Account:
       type: object
-      required: [id, email, email_verified, created_at, rev, usage, consents]
+      required: [id, email, email_verified, created_at, rev, usage, consents, consent_pending]
       properties:
         id: { type: string, format: uuid }
         email: { type: string, format: email }
@@ -541,7 +597,15 @@ components:
             bytes: { type: integer, format: int64 }
         consents:
           type: array
+          description: Последняя принятая редакция каждого документа.
           items: { $ref: "#/components/schemas/Consent" }
+        consent_pending:
+          type: array
+          description: >
+            Документы, на которые надо ответить заново, потому что их текст
+            изменился. Пока список не пуст, синхронизация приостановлена.
+            Политика сюда не входит: она не согласие, а публикуемые сведения.
+          items: { type: string, enum: [consent, terms] }
 
     Item:
       type: object

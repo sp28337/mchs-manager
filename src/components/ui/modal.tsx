@@ -234,6 +234,7 @@ export function Modal({
   onClose,
   title,
   sheet,
+  closable = true,
   children,
   className,
   headerClassName,
@@ -243,6 +244,11 @@ export function Modal({
   onClose: () => void;
   /** Заголовок окна: он же его имя для экранного диктора. */
   title: ReactNode;
+  /**
+   * `false` — без крестика: окно, из которого нельзя «потом», а только ответить
+   * (`consent-renewal.tsx`). Мёртвая кнопка «Закрыть» обещала бы выход, которого нет.
+   */
+  closable?: boolean;
   /** Ниже `sm` — во весь экран, без скруглений и рамки. */
   sheet?: boolean;
   children: ReactNode;
@@ -441,26 +447,28 @@ export function Modal({
         >
           {title}
         </h2>
-        <button
-          type="button"
-          onClick={onClose}
-          aria-label="Закрыть"
-          className={cn(
-            // Имя класса — зацепка для перехода: у листа крестик проступает
-            // вместе с заголовком, а не стоит готовым над ещё видимой
-            // страницей.
-            "modal-close",
-            "-mr-1.5 shrink-0 cursor-pointer rounded-lg p-1.5 text-ink-faint",
-            // В обычном окне шапка выровнена по верху, и крестик поднят к
-            // первой строке заголовка. У листа шапка выровнена по середине,
-            // и подъём увёл бы крестик выше неё.
-            sheet && "max-sm:mt-0",
-            "border border-transparent transition-colors hover:border-ink-muted hover:text-ink",
-            "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink",
-          )}
-        >
-          <X className="size-4" />
-        </button>
+        {closable && (
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Закрыть"
+            className={cn(
+              // Имя класса — зацепка для перехода: у листа крестик проступает
+              // вместе с заголовком, а не стоит готовым над ещё видимой
+              // страницей.
+              "modal-close",
+              "-mr-1.5 shrink-0 cursor-pointer rounded-lg p-1.5 text-ink-faint",
+              // В обычном окне шапка выровнена по верху, и крестик поднят к
+              // первой строке заголовка. У листа шапка выровнена по середине,
+              // и подъём увёл бы крестик выше неё.
+              sheet && "max-sm:mt-0",
+              "border border-transparent transition-colors hover:border-ink-muted hover:text-ink",
+              "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink",
+            )}
+          >
+            <X className="size-4" />
+          </button>
+        )}
       </header>
 
       {/* `flex-auto` и `min-h-0` — вместе, и оба обязательны: почему именно

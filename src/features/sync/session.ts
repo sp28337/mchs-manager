@@ -40,7 +40,7 @@ import {
 // сервером обёртки.
 import { unwrapDataKey } from "./crypto/dek";
 import { derivePasswordKeys } from "./crypto/kdf";
-import { consentPayload } from "./legal";
+import { consentPayload, type ConsentActs } from "./legal";
 import { claimSchema } from "./api/schemas";
 import {
   clearVault,
@@ -96,7 +96,7 @@ export interface Registered extends Unlocked {
  */
 export async function register(
   client: ApiClient,
-  данные: { email: string; password: string },
+  данные: { email: string; password: string; acts: ConsentActs },
 ): Promise<Registered> {
   const params = await kdfParams(client, данные.email).catch(() => KDF_V1);
   const ключи = await createAccount(данные.email, данные.password, params);
@@ -111,7 +111,7 @@ export async function register(
         wrapped_dek_pwd: ключи.wrapped_dek_pwd,
         wrapped_dek_rec: ключи.wrapped_dek_rec,
         kdf_version: ключи.kdf_version,
-        consent: consentPayload(),
+        consent: consentPayload(данные.acts),
       },
     }),
   );
@@ -191,6 +191,26 @@ export async function logout(client: ApiClient): Promise<void> {
 /** Сведения об аккаунте (ст. 14 152-ФЗ). */
 export async function accountInfo(client: ApiClient): Promise<AccountInfo> {
   return accountInfoSchema.parse(await client.request("/account"));
+}
+
+/**
+ * Принять действующие редакции согласия и соглашения заново.
+ *
+ * Нужно, когда их текст изменился после того, как человек их принял
+ * (`consent_pending` в сведениях об аккаунте). Те же две отметки, что при
+ * регистрации (ч. 1 ст. 9 152-ФЗ): отвечает человек, а не приложение за него —
+ * вызывать только после обеих отметок.
+ */
+export async function acceptConsents(
+  client: ApiClient,
+  acts: ConsentActs,
+): Promise<AccountInfo> {
+  return accountInfoSchema.parse(
+    await client.request("/account/consents", {
+      method: "POST",
+      body: consentPayload(acts),
+    }),
+  );
 }
 
 /** Выгрузка всего, что о человеке есть. Возвращает готовый к записи текст. */

@@ -20,6 +20,7 @@ from sqlalchemy import (
     CheckConstraint,
     DateTime,
     ForeignKey,
+    Index,
     LargeBinary,
     String,
     Uuid,
@@ -130,27 +131,48 @@ class DataKey(TimestampMixin, Base):
 
 
 class Consent(Base):
-    """Чем подтверждается основание обработки.
+    """Одна принятая редакция одного документа — одна строка.
 
-    Версии трёх документов, время и IP — ровно то, чем оператор доказывает
-    получение согласия (ч. 1 ст. 9 152-ФЗ). Текстов здесь нет: они лежат в
-    `docs/legal/`, и по версии с хэшем всегда видно, с чем именно человек
-    согласился.
+    Оператор обязан доказать получение согласия (ч. 3 ст. 9 152-ФЗ), а само
+    согласие должно быть оформлено отдельно от иных документов, которые
+    подтверждает человек (ч. 1 ст. 9). Поэтому и в базе каждый документ —
+    своей строкой: «согласие на обработку, редакция такая-то, текст с таким
+    хэшем, принято тогда-то с такого-то адреса» не смешано с принятием
+    соглашения и политики. Прежде строка была одна на три документа, и по ней
+    нельзя было показать, что согласие дано отдельным действием, а повторно
+    принять один документ, не переписывая остальные, было нечем.
+
+    Текстов здесь нет: они лежат в `docs/legal/`. Версия называет редакцию, а
+    `sha256` — хэш тела документа на тот момент — подтверждает, что архивный
+    текст тот самый, даже если версию потом по ошибке оставили прежней.
+    У строк, перенесённых из прежней схемы, хэша нет: сервер его тогда не
+    записывал, и выдумывать задним числом нельзя.
 
     `TimestampMixin` здесь не нужен: `accepted_at` — и есть время события, а
     менять запись о согласии нельзя, её можно только дополнить новой.
     """
 
     __tablename__ = "consents"
+    __table_args__ = (
+        CheckConstraint("kind IN ('policy', 'consent', 'terms')", name="kind"),
+        CheckConstraint("via IN ('registration', 'renewal')", name="via"),
+        # «Последняя принятая редакция документа» — самый частый вопрос.
+        Index("ix_consents_user_id_kind_accepted_at", "user_id", "kind", "accepted_at"),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
     user_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
     )
 
-    policy_version: Mapped[str] = mapped_column(String(32), nullable=False)
-    consent_version: Mapped[str] = mapped_column(String(32), nullable=False)
-    terms_version: Mapped[str] = mapped_column(String(32), nullable=False)
+    #: Какой документ: `policy`, `consent` или `terms`.
+    kind: Mapped[str] = mapped_column(String(16), nullable=False)
+    version: Mapped[str] = mapped_column(String(32), nullable=False)
+    #: Хэш тела документа в этой редакции; `None` у перенесённых из прежней схемы.
+    sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
+
+    #: Где принято: при регистрации или позже, когда текст обновился.
+    via: Mapped[str] = mapped_column(String(16), nullable=False, default="registration")
 
     accepted_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False

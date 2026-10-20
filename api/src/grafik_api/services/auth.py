@@ -30,14 +30,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from grafik_api.core.config import Settings
 from grafik_api.core.errors import (
     BadCredentialsError,
-    ConsentRequiredError,
     EmailTakenError,
     ServiceUnavailableError,
     TokenExpiredError,
     TokenRevokedError,
     ValidationFailedError,
 )
-from grafik_api.core.legal import CURRENT_VERSIONS
 from grafik_api.core.logging import get_logger
 from grafik_api.core.mail import (
     Mailer,
@@ -69,6 +67,13 @@ from grafik_api.repositories import (
     RefreshTokenRepository,
     UserRepository,
 )
+from grafik_api.services.consents import (
+    PERSONAL_DATA,
+    TERMS_AND_POLICY,
+    ConsentGiven,
+)
+from grafik_api.services.consents import check as check_consent
+from grafik_api.services.consents import record as record_consents
 
 logger = get_logger("service.auth")
 
@@ -150,7 +155,7 @@ class AuthService:
         wrapped_dek_pwd: bytes,
         wrapped_dek_rec: bytes,
         kdf_version: str,
-        consent: dict[str, str],
+        consent: ConsentGiven,
         ip: str | None,
         device_id: str | None,
     ) -> SessionResult:
@@ -162,7 +167,7 @@ class AuthService:
         if kdf_version not in KDF_VERSIONS:
             raise ValidationFailedError(f"неизвестная версия параметров: {kdf_version}")
 
-        self._проверить_согласие(consent)
+        check_consent(consent)
 
         адрес = normalize_email(email)
 
@@ -185,11 +190,14 @@ class AuthService:
         await self.data_keys.put(user.id, KIND_REC, wrapped_dek_rec)
 
         now = datetime.now(UTC)
-        запись = self.consents.create(
+        # Два действия — две записи по документам: соглашение с политикой и
+        # отдельно согласие на обработку (ч. 1 ст. 9 152-ФЗ). Время и адрес у
+        # них общие по существу: оба совершены одним нажатием.
+        записи = record_consents(
+            self.consents,
             user_id=user.id,
-            policy_version=consent["policy_version"],
-            consent_version=consent["consent_version"],
-            terms_version=consent["terms_version"],
+            kinds=(*TERMS_AND_POLICY, *PERSONAL_DATA),
+            via="registration",
             accepted_at=now,
             ip=ip,
         )
@@ -211,7 +219,7 @@ class AuthService:
             wrapped_dek_pwd=wrapped_dek_pwd,
             kdf_version=kdf_version,
             device_id=device_id,
-            consents=[запись],
+            consents=записи,
             now=now,
         )
 
@@ -579,31 +587,9 @@ class AuthService:
         """
         await self.session.commit()
 
-    def _проверить_согласие(self, consent: dict[str, str]) -> None:
-        """Приняты ли действующие редакции документов.
-
-        Старая редакция — не отказ навсегда: приложение покажет новый
-        текст и спросит заново.
-        """
-        устарело = {
-            вид: версия
-            for вид, версия in (
-                ("policy", consent["policy_version"]),
-                ("consent", consent["consent_version"]),
-                ("terms", consent["terms_version"]),
-            )
-            if версия != CURRENT_VERSIONS[вид]
-        }
-
-        if устарело:
-            raise ConsentRequiredError(
-                "приняты не действующие редакции документов",
-                current=CURRENT_VERSIONS,
-            )
-
     async def _согласия(self, user_id: uuid.UUID) -> list[Consent]:
-        запись = await self.consents.latest(user_id)
-        return [запись] if запись else []
+        """Последняя принятая редакция каждого документа."""
+        return await self.consents.latest_per_kind(user_id)
 
     async def _открыть_сессию(
         self,

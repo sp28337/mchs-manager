@@ -8,6 +8,7 @@
 
 from __future__ import annotations
 
+import re
 from datetime import UTC, datetime, timedelta
 from typing import Any
 from uuid import UUID
@@ -19,7 +20,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from grafik_api.api.deps import CurrentUserDep, get_mailer
-from grafik_api.core.legal import CURRENT_VERSIONS
+from grafik_api.core.legal import CURRENT_VERSIONS, LEGAL_DOCUMENTS
 from grafik_api.core.security import encode_wrapped, issue_access_token, token_digest
 from grafik_api.models import (
     AuditEntry,
@@ -39,6 +40,7 @@ from tests import factories
 # Общие части — в фабриках: ими пользуется и синхронизация.
 ЗНАЧЕНИЕ = factories.ЗНАЧЕНИЕ
 ОБЁРТКА_ПАРОЛЕМ = factories.ОБЁРТКА_ПАРОЛЕМ
+тело_согласия = factories.тело_согласия
 
 
 def тело_регистрации(**правки: Any) -> dict[str, Any]:
@@ -104,7 +106,8 @@ async def test_регистрация_открывает_сессию(
     assert await сессия.scalar(select(func.count()).select_from(User)) == 1
     assert await сессия.scalar(select(func.count()).select_from(Credential)) == 1
     assert await сессия.scalar(select(func.count()).select_from(DataKey)) == 2
-    assert await сессия.scalar(select(func.count()).select_from(Consent)) == 1
+    # По строке на документ: соглашение, политика и отдельно согласие.
+    assert await сессия.scalar(select(func.count()).select_from(Consent)) == 3
     assert await событий(сессия, "auth.register") == 1
 
 
@@ -165,11 +168,7 @@ async def test_устаревшее_согласие_не_принимается
     """Старую редакцию принимать нельзя: доказывать придётся именно её."""
     ответ = await зарегистрировать(
         клиент,
-        consent={
-            "policy_version": "2020-01-01",
-            "consent_version": CURRENT_VERSIONS["consent"],
-            "terms_version": CURRENT_VERSIONS["terms"],
-        },
+        consent=тело_согласия(policy_version="2020-01-01"),
     )
 
     assert ответ.status_code == 403
@@ -178,18 +177,73 @@ async def test_устаревшее_согласие_не_принимается
     assert ответ.json()["current"]["policy"] == CURRENT_VERSIONS["policy"]
 
 
-async def test_согласие_записано_с_версиями_и_временем(
+async def test_согласие_записано_по_строке_на_документ(
     клиент: httpx.AsyncClient, сессия: AsyncSession
 ) -> None:
+    """Согласие — отдельной строкой: ч. 1 ст. 9 требует оформлять его отдельно."""
     await зарегистрировать(клиент)
 
-    запись = await сессия.scalar(select(Consent))
+    записи = (await сессия.scalars(select(Consent).order_by(Consent.kind))).all()
 
-    assert запись is not None
-    assert запись.policy_version == CURRENT_VERSIONS["policy"]
-    assert запись.consent_version == CURRENT_VERSIONS["consent"]
-    assert запись.terms_version == CURRENT_VERSIONS["terms"]
-    assert запись.accepted_at is not None
+    assert [запись.kind for запись in записи] == ["consent", "policy", "terms"]
+    for запись in записи:
+        assert запись.version == CURRENT_VERSIONS[запись.kind]
+        assert запись.via == "registration"
+        assert запись.accepted_at is not None
+
+
+async def test_у_согласия_хэш_текста_из_манифеста(
+    клиент: httpx.AsyncClient, сессия: AsyncSession
+) -> None:
+    """Версия называет редакцию, хэш подтверждает, что текст тот самый."""
+    await зарегистрировать(клиент)
+
+    for запись in (await сессия.scalars(select(Consent))).all():
+        assert запись.sha256 == LEGAL_DOCUMENTS[запись.kind].sha256
+        assert запись.sha256 is not None
+        assert re.fullmatch(r"[0-9a-f]{64}", запись.sha256)
+
+
+async def test_хэш_берётся_у_сервера_а_не_из_запроса(
+    клиент: httpx.AsyncClient, сессия: AsyncSession
+) -> None:
+    """Доказательством служит то, что знает сервер, а не то, что прислали."""
+    await зарегистрировать(клиент, consent={**тело_согласия(), "sha256": "0" * 64})
+
+    for запись in (await сессия.scalars(select(Consent))).all():
+        assert запись.sha256 == LEGAL_DOCUMENTS[запись.kind].sha256
+
+
+async def test_без_отметки_согласие_не_принимается(
+    клиент: httpx.AsyncClient, сессия: AsyncSession
+) -> None:
+    """Версии без действия человека — не согласие."""
+    for правки in (
+        {"accepted_personal_data": False},
+        {"accepted_terms_and_policy": False},
+        {"accepted_personal_data": False, "accepted_terms_and_policy": False},
+    ):
+        ответ = await зарегистрировать(клиент, consent=тело_согласия(**правки))
+
+        assert ответ.status_code == 403, правки
+        assert ответ.json()["code"] == "consent_required"
+
+    # Ни аккаунта, ни записи о согласии.
+    assert await сессия.scalar(select(func.count()).select_from(User)) == 0
+    assert await сессия.scalar(select(func.count()).select_from(Consent)) == 0
+
+
+async def test_признаки_действий_обязательны_в_запросе(
+    клиент: httpx.AsyncClient,
+) -> None:
+    """Запрос без признаков не отказ, а негодный запрос."""
+    тело = тело_согласия()
+    del тело["accepted_personal_data"]
+
+    ответ = await зарегистрировать(клиент, consent=тело)
+
+    assert ответ.status_code == 422
+    assert ответ.json()["code"] == "validation_failed"
 
 
 async def test_мусор_вместо_обёртки(клиент: httpx.AsyncClient) -> None:

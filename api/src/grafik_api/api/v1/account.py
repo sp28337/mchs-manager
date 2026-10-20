@@ -26,6 +26,7 @@ from grafik_api.api.v1.auth import COOKIE_NAME, COOKIE_PATH
 from grafik_api.core.limits import EXPORT, SENSITIVE
 from grafik_api.core.security import decode_wrapped
 from grafik_api.schemas.account import AccountOut, DeleteIn, ExportOut, PasswordIn
+from grafik_api.schemas.auth import ConsentIn
 
 router = APIRouter(prefix="/account", tags=["account"])
 
@@ -34,6 +35,23 @@ router = APIRouter(prefix="/account", tags=["account"])
 async def info(user_id: CurrentUserDep, service: AccountServiceDep) -> AccountOut:
     """Что сервер знает об этом аккаунте."""
     return AccountOut.of(await service.info(user_id))
+
+
+@router.post("/consents", summary="Принять обновлённые документы")
+async def accept_consents(
+    данные: ConsentIn,
+    user_id: CurrentUserDep,
+    service: AccountServiceDep,
+    ip: ClientIpDep,
+) -> AccountOut:
+    """Принять действующие редакции согласия и соглашения заново.
+
+    Нужна, когда текст одного из них изменился после регистрации: старое
+    согласие относится к старому тексту. Те же две отметки, что при
+    регистрации (ч. 1 ст. 9 152-ФЗ), и тот же отказ без них. Записываются
+    только устаревшие документы; повтор ничего не меняет.
+    """
+    return AccountOut.of(await service.accept_consent(user_id, данные.given(), ip=ip))
 
 
 @router.get("/export", summary="Выгрузка всего, что о человеке есть")

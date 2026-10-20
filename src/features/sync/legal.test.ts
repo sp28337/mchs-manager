@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 
 import { describe, expect, it } from "vitest";
 
-import { LEGAL_URLS, LEGAL_VERSIONS } from "./legal";
+import { LEGAL_URLS, LEGAL_VERSIONS, consentPayload } from "./legal";
 
 /**
  * Версии в коде и в документах — одно и то же.
@@ -44,4 +44,30 @@ describe("версии юридических документов", () => {
       expect(блок.url).toBe(LEGAL_URLS[id as keyof typeof LEGAL_URLS]);
     });
   }
+});
+
+describe("consentPayload", () => {
+  it("уносит версии трёх документов и действия человека", () => {
+    expect(consentPayload({ termsAndPolicy: true, personalData: true })).toEqual({
+      policy_version: LEGAL_VERSIONS.policy,
+      consent_version: LEGAL_VERSIONS.consent,
+      terms_version: LEGAL_VERSIONS.terms,
+      accepted_terms_and_policy: true,
+      accepted_personal_data: true,
+    });
+  });
+
+  it("признаки берутся из отметок, а не подставляются истиной", () => {
+    // Иначе нажатая без отметки кнопка записала бы согласие, которого не было.
+    const payload = consentPayload({ termsAndPolicy: true, personalData: false });
+
+    expect(payload.accepted_terms_and_policy).toBe(true);
+    expect(payload.accepted_personal_data).toBe(false);
+  });
+
+  it("без согласия на аналитику: оно к учётной записи не относится", () => {
+    expect(Object.keys(consentPayload({ termsAndPolicy: true, personalData: true }))).not.toContain(
+      "cookies_version",
+    );
+  });
 });

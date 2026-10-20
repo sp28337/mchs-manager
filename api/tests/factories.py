@@ -84,11 +84,20 @@ def тело_регистрации(**правки: Any) -> dict[str, Any]:
         "wrapped_dek_pwd": ОБЁРТКА_ПАРОЛЕМ,
         "wrapped_dek_rec": ОБЁРТКА_КЛЮЧОМ,
         "kdf_version": "kdf_v1",
-        "consent": {
-            "policy_version": CURRENT_VERSIONS["policy"],
-            "consent_version": CURRENT_VERSIONS["consent"],
-            "terms_version": CURRENT_VERSIONS["terms"],
-        },
+        "consent": тело_согласия(),
+    }
+    тело.update(правки)
+    return тело
+
+
+def тело_согласия(**правки: Any) -> dict[str, Any]:
+    """Исправное тело согласия: действующие версии и оба действия совершены."""
+    тело: dict[str, Any] = {
+        "policy_version": CURRENT_VERSIONS["policy"],
+        "consent_version": CURRENT_VERSIONS["consent"],
+        "terms_version": CURRENT_VERSIONS["terms"],
+        "accepted_terms_and_policy": True,
+        "accepted_personal_data": True,
     }
     тело.update(правки)
     return тело

@@ -1,19 +1,19 @@
 {
   "policy": {
     "title": "Политика в отношении обработки персональных данных",
-    "version": "2026-10-15",
+    "version": "2026-10-20",
     "effective_from": null,
     "status": "draft",
     "url": "/privacy",
-    "sha256": "fae05e15c0920f480a3aa0dc068de7bd646a522314b3d3966e4e50cc249de505"
+    "sha256": "3f7a049333aab4ce9f8a364c94906ac744f06f30fd68dae4e8cd882365765136"
   },
   "consent": {
     "title": "Согласие на обработку персональных данных",
-    "version": "2026-10-11",
+    "version": "2026-10-20",
     "effective_from": null,
     "status": "draft",
     "url": "/consent",
-    "sha256": "c18deac363f37cf76ccc9668cba7a1db3fbddb424a132afcce9794ea266164c4"
+    "sha256": "5539a13266018fcacd6bfcb44f15f10771cb65b0ba08bf69194682d188cb44ae"
   },
   "terms": {
     "title": "Пользовательское соглашение",

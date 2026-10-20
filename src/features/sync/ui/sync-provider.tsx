@@ -19,9 +19,11 @@ import { isApiError, isNetworkError } from "../api/errors";
 import type { Account } from "../api/schemas";
 import type { DataKey } from "../crypto";
 import { resolvePending, syncOnce, type SyncReport } from "../engine/sync";
+import type { ConsentActs } from "../legal";
 import * as session from "../session";
 import { readPending, type PendingRow } from "../store/vault";
 import { SyncConflicts } from "./conflict-dialog";
+import { ConsentRenewal } from "./consent-renewal";
 import { SYNC_ENABLED } from "./enabled";
 import { explain, СЕССИЯ_КОНЧИЛАСЬ } from "./messages";
 
@@ -94,7 +96,7 @@ export interface SyncState {
 export type LogoutResult = "done" | "unsynced";
 
 export interface SyncActions {
-  register: (данные: { email: string; password: string }) => Promise<void>;
+  register: (данные: { email: string; password: string; acts: ConsentActs }) => Promise<void>;
   login: (данные: { email: string; password: string }) => Promise<void>;
   /**
    * Выйти. Графики с устройства уходят (`forgetEverything`), поэтому сначала
@@ -103,6 +105,11 @@ export interface SyncActions {
    */
   logout: (options?: { force?: boolean }) => Promise<LogoutResult>;
   syncNow: () => Promise<void>;
+  /**
+   * Принять действующие редакции согласия и соглашения заново. Вызывать только
+   * после обеих отметок: отвечает человек, а не приложение за него.
+   */
+  acceptConsent: (acts: ConsentActs) => Promise<void>;
   resolve: (itemId: string, choice: "local" | "remote") => Promise<void>;
   changePassword: (данные: {
     currentPassword: string;
@@ -168,6 +175,16 @@ export function SyncProvider({ children }: { children: ReactNode }) {
   const неотправлено = useRef(true);
   /** Сколько правок устройства видела эта вкладка: метка для `неотправлено`. */
   const правок = useRef(0);
+  /**
+   * Текст согласия или соглашения изменился, и человек ещё не ответил.
+   *
+   * Пока так, синхронизация стоит: обработка на основании согласия с прежним
+   * текстом не должна продолжаться как ни в чём не бывало (ч. 1 ст. 9 152-ФЗ —
+   * согласие конкретное и информированное, а этот текст человек не видел).
+   * Расчёт и графики на устройстве от этого не страдают — он работает без
+   * сервера.
+   */
+  const ждётСогласия = useRef(false);
 
   const получить = useCallback((): ApiClient => {
     client.current ??= new ApiClient();
@@ -176,6 +193,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
 
   const sync = useCallback(async () => {
     if (!SYNC_ENABLED || dataKey.current === null) return;
+    if (ждётСогласия.current) return;
 
     // Просьба во время прохода не теряется, а повторяет его.
     // ------------------------------------------------------------------
@@ -311,6 +329,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
       dataKey.current = открыто.dataKey;
       email.current = открыто.session.account.email;
       wrapped.current = открыто.session.wrapped_dek_pwd ?? null;
+      ждётСогласия.current = открыто.session.account.consent_pending.length > 0;
 
       setState((было) => ({
         ...было,
@@ -467,6 +486,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
           wrapped.current = итог.session.wrapped_dek_pwd ?? null;
 
           убратьГрафикиГостя(итог.continued);
+          ждётСогласия.current = итог.session.account.consent_pending.length > 0;
 
           setState((было) => ({
             ...было,
@@ -488,6 +508,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
           wrapped.current = итог.session.wrapped_dek_pwd ?? null;
 
           убратьГрафикиГостя(итог.continued);
+          ждётСогласия.current = итог.session.account.consent_pending.length > 0;
 
           setState((было) => ({
             ...было,
@@ -514,6 +535,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
           dataKey.current = null;
           wrapped.current = null;
           email.current = null;
+          ждётСогласия.current = false;
 
           // Стирается до сброса состояния: события хранилища пометили бы его
           // «есть правки», а оно уже не вошедшего.
@@ -529,6 +551,26 @@ export function SyncProvider({ children }: { children: ReactNode }) {
         }),
 
       syncNow: sync,
+
+      acceptConsent: async (acts) =>
+        действие(async () => {
+          const сведения = await session.acceptConsents(получить(), acts);
+          ждётСогласия.current = сведения.consent_pending.length > 0;
+
+          setState((было) => ({
+            ...было,
+            account:
+              было.account === null
+                ? null
+                : {
+                    ...было.account,
+                    consents: сведения.consents,
+                    consent_pending: сведения.consent_pending,
+                  },
+          }));
+
+          await sync();
+        }),
 
       resolve: async (itemId, choice) => {
         if (dataKey.current === null) return;
@@ -579,6 +621,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
           dataKey.current = null;
           wrapped.current = null;
           email.current = null;
+          ждётСогласия.current = false;
 
           setState(() => ({ ...ПУСТО, phase: "signed-out" }));
         }),
@@ -606,6 +649,9 @@ export function SyncProvider({ children }: { children: ReactNode }) {
           находится: окно живёт здесь, а не на странице аккаунта, куда он
           может не зайти неделю. */}
       <SyncConflicts />
+      {/* Редакция согласия или соглашения сменилась — спрашивается там же, где
+          человек сейчас, по той же причине (`consent-renewal.tsx`). */}
+      <ConsentRenewal />
     </Контекст.Provider>
   );
 }
@@ -628,6 +674,7 @@ export function useSync(): SyncValue {
         login: async () => undefined,
         logout: async () => "done",
         syncNow: async () => undefined,
+        acceptConsent: async () => undefined,
         resolve: async () => undefined,
         changePassword: async () => undefined,
         exportAll: async () => "",

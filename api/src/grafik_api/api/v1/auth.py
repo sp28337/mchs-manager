@@ -48,6 +48,7 @@ from grafik_api.schemas.auth import (
     VerifyEmailIn,
 )
 from grafik_api.services.auth import SessionResult, normalize_email
+from grafik_api.services.consents import pending as pending_consents
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -92,7 +93,7 @@ async def register(
         wrapped_dek_pwd=decode_wrapped(данные.wrapped_dek_pwd),
         wrapped_dek_rec=decode_wrapped(данные.wrapped_dek_rec),
         kdf_version=данные.kdf_version,
-        consent=данные.consent.model_dump(),
+        consent=данные.consent.given(),
         ip=ip,
         device_id=device_id,
     )
@@ -277,13 +278,10 @@ def _ответ(результат: SessionResult) -> SessionOut:
     user = результат.user
 
     согласия = [
-        ConsentOut(kind=вид, version=версия, accepted_at=запись.accepted_at)
-        for запись in результат.consents
-        for вид, версия in (
-            ("policy", запись.policy_version),
-            ("consent", запись.consent_version),
-            ("terms", запись.terms_version),
+        ConsentOut(
+            kind=запись.kind, version=запись.version, accepted_at=запись.accepted_at
         )
+        for запись in результат.consents
     ]
 
     return SessionOut(
@@ -302,5 +300,6 @@ def _ответ(результат: SessionResult) -> SessionOut:
             created_at=user.created_at,
             rev=user.rev,
             consents=согласия,
+            consent_pending=pending_consents(результат.consents),
         ),
     )

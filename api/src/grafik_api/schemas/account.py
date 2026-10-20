@@ -14,15 +14,23 @@ from pydantic import BaseModel, Field
 
 from grafik_api.schemas.auth import Verifier, WrappedKey
 from grafik_api.schemas.sync import ItemOut
-from grafik_api.services.account import AccountInfo, ExportData
+from grafik_api.services.account import AccountInfo, ConsentRecord, ExportData
 
 
 class ConsentOut(BaseModel):
-    """Принятая редакция одного документа."""
+    """Принятая редакция одного документа — строка записи о согласии.
+
+    Всё, что о ней хранится, отдаётся человеку (ст. 14 152-ФЗ): в том числе
+    адрес, с которого принято, и хэш текста.
+    """
 
     kind: Literal["policy", "consent", "terms"]
     version: str
     accepted_at: datetime
+    #: `null` у строк, перенесённых из прежней схемы: хэш тогда не записывался.
+    sha256: str | None = None
+    via: Literal["registration", "renewal"] = "registration"
+    ip: str | None = None
 
 
 class UsageOut(BaseModel):
@@ -41,7 +49,10 @@ class AccountOut(BaseModel):
     created_at: datetime
     rev: int
     usage: UsageOut
+    #: Последняя принятая редакция каждого документа.
     consents: list[ConsentOut]
+    #: Документы, на которые надо ответить заново.
+    consent_pending: list[Literal["consent", "terms"]]
 
     @classmethod
     def of(cls, сведения: AccountInfo) -> Self:
@@ -52,15 +63,20 @@ class AccountOut(BaseModel):
             created_at=сведения.created_at,
             rev=сведения.rev,
             usage=UsageOut(items=сведения.items, bytes=сведения.bytes),
-            consents=[
-                ConsentOut(
-                    kind=запись.kind,
-                    version=запись.version,
-                    accepted_at=запись.accepted_at,
-                )
-                for запись in сведения.consents
-            ],
+            consents=[_согласие(запись) for запись in сведения.consents],
+            consent_pending=list(сведения.consent_pending),
         )
+
+
+def _согласие(запись: ConsentRecord) -> ConsentOut:
+    return ConsentOut(
+        kind=запись.kind,
+        version=запись.version,
+        accepted_at=запись.accepted_at,
+        sha256=запись.sha256,
+        via=запись.via,
+        ip=запись.ip,
+    )
 
 
 class SignInOut(BaseModel):
@@ -88,7 +104,7 @@ class ExportOut(BaseModel):
         return cls(
             account=аккаунт,
             items=[ItemOut.of(item) for item in данные.items],
-            consents=аккаунт.consents,
+            consents=[_согласие(запись) for запись in данные.consents],
             sign_ins=[
                 SignInOut(
                     at=вход.at,

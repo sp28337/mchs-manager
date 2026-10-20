@@ -1,7 +1,6 @@
 "use client";
 
 import { Check, Eye, EyeOff, KeyRound, LogIn, Mail, TriangleAlert, UserPlus } from "lucide-react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   useCallback,
@@ -13,7 +12,6 @@ import {
 } from "react";
 
 import { Button } from "@/components/ui/button";
-import { CheckRow } from "@/components/ui/check-row";
 import { Input } from "@/components/ui/input";
 import { InsideModal } from "@/components/ui/modal";
 import { Materialize } from "@/components/ui/materialize";
@@ -21,7 +19,7 @@ import { Reveal } from "@/components/ui/reveal";
 import { hasGraphs } from "@/features/shift/storage/library";
 import { cn } from "@/lib/utils/cn";
 
-import { LEGAL_URLS, LEGAL_VERSIONS } from "../legal";
+import { ConsentChecks } from "./consent-checks";
 import { оценить, type Оценка } from "./password-strength";
 import { useSync } from "./sync-provider";
 
@@ -75,13 +73,6 @@ const TABS: readonly { id: Mode; label: string }[] = [
 
 /** Подпись поля: тем же голосом, что подписи в окнах приложения. */
 const LABEL = "font-display text-xs font-bold uppercase tracking-wide text-ink-muted";
-
-/** Ссылка в тексте листа: тихая, но узнаваемая. */
-const TEXT_LINK = cn(
-  "text-ink-muted underline decoration-ink-faint underline-offset-2 transition-colors",
-  "hover:text-ink hover:decoration-ink",
-  "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink",
-);
 
 export function AuthScreen() {
   const { busy, error, actions } = useSync();
@@ -148,7 +139,9 @@ export function AuthScreen() {
     if (регистрация) {
       // Регистрация остаётся на странице: на ней показывается ключ
       // восстановления, и уйти раньше, чем он записан, значит потерять его.
-      await actions.register(данные).catch(() => undefined);
+      await actions
+        .register({ ...данные, acts: { termsAndPolicy: принял, personalData: согласен } })
+        .catch(() => undefined);
       return;
     }
 
@@ -270,35 +263,15 @@ export function AuthScreen() {
         </AuthField>
 
         <Reveal show={регистрация}>
-          {/*
-            Две отметки, а не одна. Согласие на обработку персональных данных
-            оформляется отдельно от пользовательского соглашения и политики
-            (ч. 1 ст. 9 152-ФЗ): в одну фразу с ними оно не входит, и
-            отметка, которой человек принимает условия сервиса, не должна в
-            придачу отдавать данные. Ни одна не стоит заранее, без обеих
-            регистрация не идёт (`нельзя`), а в записи о согласии сервер
-            хранит версии всех трёх документов (`consentPayload`).
-
-            Ссылки открываются в новой вкладке: уйдя по ним в том же окне,
-            человек потерял бы набранные адрес и пароль.
-          */}
-          <div className="space-y-3 pb-5">
-            <CheckRow checked={принял} onChange={setПринял}>
-              Принимаю{" "}
-              <LegalLink href={LEGAL_URLS.terms} version={LEGAL_VERSIONS.terms}>
-                пользовательское соглашение
-              </LegalLink>{" "}
-              и{" "}
-              <LegalLink href={LEGAL_URLS.policy} version={LEGAL_VERSIONS.policy}>
-                политику конфиденциальности
-              </LegalLink>
-            </CheckRow>
-            <CheckRow checked={согласен} onChange={setСогласен}>
-              Даю{" "}
-              <LegalLink href={LEGAL_URLS.consent} version={LEGAL_VERSIONS.consent}>
-                согласие на обработку персональных данных
-              </LegalLink>
-            </CheckRow>
+          {/* Две отметки — `ConsentChecks`: почему две и что сервер пишет по
+              ним, сказано там. Без обеих регистрация не идёт (`нельзя`). */}
+          <div className="pb-5">
+            <ConsentChecks
+              termsAndPolicy={принял}
+              personalData={согласен}
+              onTermsAndPolicy={setПринял}
+              onPersonalData={setСогласен}
+            />
           </div>
         </Reveal>
 
@@ -324,35 +297,6 @@ export function AuthScreen() {
         </Button>
       </form>
     </AuthSheet>
-  );
-}
-
-/**
- * Ссылка на документ в тексте отметки.
- *
- * Редакция — во всплывающей подсказке: в строке она была бы лишней водой, а
- * проверить, какую именно редакцию принимаешь, всё равно можно (и на самой
- * странице документа она названа в первой строке).
- */
-function LegalLink({
-  href,
-  version,
-  children,
-}: {
-  href: string;
-  version: string;
-  children: ReactNode;
-}) {
-  return (
-    <Link
-      href={href}
-      target="_blank"
-      rel="noopener"
-      title={`Редакция от ${редакция(version)}`}
-      className={cn(TEXT_LINK, "text-ink")}
-    >
-      {children}
-    </Link>
   );
 }
 
@@ -715,13 +659,4 @@ export function PasswordStrength({ оценка }: { оценка: Оценка 
       </p>
     </div>
   );
-}
-
-/** `2026-10-11` → `11.10.2026` */
-export function редакция(версия: string): string {
-  const [год, месяц, день] = версия.split("-");
-
-  if (год === undefined || месяц === undefined || день === undefined) return версия;
-
-  return `${день}.${месяц}.${год}`;
 }

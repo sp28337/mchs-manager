@@ -28,6 +28,13 @@ export const accountSchema = z.object({
   created_at: z.string(),
   rev: z.number().int().nonnegative(),
   consents: z.array(consentSchema),
+  /**
+   * Документы, на которые надо ответить заново: их редакция сменилась после
+   * принятия. Пусто — спрашивать нечего. `default`, а не обязательное поле:
+   * ответ сервера без него — это сервер без повторного принятия, и ждать от него
+   * вопроса не о чем.
+   */
+  consent_pending: z.array(z.enum(["consent", "terms"])).default([]),
 });
 
 export type Account = z.infer<typeof accountSchema>;

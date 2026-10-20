@@ -29,11 +29,13 @@ import uuid
 from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from typing import cast
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from grafik_api.core.config import Settings
 from grafik_api.core.errors import BadCredentialsError, ValidationFailedError
+from grafik_api.core.legal import CURRENT_VERSIONS
 from grafik_api.core.logging import get_logger
 from grafik_api.core.security import KDF_VERSIONS, hash_verifier, verify_verifier
 from grafik_api.models import Consent, Credential, User
@@ -48,6 +50,15 @@ from grafik_api.repositories import (
     RefreshTokenRepository,
     UserRepository,
 )
+from grafik_api.services.consents import (
+    ConsentGiven,
+    ConsentKind,
+    ConsentVia,
+    RenewalKind,
+)
+from grafik_api.services.consents import check as check_consent
+from grafik_api.services.consents import pending as pending_consents
+from grafik_api.services.consents import record as record_consents
 from grafik_api.services.sync import Item
 
 logger = get_logger("service.account")
@@ -55,11 +66,18 @@ logger = get_logger("service.account")
 
 @dataclass(frozen=True)
 class ConsentRecord:
-    """Принятая редакция одного документа."""
+    """Принятая редакция одного документа — строка записи о согласии.
 
-    kind: str
+    Всё, что о ней хранится, человек вправе видеть (ст. 14 152-ФЗ): и адрес, с
+    которого принято, и хэш текста, и где принято.
+    """
+
+    kind: ConsentKind
     version: str
     accepted_at: datetime
+    sha256: str | None = None
+    via: ConsentVia = "registration"
+    ip: str | None = None
 
 
 @dataclass(frozen=True)
@@ -73,7 +91,10 @@ class AccountInfo:
     rev: int
     items: int
     bytes: int
+    #: Последняя принятая редакция каждого документа.
     consents: list[ConsentRecord]
+    #: Документы, на которые надо ответить заново.
+    consent_pending: list[RenewalKind]
 
 
 @dataclass(frozen=True)
@@ -92,30 +113,25 @@ class ExportData:
 
     account: AccountInfo
     items: list[Item]
+    #: Вся история согласий, а не последние редакции.
     consents: list[ConsentRecord]
     sign_ins: list[SignIn]
     exported_at: datetime
 
 
 def согласия(записи: Sequence[Consent]) -> list[ConsentRecord]:
-    """Разложить запись о согласии на три документа.
-
-    В базе это одна строка с тремя версиями — так её проще доказывать. А
-    человеку показывают три документа, потому что их три.
-    """
-    разложено: list[ConsentRecord] = []
-
-    for запись in записи:
-        for вид, версия in (
-            ("policy", запись.policy_version),
-            ("consent", запись.consent_version),
-            ("terms", запись.terms_version),
-        ):
-            разложено.append(
-                ConsentRecord(kind=вид, version=версия, accepted_at=запись.accepted_at)
-            )
-
-    return разложено
+    """Строки записи о согласии — как они лежат, по документу на строку."""
+    return [
+        ConsentRecord(
+            kind=cast(ConsentKind, запись.kind),
+            version=запись.version,
+            accepted_at=запись.accepted_at,
+            sha256=запись.sha256,
+            via=cast(ConsentVia, запись.via),
+            ip=запись.ip,
+        )
+        for запись in записи
+    ]
 
 
 class AccountService:
@@ -138,6 +154,7 @@ class AccountService:
         """Что о человеке есть (ст. 14 152-ФЗ)."""
         user = await self._взять(user_id)
         элементов, байтов = await self.blobs.usage(user_id)
+        последние = await self.consents.latest_per_kind(user_id)
 
         return AccountInfo(
             id=user.id,
@@ -147,8 +164,65 @@ class AccountService:
             rev=user.rev,
             items=элементов,
             bytes=байтов,
-            consents=согласия(await self.consents.all_of(user_id)),
+            consents=согласия(последние),
+            consent_pending=pending_consents(последние),
         )
+
+    # --- Повторное согласие ---------------------------------------------------
+
+    async def accept_consent(
+        self, user_id: uuid.UUID, given: ConsentGiven, *, ip: str | None
+    ) -> AccountInfo:
+        """Принять действующие редакции документов заново.
+
+        Нужно, когда текст согласия или соглашения изменился после того, как
+        человек их принял: редакция, с которой он не соглашался, его не
+        касается, и обработку на ее основании продолжать нельзя. Записываются
+        только документы, чья принятая редакция устарела: то, что уже принято в
+        действующем виде, второй раз не пишется — запись о согласии это
+        история, а не журнал нажатий.
+
+        Повторный запрос с теми же версиями ничего не меняет и отвечает так же:
+        человек мог нажать дважды или переслать запрос после обрыва связи.
+        """
+        check_consent(given)
+        await self._взять(user_id)
+
+        принято = {
+            запись.kind: запись.version
+            for запись in await self.consents.latest_per_kind(user_id)
+        }
+        вехи: tuple[ConsentKind, ...] = ("terms", "policy", "consent")
+        устарели = [вид for вид in вехи if принято.get(вид) != CURRENT_VERSIONS[вид]]
+
+        if устарели:
+            record_consents(
+                self.consents,
+                user_id=user_id,
+                kinds=устарели,
+                via="renewal",
+                accepted_at=datetime.now(UTC),
+                ip=ip,
+            )
+            self.audit.record(
+                "consent.renewed",
+                user_id=user_id,
+                ip=ip,
+                details={"kinds": устарели},
+            )
+            logger.info(
+                "согласие принято заново",
+                extra={
+                    "event": "consent.renewed",
+                    "user_id": str(user_id),
+                    "kinds": устарели,
+                },
+            )
+
+        # Сессия не сбрасывает записи сама: без этого ответ собрался бы из
+        # базы, где новых строк ещё нет, и человеку снова предложили бы то же.
+        await self.session.flush()
+        return await self.info(user_id)
 
     # --- Выгрузка ---------------------------------------------------------
 
@@ -186,7 +260,7 @@ class AccountService:
         return ExportData(
             account=сведения,
             items=[Item.of(строка) for строка in строки],
-            consents=сведения.consents,
+            consents=согласия(await self.consents.all_of(user_id)),
             sign_ins=[
                 SignIn(
                     at=событие.at,

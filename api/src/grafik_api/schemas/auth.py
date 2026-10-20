@@ -14,6 +14,7 @@ from uuid import UUID
 from pydantic import BaseModel, EmailStr, Field, StringConstraints
 
 from grafik_api.core.security import KdfParams
+from grafik_api.services.consents import ConsentGiven
 
 #: Зашифрованная обёртка ключа: 12 байт nonce + 32 ключа + 16 тег ≈ 80
 #: знаков. Предел с запасом, но не в мегабайтах: обёртка — не блоб.
@@ -59,11 +60,23 @@ class ParamsIn(BaseModel):
 
 
 class ConsentIn(BaseModel):
-    """Версии документов, которые человек принял при регистрации."""
+    """Что человек принял: версии документов и два совершённых действия.
+
+    Действий два, потому что согласие на обработку персональных данных
+    оформляется отдельно от иных документов (ч. 1 ст. 9 152-ФЗ): отметка
+    «принимаю соглашение и политику» и отдельная — «даю согласие на обработку».
+    Признаки обязательны и должны быть истинными: запрос без них — не
+    согласие, а три версии без сведений о том, что человек что-либо отметил.
+    """
 
     policy_version: str = Field(max_length=32)
     consent_version: str = Field(max_length=32)
     terms_version: str = Field(max_length=32)
+    accepted_terms_and_policy: bool
+    accepted_personal_data: bool
+
+    def given(self) -> ConsentGiven:
+        return ConsentGiven(**self.model_dump())
 
 
 class RegisterIn(BaseModel):
@@ -157,7 +170,11 @@ class AccountOut(BaseModel):
     created_at: datetime
     #: Нынешняя ревизия аккаунта: курсор для первой выборки изменений.
     rev: int
+    #: Последняя принятая редакция каждого документа.
     consents: list[ConsentOut]
+    #: Документы, на которые надо ответить заново: их редакция сменилась
+    #: после того, как человек их принял. Пусто — спрашивать нечего.
+    consent_pending: list[Literal["consent", "terms"]]
 
 
 class SessionOut(BaseModel):

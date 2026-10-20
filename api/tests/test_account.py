@@ -13,9 +13,10 @@ from typing import Any
 from uuid import UUID
 
 import httpx
-from sqlalchemy import Select, func, select
+from sqlalchemy import Select, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from grafik_api.core.legal import CURRENT_VERSIONS, LEGAL_DOCUMENTS
 from grafik_api.core.security import encode_wrapped
 from grafik_api.models import (
     AuditEntry,
@@ -126,12 +127,19 @@ async def test_сведения_об_аккаунте(клиент: httpx.AsyncC
     assert тело["email_verified"] is False
     assert тело["rev"] == 1
     assert тело["usage"] == {"items": 1, "bytes": len(СОДЕРЖИМОЕ)}
-    # Три документа, под каждым — своя версия и одно время принятия.
+    # Три документа, под каждым — своя версия, хэш текста и адрес принятия:
+    # человек вправе видеть всё, что о нём хранится (ст. 14 152-ФЗ).
     assert {запись["kind"] for запись in тело["consents"]} == {
         "policy",
         "consent",
         "terms",
     }
+    for запись in тело["consents"]:
+        assert запись["version"] == CURRENT_VERSIONS[запись["kind"]]
+        assert запись["sha256"] == LEGAL_DOCUMENTS[запись["kind"]].sha256
+        assert запись["via"] == "registration"
+    # Принятое действующим — спрашивать нечего.
+    assert тело["consent_pending"] == []
 
 
 async def test_сведения_без_токена_не_отдаются(клиент: httpx.AsyncClient) -> None:
@@ -139,6 +147,120 @@ async def test_сведения_без_токена_не_отдаются(кли
 
     assert ответ.status_code == 401
     assert ответ.json()["code"] == "bad_credentials"
+
+
+# --- Повторное принятие документов ------------------------------------------
+
+
+async def устарить(сессия: AsyncSession, kind: str) -> None:
+    """Сделать вид, что человек принял прежнюю редакцию документа."""
+    await сессия.execute(
+        update(Consent).where(Consent.kind == kind).values(version="2020-01-01")
+    )
+    await сессия.flush()
+
+
+async def test_изменился_текст_согласия_нужно_ответить_заново(
+    клиент: httpx.AsyncClient, сессия: AsyncSession
+) -> None:
+    """Согласие относится к тому тексту, с которым человек соглашался."""
+    заголовки, _ = await завести(клиент)
+    await устарить(сессия, "consent")
+
+    тело = (await клиент.get("/api/v1/account", headers=заголовки)).json()
+
+    assert тело["consent_pending"] == ["consent"]
+
+
+async def test_изменилась_политика_спрашивать_заново_не_нужно(
+    клиент: httpx.AsyncClient, сессия: AsyncSession
+) -> None:
+    """Политика — сведения, а не согласие: её правка отвечать не заставляет."""
+    заголовки, _ = await завести(клиент)
+    await устарить(сессия, "policy")
+
+    тело = (await клиент.get("/api/v1/account", headers=заголовки)).json()
+
+    assert тело["consent_pending"] == []
+
+
+async def test_повторное_принятие_пишет_только_устаревшее(
+    клиент: httpx.AsyncClient, сессия: AsyncSession
+) -> None:
+    заголовки, _ = await завести(клиент)
+    await устарить(сессия, "consent")
+
+    ответ = await клиент.post(
+        "/api/v1/account/consents", headers=заголовки, json=factories.тело_согласия()
+    )
+
+    assert ответ.status_code == 200, ответ.text
+    assert ответ.json()["consent_pending"] == []
+
+    записи = (
+        await сессия.scalars(
+            select(Consent).where(Consent.via == "renewal").order_by(Consent.kind)
+        )
+    ).all()
+    # Только то, что устарело, и с хэшем действующего текста.
+    assert [запись.kind for запись in записи] == ["consent"]
+    assert записи[0].version == CURRENT_VERSIONS["consent"]
+    assert записи[0].sha256 == LEGAL_DOCUMENTS["consent"].sha256
+    # Прежняя запись не стёрта: история — это доказательство.
+    assert await сколько(сессия, select(Consent).where(Consent.kind == "consent")) == 2
+    assert await событий(сессия, "consent.renewed") == 1
+
+
+async def test_повторное_принятие_идемпотентно(
+    клиент: httpx.AsyncClient, сессия: AsyncSession
+) -> None:
+    """Нажали дважды или переслали запрос после обрыва — второй записи нет."""
+    заголовки, _ = await завести(клиент)
+    await устарить(сессия, "terms")
+
+    for _ in range(2):
+        ответ = await клиент.post(
+            "/api/v1/account/consents",
+            headers=заголовки,
+            json=factories.тело_согласия(),
+        )
+        assert ответ.status_code == 200
+
+    assert await сколько(сессия, select(Consent).where(Consent.via == "renewal")) == 1
+    assert await событий(сессия, "consent.renewed") == 1
+
+
+async def test_повторное_принятие_требует_обе_отметки_и_действующие_версии(
+    клиент: httpx.AsyncClient, сессия: AsyncSession
+) -> None:
+    заголовки, _ = await завести(клиент)
+    await устарить(сессия, "consent")
+
+    for правки in (
+        {"accepted_personal_data": False},
+        {"accepted_terms_and_policy": False},
+        {"consent_version": "2020-01-01"},
+    ):
+        ответ = await клиент.post(
+            "/api/v1/account/consents",
+            headers=заголовки,
+            json=factories.тело_согласия(**правки),
+        )
+        assert ответ.status_code == 403, правки
+        assert ответ.json()["code"] == "consent_required"
+
+    # Отказы ничего не записали.
+    assert await сколько(сессия, select(Consent).where(Consent.via == "renewal")) == 0
+
+
+async def test_повторное_принятие_без_токена_не_принимается(
+    клиент: httpx.AsyncClient,
+) -> None:
+    ответ = await клиент.post(
+        "/api/v1/account/consents", json=factories.тело_согласия()
+    )
+
+    assert ответ.status_code == 401
 
 
 # --- Выгрузка --------------------------------------------------------------
@@ -165,7 +287,11 @@ async def test_выгрузка_отдаёт_всё_и_блоб_как_есть(
     # может только владелец — в этом и смысл.
     assert элемент["blob"] == encode_wrapped(СОДЕРЖИМОЕ)
 
+    # Вся история согласий, а не последние редакции: с хэшем текста и адресом.
     assert len(тело["consents"]) == 3
+    for запись in тело["consents"]:
+        assert запись["sha256"] == LEGAL_DOCUMENTS[запись["kind"]].sha256
+        assert "ip" in запись
     # Журнал входов и действий: регистрация в нём уже есть.
     assert [вход["event"] for вход in тело["sign_ins"]] == ["auth.register"]
 

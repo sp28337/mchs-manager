@@ -40,6 +40,8 @@ if (globalThis.crypto?.subtle === undefined) {
 const ДЕШЁВЫЕ = { ...KDF_V1, kdf_version: "kdf_test", memory_kib: 1024, iterations: 1 };
 
 const АДРЕС = "петров@example.com";
+/** Обе отметки поставлены: так регистрируется человек, а не тест. */
+const ОТМЕЧЕНО = { termsAndPolicy: true, personalData: true };
 const ПАРОЛЬ = "мой длинный пароль";
 
 interface Запись {
@@ -55,6 +57,8 @@ class ПоддельныйСервер {
   последнийВход: { email: string; verifier: string } | null = null;
   выходов = 0;
   удалений: { verifier: string }[] = [];
+  /** Тело последнего `POST /account/consents`. */
+  принятое: Record<string, unknown> | null = null;
   /** Какой идентификатор сервер называет аккаунтом: у двух аккаунтов он разный. */
   идАккаунта = "11111111-1111-1111-1111-111111111111";
 
@@ -99,6 +103,11 @@ class ПоддельныйСервер {
     if (url.pathname.endsWith("/auth/logout")) {
       this.выходов += 1;
       return new Response(null, { status: 204 });
+    }
+
+    if (url.pathname.endsWith("/account/consents") && init?.method === "POST") {
+      this.принятое = тело;
+      return json({ ...this.сессия().account, usage: { items: 0, bytes: 0 }, consent_pending: [] });
     }
 
     if (url.pathname.endsWith("/account") && init?.method === "DELETE") {
@@ -155,7 +164,11 @@ beforeEach(async () => {
 
 describe("регистрация", () => {
   it("отправляет производные пароля, а не пароль", async () => {
-    const итог = await session.register(client, { email: ` ${АДРЕС.toUpperCase()} `, password: ПАРОЛЬ });
+    const итог = await session.register(client, {
+      email: ` ${АДРЕС.toUpperCase()} `,
+      password: ПАРОЛЬ,
+      acts: ОТМЕЧЕНО,
+    });
 
     const запись = server.аккаунт;
     expect(запись).not.toBeNull();
@@ -172,6 +185,9 @@ describe("регистрация", () => {
       policy_version: LEGAL_VERSIONS.policy,
       consent_version: LEGAL_VERSIONS.consent,
       terms_version: LEGAL_VERSIONS.terms,
+      // Действия названы явно: версии без них — не согласие.
+      accepted_terms_and_policy: true,
+      accepted_personal_data: true,
     });
 
     // Ключ восстановления отдан человеку и разбирается обратно.
@@ -179,7 +195,7 @@ describe("регистрация", () => {
   });
 
   it("ключ данных остаётся на устройстве, а сведения об аккаунте — в хранилище слоя", async () => {
-    await session.register(client, { email: АДРЕС, password: ПАРОЛЬ });
+    await session.register(client, { email: АДРЕС, password: ПАРОЛЬ, acts: ОТМЕЧЕНО });
 
     expect(await loadDataKey()).not.toBeNull();
     expect((await readMeta())?.email).toBe(АДРЕС);
@@ -189,7 +205,7 @@ describe("регистрация", () => {
 
 describe("вход", () => {
   it("тот же пароль даёт то же проверочное значение", async () => {
-    await session.register(client, { email: АДРЕС, password: ПАРОЛЬ });
+    await session.register(client, { email: АДРЕС, password: ПАРОЛЬ, acts: ОТМЕЧЕНО });
     const зарегистрированный = server.аккаунт?.verifier;
 
     await session.login(client, { email: АДРЕС, password: ПАРОЛЬ });
@@ -199,7 +215,7 @@ describe("вход", () => {
   });
 
   it("другой пароль — отказ, и ключ данных остаётся прежним", async () => {
-    const { dataKey } = await session.register(client, { email: АДРЕС, password: ПАРОЛЬ });
+    const { dataKey } = await session.register(client, { email: АДРЕС, password: ПАРОЛЬ, acts: ОТМЕЧЕНО });
     const ref = { kind: "profile" as const, itemId: "6f1e0000-0000-0000-0000-0000000000a1" };
     const блоб = await encryptJson(dataKey, ref, { fmt: 1, часов: 8 });
 
@@ -217,7 +233,7 @@ describe("вход", () => {
   });
 
   it("ключ данных открывает то, что зашифровано им же", async () => {
-    const { dataKey } = await session.register(client, { email: АДРЕС, password: ПАРОЛЬ });
+    const { dataKey } = await session.register(client, { email: АДРЕС, password: ПАРОЛЬ, acts: ОТМЕЧЕНО });
     const ref = { kind: "profile" as const, itemId: "6f1e0000-0000-0000-0000-0000000000a1" };
     const блоб = await encryptJson(dataKey, ref, { fmt: 1, часов: 172.5 });
 
@@ -240,13 +256,13 @@ describe("чьё это устройство", () => {
   };
 
   it("регистрация — не продолжение: что лежало на устройстве, к аккаунту не относится", async () => {
-    const итог = await session.register(client, { email: АДРЕС, password: ПАРОЛЬ });
+    const итог = await session.register(client, { email: АДРЕС, password: ПАРОЛЬ, acts: ОТМЕЧЕНО });
 
     expect(итог.continued).toBe(false);
   });
 
   it("вход на устройстве, где аккаунта не было, — не продолжение", async () => {
-    await session.register(client, { email: АДРЕС, password: ПАРОЛЬ });
+    await session.register(client, { email: АДРЕС, password: ПАРОЛЬ, acts: ОТМЕЧЕНО });
     await session.logout(client);
 
     const вход = await session.login(client, { email: АДРЕС, password: ПАРОЛЬ });
@@ -258,7 +274,7 @@ describe("чьё это устройство", () => {
   it("повторный вход тем же аккаунтом продолжает устройство и его ревизии", async () => {
     // Сессия кончилась в фоне, ключ остался: графики на устройстве — его, с
     // правками, которые могли не доехать. Стирать их нельзя.
-    await session.register(client, { email: АДРЕС, password: ПАРОЛЬ });
+    await session.register(client, { email: АДРЕС, password: ПАРОЛЬ, acts: ОТМЕЧЕНО });
     await writeMirror(строкаЗеркала);
 
     const вход = await session.login(client, { email: АДРЕС, password: ПАРОЛЬ });
@@ -268,7 +284,7 @@ describe("чьё это устройство", () => {
   });
 
   it("вход другим аккаунтом — не продолжение, и чужие ревизии и вопросы уходят", async () => {
-    await session.register(client, { email: АДРЕС, password: ПАРОЛЬ });
+    await session.register(client, { email: АДРЕС, password: ПАРОЛЬ, acts: ОТМЕЧЕНО });
     await writeMirror(строкаЗеркала);
     await writePending({
       itemId: строкаЗеркала.itemId,
@@ -296,7 +312,7 @@ describe("продолжение сессии", () => {
     // Access-токен живёт в памяти вкладки и перезагрузку не переживает;
     // cookie и ключ данных — переживают. Иначе человек вводил бы пароль
     // при каждом открытии страницы.
-    const { dataKey } = await session.register(client, { email: АДРЕС, password: ПАРОЛЬ });
+    const { dataKey } = await session.register(client, { email: АДРЕС, password: ПАРОЛЬ, acts: ОТМЕЧЕНО });
     const ref = { kind: "profile" as const, itemId: "6f1e0000-0000-0000-0000-0000000000a1" };
     const блоб = await encryptJson(dataKey, ref, { fmt: 1, часов: 24 });
 
@@ -316,9 +332,46 @@ describe("продолжение сессии", () => {
   });
 });
 
+describe("повторное принятие документов", () => {
+  it("уносит версии и обе отметки, а ответ разбирает", async () => {
+    await session.register(client, { email: АДРЕС, password: ПАРОЛЬ, acts: ОТМЕЧЕНО });
+
+    const сведения = await session.acceptConsents(client, ОТМЕЧЕНО);
+
+    expect(server.принятое).toEqual({
+      policy_version: LEGAL_VERSIONS.policy,
+      consent_version: LEGAL_VERSIONS.consent,
+      terms_version: LEGAL_VERSIONS.terms,
+      accepted_terms_and_policy: true,
+      accepted_personal_data: true,
+    });
+    expect(сведения.consent_pending).toEqual([]);
+  });
+
+  it("не подставляет отметку, которой человек не ставил", async () => {
+    await session.register(client, { email: АДРЕС, password: ПАРОЛЬ, acts: ОТМЕЧЕНО });
+
+    await session.acceptConsents(client, { termsAndPolicy: true, personalData: false });
+
+    expect(server.принятое?.accepted_personal_data).toBe(false);
+  });
+
+  it("ответ сервера без списка ожидающих читается как «спрашивать нечего»", async () => {
+    // Сервер без повторного принятия поля не присылает: ждать от него вопроса
+    // не о чем, и разбор не должен падать.
+    const итог = await session.register(client, {
+      email: АДРЕС,
+      password: ПАРОЛЬ,
+      acts: ОТМЕЧЕНО,
+    });
+
+    expect(итог.session.account.consent_pending).toEqual([]);
+  });
+});
+
 describe("выход и удаление", () => {
   it("выход уносит ключ данных с устройства", async () => {
-    await session.register(client, { email: АДРЕС, password: ПАРОЛЬ });
+    await session.register(client, { email: АДРЕС, password: ПАРОЛЬ, acts: ОТМЕЧЕНО });
 
     await session.logout(client);
 
@@ -330,7 +383,7 @@ describe("выход и удаление", () => {
   it("выход чистит устройство даже если сервер недоступен", async () => {
     // Иначе ключ данных остался бы лежать после того, как человек нажал
     // «выйти», — и это худшее из двух: сессия на сервере догаснет сама.
-    await session.register(client, { email: АДРЕС, password: ПАРОЛЬ });
+    await session.register(client, { email: АДРЕС, password: ПАРОЛЬ, acts: ОТМЕЧЕНО });
 
     const сломанный = new ApiClient("https://api.test/api/v1", async () => {
       throw new TypeError("Failed to fetch");
@@ -341,7 +394,7 @@ describe("выход и удаление", () => {
   });
 
   it("удаление спрашивает проверочное значение и чистит устройство", async () => {
-    await session.register(client, { email: АДРЕС, password: ПАРОЛЬ });
+    await session.register(client, { email: АДРЕС, password: ПАРОЛЬ, acts: ОТМЕЧЕНО });
     const verifier = server.аккаунт?.verifier;
 
     await session.deleteAccount(client, { email: АДРЕС, password: ПАРОЛЬ });
