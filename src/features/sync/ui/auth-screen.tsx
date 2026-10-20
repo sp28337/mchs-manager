@@ -13,7 +13,7 @@ import {
 } from "react";
 
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
+import { CheckRow } from "@/components/ui/check-row";
 import { Input } from "@/components/ui/input";
 import { InsideModal } from "@/components/ui/modal";
 import { hasGraphs } from "@/features/shift/storage/library";
@@ -87,6 +87,7 @@ export function AuthScreen() {
   const [выбор, setВыбор] = useState<Mode | null>(null);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [принял, setПринял] = useState(false);
   const [согласен, setСогласен] = useState(false);
   const [письмо, setПисьмо] = useState(false);
   const [нужнаПочта, setНужнаПочта] = useState(false);
@@ -134,7 +135,7 @@ export function AuthScreen() {
   const нельзя =
     busy ||
     email.trim() === "" ||
-    (регистрация ? !оценка.годится || !согласен : password.length < 8);
+    (регистрация ? !оценка.годится || !принял || !согласен : password.length < 8);
 
   const отправить = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -253,40 +254,33 @@ export function AuthScreen() {
         </AuthField>
 
         {регистрация && (
-          <div className="space-y-2">
-            {/* Флажок — тот же, что в окне дня (`ui/checkbox.tsx`): отметка
-                справа, нажимается вся строка. Ссылки и редакция стоят под
-                ним, а не внутри: нажатие по ссылке внутри флажка ставило бы
-                отметку заодно с переходом. */}
-            <Checkbox
-              checked={согласен}
-              onChange={setСогласен}
-              label={
-                <span className="text-left text-sm text-ink">
-                  Даю согласие на обработку персональных данных
-                </span>
-              }
-            />
-            <p className="text-xs leading-5 text-ink-muted">
-              {/* Редакция названа прямо: согласие должно быть конкретным и
-                  информированным (ч. 1 ст. 9 152-ФЗ), а в записи о согласии
-                  сервер хранит именно версию текста. Через год человек
-                  сможет прочитать ровно ту редакцию, на которую соглашался:
-                  опубликованные остаются в архиве. */}
-              <Link href={LEGAL_URLS.consent} className={TEXT_LINK}>
-                Согласие
-              </Link>
-              {" · "}
-              <Link href={LEGAL_URLS.policy} className={TEXT_LINK}>
-                Политика
-              </Link>
-              {" · "}
-              <Link href={LEGAL_URLS.terms} className={TEXT_LINK}>
-                Условия
-              </Link>
-              {" · ред. "}
-              {редакция(LEGAL_VERSIONS.consent)}
-            </p>
+          // Две отметки, а не одна. Согласие на обработку персональных данных
+          // оформляется отдельно от пользовательского соглашения и политики
+          // (ч. 1 ст. 9 152-ФЗ): в одну фразу с ними оно не входит, и
+          // отметка, которой человек принимает условия сервиса, не должна в
+          // придачу отдавать данные. Ни одна не стоит заранее, без обеих
+          // регистрация не идёт (`нельзя`), а в записи о согласии сервер
+          // хранит версии всех трёх документов (`consentPayload`).
+          //
+          // Ссылки открываются в новой вкладке: уйдя по ним в том же окне,
+          // человек потерял бы набранные адрес и пароль.
+          <div className="space-y-3">
+            <CheckRow checked={принял} onChange={setПринял}>
+              Принимаю{" "}
+              <LegalLink href={LEGAL_URLS.terms} version={LEGAL_VERSIONS.terms}>
+                пользовательское соглашение
+              </LegalLink>{" "}
+              и{" "}
+              <LegalLink href={LEGAL_URLS.policy} version={LEGAL_VERSIONS.policy}>
+                политику конфиденциальности
+              </LegalLink>
+            </CheckRow>
+            <CheckRow checked={согласен} onChange={setСогласен}>
+              Даю{" "}
+              <LegalLink href={LEGAL_URLS.consent} version={LEGAL_VERSIONS.consent}>
+                согласие на обработку персональных данных
+              </LegalLink>
+            </CheckRow>
           </div>
         )}
 
@@ -312,6 +306,35 @@ export function AuthScreen() {
         </Button>
       </form>
     </AuthSheet>
+  );
+}
+
+/**
+ * Ссылка на документ в тексте отметки.
+ *
+ * Редакция — во всплывающей подсказке: в строке она была бы лишней водой, а
+ * проверить, какую именно редакцию принимаешь, всё равно можно (и на самой
+ * странице документа она названа в первой строке).
+ */
+function LegalLink({
+  href,
+  version,
+  children,
+}: {
+  href: string;
+  version: string;
+  children: ReactNode;
+}) {
+  return (
+    <Link
+      href={href}
+      target="_blank"
+      rel="noopener"
+      title={`Редакция от ${редакция(version)}`}
+      className={cn(TEXT_LINK, "text-ink")}
+    >
+      {children}
+    </Link>
   );
 }
 
