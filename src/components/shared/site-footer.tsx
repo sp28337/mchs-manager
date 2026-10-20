@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 
+import { MARK_EMPTY_TEXT } from "@/components/shared/header-action";
 import { BoneText } from "@/components/ui/bone";
 import { SECTION_HASH, type SectionHash } from "@/features/shift/components/section-hash";
 import { cn } from "@/lib/utils/cn";
@@ -109,12 +110,18 @@ const ПОДПИСЬ =
  * Содержимое колонки — одно на все четыре: один кегль и интерлиньяж, один
  * серый. Задано на списке или абзаце, а не на ссылках: высота строки
  * берётся от кегля контейнера, и ссылка внутри неё не меняет.
+ *
+ * Серый — бледный, чернила темы на 24 % (`MARK_EMPTY_TEXT`), тот же, что у
+ * бургера. Прежде он был плотнее (`text-ink-muted`) и принадлежал строке
+ * подсказок у нижней кромки (`info-bar.tsx`); теперь они поменялись: подвал
+ * стоит тише, а подсказка, которую ищут глазами, — отчётливее.
  */
-const ТЕКСТ = "mt-3 text-sm leading-5 text-ink-muted";
+const ТЕКСТ = cn("mt-3 text-sm leading-5", MARK_EMPTY_TEXT);
 
-/** Ссылка подвала: серая, белеет под курсором и под фокусом с клавиатуры. */
+/** Ссылка подвала: бледная, белеет под курсором и под фокусом с клавиатуры. */
 const ССЫЛКА = cn(
-  "rounded-xs text-ink-muted no-underline transition-colors hover:text-ink",
+  "rounded-xs no-underline transition-colors hover:text-ink",
+  MARK_EMPTY_TEXT,
   "focus-visible:text-ink focus-visible:outline-2 focus-visible:outline-offset-4",
   "focus-visible:outline-ink",
 );
