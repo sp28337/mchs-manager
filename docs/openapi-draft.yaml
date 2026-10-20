@@ -278,17 +278,17 @@ paths:
   /account/consents:
     post:
       tags: [account]
-      summary: Принять заново согласие и соглашение
+      summary: Принять заново согласие на обработку
       description: >
-        Нужна, когда текст согласия или соглашения изменился после
-        регистрации: прежнее согласие относится к прежнему тексту. Те же две
-        отметки, что при регистрации, и тот же отказ без них. Записываются
-        только устаревшие документы; повтор ничего не меняет.
+        Нужна, когда текст согласия изменился после регистрации: прежнее
+        согласие относится к прежнему тексту (ч. 1 ст. 9 152-ФЗ). Одна отметка,
+        и отказ без неё. Соглашение и политика заново не принимаются.
+        Записывается только устаревшее; повтор ничего не меняет.
       requestBody:
         required: true
         content:
           application/json:
-            schema: { $ref: "#/components/schemas/ConsentRequest" }
+            schema: { $ref: "#/components/schemas/ConsentRenewalRequest" }
       responses:
         "200":
           description: Аккаунт с обновлёнными `consents` и пустым `consent_pending`
@@ -557,6 +557,18 @@ components:
           type: boolean
           description: Отдельная отметка «даю согласие на обработку».
 
+    ConsentRenewalRequest:
+      type: object
+      description: >
+        Повторное принятие: версия согласия и одна отметка. Признак обязан
+        быть `true`; версия — действующей.
+      required: [consent_version, accepted_personal_data]
+      properties:
+        consent_version: { type: string, examples: ["2026-10-20"] }
+        accepted_personal_data:
+          type: boolean
+          description: Отметка «даю согласие на обработку».
+
     Consent:
       type: object
       description: >
@@ -604,8 +616,9 @@ components:
           description: >
             Документы, на которые надо ответить заново, потому что их текст
             изменился. Пока список не пуст, синхронизация приостановлена.
-            Политика сюда не входит: она не согласие, а публикуемые сведения.
-          items: { type: string, enum: [consent, terms] }
+            Сейчас возможно только согласие: политика не согласие, а
+            публикуемые сведения, соглашение меняется по своему порядку.
+          items: { type: string, enum: [consent] }
 
     Item:
       type: object

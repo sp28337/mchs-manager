@@ -103,6 +103,16 @@ def тело_согласия(**правки: Any) -> dict[str, Any]:
     return тело
 
 
+def тело_повторного_согласия(**правки: Any) -> dict[str, Any]:
+    """Исправное тело повторного принятия: действующая версия и одна отметка."""
+    тело: dict[str, Any] = {
+        "consent_version": CURRENT_VERSIONS["consent"],
+        "accepted_personal_data": True,
+    }
+    тело.update(правки)
+    return тело
+
+
 async def зарегистрировать(клиент: httpx.AsyncClient, **правки: Any) -> httpx.Response:
     """Создать аккаунт через HTTP — так, как это делает браузер."""
     return await клиент.post("/api/v1/auth/register", json=тело_регистрации(**правки))

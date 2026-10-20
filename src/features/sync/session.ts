@@ -40,7 +40,7 @@ import {
 // сервером обёртки.
 import { unwrapDataKey } from "./crypto/dek";
 import { derivePasswordKeys } from "./crypto/kdf";
-import { consentPayload, type ConsentActs } from "./legal";
+import { consentPayload, renewalPayload, type ConsentActs } from "./legal";
 import { claimSchema } from "./api/schemas";
 import {
   clearVault,
@@ -194,21 +194,20 @@ export async function accountInfo(client: ApiClient): Promise<AccountInfo> {
 }
 
 /**
- * Принять действующие редакции согласия и соглашения заново.
+ * Принять действующую редакцию согласия на обработку заново.
  *
- * Нужно, когда их текст изменился после того, как человек их принял
- * (`consent_pending` в сведениях об аккаунте). Те же две отметки, что при
- * регистрации (ч. 1 ст. 9 152-ФЗ): отвечает человек, а не приложение за него —
- * вызывать только после обеих отметок.
+ * Нужно, когда его текст изменился после того, как человек его принял
+ * (`consent_pending` в сведениях об аккаунте). Отметка одна, и отвечает
+ * человек, а не приложение за него — вызывать только после неё.
  */
 export async function acceptConsents(
   client: ApiClient,
-  acts: ConsentActs,
+  personalData: boolean,
 ): Promise<AccountInfo> {
   return accountInfoSchema.parse(
     await client.request("/account/consents", {
       method: "POST",
-      body: consentPayload(acts),
+      body: renewalPayload(personalData),
     }),
   );
 }

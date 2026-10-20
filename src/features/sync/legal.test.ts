@@ -2,7 +2,12 @@ import { readFileSync } from "node:fs";
 
 import { describe, expect, it } from "vitest";
 
-import { LEGAL_URLS, LEGAL_VERSIONS, consentPayload } from "./legal";
+import {
+  LEGAL_URLS,
+  LEGAL_VERSIONS,
+  consentPayload,
+  renewalPayload,
+} from "./legal";
 
 /**
  * Версии в коде и в документах — одно и то же.
@@ -28,7 +33,8 @@ function головнойБлок(путь: string): Record<string, string> {
 
   for (const строка of (блок?.[1] ?? "").split("\n")) {
     const пара = /^(\w+):\s*(.*)$/.exec(строка);
-    if (пара !== null) поля[пара[1] as string] = (пара[2] as string).replace(/^"|"$/g, "");
+    if (пара !== null)
+      поля[пара[1] as string] = (пара[2] as string).replace(/^"|"$/g, "");
   }
 
   return поля;
@@ -40,7 +46,9 @@ describe("версии юридических документов", () => {
       const блок = головнойБлок(путь);
 
       expect(блок.id).toBe(id);
-      expect(блок.version).toBe(LEGAL_VERSIONS[id as keyof typeof LEGAL_VERSIONS]);
+      expect(блок.version).toBe(
+        LEGAL_VERSIONS[id as keyof typeof LEGAL_VERSIONS],
+      );
       expect(блок.url).toBe(LEGAL_URLS[id as keyof typeof LEGAL_URLS]);
     });
   }
@@ -48,7 +56,9 @@ describe("версии юридических документов", () => {
 
 describe("consentPayload", () => {
   it("уносит версии трёх документов и действия человека", () => {
-    expect(consentPayload({ termsAndPolicy: true, personalData: true })).toEqual({
+    expect(
+      consentPayload({ termsAndPolicy: true, personalData: true }),
+    ).toEqual({
       policy_version: LEGAL_VERSIONS.policy,
       consent_version: LEGAL_VERSIONS.consent,
       terms_version: LEGAL_VERSIONS.terms,
@@ -59,15 +69,31 @@ describe("consentPayload", () => {
 
   it("признаки берутся из отметок, а не подставляются истиной", () => {
     // Иначе нажатая без отметки кнопка записала бы согласие, которого не было.
-    const payload = consentPayload({ termsAndPolicy: true, personalData: false });
+    const payload = consentPayload({
+      termsAndPolicy: true,
+      personalData: false,
+    });
 
     expect(payload.accepted_terms_and_policy).toBe(true);
     expect(payload.accepted_personal_data).toBe(false);
   });
 
   it("без согласия на аналитику: оно к учётной записи не относится", () => {
-    expect(Object.keys(consentPayload({ termsAndPolicy: true, personalData: true }))).not.toContain(
-      "cookies_version",
-    );
+    expect(
+      Object.keys(consentPayload({ termsAndPolicy: true, personalData: true })),
+    ).not.toContain("cookies_version");
+  });
+});
+
+describe("renewalPayload", () => {
+  it("уносит версию согласия и одну отметку — без соглашения и политики", () => {
+    expect(renewalPayload(true)).toEqual({
+      consent_version: LEGAL_VERSIONS.consent,
+      accepted_personal_data: true,
+    });
+  });
+
+  it("признак берётся из отметки, а не подставляется истиной", () => {
+    expect(renewalPayload(false).accepted_personal_data).toBe(false);
   });
 });

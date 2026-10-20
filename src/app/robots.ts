@@ -17,10 +17,17 @@ const SITE = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
  * личные, и в выдаче им делать нечего. Подстраницы (`/account/verify`,
  * `/account/recover`) попадают под то же правило — в `robots.txt`
  * запрещается путь и всё, что под ним.
+ *
+ * `/legal-changes` — не страницы, а данные для окна «Документы обновились»
+ * (сравнение редакций согласия); в выдаче им делать нечего.
  */
 export default function robots(): MetadataRoute.Robots {
   return {
-    rules: { userAgent: "*", allow: "/", disallow: ["/calculator", "/account"] },
+    rules: {
+      userAgent: "*",
+      allow: "/",
+      disallow: ["/calculator", "/account", "/legal-changes"],
+    },
     sitemap: `${SITE}/sitemap.xml`,
   };
 }

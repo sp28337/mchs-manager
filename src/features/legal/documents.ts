@@ -24,7 +24,7 @@
  * сверху стоит оговорка, что это проект документа.
  */
 
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
 
 /** Документы, у которых есть адрес на сайте. Карта данных внутренняя. */
@@ -93,6 +93,55 @@ export function loadLegalDocument(id: LegalId): LegalDocument {
     url: поля.url ?? `/${id}`,
     body: показатьПодстановки(тело),
   };
+}
+
+/** Папка архива редакций одного документа: `docs/legal/archive/<id>/`. */
+function archiveDir(id: LegalId): string {
+  return path.join(process.cwd(), "docs", "legal", "archive", id);
+}
+
+/**
+ * Какие прошлые редакции документа лежат в архиве.
+ *
+ * Архив пополняется при публикации (`docs/legal/README.md`): человек, давший
+ * согласие на прежний текст, должен суметь его прочитать — и увидеть, чем он
+ * отличается от нового. Нет папки — нет и редакций.
+ */
+export function listArchivedVersions(id: LegalId): string[] {
+  try {
+    return readdirSync(archiveDir(id))
+      .filter((имя) => /^\d{4}-\d{2}-\d{2}\.md$/.test(имя))
+      .map((имя) => имя.slice(0, -".md".length))
+      .sort();
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Текст архивной редакции — тот же вид, что у действующей: без головного блока,
+ * с теми же подстановками. Нет такой редакции или файл чужой — `null`.
+ *
+ * Версия приходит из адреса страницы, поэтому проверяется как дата: произвольная
+ * строка в пути к файлу — это чтение чужого.
+ */
+export function loadArchivedBody(id: LegalId, version: string): string | null {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(version)) return null;
+
+  let текст: string;
+  try {
+    текст = readFileSync(path.join(archiveDir(id), `${version}.md`), "utf-8");
+  } catch {
+    return null;
+  }
+
+  const блок = /^---\n([\s\S]*?)\n---\n?/.exec(текст);
+  if (блок === null) return null;
+
+  const поля = разобратьБлок(блок[1] as string);
+  if (поля.id !== id || поля.version !== version) return null;
+
+  return показатьПодстановки(текст.slice(блок[0].length).trim());
 }
 
 function разобратьБлок(блок: string): Partial<Record<string, string>> {

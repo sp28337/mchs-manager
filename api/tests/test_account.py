@@ -13,6 +13,7 @@ from typing import Any
 from uuid import UUID
 
 import httpx
+import pytest
 from sqlalchemy import Select, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -172,12 +173,13 @@ async def test_изменился_текст_согласия_нужно_отв�
     assert тело["consent_pending"] == ["consent"]
 
 
-async def test_изменилась_политика_спрашивать_заново_не_нужно(
-    клиент: httpx.AsyncClient, сессия: AsyncSession
+@pytest.mark.parametrize("kind", ["policy", "terms"])
+async def test_изменились_политика_или_соглашение_спрашивать_заново_не_нужно(
+    клиент: httpx.AsyncClient, сессия: AsyncSession, kind: str
 ) -> None:
-    """Политика — сведения, а не согласие: её правка отвечать не заставляет."""
+    """Политика — сведения, соглашение меняется по своему порядку: не согласие."""
     заголовки, _ = await завести(клиент)
-    await устарить(сессия, "policy")
+    await устарить(сессия, kind)
 
     тело = (await клиент.get("/api/v1/account", headers=заголовки)).json()
 
@@ -191,7 +193,9 @@ async def test_повторное_принятие_пишет_только_ус�
     await устарить(сессия, "consent")
 
     ответ = await клиент.post(
-        "/api/v1/account/consents", headers=заголовки, json=factories.тело_согласия()
+        "/api/v1/account/consents",
+        headers=заголовки,
+        json=factories.тело_повторного_согласия(),
     )
 
     assert ответ.status_code == 200, ответ.text
@@ -216,13 +220,13 @@ async def test_повторное_принятие_идемпотентно(
 ) -> None:
     """Нажали дважды или переслали запрос после обрыва — второй записи нет."""
     заголовки, _ = await завести(клиент)
-    await устарить(сессия, "terms")
+    await устарить(сессия, "consent")
 
     for _ in range(2):
         ответ = await клиент.post(
             "/api/v1/account/consents",
             headers=заголовки,
-            json=factories.тело_согласия(),
+            json=factories.тело_повторного_согласия(),
         )
         assert ответ.status_code == 200
 
@@ -230,7 +234,7 @@ async def test_повторное_принятие_идемпотентно(
     assert await событий(сессия, "consent.renewed") == 1
 
 
-async def test_повторное_принятие_требует_обе_отметки_и_действующие_версии(
+async def test_повторное_принятие_требует_отметку_и_действующую_версию(
     клиент: httpx.AsyncClient, сессия: AsyncSession
 ) -> None:
     заголовки, _ = await завести(клиент)
@@ -238,13 +242,12 @@ async def test_повторное_принятие_требует_обе_отм�
 
     for правки in (
         {"accepted_personal_data": False},
-        {"accepted_terms_and_policy": False},
         {"consent_version": "2020-01-01"},
     ):
         ответ = await клиент.post(
             "/api/v1/account/consents",
             headers=заголовки,
-            json=factories.тело_согласия(**правки),
+            json=factories.тело_повторного_согласия(**правки),
         )
         assert ответ.status_code == 403, правки
         assert ответ.json()["code"] == "consent_required"
@@ -257,7 +260,7 @@ async def test_повторное_принятие_без_токена_не_пр
     клиент: httpx.AsyncClient,
 ) -> None:
     ответ = await клиент.post(
-        "/api/v1/account/consents", json=factories.тело_согласия()
+        "/api/v1/account/consents", json=factories.тело_повторного_согласия()
     )
 
     assert ответ.status_code == 401

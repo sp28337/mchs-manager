@@ -106,10 +106,10 @@ export interface SyncActions {
   logout: (options?: { force?: boolean }) => Promise<LogoutResult>;
   syncNow: () => Promise<void>;
   /**
-   * Принять действующие редакции согласия и соглашения заново. Вызывать только
-   * после обеих отметок: отвечает человек, а не приложение за него.
+   * Принять действующую редакцию согласия на обработку заново. Вызывать только
+   * после отметки: отвечает человек, а не приложение за него.
    */
-  acceptConsent: (acts: ConsentActs) => Promise<void>;
+  acceptConsent: (personalData: boolean) => Promise<void>;
   resolve: (itemId: string, choice: "local" | "remote") => Promise<void>;
   changePassword: (данные: {
     currentPassword: string;
@@ -559,9 +559,9 @@ export function SyncProvider({ children }: { children: ReactNode }) {
 
       syncNow: sync,
 
-      acceptConsent: async (acts) =>
+      acceptConsent: async (personalData) =>
         действие(async () => {
-          const сведения = await session.acceptConsents(получить(), acts);
+          const сведения = await session.acceptConsents(получить(), personalData);
           ждётСогласия.current = сведения.consent_pending.length > 0;
 
           setState((было) => ({

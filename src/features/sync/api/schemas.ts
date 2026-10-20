@@ -34,7 +34,7 @@ export const accountSchema = z.object({
    * ответ сервера без него — это сервер без повторного принятия, и ждать от него
    * вопроса не о чем.
    */
-  consent_pending: z.array(z.enum(["consent", "terms"])).default([]),
+  consent_pending: z.array(z.enum(["consent"])).default([]),
 });
 
 export type Account = z.infer<typeof accountSchema>;

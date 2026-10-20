@@ -19,7 +19,8 @@ const TEXT_LINK = cn(
 export function редакция(версия: string): string {
   const [год, месяц, день] = версия.split("-");
 
-  if (год === undefined || месяц === undefined || день === undefined) return версия;
+  if (год === undefined || месяц === undefined || день === undefined)
+    return версия;
 
   return `${день}.${месяц}.${год}`;
 }
@@ -54,7 +55,28 @@ export function LegalLink({
 }
 
 /**
- * Две отметки согласия — на регистрации и при повторном принятии.
+ * Отметка согласия на обработку — отдельная, и одна на регистрации, и при
+ * повторном принятии (там она единственная: спрашивается только согласие).
+ */
+export function PersonalDataCheck({
+  checked,
+  onChange,
+}: {
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+}) {
+  return (
+    <CheckRow checked={checked} onChange={onChange}>
+      Даю{" "}
+      <LegalLink href={LEGAL_URLS.consent} version={LEGAL_VERSIONS.consent}>
+        согласие на обработку персональных данных
+      </LegalLink>
+    </CheckRow>
+  );
+}
+
+/**
+ * Две отметки на регистрации.
  *
  * Две, а не одна. Согласие на обработку персональных данных оформляется
  * отдельно от иных документов, которые подтверждает человек (ч. 1 ст. 9
@@ -90,12 +112,7 @@ export function ConsentChecks({
           политику конфиденциальности
         </LegalLink>
       </CheckRow>
-      <CheckRow checked={personalData} onChange={onPersonalData}>
-        Даю{" "}
-        <LegalLink href={LEGAL_URLS.consent} version={LEGAL_VERSIONS.consent}>
-          согласие на обработку персональных данных
-        </LegalLink>
-      </CheckRow>
+      <PersonalDataCheck checked={personalData} onChange={onPersonalData} />
     </div>
   );
 }

@@ -5,7 +5,7 @@
     "effective_from": null,
     "status": "draft",
     "url": "/privacy",
-    "sha256": "3f7a049333aab4ce9f8a364c94906ac744f06f30fd68dae4e8cd882365765136"
+    "sha256": "d3c691fe51ba49ca6f5d24b237630c24478fe09f1b1ad1b5cd9ff663f2820acf"
   },
   "consent": {
     "title": "Согласие на обработку персональных данных",
@@ -13,7 +13,7 @@
     "effective_from": null,
     "status": "draft",
     "url": "/consent",
-    "sha256": "5539a13266018fcacd6bfcb44f15f10771cb65b0ba08bf69194682d188cb44ae"
+    "sha256": "5ea1df9f01086e9cdeceffaa3201d8bccb406928bb311522473d28b33c602d02"
   },
   "terms": {
     "title": "Пользовательское соглашение",
@@ -21,7 +21,7 @@
     "effective_from": null,
     "status": "draft",
     "url": "/terms",
-    "sha256": "b2547d93f7f31304a35977ffcd66c50e6def326f954a7c1e7e652c49cc4192a2"
+    "sha256": "a9bf28f0ae6ecf1c891b080edbcd21111508156dbe2f9420f8adc637aee283f3"
   },
   "cookies": {
     "title": "Файлы cookie и счётчик посещений",

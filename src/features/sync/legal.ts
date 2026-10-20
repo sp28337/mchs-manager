@@ -52,7 +52,7 @@ export interface ConsentActs {
 }
 
 /**
- * То, что уходит в `POST /auth/register` и `POST /account/consents`.
+ * То, что уходит в `POST /auth/register`.
  *
  * Версии трёх документов, а не четырёх: согласие на аналитику к учётной записи
  * отношения не имеет. И явные признаки двух действий: версии без них говорили
@@ -67,5 +67,20 @@ export function consentPayload(acts: ConsentActs) {
     terms_version: LEGAL_VERSIONS.terms,
     accepted_terms_and_policy: acts.termsAndPolicy,
     accepted_personal_data: acts.personalData,
+  };
+}
+
+/**
+ * То, что уходит в `POST /account/consents` — повторное принятие.
+ *
+ * Спрашивается одно согласие на обработку: политика и соглашение заново не
+ * принимаются (`api/src/grafik_api/services/consents.py` — почему). Поэтому
+ * версия одна и отметка одна, и берётся она из настоящей отметки, а не
+ * подставляется истиной: нажатая без отметки кнопка не должна записать согласие.
+ */
+export function renewalPayload(personalData: boolean) {
+  return {
+    consent_version: LEGAL_VERSIONS.consent,
+    accepted_personal_data: personalData,
   };
 }

@@ -332,17 +332,14 @@ describe("продолжение сессии", () => {
   });
 });
 
-describe("повторное принятие документов", () => {
-  it("уносит версии и обе отметки, а ответ разбирает", async () => {
+describe("повторное принятие согласия", () => {
+  it("уносит версию согласия и одну отметку, а ответ разбирает", async () => {
     await session.register(client, { email: АДРЕС, password: ПАРОЛЬ, acts: ОТМЕЧЕНО });
 
-    const сведения = await session.acceptConsents(client, ОТМЕЧЕНО);
+    const сведения = await session.acceptConsents(client, true);
 
     expect(server.принятое).toEqual({
-      policy_version: LEGAL_VERSIONS.policy,
       consent_version: LEGAL_VERSIONS.consent,
-      terms_version: LEGAL_VERSIONS.terms,
-      accepted_terms_and_policy: true,
       accepted_personal_data: true,
     });
     expect(сведения.consent_pending).toEqual([]);
@@ -351,7 +348,7 @@ describe("повторное принятие документов", () => {
   it("не подставляет отметку, которой человек не ставил", async () => {
     await session.register(client, { email: АДРЕС, password: ПАРОЛЬ, acts: ОТМЕЧЕНО });
 
-    await session.acceptConsents(client, { termsAndPolicy: true, personalData: false });
+    await session.acceptConsents(client, false);
 
     expect(server.принятое?.accepted_personal_data).toBe(false);
   });

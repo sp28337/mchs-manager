@@ -35,7 +35,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from grafik_api.core.config import Settings
 from grafik_api.core.errors import BadCredentialsError, ValidationFailedError
-from grafik_api.core.legal import CURRENT_VERSIONS
 from grafik_api.core.logging import get_logger
 from grafik_api.core.security import KDF_VERSIONS, hash_verifier, verify_verifier
 from grafik_api.models import Consent, Credential, User
@@ -51,12 +50,12 @@ from grafik_api.repositories import (
     UserRepository,
 )
 from grafik_api.services.consents import (
-    ConsentGiven,
     ConsentKind,
     ConsentVia,
+    RenewalGiven,
     RenewalKind,
+    check_renewal,
 )
-from grafik_api.services.consents import check as check_consent
 from grafik_api.services.consents import pending as pending_consents
 from grafik_api.services.consents import record as record_consents
 from grafik_api.services.sync import Item
@@ -171,29 +170,25 @@ class AccountService:
     # --- Повторное согласие ---------------------------------------------------
 
     async def accept_consent(
-        self, user_id: uuid.UUID, given: ConsentGiven, *, ip: str | None
+        self, user_id: uuid.UUID, given: RenewalGiven, *, ip: str | None
     ) -> AccountInfo:
-        """Принять действующие редакции документов заново.
+        """Принять действующую редакцию согласия заново.
 
-        Нужно, когда текст согласия или соглашения изменился после того, как
-        человек их принял: редакция, с которой он не соглашался, его не
-        касается, и обработку на ее основании продолжать нельзя. Записываются
-        только документы, чья принятая редакция устарела: то, что уже принято в
-        действующем виде, второй раз не пишется — запись о согласии это
-        история, а не журнал нажатий.
+        Нужно, когда текст согласия изменился после того, как человек его
+        принял: редакция, с которой он не соглашался, его не касается, и
+        обработку на ней продолжать нельзя. Записывается только устаревшее: то,
+        что уже принято в действующем виде, второй раз не пишется — запись о
+        согласии это история, а не журнал нажатий.
 
         Повторный запрос с теми же версиями ничего не меняет и отвечает так же:
         человек мог нажать дважды или переслать запрос после обрыва связи.
         """
-        check_consent(given)
+        check_renewal(given)
         await self._взять(user_id)
 
-        принято = {
-            запись.kind: запись.version
-            for запись in await self.consents.latest_per_kind(user_id)
-        }
-        вехи: tuple[ConsentKind, ...] = ("terms", "policy", "consent")
-        устарели = [вид for вид in вехи if принято.get(вид) != CURRENT_VERSIONS[вид]]
+        устарели: list[ConsentKind] = list(
+            pending_consents(await self.consents.latest_per_kind(user_id))
+        )
 
         if устарели:
             record_consents(

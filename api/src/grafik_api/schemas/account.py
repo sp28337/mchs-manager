@@ -15,6 +15,7 @@ from pydantic import BaseModel, Field
 from grafik_api.schemas.auth import Verifier, WrappedKey
 from grafik_api.schemas.sync import ItemOut
 from grafik_api.services.account import AccountInfo, ConsentRecord, ExportData
+from grafik_api.services.consents import RenewalGiven
 
 
 class ConsentOut(BaseModel):
@@ -52,7 +53,7 @@ class AccountOut(BaseModel):
     #: Последняя принятая редакция каждого документа.
     consents: list[ConsentOut]
     #: Документы, на которые надо ответить заново.
-    consent_pending: list[Literal["consent", "terms"]]
+    consent_pending: list[Literal["consent"]]
 
     @classmethod
     def of(cls, сведения: AccountInfo) -> Self:
@@ -126,6 +127,21 @@ class DeleteIn(BaseModel):
     """
 
     verifier: Verifier
+
+
+class ConsentRenewalIn(BaseModel):
+    """Повторное принятие: версия согласия и одна отметка.
+
+    Отметка одна, потому что спрашивается один документ — согласие на
+    обработку: соглашение и политика заново не принимаются (почему — в
+    `services/consents.py`). Признак обязан быть истинным.
+    """
+
+    consent_version: str = Field(max_length=32)
+    accepted_personal_data: bool
+
+    def given(self) -> RenewalGiven:
+        return RenewalGiven(**self.model_dump())
 
 
 class PasswordIn(BaseModel):
