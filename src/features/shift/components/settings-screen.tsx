@@ -51,7 +51,13 @@ export function SettingsScreen({
               Удаление необратимо. Если график ещё может понадобиться, сначала
               сохраните его в файл — кнопка в меню.
             </p>
-            <DangerActions onForget={onForget} onChange={onChange} showReset={false} start />
+            <DangerActions
+              onForget={onForget}
+              onChange={onChange}
+              name={profile.displayName}
+              showReset={false}
+              start
+            />
           </div>
         )}
       </SectionLayout>

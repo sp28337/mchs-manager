@@ -147,6 +147,11 @@ export interface SiteHeaderProps {
    */
   menu?: ReactNode;
   /**
+   * Пункты меню — только для вошедшего (`HeaderMenu`, `signedInOnly`): не
+   * вошедшему справа стоит «Вход», а не «Меню». Так устроена посадочная.
+   */
+  menuSignedInOnly?: boolean;
+  /**
    * Вместо меню — его кость: профиль ещё читается, и действий страницы
    * пока нет (`workspace-skeleton.tsx`). Без неё меню возникало бы в
    * шапке рывком в тот же миг, когда заглушка сменяется расчётом, — а вся
@@ -165,6 +170,7 @@ export function SiteHeader({
   title,
   center,
   menu,
+  menuSignedInOnly,
   menuBone,
   section,
   className,
@@ -298,7 +304,12 @@ export function SiteHeader({
           {menuBone === true ? (
             <HeaderMenuBone compact={centered} />
           ) : (
-            <HeaderMenu items={menu} section={section} compact={centered} />
+            <HeaderMenu
+              items={menu}
+              signedInOnly={menuSignedInOnly}
+              section={section}
+              compact={centered}
+            />
           )}
         </div>
       </div>

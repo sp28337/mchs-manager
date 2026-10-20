@@ -10,7 +10,6 @@ import { Modal } from "@/components/ui/modal";
 import { Card, Field } from "@/components/ui/panel";
 import { Select } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { useSync } from "@/features/sync/ui/sync-provider";
 import { cn } from "@/lib/utils/cn";
 
 import {
@@ -702,21 +701,20 @@ function CycleDays({
 export function DangerActions({
   onChange,
   onForget,
+  name,
   showReset = true,
   start = false,
 }: {
   onChange: (change: (previous: StoredProfile) => StoredProfile) => void;
   onForget?: () => void;
+  /** Имя графика — в вопросе об удалении. */
+  name?: string;
   /** Сброс не показывается там, где сбрасывать нечего. */
   showReset?: boolean;
   /** Кнопки у левого края и без верхнего отступа — внутри раздела, а не в конце страницы. */
   start?: boolean;
 }) {
   const [asking, setAsking] = useState<"reset" | "forget" | null>(null);
-  // Нужна одна вещь: есть ли учётная запись. От неё зависит, что́
-  // удаление профиля уносит — только этот браузер или и копию на
-  // сервере вместе с остальными устройствами.
-  const { account } = useSync();
 
   return (
     <div className={start ? undefined : "pt-4"}>
@@ -773,27 +771,23 @@ export function DangerActions({
         open={asking === "forget"}
         onClose={() => setAsking(null)}
         onConfirm={() => onForget?.()}
-        title="Удалить график"
+        title="Удалить график?"
         confirm="Удалить"
         icon={<Trash2 aria-hidden />}
         destructive
       >
+        {/* Имя — тем же рукописным шрифтом, что названия графика в шапке
+            расчёта (`profile-name.tsx`): человек узнаёт свой график по
+            написанию, а не по строке чужого шрифта. Рукописная гарнитура
+            мельче печатной при том же кегле, поэтому здесь она на ступень
+            крупнее окружающего текста. Длинное имя переносится, а не
+            выталкивает окно. */}
         <p>
-          Стереть график {account === null ? "с этого устройства " : ""}целиком
-          — вместе с настройками, календарём и всем, что отмечено на сетках?
-        </p>
-        {/* Что именно уносит удаление, зависит от того, есть ли
-            учётная запись: без неё данные лежат только в этом браузере, с
-            ней — ещё и на сервере, откуда профиль разъедется (точнее,
-            исчезнет) по остальным устройствам. Сказать об этом обязательно:
-            человек, стирающий на телефоне копию, которая «и так есть на
-            компьютере», иначе потеряет её и там. */}
-        <p className="text-ink-muted">
-          {account === null
-            ? "Отменить будет нельзя: данные лежат только здесь, копии на сервере нет."
-            : "Отменить будет нельзя. График удалится и из учётной записи — то есть пропадёт и на других ваших устройствах."}{" "}
-          Если график ещё может понадобиться, сначала сохраните его в файл —
-          кнопка в шапке.
+          График «
+          <span className="font-hand text-xl leading-none break-words text-ink">
+            {name || "Имя графика"}
+          </span>
+          » и все его данные будут удалены без возможности восстановления.
         </p>
       </ConfirmDialog>
     </div>
