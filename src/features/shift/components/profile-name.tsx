@@ -206,6 +206,7 @@ export function ProfileName({
             // полосы цифр (`z-40`), иначе на узком экране оно уходило бы
             // под неё.
             "lit modal-lift absolute top-full z-50 mt-2 w-64 max-w-[calc(100vw-3rem)]",
+            "pop-in [--pop-y:-6px]",
             "max-h-[60svh] overflow-y-auto rounded-xl bg-paper-raised p-1.5 text-left",
             // В шапке — от левого края имени, вниз; над цифрами — по
             // середине, под самим именем: оно там стоит по центру.

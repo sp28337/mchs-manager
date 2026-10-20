@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 
 import { SiteFooter } from "@/components/shared/site-footer";
 import { SiteHeader } from "@/components/shared/site-header";
+import { ThemeCorner } from "@/components/ui/theme-toggle";
 import { AccountMenuItems } from "@/features/shift/components/header-tools";
 import { AccountScreen } from "@/features/sync/ui/account-screen";
 
@@ -22,6 +23,10 @@ export default function AccountPage() {
       </main>
 
       <SiteFooter />
+
+      {/* Тема — знаком в правом нижнем углу, как на посадочной: меню в шапке
+          этой странице не нужно, а тема относится к окну, а не к странице. */}
+      <ThemeCorner />
     </>
   );
 }

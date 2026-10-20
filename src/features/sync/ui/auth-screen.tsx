@@ -16,6 +16,8 @@ import { Button } from "@/components/ui/button";
 import { CheckRow } from "@/components/ui/check-row";
 import { Input } from "@/components/ui/input";
 import { InsideModal } from "@/components/ui/modal";
+import { Materialize } from "@/components/ui/materialize";
+import { Reveal } from "@/components/ui/reveal";
 import { hasGraphs } from "@/features/shift/storage/library";
 import { cn } from "@/lib/utils/cn";
 
@@ -187,7 +189,10 @@ export function AuthScreen() {
         aria-labelledby={`tab-${mode}`}
         noValidate
         onSubmit={(event) => void отправить(event)}
-        className="space-y-5"
+        // Промежутки заданы блокам, а не `space-y` у формы: у раскрывающихся
+        // блоков (`Reveal`) свёрнутая высота равна нулю, а межстрочный отступ
+        // `space-y` остался бы и держал пустое место там, где блока нет.
+        className="flex flex-col"
       >
         <AuthField
           id={emailId}
@@ -218,21 +223,25 @@ export function AuthScreen() {
           id={passwordId}
           label="Пароль"
           aside={
-            регистрация ? undefined : (
-              <button
-                type="button"
-                disabled={busy}
-                onClick={забыли}
-                className={cn(
-                  "cursor-pointer rounded-sm text-xs text-ink-muted transition-colors",
-                  "hover:text-ink hover:underline hover:underline-offset-4",
-                  "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink",
-                  "disabled:pointer-events-none disabled:opacity-50",
-                )}
-              >
-                Забыли пароль?
-              </button>
-            )
+            // Слово «Забыли пароль?» стоит всегда и проступает на «Входе»:
+            // подмена его пустотой на «Регистрации» дёргала бы строку подписи.
+            <span inert={регистрация}>
+              <Materialize show={!регистрация} durationClassName="duration-300">
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={забыли}
+                  className={cn(
+                    "cursor-pointer rounded-sm text-xs text-ink-muted transition-colors",
+                    "hover:text-ink hover:underline hover:underline-offset-4",
+                    "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink",
+                    "disabled:pointer-events-none disabled:opacity-50",
+                  )}
+                >
+                  Забыли пароль?
+                </button>
+              </Materialize>
+            </span>
           }
         >
           <PasswordField
@@ -241,11 +250,18 @@ export function AuthScreen() {
             value={password}
             onChange={setPassword}
           />
-          {регистрация && <PasswordStrength оценка={оценка} />}
+          {/* Полоска крепости раскрывается, а не возникает: на «Регистрации»
+              она появляется с первой набранной буквы, и без хода поле
+              пароля уезжало вниз рывком. */}
+          <Reveal show={регистрация && password !== ""}>
+            <div className="pt-2">
+              <PasswordStrength оценка={оценка} />
+            </div>
+          </Reveal>
           {письмо && !регистрация && (
             <p
               role="status"
-              className="flex items-center gap-1.5 pt-0.5 text-xs leading-5 text-ink-muted"
+              className="mt-2 flex items-center gap-1.5 text-xs leading-5 text-ink-muted"
             >
               <Check aria-hidden className="size-3.5 shrink-0 text-verify" />
               Если такая запись есть, письмо уже отправлено.
@@ -253,18 +269,20 @@ export function AuthScreen() {
           )}
         </AuthField>
 
-        {регистрация && (
-          // Две отметки, а не одна. Согласие на обработку персональных данных
-          // оформляется отдельно от пользовательского соглашения и политики
-          // (ч. 1 ст. 9 152-ФЗ): в одну фразу с ними оно не входит, и
-          // отметка, которой человек принимает условия сервиса, не должна в
-          // придачу отдавать данные. Ни одна не стоит заранее, без обеих
-          // регистрация не идёт (`нельзя`), а в записи о согласии сервер
-          // хранит версии всех трёх документов (`consentPayload`).
-          //
-          // Ссылки открываются в новой вкладке: уйдя по ним в том же окне,
-          // человек потерял бы набранные адрес и пароль.
-          <div className="space-y-3">
+        <Reveal show={регистрация}>
+          {/*
+            Две отметки, а не одна. Согласие на обработку персональных данных
+            оформляется отдельно от пользовательского соглашения и политики
+            (ч. 1 ст. 9 152-ФЗ): в одну фразу с ними оно не входит, и
+            отметка, которой человек принимает условия сервиса, не должна в
+            придачу отдавать данные. Ни одна не стоит заранее, без обеих
+            регистрация не идёт (`нельзя`), а в записи о согласии сервер
+            хранит версии всех трёх документов (`consentPayload`).
+
+            Ссылки открываются в новой вкладке: уйдя по ним в том же окне,
+            человек потерял бы набранные адрес и пароль.
+          */}
+          <div className="space-y-3 pb-5">
             <CheckRow checked={принял} onChange={setПринял}>
               Принимаю{" "}
               <LegalLink href={LEGAL_URLS.terms} version={LEGAL_VERSIONS.terms}>
@@ -282,12 +300,12 @@ export function AuthScreen() {
               </LegalLink>
             </CheckRow>
           </div>
-        )}
+        </Reveal>
 
         {error !== null && (
           <p
             role="alert"
-            className="flex items-start gap-2.5 rounded-xl bg-signal-soft px-3.5 py-3 text-sm leading-5 text-ink"
+            className="mb-5 flex items-start gap-2.5 rounded-xl bg-signal-soft px-3.5 py-3 text-sm leading-5 text-ink"
           >
             <TriangleAlert aria-hidden className="mt-0.5 size-4 shrink-0 text-signal" />
             {error}
@@ -356,10 +374,14 @@ function LegalLink({
  */
 function AuthSheet({ children }: { children: ReactNode }) {
   return (
-    // Лист стоит по середине экрана, а не под шапкой: на этих страницах
-    // больше ничего нет, и прижатая кверху форма оставляла бы под собой
-    // пустой экран. Высота задана с запасом на шапку и поля.
-    <div className="mx-auto flex w-full max-w-[27rem] flex-col justify-center md:min-h-[calc(100svh-14rem)]">
+    // Лист стоит примерно по середине экрана, а не под шапкой: на этих
+    // страницах больше ничего нет, и прижатая кверху форма оставляла бы под
+    // собой пустой экран. Но не ровно по середине (`justify-center`), а от
+    // верха с отступом, посчитанным на самый высокий лист — регистрацию, около
+    // тридцати пяти рем: при `justify-center` лист, растущий на «Регистрации»,
+    // уходил бы вверх обоими краями, и вкладки ездили бы под курсором. Теперь
+    // верхняя кромка и вкладки стоят на месте, а лист тянется вниз.
+    <div className="mx-auto flex w-full max-w-[27rem] flex-col md:min-h-[calc(100svh-14rem)] md:pt-[max(0px,calc((100svh-14rem-35rem)/2))]">
       <div className="lit modal-lift rounded-2xl bg-paper-raised px-6 py-8 sm:px-9 sm:py-10">
         <InsideModal value={true}>{children}</InsideModal>
       </div>
@@ -496,8 +518,10 @@ function AuthField({
   children: ReactNode;
 }) {
   return (
-    <div className="space-y-2">
-      <div className="flex min-h-5 items-center justify-between gap-3">
+    // Отступы у частей свои (`mb-2`, `pt-2` у раскрывающегося), а не `space-y`:
+    // сворачиваемая часть без высоты не должна оставлять после себя зазор.
+    <div className="mb-5 flex flex-col">
+      <div className="mb-2 flex min-h-5 items-center justify-between gap-3">
         <label htmlFor={id} className={LABEL}>
           {label}
         </label>
@@ -505,7 +529,7 @@ function AuthField({
       </div>
       {children}
       {problem !== undefined && (
-        <p role="alert" className="text-xs leading-5 text-signal">
+        <p role="alert" className="mt-2 text-xs leading-5 text-signal">
           {problem}
         </p>
       )}

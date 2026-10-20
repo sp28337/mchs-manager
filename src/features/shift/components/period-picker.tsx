@@ -170,6 +170,7 @@ export function PeriodPicker({
             // окошко, прижатое к одному её краю, съезжало бы с середины.
             // Кайма — живая, как у всех окошек (`KNOB_POPOVER` в `knob.tsx`).
             "lit modal-lift absolute left-1/2 top-full z-100 mt-2 w-64 max-w-[calc(100vw-3rem)]",
+            "pop-in [--pop-y:-6px]",
             "-translate-x-1/2 rounded-xl bg-paper-raised p-1.5",
           )}
         >

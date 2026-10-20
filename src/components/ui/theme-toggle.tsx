@@ -168,6 +168,7 @@ export function ThemeCorner({
             // краю, у которого стоит знак, — иначе оно вылезало бы за
             // кромку окна. Кайма — живая, как у всех окошек (`KNOB_POPOVER`).
             "lit modal-lift absolute bottom-full right-0 mb-2 w-52 max-w-[calc(100vw-3rem)]",
+            "pop-in [--pop-origin:100%_100%] [--pop-y:6px]",
             "overflow-hidden rounded-xl bg-paper-raised p-1.5",
           )}
         >

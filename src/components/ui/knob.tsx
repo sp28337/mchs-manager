@@ -91,6 +91,14 @@ export function KnobLabel({
       aria-hidden
       className={cn(
         "grid grid-cols-[0fr] transition-[grid-template-columns]",
+        // Дорожка прижата к знаку: у подписи слева — к правому краю грида.
+        // Ширина грида у подписи своя (по содержимому) и растёт быстрее, чем
+        // сама колонка с `fr`; а колонка по умолчанию стоит у ЛЕВОГО края
+        // грида. У подписи справа это незаметно — её левый край у знака и так
+        // не двигается. У подписи слева стоял бы не у знака: правый край
+        // колонки, а с ним и слово, сначала уезжал влево, а потом возвращался
+        // вправо, к знаку, пока колонка дотягивалась до ширины грида.
+        left && "justify-end",
         ХОД,
         "md:group-hover/knob:grid-cols-[1fr] md:group-focus-visible/press:grid-cols-[1fr]",
         // Пока из знака раскрыто окошко, подпись скрыта: с `md` окошко
@@ -153,6 +161,8 @@ export function KnobLabel({
 export const KNOB_POPOVER = cn(
   "lit modal-lift absolute bottom-full mb-2 max-w-[calc(100vw-3rem)]",
   "md:bottom-0 md:left-13 md:mb-0 md:max-w-[calc(100vw-7rem)]",
+  // Выезжает из знака: на телефоне — снизу вверх, с `md` — вправо.
+  "pop-in [--pop-origin:50%_100%] [--pop-y:6px] md:[--pop-origin:0%_100%] md:[--pop-x:-6px] md:[--pop-y:0px]",
   "overflow-y-auto rounded-xl bg-paper-raised",
 );
 

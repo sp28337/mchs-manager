@@ -340,6 +340,7 @@ function ColumnsKnob({
           aria-label="Столбцов в ряду"
           className={cn(
             "lit modal-lift absolute bottom-0 right-13 w-44 max-h-[60svh] overflow-y-auto",
+            "pop-in [--pop-origin:100%_100%] [--pop-x:6px]",
             "rounded-xl bg-paper-raised p-1.5",
           )}
         >
