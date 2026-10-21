@@ -63,15 +63,24 @@ export function CookieBanner() {
           "bg-paper-raised px-5 py-4 sm:flex-row sm:items-center",
         )}
       >
-        <p className="min-w-0 flex-1 text-sm leading-6 text-ink-muted">
-          Сайт считает посещения — это обезличенный счётчик Яндекс Метрики. Без
-          вашего согласия он не загружается. Что именно он собирает и как
-          отказаться потом —{" "}
-          <Link href="/cookies" className="text-ink underline hover:no-underline">
-            в документе о cookie
-          </Link>
-          .
-        </p>
+        {/* Два абзаца: сперва что и зачем и что решать человеку, затем — куда
+            идти за подробностями. Слова про согласие и выбор стоят в первом:
+            вторая строка — справка, и ответ не должен зависеть от того, что её
+            открыли. */}
+        <div className="min-w-0 flex-1 space-y-2 text-sm leading-6 text-ink-muted">
+          <p>
+            Мы используем Яндекс Метрику, чтобы понимать, как работает сайт, и
+            улучшать его. Счётчик загружается только с вашего согласия. Вы
+            можете разрешить сбор данных или оставить только необходимые
+            функции сайта.
+          </p>
+          <p>
+            Подробнее — в{" "}
+            <Link href="/cookies" className="text-ink underline hover:no-underline">
+              политике использования cookie
+            </Link>
+          </p>
+        </div>
 
         <div className="grid shrink-0 grid-cols-2 gap-2 sm:w-auto">
           <button
