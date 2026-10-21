@@ -201,7 +201,6 @@ export function AuthScreen() {
               autoComplete="email"
               autoCapitalize="none"
               spellCheck={false}
-              placeholder="вы@почта.рф"
               value={email}
               onChange={(event) => {
                 setEmail(event.target.value);
