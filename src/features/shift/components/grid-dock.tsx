@@ -135,6 +135,21 @@ export const DOCK_LEFT = "max-md:contents md:flex md:flex-col-reverse md:items-s
 export const DOCK_RIGHT = "max-lg:contents lg:-mr-2 lg:flex lg:flex-col lg:items-end";
 
 /**
+ * Правая группа проводника: с `md` — колонка у правого края, в которой над
+ * темой стоят три знака проводника (`explorer-dock.tsx`); на телефоне —
+ * раскрыта в общий ряд, как у `DOCK_LEFT`.
+ *
+ * Сдвиг на восемь точек (`lg:-mr-2`) — тот же и с той же ширины, что у
+ * `DOCK_RIGHT`: знак темы стоит на одном месте на каждой странице, и при
+ * переходе между календарём, проводником и разделами он не прыгает.
+ *
+ * `md:ml-auto` — группа в ряду одна (слева у проводника больше ничего нет), и
+ * `justify-between` у `DOCK` прижал бы единственного ребёнка к левому краю.
+ */
+export const DOCK_RIGHT_EXPLORER =
+  "max-md:contents md:ml-auto md:flex md:flex-col md:items-end lg:-mr-2";
+
+/**
  * Знаки масштаба — только с `lg`, ниже них нет (довод — в шапке файла).
  *
  * Между ними и темой пусто на одну клетку знака (`mb-11`, 44 точки), как если
