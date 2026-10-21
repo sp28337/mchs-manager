@@ -30,7 +30,7 @@ import { useConfirmSwitch } from "./open-profile";
 import { FollowSummary } from "./follow-summary";
 import { PeriodPicker } from "./period-picker";
 import { PeriodSummary, REVEAL_DELAY_MS } from "./period-summary";
-import { SECTION_HASH, sectionFromHash, type SectionHash } from "./section-hash";
+import { SECTION_HASH, sectionFromHash } from "./section-hash";
 import { ProfileExplorer, useExplorerTools, useLibrary } from "./profile-explorer";
 import { ProfileFooter } from "./profile-footer";
 import { ProfileName } from "./profile-name";
@@ -420,14 +420,6 @@ export function Workspace({
   }
 
   /**
-   * Открыть раздел из подвала («Навигация», `shared/site-footer.tsx`).
-   *
-   * Именно открыть, а не переключить: пункт подвала называет раздел, и
-   * нажатие по «Настройкам» при открытых настройках не должно их закрывать.
-   * Остальные разделы закрываются сами (`toggle*`), страница при этом
-   * возвращается к началу: подвал стоит внизу, а раздел начинается вверху.
-   */
-  /**
    * Удаление открытого графика — и возврат к графику.
    *
    * Удаляют из настроек, и после удаления на месте открытого встаёт соседний
@@ -450,14 +442,6 @@ export function Workspace({
     setStatsShown(null);
     window.scrollTo(0, 0);
     onForget();
-  }
-
-  function openSection(section: SectionHash) {
-    if (section === SECTION_HASH.settings && !settingsOpen) toggleSettings();
-    else if (section === SECTION_HASH.stats && !statsOpen) toggleStats();
-    else if (section === SECTION_HASH.events && !eventsOpen) toggleEvents();
-    else if (section === SECTION_HASH.graphs && !explorerOpen) toggleExplorer();
-    else window.scrollTo(0, 0);
   }
 
   /**
@@ -975,7 +959,7 @@ export function Workspace({
       )}
       </main>
 
-      <ProfileFooter onOpenSection={openSection} />
+      <ProfileFooter />
     </GridScaleProvider>
   );
 }
