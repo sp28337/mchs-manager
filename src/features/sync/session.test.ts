@@ -366,6 +366,28 @@ describe("повторное принятие согласия", () => {
   });
 });
 
+describe("сигнал о выходе для других вкладок", () => {
+  // Вышли в одной вкладке — остальные держат ключ данных в памяти и, не зная
+  // об этом, вытянули бы весь аккаунт обратно на очищенное устройство. Будит их
+  // запись в общий ключ: `storage` приходит, только если значение изменилось.
+
+  it("пишет в общий ключ", () => {
+    window.localStorage.removeItem(session.SIGNED_OUT_KEY);
+
+    session.announceSignedOut();
+
+    expect(window.localStorage.getItem(session.SIGNED_OUT_KEY)).not.toBeNull();
+  });
+
+  it("значение каждый раз новое: два выхода подряд — два события", () => {
+    session.announceSignedOut();
+    const first = window.localStorage.getItem(session.SIGNED_OUT_KEY);
+    session.announceSignedOut();
+
+    expect(window.localStorage.getItem(session.SIGNED_OUT_KEY)).not.toBe(first);
+  });
+});
+
 describe("выход и удаление", () => {
   it("выход уносит ключ данных с устройства", async () => {
     await session.register(client, { email: АДРЕС, password: ПАРОЛЬ, acts: ОТМЕЧЕНО });

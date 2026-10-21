@@ -1,5 +1,6 @@
 "use client";
 
+import { usePathname, useRouter } from "next/navigation";
 import {
   createContext,
   useCallback,
@@ -21,7 +22,7 @@ import type { DataKey } from "../crypto";
 import { hasUnsentChanges, resolvePending, syncOnce, type SyncReport } from "../engine/sync";
 import type { ConsentActs } from "../legal";
 import * as session from "../session";
-import { readPending, type PendingRow } from "../store/vault";
+import { clearVault, readPending, type PendingRow } from "../store/vault";
 import { SyncConflicts } from "./conflict-dialog";
 import { ConsentRenewal } from "./consent-renewal";
 import { SYNC_ENABLED } from "./enabled";
@@ -185,6 +186,13 @@ export function SyncProvider({ children }: { children: ReactNode }) {
    * сервера.
    */
   const ждётСогласия = useRef(false);
+  /**
+   * Номер сессии этой вкладки: растёт при каждом выходе — здесь или в другой
+   * вкладке. Проход запоминает номер при старте и, если к концу он другой, значит
+   * сессию закрыли, пока он шёл: всё, что он успел записать на устройство, —
+   * графики аккаунта, из которого человек уже вышел, — стирается за ним.
+   */
+  const эпоха = useRef(0);
 
   const получить = useCallback((): ApiClient => {
     client.current ??= new ApiClient();
@@ -211,8 +219,21 @@ export function SyncProvider({ children }: { children: ReactNode }) {
     const взято = правок.current;
     setState((было) => ({ ...было, phase: "syncing", error: null }));
 
+    const эпохаПрохода = эпоха.current;
+
     try {
       const report = await syncOnce({ client: получить(), dataKey: dataKey.current });
+
+      // Вышли, пока проход шёл: он вытянул с сервера и записал на устройство то,
+      // что человек как раз унёс выходом. Оставить это значило бы вернуть чужие
+      // графики на чистое устройство, поэтому за проходом стирается всё, включая
+      // его след в хранилище слоя.
+      if (эпоха.current !== эпохаПрохода) {
+        forgetEverything();
+        await clearVault();
+        return;
+      }
+
       if (правок.current === взято) неотправлено.current = false;
 
       setState((было) => ({
@@ -442,6 +463,51 @@ export function SyncProvider({ children }: { children: ReactNode }) {
     };
   }, [sync, позже, продолжить]);
 
+  // --- Выход в другой вкладке -----------------------------------------------
+
+  const router = useRouter();
+  const pathname = usePathname();
+  /** Адрес страницы для обработчика, который не пересоздаётся при каждом переходе. */
+  const адрес = useRef(pathname);
+  useEffect(() => {
+    адрес.current = pathname;
+  }, [pathname]);
+
+  useEffect(() => {
+    if (!SYNC_ENABLED) return;
+
+    const вышли = (event: StorageEvent) => {
+      if (event.key !== session.SIGNED_OUT_KEY) return;
+      // В этой вкладке сессии и так нет — закрывать нечего.
+      if (dataKey.current === null && !сессияЖдёт.current) return;
+
+      эпоха.current += 1;
+      dataKey.current = null;
+      wrapped.current = null;
+      email.current = null;
+      ждётСогласия.current = false;
+      сессияЖдёт.current = false;
+      неотправлено.current = true;
+
+      if (таймер.current !== null) {
+        window.clearTimeout(таймер.current);
+        таймер.current = null;
+      }
+
+      // Графики с устройства стёр вышедший, и стирать их второй раз нельзя:
+      // человек мог уже завести на чистом устройстве новый.
+      setState(() => ({ ...ПУСТО, phase: "signed-out" }));
+
+      // Расчёт, открытый в этой вкладке, держит график в памяти, и первая же
+      // правка записала бы его обратно в очищенное хранилище — так же, как при
+      // выходе в этой вкладке (`logout-dialog.tsx`).
+      if (!адрес.current.startsWith("/account")) router.push("/");
+    };
+
+    window.addEventListener("storage", вышли);
+    return () => window.removeEventListener("storage", вышли);
+  }, [router]);
+
   // --- Действия человека ----------------------------------------------------
 
   const действие = useCallback(
@@ -532,6 +598,13 @@ export function SyncProvider({ children }: { children: ReactNode }) {
           // Графики уйдут с устройства вместе с выходом, и всё, что не
           // доехало до сервера, ушло бы вместе с ними.
           if (options?.force !== true && !(await сдано())) return "unsynced";
+
+          // С этой строки выход состоялся. Проходы, идущие сейчас, сотрут за
+          // собой (`эпоха`), а остальные вкладки закроют сессию у себя: у них ключ
+          // данных в памяти, и без сигнала первая же их правка вытянула бы весь
+          // аккаунт обратно на только что очищенное устройство.
+          эпоха.current += 1;
+          session.announceSignedOut();
 
           // Не ответил сервер — не повод остаться «вошедшим» без ключа:
           // `session.logout` стирает ключ и ревизии с устройства в любом
