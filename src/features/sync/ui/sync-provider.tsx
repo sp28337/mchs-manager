@@ -1,6 +1,6 @@
 "use client";
 
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import {
   createContext,
   useCallback,
@@ -12,6 +12,7 @@ import {
   type ReactNode,
 } from "react";
 
+import { useNavigate } from "@/components/shared/navigation-loading";
 import { forgetEverything, subscribeToLibrary } from "@/features/shift/storage/library";
 import { subscribeToStoredProfile } from "@/features/shift/storage/profile";
 
@@ -465,7 +466,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
 
   // --- Выход в другой вкладке -----------------------------------------------
 
-  const router = useRouter();
+  const navigate = useNavigate();
   const pathname = usePathname();
   /** Адрес страницы для обработчика, который не пересоздаётся при каждом переходе. */
   const адрес = useRef(pathname);
@@ -501,12 +502,12 @@ export function SyncProvider({ children }: { children: ReactNode }) {
       // Расчёт, открытый в этой вкладке, держит график в памяти, и первая же
       // правка записала бы его обратно в очищенное хранилище — так же, как при
       // выходе в этой вкладке (`logout-dialog.tsx`).
-      if (!адрес.current.startsWith("/account")) router.push("/");
+      if (!адрес.current.startsWith("/account")) navigate.push("/");
     };
 
     window.addEventListener("storage", вышли);
     return () => window.removeEventListener("storage", вышли);
-  }, [router]);
+  }, [navigate]);
 
   // --- Действия человека ----------------------------------------------------
 

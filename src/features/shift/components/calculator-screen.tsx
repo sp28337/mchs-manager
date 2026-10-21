@@ -1,10 +1,10 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 
 import { Button } from "@/components/ui/button";
 import { LoadingScreen } from "@/components/ui/loading-mark";
+import { useNavigate } from "@/components/shared/navigation-loading";
 import { SiteHeader } from "@/components/shared/site-header";
 import { RegisterForm } from "./register-form";
 import { Workspace } from "./workspace";
@@ -65,14 +65,14 @@ import { useProfile } from "../storage/use-profile";
  */
 export function CalculatorScreen() {
   const { state, save, update, forget, touched } = useProfile();
-  const router = useRouter();
+  const navigate = useNavigate();
 
   // Уход на главную — в эффекте, а не по ходу отрисовки: переход меняет
   // состояние маршрутизатора, и делать это, пока React рисует, нельзя.
   const empty = state.status === "empty";
   useEffect(() => {
-    if (empty) router.replace("/");
-  }, [empty, router]);
+    if (empty) navigate.replace("/");
+  }, [empty, navigate]);
 
   if (state.status === "ok") {
     return (

@@ -2,6 +2,7 @@
 
 import { CookieBanner } from "@/components/shared/cookie-banner";
 import { Metrika } from "@/components/shared/metrika";
+import { NavigationLoading } from "@/components/shared/navigation-loading";
 import { ThemeProvider } from "@/components/shared/theme-provider";
 import { SyncProvider } from "@/features/sync/ui/sync-provider";
 
@@ -42,6 +43,8 @@ export function Providers({ children }: { children: React.ReactNode }) {
     <ThemeProvider>
       <SyncProvider>
         {children}
+        {/* Загрузка при переходе между страницами — поверх всего: `shared/navigation-loading.tsx`. */}
+        <NavigationLoading />
         {/* Счётчик и вопрос о нём — на каждой странице и в самом конце
             разметки: полоса с вопросом последняя и для клавиатуры, и для
             программы чтения, а счётчик до ответа не загружается вовсе

@@ -1,7 +1,6 @@
 "use client";
 
 import { Check, Eye, EyeOff, KeyRound, LogIn, Mail, TriangleAlert, UserPlus } from "lucide-react";
-import { useRouter } from "next/navigation";
 import {
   useCallback,
   useId,
@@ -11,6 +10,7 @@ import {
   type ReactNode,
 } from "react";
 
+import { useNavigate } from "@/components/shared/navigation-loading";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { InsideModal } from "@/components/ui/modal";
@@ -76,7 +76,7 @@ const LABEL = "font-display text-xs font-bold uppercase tracking-wide text-ink-m
 
 export function AuthScreen() {
   const { busy, error, actions } = useSync();
-  const router = useRouter();
+  const navigate = useNavigate();
   const [выбор, setВыбор] = useState<Mode | null>(null);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -153,7 +153,7 @@ export function AuthScreen() {
       () => true,
       () => false,
     );
-    if (вошёл) router.push(toSchedule());
+    if (вошёл) navigate.push(toSchedule());
   };
 
   // «Забыли пароль?» без адреса: не молчать, а вернуть человека в поле, где

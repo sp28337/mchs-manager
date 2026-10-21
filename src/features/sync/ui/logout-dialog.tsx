@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState, type ReactNode } from "react";
 
+import { useNavigate } from "@/components/shared/navigation-loading";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
 import { useSync } from "./sync-provider";
@@ -49,6 +50,7 @@ export function useLogout(): { ask: () => void; dialog: ReactNode } {
   const ждётСогласия = (account?.consent_pending.length ?? 0) > 0;
   const path = usePathname();
   const router = useRouter();
+  const navigate = useNavigate();
   const [step, setStep] = useState<"closed" | "ask" | "unsynced">("closed");
 
   const leave = async (force: boolean) => {
@@ -66,7 +68,7 @@ export function useLogout(): { ask: () => void; dialog: ReactNode } {
     if (result === "failed") return;
 
     if (path.startsWith("/account")) router.refresh();
-    else router.push("/");
+    else navigate.push("/");
   };
 
   // Каждое окно закрывает только само себя. Родное событие `close` у

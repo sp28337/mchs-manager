@@ -13,9 +13,9 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useId, useState, type ReactNode } from "react";
 
+import { useNavigate } from "@/components/shared/navigation-loading";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Label } from "@/components/ui/label";
@@ -46,7 +46,7 @@ const SECTION_IDS = SECTIONS.map((section) => section.id);
 export function AccountScreen() {
   const { enabled, account, error, freshRecoveryKey, actions } = useSync();
   const [section, choose] = useHashSection(SECTION_IDS);
-  const router = useRouter();
+  const navigate = useNavigate();
 
   if (!enabled) {
     return (
@@ -75,7 +75,7 @@ export function AccountScreen() {
             // Ключ записан — человеку пора к графику, ради которого он
             // заводил учётную запись.
             actions.forgetRecoveryKey();
-            router.push(toSchedule());
+            navigate.push(toSchedule());
           }}
         />
       )}

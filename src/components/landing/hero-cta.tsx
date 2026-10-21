@@ -1,8 +1,8 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useState, useSyncExternalStore } from "react";
 
+import { useNavigate } from "@/components/shared/navigation-loading";
 import { CreateProfileModal } from "@/features/shift/components/create-profile-modal";
 import {
   hasGraphs,
@@ -59,7 +59,7 @@ const readBuildHash = () => window.location.hash === "#build";
  */
 export function HeroCta({ answersAddress = true }: { answersAddress?: boolean }) {
   const built = useSyncExternalStore(subscribeToGraphs, hasGraphs, () => false);
-  const router = useRouter();
+  const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const [dismissed, setDismissed] = useState(false);
   // Окно просят открыть адресом `/#build` — так сюда приходит вошедший в
@@ -112,7 +112,7 @@ export function HeroCta({ answersAddress = true }: { answersAddress?: boolean })
           // этим путём и возвращаются после чистки браузера или на новом
           // устройстве — и возвращается весь проводник, а не один график.
           saveProfile(file === undefined ? profile : openProfileFile(profile, file));
-          router.push("/calculator");
+          navigate.push("/calculator");
         }}
       />
     </>
