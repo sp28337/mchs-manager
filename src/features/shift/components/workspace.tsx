@@ -24,7 +24,7 @@ import { DayRing } from "./day-ring";
 import { ExplorerDock } from "./explorer-dock";
 import { GridDock } from "./grid-dock";
 import { GridScaleProvider } from "./grid-scale";
-import { WorkspaceMenuItems } from "./header-tools";
+import { WorkspaceMenuItems, WorkspaceRail, type OpenedSection } from "./header-tools";
 import { scrollMonthUnderBar, topmostVisibleMonth } from "./month-anchor";
 import { useConfirmSwitch } from "./open-profile";
 import { PeriodPicker } from "./period-picker";
@@ -614,6 +614,18 @@ export function Workspace({
           ? { label: "События", close: toggleEvents }
           : undefined;
 
+  // Тот же раздел — для колонки знаков под кнопкой меню (с `lg`): горит знак
+  // открытого. Порядок ветвей тот же, что у `раздел`.
+  const opened: OpenedSection | undefined = explorerOpen
+    ? "graphs"
+    : showSettings
+      ? "settings"
+      : statsOpen
+        ? "stats"
+        : eventsOpen
+          ? "events"
+          : undefined;
+
   return (
     // Масштаб сетки живёт здесь: месяцы в разделе, а знаки масштаба — у кромки
     // окна, вне него (`grid-scale.tsx`).
@@ -668,6 +680,18 @@ export function Workspace({
         }
         menu={
           <WorkspaceMenuItems
+            onToggleSettings={toggleSettings}
+            onToggleEvents={toggleEvents}
+            onToggleStats={toggleStats}
+            onToggleExplorer={toggleExplorer}
+            onSave={saveToFile.ask}
+          />
+        }
+        // С `lg` эти же пять действий стоят знаками под кнопкой меню, а из
+        // списка скрыты (`header-tools.tsx`).
+        rail={
+          <WorkspaceRail
+            opened={opened}
             onToggleSettings={toggleSettings}
             onToggleEvents={toggleEvents}
             onToggleStats={toggleStats}

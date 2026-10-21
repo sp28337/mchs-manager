@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import { SiteFooter } from "@/components/shared/site-footer";
 import { SiteHeader } from "@/components/shared/site-header";
 import { ThemeCorner } from "@/components/ui/theme-toggle";
-import { AccountMenuItems } from "@/features/shift/components/header-tools";
+import { AccountMenuItems, AccountRail } from "@/features/shift/components/header-tools";
 import { AccountScreen } from "@/features/sync/ui/account-screen";
 
 export const metadata: Metadata = {
@@ -17,7 +17,7 @@ export const metadata: Metadata = {
 export default function AccountPage() {
   return (
     <>
-      <SiteHeader menu={<AccountMenuItems />} />
+      <SiteHeader menu={<AccountMenuItems />} rail={<AccountRail />} />
       <main className="mx-auto w-full max-w-[2000px] min-h-[var(--fold-min-h)] px-6 pt-24 pb-16">
         <AccountScreen />
       </main>

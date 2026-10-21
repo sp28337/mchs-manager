@@ -26,6 +26,7 @@ import {
   HEADER_WORD,
   MenuMark,
 } from "@/components/shared/header-action";
+import { HEADER_RAIL } from "@/components/shared/header-rail";
 import { Materialize } from "@/components/ui/materialize";
 import { MENU_LIST, MENU_ROW_HOVER } from "@/components/ui/menu-row";
 import { SYNC_ENABLED } from "@/features/sync/ui/enabled";
@@ -84,6 +85,20 @@ import { cn } from "@/lib/utils/cn";
  *
  * Заодно отпал вопрос, что рисовать на знаке не вошедшему: человечек
  * обещал учётную запись там, где её ещё нет.
+ *
+ * --- Колонка знаков под кнопкой ---------------------------------------------
+ *
+ * С `lg` самые частые действия страницы — настройки, события, статистика,
+ * графики, «Сохранить» — стоят не строками списка, а колонкой знаков прямо под
+ * кнопкой (`rail`, `shared/header-rail.tsx`): на широком экране справа свободно
+ * всё поле, а два нажатия до настроек были платой за экономию места, которой
+ * там нет. Из списка эти строки с `lg` уходят (`MenuItem`, `className`), и в
+ * нём остаётся то, что не относится к расчёту: справка, учётная запись, выход.
+ * Ниже `lg` колонки нет, и всё лежит в списке, как раньше.
+ *
+ * Пока список раскрыт, колонка гаснет: список ложится на то же место и
+ * закрывал бы её на две трети, а выглядывающие из-под него знаки читались бы
+ * мусором.
  */
 
 /** Закрыть меню — любому пункту внутри него, без передачи обратного вызова. */
@@ -99,11 +114,17 @@ export interface OpenSection {
 
 export function HeaderMenu({
   items,
+  rail,
   signedInOnly = false,
   section,
   compact = false,
 }: {
   items?: ReactNode;
+  /**
+   * Знаки под кнопкой — колонкой, с `lg` (`RailKnob`). Те же действия, что у
+   * строк `items`, которые с этого порога скрыты.
+   */
+  rail?: ReactNode;
   /**
    * Пункты нужны только вошедшему: не вошедшему вместо меню — «Вход».
    *
@@ -267,6 +288,20 @@ export function HeaderMenu({
         <MenuMark cross={section !== undefined || открыто} />
       </button>
 
+      {rail === undefined ? null : (
+        <div
+          role="group"
+          aria-label="Разделы"
+          className={cn(
+            HEADER_RAIL,
+            "transition-[opacity,visibility] duration-200",
+            открыто && "lg:invisible lg:opacity-0",
+          )}
+        >
+          {rail}
+        </div>
+      )}
+
       {открыто && (
         <Закрыть.Provider value={() => setОткрытоНа(null)}>
           <div
@@ -334,11 +369,18 @@ export function MenuItem({
   icon: Icon,
   href,
   onClick,
+  className,
   children,
 }: {
   icon: LucideIcon;
   href?: string;
   onClick?: () => void;
+  /**
+   * Дополнение к виду строки. Нужен, чтобы убрать строку с `lg`, где то же
+   * действие стоит знаком под кнопкой меню (`rail`): скрывается стилем, а не
+   * условием в разметке — страница серверная, ширину окна она не знает.
+   */
+  className?: string;
   children: string;
 }) {
   const закрыть = useContext(Закрыть);
@@ -348,7 +390,7 @@ export function MenuItem({
       // Переход закрывает меню сам (оно помнит свою страницу), но «Учётная
       // запись», нажатая НА странице учётной записи, никуда не ведёт — и
       // меню осталось бы висеть.
-      <Link href={href} className={ПУНКТ} onClick={закрыть}>
+      <Link href={href} className={cn(ПУНКТ, className)} onClick={закрыть}>
         <Icon aria-hidden />
         {children}
       </Link>
@@ -362,7 +404,7 @@ export function MenuItem({
         onClick?.();
         закрыть();
       }}
-      className={ПУНКТ}
+      className={cn(ПУНКТ, className)}
     >
       <Icon aria-hidden />
       {children}

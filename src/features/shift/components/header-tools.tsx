@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 
 import { HelpMenuItem, MenuItem } from "@/components/shared/header-menu";
+import { RailKnob } from "@/components/shared/header-rail";
 
 import { SECTION_HASH } from "./section-hash";
 
@@ -59,7 +60,24 @@ import { SECTION_HASH } from "./section-hash";
  * Окно выгрузки (`save-to-file.tsx`) рисует рабочий экран, а сюда
  * приходит только `onSave`: меню закрывается нажатием, и окно,
  * нарисованное внутри него, закрылось бы вместе с ним.
+ *
+ * --- Почему с `lg` они не в списке -------------------------------------------
+ *
+ * На широком экране те же пять действий стоят колонкой знаков под кнопкой меню
+ * (`WorkspaceRail` ниже), а из списка скрыты (`RAIL_ONLY`). Два нажатия до
+ * настроек были платой за тесноту шапки, а на широком экране теснота кончается:
+ * справа свободно поле, где в правом нижнем углу уже стоит такая же колонка
+ * знаков управления сеткой. Скрыты они стилем, а не условием в разметке:
+ * страница серверная, ширину окна она не знает, а `AccountMenuItems` обязан
+ * вести себя так же.
  */
+
+/**
+ * Строка списка, у которой с `lg` есть знак в колонке под кнопкой меню.
+ * Пара к `WorkspaceRail` и `AccountRail`: меняются вместе.
+ */
+const RAIL_ONLY = "lg:hidden";
+
 export function WorkspaceMenuItems({
   onToggleSettings,
   onToggleEvents,
@@ -76,22 +94,82 @@ export function WorkspaceMenuItems({
 }) {
   return (
     <>
-      <MenuItem icon={Settings} onClick={onToggleSettings}>
+      <MenuItem icon={Settings} onClick={onToggleSettings} className={RAIL_ONLY}>
         Настройки
       </MenuItem>
-      <MenuItem icon={CalendarRange} onClick={onToggleEvents}>
+      <MenuItem icon={CalendarRange} onClick={onToggleEvents} className={RAIL_ONLY}>
         События
       </MenuItem>
-      <MenuItem icon={ChartColumn} onClick={onToggleStats}>
+      <MenuItem icon={ChartColumn} onClick={onToggleStats} className={RAIL_ONLY}>
         Статистика
       </MenuItem>
-      <MenuItem icon={FolderOpen} onClick={onToggleExplorer}>
+      <MenuItem icon={FolderOpen} onClick={onToggleExplorer} className={RAIL_ONLY}>
         Графики
       </MenuItem>
-      <MenuItem icon={Save} onClick={onSave}>
+      <MenuItem icon={Save} onClick={onSave} className={RAIL_ONLY}>
         Сохранить
       </MenuItem>
       <HelpMenuItem />
+    </>
+  );
+}
+
+/** Раздел, показанный на месте расчёта, — знак этого раздела горит. */
+export type OpenedSection = "settings" | "events" | "stats" | "graphs";
+
+/**
+ * Колонка знаков под кнопкой меню — те же пять действий, но знаками и с `lg`
+ * (`shared/header-rail.tsx`).
+ *
+ * Колонка остаётся и пока раздел открыт, и тогда горит знак этого раздела:
+ * из любого места можно перейти в соседний одним нажатием, не закрывая
+ * нынешний, а нажатие по горящему закрывает его — как нажатие по кнопке
+ * меню, сложенной крестиком.
+ */
+export function WorkspaceRail({
+  opened,
+  onToggleSettings,
+  onToggleEvents,
+  onToggleStats,
+  onToggleExplorer,
+  onSave,
+}: {
+  opened?: OpenedSection;
+  onToggleSettings: () => void;
+  onToggleEvents: () => void;
+  onToggleStats: () => void;
+  onToggleExplorer: () => void;
+  /** Открыть окно выгрузки профиля в файл. */
+  onSave: () => void;
+}) {
+  return (
+    <>
+      <RailKnob
+        icon={Settings}
+        label="Настройки"
+        active={opened === "settings"}
+        onClick={onToggleSettings}
+      />
+      <RailKnob
+        icon={CalendarRange}
+        label="События"
+        active={opened === "events"}
+        onClick={onToggleEvents}
+      />
+      <RailKnob
+        icon={ChartColumn}
+        label="Статистика"
+        active={opened === "stats"}
+        onClick={onToggleStats}
+      />
+      <RailKnob
+        icon={FolderOpen}
+        label="Графики"
+        active={opened === "graphs"}
+        onClick={onToggleExplorer}
+      />
+      {/* «Сохранить» не раздел, а окно: гореть ему нечем. */}
+      <RailKnob icon={Save} label="Сохранить" onClick={onSave} />
     </>
   );
 }
@@ -123,22 +201,40 @@ export function AccountMenuItems({ help = true }: { help?: boolean }) {
       <MenuItem icon={CalendarDays} href="/calculator">
         Открыть график
       </MenuItem>
-      <MenuItem icon={Settings} href={`/calculator#${SECTION_HASH.settings}`}>
+      <MenuItem icon={Settings} href={`/calculator#${SECTION_HASH.settings}`} className={RAIL_ONLY}>
         Настройки
       </MenuItem>
-      <MenuItem icon={CalendarRange} href={`/calculator#${SECTION_HASH.events}`}>
+      <MenuItem icon={CalendarRange} href={`/calculator#${SECTION_HASH.events}`} className={RAIL_ONLY}>
         События
       </MenuItem>
-      <MenuItem icon={ChartColumn} href={`/calculator#${SECTION_HASH.stats}`}>
+      <MenuItem icon={ChartColumn} href={`/calculator#${SECTION_HASH.stats}`} className={RAIL_ONLY}>
         Статистика
       </MenuItem>
-      <MenuItem icon={FolderOpen} href={`/calculator#${SECTION_HASH.graphs}`}>
+      <MenuItem icon={FolderOpen} href={`/calculator#${SECTION_HASH.graphs}`} className={RAIL_ONLY}>
         Графики
       </MenuItem>
-      <MenuItem icon={Save} href={`/calculator#${SECTION_HASH.save}`}>
+      <MenuItem icon={Save} href={`/calculator#${SECTION_HASH.save}`} className={RAIL_ONLY}>
         Сохранить
       </MenuItem>
       {help ? <HelpMenuItem /> : null}
+    </>
+  );
+}
+
+/**
+ * Те же знаки колонки — со страницы учётной записи и справки: ссылками на
+ * расчёт с адресом раздела, как и строки `AccountMenuItems`, которые с `lg`
+ * они заменяют. Отдельным компонентом без свойств — по той же причине, что и
+ * остальные: страницы серверные, а значок пункта — функция.
+ */
+export function AccountRail() {
+  return (
+    <>
+      <RailKnob icon={Settings} label="Настройки" href={`/calculator#${SECTION_HASH.settings}`} />
+      <RailKnob icon={CalendarRange} label="События" href={`/calculator#${SECTION_HASH.events}`} />
+      <RailKnob icon={ChartColumn} label="Статистика" href={`/calculator#${SECTION_HASH.stats}`} />
+      <RailKnob icon={FolderOpen} label="Графики" href={`/calculator#${SECTION_HASH.graphs}`} />
+      <RailKnob icon={Save} label="Сохранить" href={`/calculator#${SECTION_HASH.save}`} />
     </>
   );
 }

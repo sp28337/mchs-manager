@@ -147,6 +147,11 @@ export interface SiteHeaderProps {
    */
   menu?: ReactNode;
   /**
+   * Знаки под кнопкой меню — колонкой, с `lg`: те же действия, что у строк
+   * `menu`, которые с этого порога скрыты (`HeaderMenu`, `rail`).
+   */
+  rail?: ReactNode;
+  /**
    * Пункты меню — только для вошедшего (`HeaderMenu`, `signedInOnly`): не
    * вошедшему справа стоит «Вход», а не «Меню». Так устроена посадочная.
    */
@@ -170,6 +175,7 @@ export function SiteHeader({
   title,
   center,
   menu,
+  rail,
   menuSignedInOnly,
   menuBone,
   section,
@@ -306,6 +312,7 @@ export function SiteHeader({
           ) : (
             <HeaderMenu
               items={menu}
+              rail={rail}
               signedInOnly={menuSignedInOnly}
               section={section}
               compact={centered}
