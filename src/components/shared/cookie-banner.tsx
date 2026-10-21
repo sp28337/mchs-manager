@@ -59,7 +59,7 @@ export function CookieBanner() {
     >
       <div
         className={cn(
-          "pointer-events-auto modal-lift mx-auto flex w-full max-w-3xl flex-col gap-4 rounded-xl",
+          "pointer-events-auto modal-lift mx-auto flex w-full max-w-4xl flex-col gap-4 rounded-xl",
           "bg-paper-raised px-5 py-4 sm:flex-row sm:items-center",
         )}
       >
@@ -68,7 +68,9 @@ export function CookieBanner() {
             вторая строка — справка, и ответ не должен зависеть от того, что её
             открыли. */}
         <div className="min-w-0 flex-1 space-y-2 text-sm leading-6 text-ink-muted">
-          <p>
+          {/* `text-pretty` — на случай ширин, где строка всё равно кончается одним
+              словом: браузер сам подтягивает к нему соседнее. */}
+          <p className="text-pretty">
             Мы используем Яндекс Метрику, чтобы понимать, как работает сайт, и
             улучшать его. Счётчик загружается только с вашего согласия. Вы
             можете разрешить сбор данных или оставить только необходимые
