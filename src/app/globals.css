@@ -3462,6 +3462,9 @@
 .demo[data-play="off"] .demo-cell-mid,
 .demo[data-play="off"] .demo-cell-last,
 .demo[data-play="off"] .demo-dialog,
+.demo[data-play="off"] .demo-period-list,
+.demo[data-play="off"] .demo-period-ring-quarter,
+.demo[data-play="off"] .demo-period-figures-quarter,
 .demo[data-play="off"] .demo-file,
 .demo[data-play="off"] .demo-caret,
 .demo[data-play="off"] .demo-list,
@@ -4333,6 +4336,240 @@
 }
 
 /* --------------------------------------------------------------------------
+   ПОКАЗ: УЧЁТНЫЙ ПЕРИОД.
+
+   Доли круга (8 секунд): 9 указатель у часов, 13 нажатие, 19 окошко
+   открыто, 30 указатель у второго квартала, 40 нажатие, 44 окошко
+   закрывается, 46–56 часы и числа сменились, 92–98 тихий возврат.
+
+   Круг длиннее общего: нажатий два, и между ними нужно успеть прочитать
+   список, а после второго — увидеть, КАКИЕ числа сменились.
+   -------------------------------------------------------------------------- */
+
+.demo-period {
+  --demo-cycle: 8000ms;
+}
+
+/* Рука у часов: приходит, нажимает и уходит до того, как окошко откроется
+   полностью, — иначе она лежала бы на самих часах и закрывала рисунок. */
+@keyframes demo-period-tap-clock {
+  0%,
+  4% {
+    opacity: 0;
+    transform: translate(16px, 13px);
+  }
+
+  9%,
+  17% {
+    opacity: 1;
+    transform: none;
+  }
+
+  23%,
+  100% {
+    opacity: 0;
+    transform: translate(12px, 15px);
+  }
+}
+
+.demo[data-play="on"] .demo-tap-period-clock {
+  --press: 13;
+  animation: demo-period-tap-clock var(--demo-cycle) cubic-bezier(0.22, 1, 0.36, 1) infinite both;
+}
+
+/* Рука у второго квартала: приходит, когда список уже открыт и прочитан. */
+@keyframes demo-period-tap-row {
+  0%,
+  24% {
+    opacity: 0;
+    transform: translate(16px, 13px);
+  }
+
+  31%,
+  46% {
+    opacity: 1;
+    transform: none;
+  }
+
+  52%,
+  100% {
+    opacity: 0;
+    transform: translate(12px, 15px);
+  }
+}
+
+.demo[data-play="on"] .demo-tap-period-row {
+  --press: 40;
+  animation: demo-period-tap-row var(--demo-cycle) cubic-bezier(0.22, 1, 0.36, 1) infinite both;
+}
+
+/* Окошко открывается тем же движением, что и настоящее (`pop-in`): сверху и
+   коротко, без отскока; закрывается само, когда выбрали. */
+@keyframes demo-period-list {
+  0%,
+  13% {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.98);
+  }
+
+  19%,
+  44% {
+    opacity: 1;
+    transform: none;
+  }
+
+  49%,
+  100% {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.98);
+  }
+}
+
+.demo[data-play="on"] .demo-period-list {
+  animation: demo-period-list var(--demo-cycle) cubic-bezier(0.22, 1, 0.36, 1) infinite both;
+}
+
+/* Числа за окошком приглушены, пока оно открыто. */
+@keyframes demo-period-veil {
+  0%,
+  13%,
+  49%,
+  100% {
+    opacity: 1;
+  }
+
+  19%,
+  44% {
+    opacity: 0.12;
+  }
+}
+
+.demo[data-play="on"] .demo-period-veil {
+  animation: demo-period-veil var(--demo-cycle) ease-in-out infinite both;
+}
+
+/* Выбранная строка подсвечивается под нажатием и отпускает. */
+@keyframes demo-period-target {
+  0%,
+  36%,
+  46%,
+  100% {
+    transform: none;
+    background-color: transparent;
+  }
+
+  41% {
+    transform: scale(0.98);
+    background-color: var(--color-paper-sunken);
+  }
+}
+
+.demo[data-play="on"] .demo-period-target {
+  animation: demo-period-target var(--demo-cycle) ease-out infinite both;
+}
+
+/* Знак на часах: год сменяется вторым кварталом на месте. Только прозрачность
+   — круг и четверть разной формы, и размытие на тонкой линии читалось бы
+   пятном. */
+@keyframes demo-period-ring-year {
+  0%,
+  44% {
+    opacity: 1;
+  }
+
+  50%,
+  92% {
+    opacity: 0;
+  }
+
+  98%,
+  100% {
+    opacity: 1;
+  }
+}
+
+@keyframes demo-period-ring-quarter {
+  0%,
+  44% {
+    opacity: 0;
+  }
+
+  50%,
+  92% {
+    opacity: 1;
+  }
+
+  98%,
+  100% {
+    opacity: 0;
+  }
+}
+
+.demo[data-play="on"] .demo-period-ring-year {
+  animation: demo-period-ring-year var(--demo-cycle) ease-in-out infinite both;
+}
+
+.demo[data-play="on"] .demo-period-ring-quarter {
+  animation: demo-period-ring-quarter var(--demo-cycle) ease-in-out infinite both;
+}
+
+/* Числа: прежние истлевают и их сносит вверх и вправо, новые занимаются на
+   их месте — те же кадры, что у значения графика в первом показе. */
+@keyframes demo-period-figures-year {
+  0%,
+  47% {
+    opacity: 1;
+    transform: none;
+    filter: none;
+  }
+
+  54%,
+  92% {
+    opacity: 0;
+    transform: translate(6px, -8px) rotate(1deg);
+    filter: blur(3px);
+  }
+
+  98%,
+  100% {
+    opacity: 1;
+    transform: none;
+    filter: none;
+  }
+}
+
+@keyframes demo-period-figures-quarter {
+  0%,
+  48% {
+    opacity: 0;
+    transform: translateY(7px);
+    filter: blur(3px);
+  }
+
+  56%,
+  92% {
+    opacity: 1;
+    transform: none;
+    filter: none;
+  }
+
+  98%,
+  100% {
+    opacity: 0;
+    transform: translateY(7px);
+    filter: blur(3px);
+  }
+}
+
+.demo[data-play="on"] .demo-period-figures-year {
+  animation: demo-period-figures-year var(--demo-cycle) ease-in-out infinite both;
+}
+
+.demo[data-play="on"] .demo-period-figures-quarter {
+  animation: demo-period-figures-quarter var(--demo-cycle) cubic-bezier(0.22, 1, 0.36, 1) infinite both;
+}
+
+/* --------------------------------------------------------------------------
    ПОКАЗ 4. ВЫГРУЗКА В ФАЙЛ.
 
    Доли круга: 5 указатель у кнопки, 12 нажатие, 15 окно открывается, 22
@@ -4653,6 +4890,8 @@
   .demo .demo-became,
   .demo .demo-cell-last,
   .demo .demo-dialog,
+  .demo .demo-period-ring-quarter,
+  .demo .demo-period-figures-quarter,
   .demo .demo-file,
   .demo .demo-uplink {
     opacity: 1 !important;
@@ -4665,6 +4904,9 @@
      нём такое же прежнее, как и «сутки через трое». Меню в последнем
      кадре закрыто — его закрыло то же нажатие, что открыло окно. */
   .demo .demo-menu,
+  .demo .demo-period-list,
+  .demo .demo-period-ring-year,
+  .demo .demo-period-figures-year,
   .demo .demo-swap-out,
   .demo .demo-swap-mid,
   .demo .demo-strip-prev,

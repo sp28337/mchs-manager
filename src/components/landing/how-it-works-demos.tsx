@@ -1,6 +1,7 @@
-import type { CSSProperties, ReactNode } from "react";
+import { Fragment, type CSSProperties, type ReactNode } from "react";
 import {
   CalendarRange,
+  Check,
   ChartColumn,
   FolderOpen,
   Save,
@@ -9,6 +10,12 @@ import {
 } from "lucide-react";
 
 import { HEADER_WORD, MARK_EMPTY, MenuMark } from "@/components/shared/header-action";
+import { BalanceCaption } from "@/components/ui/balance-caption";
+import { FigureSep, FIGURE_TRIO } from "@/components/ui/figure-sep";
+import { knobOption } from "@/components/ui/knob";
+import { MENU_LIST } from "@/components/ui/menu-row";
+import { Figure } from "@/components/ui/summary-figure";
+import { PeriodIcon } from "@/features/shift/components/grid-icons";
 import { MonthGrid } from "@/features/shift/components/month-grid";
 import {
   addDays,
@@ -18,7 +25,7 @@ import {
   weekday,
   type IsoDate,
 } from "@/features/shift/domain/plain-date";
-import { SHIFT_CYCLE_DAYS } from "@/features/shift/domain/value-objects";
+import { SHIFT_CYCLE_DAYS, type AccountingPeriodKind } from "@/features/shift/domain/value-objects";
 import { SYNC_ENABLED } from "@/features/sync/ui/enabled";
 import { cn } from "@/lib/utils/cn";
 
@@ -26,7 +33,7 @@ import { DEMO_LIST, rowOf } from "./demo-list";
 import { HandIcon } from "./hand-icon";
 
 /**
- * Четыре показа к разделу «Как работает».
+ * Пять показов к разделу «Как работает».
  *
  * --- Почему показ, а не список возможностей -------------------------------
  *
@@ -480,6 +487,179 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
         {children}
       </span>
     </div>
+  );
+}
+
+/* ========================================================================
+   УЧЁТНЫЙ ПЕРИОД — второй шаг, сразу за графиком.
+
+   График задан, норма из него следует — и тут же возникает вопрос «за
+   какой срок?». По итогу учётного периода определяется переработка
+   (ч. 3 ст. 104 ТК РФ), а период бывает разным: год, полугодие, квартал.
+   Показано это нажатием на часы посередине шапки: круг на них закрашен
+   на выбранную долю, под ними окошко со списком долей, а числа полосы
+   итога отвечают на выбор новыми значениями.
+
+   Всё, что здесь видно, взято из настоящих деталей:
+
+   * знак — `PeriodIcon`, тот же, что на кнопке и в строках списка: целый
+     круг — год, четверть — квартал;
+   * окошко повторяет `PeriodPicker`: те же семь долей тремя ступенями
+     (год, два полугодия, четыре квартала), та же строка списка
+     (`knobOption`) и галочка у выбранной;
+   * числа — `Figure` и `FigureSep`, те же, что в полосе итога и на первом
+     экране, а подпись третьего — `BalanceCaption`;
+   * значения НАСТОЯЩИЕ: их выдал расчёт для графика «сутки через трое» со
+     сменой в восемь утра и первой сменой 2 января 2026-го — за год норма
+     1972 часа, отработано 2184, разница 212; за второй квартал — 493, 536
+     и 43. Выдуманные числа были бы враньём о том, что человек увидит
+     внутри, и ловились бы первым же сравнением.
+
+   Порядок — как в приложении: нажали на часы, окошко открылось, выбрали
+   строку, окошко закрылось само, часы и числа сменились. Пока окошко
+   открыто, числа за ним приглушены: в приложении они лежат под окошком
+   и видны сквозь пустые места, а показу нужно, чтобы ответ не прочли до
+   того, как о нём спросили.
+   ======================================================================== */
+
+type PeriodPart = { kind: AccountingPeriodKind; index: number; label: string };
+
+/** Доли года так, как их показывает окошко: три ступени, от широкой к узкой. */
+const PERIOD_GROUPS: readonly (readonly PeriodPart[])[] = [
+  [{ kind: "year", index: 0, label: "Весь год" }],
+  [
+    { kind: "half_year", index: 0, label: "1-е полугодие" },
+    { kind: "half_year", index: 1, label: "2-е полугодие" },
+  ],
+  [
+    { kind: "quarter", index: 0, label: "1-й квартал" },
+    { kind: "quarter", index: 1, label: "2-й квартал" },
+    { kind: "quarter", index: 2, label: "3-й квартал" },
+    { kind: "quarter", index: 3, label: "4-й квартал" },
+  ],
+];
+
+/** Стоит с самого начала — год — и та, на которую нажимают, — второй квартал. */
+export const PERIOD_FROM = PERIOD_GROUPS[0]![0]!;
+export const PERIOD_TO = PERIOD_GROUPS[2]![1]!;
+
+/**
+ * Числа полосы: норма, отработано, переработка. Из расчёта, см. выше; тест
+ * (`period-demo.test.ts`) пересчитывает их тем же расчётом и падает, если
+ * расчёт изменился, а показ нет.
+ */
+export const PERIOD_FIGURES = {
+  year: { norm: "1972", actual: "2184", balance: "212" },
+  quarter: { norm: "493", actual: "536", balance: "43" },
+} as const;
+
+function PeriodFigures({ values }: { values: (typeof PERIOD_FIGURES)[keyof typeof PERIOD_FIGURES] }) {
+  return (
+    <dl className={cn("min-w-0 gap-x-2.5 md:gap-x-3.5", FIGURE_TRIO)}>
+      <Figure still parts={[{ value: values.norm, unit: "ч" }]} caption="Норма периода" />
+      <FigureSep />
+      <Figure still parts={[{ value: values.actual, unit: "ч" }]} caption="Отработано" />
+      <FigureSep />
+      <Figure
+        still
+        parts={[{ value: values.balance, unit: "ч" }]}
+        caption={<BalanceCaption under={false} />}
+        tone="verify"
+      />
+    </dl>
+  );
+}
+
+export function DemoPeriod() {
+  return (
+    // Круг длиннее общего: нажатий два, и между ними нужно успеть прочитать
+    // список. Длительность приходит переменной, доли считаются от неё.
+    <Panel className="demo-period">
+      <div className="w-full max-w-104">
+        {/* Шапка: только часы по середине — остальное в ней к показу не
+            относится. Две копии знака лежат друг на друге: подменить
+            содержимое нечем, страница отдаётся статикой. Нажимают на ту, что
+            лежит в ячейке целиком: место под палец то же, что в приложении
+            (44 точки), рисунок 28. */}
+        <div className="flex justify-center">
+          <span className="relative inline-flex size-11 items-center justify-center text-ink">
+            <span className="demo-period-ring-year absolute inset-0 grid place-items-center">
+              <PeriodIcon kind={PERIOD_FROM.kind} index={PERIOD_FROM.index} className="size-7" />
+            </span>
+            <span className="demo-period-ring-quarter absolute inset-0 grid place-items-center">
+              <PeriodIcon kind={PERIOD_TO.kind} index={PERIOD_TO.index} className="size-7" />
+            </span>
+            <Pointer className="demo-tap-period-clock left-[calc(50%-12px)] top-[calc(50%-6px)]" />
+          </span>
+        </div>
+
+        {/* Окошко и всё, что под ним, стоят в одной ячейке, как меню и окно в
+            показе выгрузки: окошко открывается там, где лежат числа, и показу
+            незачем подпрыгивать на высоту окошка. Высоту держит окошко, числа
+            и неделя под ними — по середине ячейки.
+            Неделя здесь — тот же ряд, что в первом показе (`WeekGrid`): в
+            приложении под полосой итога лежит календарь, и числа без него
+            висели бы в пустоте. Она не меняется от выбора — меняется набор
+            месяцев, а одним рядом это не показать. */}
+        <div className="mt-2 grid">
+          <div className="demo-period-veil col-start-1 row-start-1 space-y-5 self-center">
+            <div className="grid">
+              <div className="demo-period-figures-year col-start-1 row-start-1">
+                <PeriodFigures values={PERIOD_FIGURES.year} />
+              </div>
+              <div className="demo-period-figures-quarter col-start-1 row-start-1">
+                <PeriodFigures values={PERIOD_FIGURES.quarter} />
+              </div>
+            </div>
+            <WeekGrid cells={WEEK_ONE_THREE} />
+          </div>
+
+          {/* Окошко — то самое, что открывает кнопка (`PeriodPicker`): та же
+              кайма, ширина и три ступени списка с чертой между ними. */}
+          <div
+            className={cn(
+              "demo-period-list lit modal-lift col-start-1 row-start-1 w-64 max-w-full",
+              "justify-self-center self-start rounded-xl bg-paper-raised p-1.5",
+              MENU_LIST,
+            )}
+          >
+            {PERIOD_GROUPS.map((group, at) => (
+              <Fragment key={group[0]!.kind}>
+                {at > 0 ? (
+                  <div aria-hidden className="mx-2.5 my-0.5 border-t border-rule" />
+                ) : null}
+                {group.map((part) => {
+                  const active = part === PERIOD_FROM;
+                  const target = part === PERIOD_TO;
+                  return (
+                    <span
+                      key={`${part.kind}:${part.index}`}
+                      className={cn(
+                        knobOption(active),
+                        // Строка подсвечивается под нажатием и отпускает, как
+                        // строка меню в показе выгрузки.
+                        target && "demo-period-target relative",
+                      )}
+                    >
+                      <PeriodIcon
+                        kind={part.kind}
+                        index={part.index}
+                        className={active ? "text-ink" : undefined}
+                      />
+                      {part.label}
+                      {active ? <Check aria-hidden className="ml-auto text-ink" /> : null}
+                      {target ? (
+                        <Pointer className="demo-tap-period-row left-[calc(100%-40px)] top-[calc(50%-4px)]" />
+                      ) : null}
+                    </span>
+                  );
+                })}
+              </Fragment>
+            ))}
+          </div>
+        </div>
+      </div>
+    </Panel>
   );
 }
 
