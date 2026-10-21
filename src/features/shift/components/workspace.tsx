@@ -27,6 +27,7 @@ import { GridScaleProvider } from "./grid-scale";
 import { WorkspaceMenuItems, WorkspaceRail, type OpenedSection } from "./header-tools";
 import { scrollMonthUnderBar, topmostVisibleMonth } from "./month-anchor";
 import { useConfirmSwitch } from "./open-profile";
+import { FollowSummary } from "./follow-summary";
 import { PeriodPicker } from "./period-picker";
 import { PeriodSummary, REVEAL_DELAY_MS } from "./period-summary";
 import { SECTION_HASH, sectionFromHash, type SectionHash } from "./section-hash";
@@ -671,11 +672,16 @@ export function Workspace({
         // который эти числа не считались.
         center={
           explorerOpen || showSettings ? undefined : (
-            <PeriodPicker
-              accountingYear={headProfile.accountingYear}
-              statutory={statutory}
-              onStatutory={setStatutory}
-            />
+            // Кнопка стоит в шапке, закреплённой окном, а полоса цифр
+            // под ней — внутри страницы и в конце страницы уезжает вверх;
+            // кнопка уезжает с ней (`follow-summary.tsx`).
+            <FollowSummary>
+              <PeriodPicker
+                accountingYear={headProfile.accountingYear}
+                statutory={statutory}
+                onStatutory={setStatutory}
+              />
+            </FollowSummary>
           )
         }
         menu={
