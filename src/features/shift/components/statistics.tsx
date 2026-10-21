@@ -15,7 +15,7 @@ import {
   type Decimal,
 } from "../domain/decimal";
 import { formatDayMonthRu } from "../domain/format";
-import type { IsoDate } from "../domain/plain-date";
+import { todayIso, type IsoDate } from "../domain/plain-date";
 import { MONTH_NAMES } from "./month-names";
 import { monthsIn, partLabel } from "./period-picker";
 import { ABSENCE_MARK, ABSENCE_TONE, CALLOUT_MARK, CALLOUT_TONE } from "./day-marks";
@@ -29,8 +29,6 @@ import {
   type AbsenceStat,
   type CalloutEntry,
   type EventNote,
-  type MonthStat,
-  type PartStat,
   type ProfileTotals,
   type Statistics,
 } from "../model/statistics";
@@ -44,6 +42,8 @@ import {
 import type { StoredProfile } from "../storage/profile";
 import { BalanceChart, ColumnChart, ShareBar, type Column } from "./charts";
 import { useLibrary } from "./profile-explorer";
+import { Ledger, signed, type LedgerColumn } from "./stats-ledger";
+import { PeriodTimeline, type TimelineSpan } from "./stats-timeline";
 
 /**
  * Статистика выбранного учётного периода — разделом страницы, на месте
@@ -70,22 +70,27 @@ import { useLibrary } from "./profile-explorer";
  *
  * --- Из чего она собрана --------------------------------------------------
  *
- * Из трёх ответов на три разных вопроса, и в этом порядке:
+ * Из трёх плашек — трёх ответов на три разных вопроса, и в этом порядке, от
+ * картины к подробностям:
  *
- *  1. «Чем кончился год» — одно крупное число баланса и шесть величин
- *     при нём. Рисунка здесь нет и быть не должно: одно значение — это
- *     число, а не столбик.
- *  2. «Из чего это вышло» — вызовы по одному, отпуска сводом, отгулы по
- *     одному и точные числа таблицами: по месяцам и по учётным периодам.
- *     Отпуска сведены по видам, потому что вопрос к ним один — на сколько
- *     они уменьшили норму; вызовы и отгулы перечислены поимённо, потому
- *     что к ним вопрос другой — когда это было и за что.
- *  3. «Как шло» — рисунки, и они замыкают раздел. Ночные часы отдельным
- *     рисунком, потому что величина у них другая: подсадить их к норме
- *     второй осью значило бы выдумать связь, которой в данных нет. Норма и
- *     факт по месяцам с накопленным балансом — последними: они отвечают на
- *     тот же вопрос, что полоса наверху, и закрывают год, которым раздел
- *     начался.
+ *  1. «Как шло» — три рисунка рядом (`Course`): норма и факт по месяцам,
+ *     накопленный баланс и ночные часы. Месяцы у них одни и те же, и рядом
+ *     они читаются как одна картина года. Ночные — отдельным рисунком, потому
+ *     что величина у них другая: подсадить их к норме второй осью значило бы
+ *     выдумать связь, которой в данных нет.
+ *  2. «Из чего вышло» — события периода (`Events`): лента по датам, на которой
+ *     видно, где человека не было и где он работал без передыха, и перечни под
+ *     ней. Отпуска сведены по видам, потому что вопрос к ним один — на сколько
+ *     они уменьшили норму; вызовы, больничные, командировки и отгулы
+ *     перечислены поимённо, потому что к ним вопрос другой — когда это было и
+ *     за что.
+ *  3. «Точные числа» — таблицы по месяцам и по учётным периодам (`Numbers`).
+ *     Месяцы в них идут столбцами, а не строками: год помещается на экран, а не
+ *     листается.
+ *
+ * Прежде порядок был обратный — перечни, таблицы и только потом рисунки, — и
+ * всё это стояло полосой плашек в три с половиной тысячи точек высоты:
+ * рисунки, самое наглядное в разделе, оказывались на третьем экране прокрутки.
  *
  * Таблица внизу — не запасной путь для читалки, а обязательство: числа,
  * показанные цветом, обязаны быть доступны и без цвета. Зелёный на светлой
@@ -140,8 +145,7 @@ const TONE = {
  * Статистика стоит НА СТРАНИЦЕ, на месте графика (`workspace.tsx`), а не
  * окном поверх неё, и строй у неё тот же, что у проводника и настроек:
  * разделы — плашки на бумаге, а не куски сплошной ленты. Плашек ровно
- * столько, сколько вопросов: чем кончился год, из чего вышло, точные числа
- * таблицами — и рисунки, которыми всё это показано ещё раз.
+ * столько, сколько вопросов: как шло, из чего вышло, точные числа.
  *
  * `lit` — плашка ловит свет лампы: блик по верхней кромке, мягкая тень
  * вниз и кайма под курсором. Забирает их ближайшая к указателю
@@ -808,7 +812,20 @@ function ScopeDeck({
   );
 }
 
-/** Статистика одного профиля: период, разложенный на вопросы. */
+/**
+ * Статистика одного профиля: период, разложенный на вопросы.
+ *
+ * --- Порядок: от картины к подробностям -------------------------------------
+ *
+ * Раньше раздел шёл от текста к картине: пять перечней событий, две таблицы и
+ * только в самом низу — рисунки. Рисунки при этом самое наглядное, что в нём
+ * есть, а добирались до них на третьем экране прокрутки (3,6 тысячи точек
+ * высоты на настольном экране).
+ *
+ * Теперь первым стоит «как шло» — три рисунка рядом, — за ним «из чего вышло»:
+ * лента событий по датам и перечни под ней. Последними идут точные числа
+ * таблицами: их переписывают в заявление, и читают их те, кто уже понял картину.
+ */
 function OneProfile({ profile, part }: { profile: StoredProfile; part: PeriodPart }) {
   // Расчётов до девятнадцати — период, его месяцы и вложенные доли, — и
   // делать их заново на каждую отрисовку незачем: пока профиль и период те
@@ -833,27 +850,9 @@ function OneProfile({ profile, part }: { profile: StoredProfile; part: PeriodPar
   return (
     <div className="space-y-4">
       <Figures stats={stats} />
-      <Callouts stats={stats} />
-      <Absences stats={stats} />
-      <Sick stats={stats} />
-      <Trips stats={stats} />
-      <TimeOff stats={stats} />
-      <MonthTable stats={stats} />
-      <PartTable stats={stats} />
-      {/* Рисунки — после чисел, и «норма и факт» последним.
-          -----------------------------------------------------------------
-          Порядок разделов идёт от вопроса к вопросу: чем кончился год, из
-          чего это вышло, и точные числа — по месяцам и по учётным периодам.
-          Рисунки замыкают: они не отвечают на новый вопрос, а показывают
-          уже сказанное — тем же счётом, только рукой, а не цифрой.
-
-          Внутри пары ночные стоят выше. Так вышло из просьбы, но так и
-          вернее: ночные часы — отдельная величина из разговора о доплате,
-          и ставить её В СЕРЕДИНУ хода нельзя, а «норма и факт» с
-          накопленным балансом — тот же вопрос, что у полосы наверху, и
-          последним рисунком он закрывает год, которым раздел начался. */}
-      <NightTrend stats={stats} />
-      <Trends stats={stats} />
+      <Course stats={stats} />
+      <Events stats={stats} />
+      <Numbers stats={stats} />
     </div>
   );
 }
@@ -892,7 +891,7 @@ function Figures({ stats }: { stats: Statistics }) {
         За {periodPhrase(stats.part, stats.year)}
       </h3>
 
-      <dl className="grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-3">
+      <dl className="grid grid-cols-2 gap-x-6 gap-y-3 sm:grid-cols-3">
         <Tile label="Смен по графику" value={String(total.scheduledShifts)} />
         <Tile label="Отработано смен" value={String(total.workedShifts)} />
         <Tile label="Пропущено" value={String(total.absentShifts)} />
@@ -945,8 +944,38 @@ function Tile({
   );
 }
 
-/** Как шло: три рисунка по месяцам. */
-function Trends({ stats }: { stats: Statistics }) {
+/**
+ * Как шло: три рисунка по месяцам, рядом.
+ *
+ * --- Почему рядом, а не друг под другом -------------------------------------
+ *
+ * Три рисунка друг под другом — это почти тысяча точек высоты ради трёх
+ * вопросов, на которые смотрят вместе: «дотянул ли до нормы», «когда вышел в
+ * плюс» и «сколько ночных». Глаз сравнивает их по одним и тем же месяцам, а
+ * месяцы у всех трёх одни и те же, в одном порядке. Рядом они читаются как
+ * одна картина года; один под другим — как три отдельных страницы.
+ *
+ * На телефоне рядом им не уместиться, и там их место занимает переключатель:
+ * один рисунок на весь экран, два других — одним нажатием. Три подряд заставили
+ * бы листать полторы тысячи точек, чтобы дойти до таблицы.
+ *
+ * --- Почему не одна плашка на рисунок ---------------------------------------
+ *
+ * Плашка на рисунок была из-за вопросов: у каждого свой, и общая рамка вокруг
+ * троих читалась бы как один ответ в трёх частях. Здесь вопрос общий — «как шёл
+ * период», а заголовки у рисунков остаются свои, и этого хватает, чтобы их
+ * различать.
+ *
+ * Ночные часы — отдельным рисунком, а не второй осью: величина другая, и
+ * подсадить их к норме значило бы выдумать связь, которой в данных нет. Рисунка
+ * нет вовсе, если ночных нет: пустое поле с осью от нуля до единицы — это не
+ * «ночных не было», это «что-то сломалось».
+ */
+type CourseView = "fact" | "balance" | "night";
+
+function Course({ stats }: { stats: Statistics }) {
+  const [view, setView] = useState<CourseView>("fact");
+
   const normFact: Column[] = stats.months.map((it) => ({
     label: SHORT[it.month]!,
     title: MONTH_NAMES[it.month]!,
@@ -970,48 +999,6 @@ function Trends({ stats }: { stats: Statistics }) {
     ],
   }));
 
-  // Плашка на каждый рисунок, а не одна на три: вопросы у них разные —
-  // «где недобрал», «когда вышел в плюс», «сколько ночных», — и общая
-  // рамка вокруг троих читалась бы как один ответ в трёх частях. Класс
-  // вешается снаружи, а не внутри `charts.tsx`: рисунки ничего не знают
-  // про страницу, на которой стоят.
-  return (
-    <div className="space-y-4">
-      <div className={PLATE}>
-        <ColumnChart
-          title="Норма и факт по месяцам"
-          columns={normFact}
-          bar={{ name: "Отработано", colour: TONE.fact, shape: "bar" }}
-          target={{ name: "Норма месяца", colour: TONE.norm, shape: "tick" }}
-          format={axis}
-        />
-      </div>
-
-      <div className={PLATE}>
-        <BalanceChart
-          title="Как копится баланс"
-          columns={running}
-          format={axis}
-          over={TONE.over}
-          under={TONE.under}
-        />
-      </div>
-    </div>
-  );
-}
-
-/**
- * Ночные часы по месяцам — отдельным рисунком и ниже таблиц.
- *
- * Отдельным — потому что величина другая: подсадить их к норме второй осью
- * значило бы выдумать связь, которой в данных нет. Ниже таблиц — потому
- * что и вопрос другой: остальное на странице про переработку, а ночные про
- * доплату, и читают их, когда с переработкой уже разобрались.
- *
- * Рисунка нет вовсе, если ночных нет: пустое поле с осью от нуля до
- * единицы — это не «ночных не было», это «что-то сломалось».
- */
-function NightTrend({ stats }: { stats: Statistics }) {
   const night: Column[] = stats.months.map((it) => ({
     label: SHORT[it.month]!,
     title: MONTH_NAMES[it.month]!,
@@ -1024,194 +1011,253 @@ function NightTrend({ stats }: { stats: Statistics }) {
         ],
   }));
 
-  if (!stats.months.some((it) => it.nightHours.greaterThan(0))) return null;
+  const hasNight = stats.months.some((it) => it.nightHours.greaterThan(0));
+
+  const views: { id: CourseView; label: string }[] = [
+    { id: "fact", label: "Норма и факт" },
+    { id: "balance", label: "Баланс" },
+    ...(hasNight ? [{ id: "night" as const, label: "Ночные" }] : []),
+  ];
+  // Выбранного рисунка могло не стать: ночные исчезли, когда сменили профиль.
+  const shown = views.some((it) => it.id === view) ? view : "fact";
+  // Скрыт только на узком экране: от `lg` рисунки стоят рядом все сразу.
+  const only = (id: CourseView) => (id === shown ? undefined : "max-lg:hidden");
 
   return (
-    <div className={PLATE}>
-      <ColumnChart
-        title="Ночные часы по месяцам"
-        columns={night}
-        bar={{ name: "Ночные", colour: TONE.night, shape: "bar" }}
-        format={axis}
-      />
-    </div>
+    <section className={cn(PLATE, "space-y-4")}>
+      <Segmented label="Рисунок" className="w-full lg:hidden">
+        {views.map((it) => (
+          <SegmentedItem
+            key={it.id}
+            active={it.id === shown}
+            onClick={() => setView(it.id)}
+            className="flex-1"
+          >
+            {it.label}
+          </SegmentedItem>
+        ))}
+      </Segmented>
+
+      <div className={cn("grid gap-x-8 gap-y-6", hasNight ? "lg:grid-cols-3" : "lg:grid-cols-2")}>
+        <div className={only("fact")}>
+          <ColumnChart
+            title="Норма и факт по месяцам"
+            columns={normFact}
+            bar={{ name: "Отработано", colour: TONE.fact, shape: "bar" }}
+            target={{ name: "Норма месяца", colour: TONE.norm, shape: "tick" }}
+            format={axis}
+          />
+        </div>
+
+        <div className={only("balance")}>
+          <BalanceChart
+            title="Как копится баланс"
+            columns={running}
+            format={axis}
+            over={TONE.over}
+            under={TONE.under}
+          />
+        </div>
+
+        {hasNight ? (
+          <div className={only("night")}>
+            <ColumnChart
+              title="Ночные часы по месяцам"
+              columns={night}
+              bar={{ name: "Ночные", colour: TONE.night, shape: "bar" }}
+              format={axis}
+              // У соседних рисунков легенда есть, у этого серия одна и легенды
+              // нет: место под неё держится, чтобы оси стояли на одной линии.
+              alignWithLegend
+            />
+          </div>
+        ) : null}
+      </div>
+    </section>
   );
 }
 
-/**
- * Откуда взялись часы сверх своего графика: вызовы по одному.
- *
- * --- Зачем отдельным разделом ----------------------------------------------
- *
- * Вопросов о переработке два, и они разные. «Почему норма меньше» —
- * освобождения, они ниже. «Откуда часы сверх неё» — вот это: смены свои и
- * вызовы помимо них. До сих пор вызовы были видны только россыпью клеток
- * на сетке да строками в перечне правок, и человек, которого вызывали
- * четырежды за год, складывал часы сам — по распоряжениям, если они у
- * него сохранились.
- *
- * --- Почему по записям, а не сводом по видам --------------------------------
- *
- * Свод («Вызов — 4 дня, 32 ч») отвечает на вопрос «сколько всего», и он
- * второй. Первый — «когда это было»: спорят не с суммой, а с конкретным
- * выходом, у которого есть дата, распоряжение и своя пометка о том, за что
- * вызывали. Четыре строки с датами отвечают и на первый вопрос, и на
- * второй; одна сводная — только на второй.
- *
- * Полоски долей при этом ушли. У свода они сравнивали вид с видом, и это
- * было о чём-то: сбор против вызова. У записей они сравнивали бы один
- * выход с другим — утверждение, которого никто не делал, — и растили бы
- * раздел вдвое там, где строк теперь столько, сколько было выходов.
- *
- * --- Почему виды здесь названы, а в клетке нет ------------------------------
- *
- * В клетке у всех вызовов один код, «Р» (`day-marks.ts`): места на слово
- * там нет, а расчёту все шесть видов одинаковы. Здесь место есть целой
- * строкой — и «Соревнования» отличить от «Резерва» человеку нужно: он
- * спорит не о сумме, а о том, за что именно ему не заплатили.
- */
-function Callouts({ stats }: { stats: Statistics }) {
-  const lines = stats.calloutEntries.map(calloutLine);
+/** Заголовок раздела внутри плашки — голосом сайта. */
+const TITLE = "font-display text-sm font-bold uppercase tracking-wide";
 
-  if (lines.length === 0) {
+/** Одна группа событий: заголовок с итогом, строки перечня и отрезки для ленты. */
+interface EventGroup {
+  readonly key: string;
+  readonly title: string;
+  /** Итог группы в заголовке: сутки и снятые ими часы нормы. */
+  readonly total: string | null;
+  readonly lines: readonly EventLine[];
+  readonly spans: readonly TimelineSpan[];
+}
+
+function entrySpan(it: AbsenceEntry): TimelineSpan {
+  return {
+    key: it.id,
+    from: it.from,
+    to: it.to,
+    tone: ABSENCE_TONE[it.kind],
+    title: `${ABSENCE_LABELS[it.kind]}, ${spanWords(it.from, it.to)}`,
+  };
+}
+
+/**
+ * Отпуска — строкой на ВИД, а не на запись.
+ *
+ * Вопрос к ним один — на сколько они уменьшили норму; виды складываются в один
+ * ответ: отпуск, дополнительный, учебный — всё это отдых, за которым человек шёл
+ * сам. Поэтому строка — «Отпуск, 21 день, −120 ч из нормы», а даты записей
+ * живут на ленте над перечнем.
+ */
+function leaveLine(it: AbsenceStat): EventLine {
+  const taken = it.hours !== null && it.hours.greaterThan(0) ? it.hours : null;
+  return {
+    key: it.kind,
+    mark: ABSENCE_MARK[it.kind],
+    tone: ABSENCE_TONE[it.kind],
+    when: ABSENCE_LABELS[it.kind],
+    note: null,
+    count: taken === null ? days(it.days) : `${days(it.days)} · −${hours(taken.toNumber())} из нормы`,
+  };
+}
+
+/**
+ * Группы событий периода, в том порядке, в каком их читают: сначала то, что
+ * принесло часы сверх графика, потом то, что сняло их с нормы.
+ *
+ * Пустых групп нет. Раньше «ни одного отпуска» и «ни одного выхода помимо
+ * смен» занимали по плашке, а больничные и отгулы при пустоте не показывались
+ * вовсе — отсутствие события не новость, и место под него на странице, где
+ * места и так не хватает, не нужно. Что события вообще не отмечены, говорит
+ * одна строка вместо ленты.
+ *
+ * --- Почему больничные, командировки и отгулы не сложены с отпусками ---------
+ *
+ * Вопросы к ним другие. Отпуска — «сколько отгулял»: виды складываются.
+ * Больничный не планируют, и за него платят по другому правилу (ФЗ № 255) —
+ * спрашивают не «сколько всего», а «когда и сколько раз». Командировка —
+ * единственная, где человек работал. Отгул — единственный, кто норму НЕ
+ * уменьшает, а расплачивается накопленной переработкой (ст. 152 ТК РФ). Каждой
+ * группе своё место и свой итог — но не своя плашка.
+ *
+ * Вызовы, больничные, командировки и отгулы — по записям: «2 дня» за год не
+ * говорят ничего, а «5 марта» и «12 сентября» с пометками — это и есть то, о
+ * чём спорят.
+ */
+function groupsOf(stats: Statistics): EventGroup[] {
+  const groups: EventGroup[] = [];
+
+  if (stats.calloutEntries.length > 0) {
+    const dayCount = stats.callouts.reduce((sum, it) => sum + it.days, 0);
+    groups.push({
+      key: "callouts",
+      title: "Сверх графика",
+      total: `${days(dayCount)} · ${hours(stats.calloutHours.toNumber())}`,
+      lines: stats.calloutEntries.map(calloutLine),
+      spans: stats.calloutEntries.map((it) => ({
+        key: it.id,
+        from: it.from,
+        to: it.to,
+        tone: CALLOUT_TONE,
+        title: `${CALLOUT_LABELS[it.kind]}, ${spanWords(it.from, it.to)}`,
+      })),
+    });
+  }
+
+  const leave = stats.absences.filter((it) => groupNameOf(it.kind) === "leave");
+  if (leave.length > 0) {
+    groups.push({
+      key: "leave",
+      title: "Отпуска",
+      total: absenceTotal(stats.absences, "leave"),
+      lines: leave.map(leaveLine),
+      spans: groupOf(stats.absenceEntries, "leave").map(entrySpan),
+    });
+  }
+
+  for (const [group, title] of [
+    ["sick", "Больничные"],
+    ["trip", "Командировки"],
+    ["off", "Отгулы"],
+  ] as const) {
+    const entries = groupOf(stats.absenceEntries, group);
+    if (entries.length === 0) continue;
+
+    groups.push({
+      key: group,
+      title,
+      total: absenceTotal(stats.absences, group),
+      // Вид у всех строк один и назван заголовком группы, поэтому названия в
+      // строках нет: дата здесь и есть имя строки.
+      lines: entries.map((it) => absenceLine(it, false)),
+      spans: entries.map(entrySpan),
+    });
+  }
+
+  return groups;
+}
+
+/**
+ * События периода: лента по датам и перечни под ней.
+ *
+ * Перечни стоят в колонках, а не плашкой на каждый: групп до пяти, и каждая —
+ * заголовок и две-три строки. На широком экране они делят ширину поровну, на
+ * телефоне идут одна за другой, и общей остаётся плашка, лента над ними и линия
+ * между лентой и перечнями.
+ */
+function Events({ stats }: { stats: Statistics }) {
+  // «Сегодня» знает только браузер: на сборке оно было бы днём выкладки.
+  const today = useMemo(() => todayIso(), []);
+  const groups = useMemo(() => groupsOf(stats), [stats]);
+
+  if (groups.length === 0) {
     return (
       <section className={cn(PLATE, "space-y-2")}>
-        <h3 className="font-display text-sm font-bold uppercase tracking-wide">
-          Сверх графика
-        </h3>
+        <h3 className={TITLE}>События</h3>
         <p className="text-xs text-ink-muted">
-          {WHOLE_PERIOD[stats.part.kind]} не отмечено ни одного выхода помимо
-          своих смен.
+          {WHOLE_PERIOD[stats.part.kind]} не отмечено ни отпусков, ни больничных,
+          ни командировок, ни отгулов, ни выходов помимо своих смен.
         </p>
       </section>
     );
   }
 
   return (
-    <section className={cn(PLATE, "space-y-2")}>
-      <h3 className="font-display text-sm font-bold uppercase tracking-wide">
-        Сверх графика
-      </h3>
+    <section className={cn(PLATE, "space-y-4")}>
+      <h3 className={TITLE}>События</h3>
 
-      <ul className="divide-y divide-rule">
-        {lines.map((line) => (
-          <EventRow key={line.key} line={line} />
+      <PeriodTimeline
+        year={stats.year}
+        months={stats.months.map((it) => it.month)}
+        rows={groups.map((group) => ({
+          key: group.key,
+          label: group.title,
+          spans: group.spans,
+        }))}
+        today={today}
+      />
+
+      <div className="columns-1 gap-x-8 border-t border-rule pt-4 md:columns-2 xl:columns-3">
+        {groups.map((group) => (
+          <section key={group.key} className="mb-4 break-inside-avoid">
+            <div className="flex flex-wrap items-baseline justify-between gap-x-3">
+              <h4 className="font-display text-xs font-bold tracking-wide uppercase">
+                {group.title}
+              </h4>
+              {group.total === null ? null : (
+                <span className="font-mono text-xs tabular-nums text-ink-muted">
+                  {group.total}
+                </span>
+              )}
+            </div>
+
+            <ul className="mt-1 divide-y divide-rule">
+              {group.lines.map((line) => (
+                <EventRow key={line.key} line={line} />
+              ))}
+            </ul>
+          </section>
         ))}
-      </ul>
-    </section>
-  );
-}
-
-/**
- * Больничные и отгулы — своими разделами и по одному.
- *
- * --- Почему не вместе с отпусками -------------------------------------------
- *
- * Раздел отпусков отвечает на вопрос «сколько я отгулял», и виды в нём
- * складываются в один ответ: отпуск, дополнительный, учебный — это всё
- * отдых, за которым человек шёл сам и о котором знал заранее.
- *
- * Больничный ни в один из этих ответов не входит. Его не планируют, за него
- * платят по другому правилу (ФЗ № 255), и спрашивают о нём иначе: не
- * «сколько всего», а «когда и сколько раз». Строка «Больничный — 11 дней»
- * на этот вопрос не отвечает: два больничных по пять дней и один на
- * одиннадцать — разный разговор и с кадрами, и с врачом.
- *
- * Отгул не входит туда же по третьей причине: он единственный, кто норму
- * НЕ УМЕНЬШАЕТ, а расплачивается уже накопленной переработкой (ст. 152 ТК
- * РФ). В перечне снятых часов он был строкой, у которой почему-то не
- * напечатали число.
- *
- * --- Почему по записям ------------------------------------------------------
- *
- * По той же причине, что и вызовы: «2 дня» за год не говорят ничего, а
- * «5 марта» и «12 сентября» с пометками — это и есть то, о чём спорят.
- *
- * --- Что стоит в заголовке --------------------------------------------------
- *
- * Итог по виду: сутки и снятые ими часы нормы. Он был строкой в перечне
- * отпусков, и, уехав оттуда, потерялся бы совсем — а это как раз то число,
- * которым объясняют, почему норма года меньше календарной. Отгулу такой
- * величины не положено, и у него в заголовке одни сутки.
- *
- * Пустой раздел не показывается совсем: отсутствие больничных и отгулов —
- * не новость, а обычное положение дел, и плашка «ни одного» занимала бы
- * место наравне с теми, где что-то есть.
- */
-function Sick({ stats }: { stats: Statistics }) {
-  return (
-    <Records
-      title="Больничные"
-      total={absenceTotal(stats.absences, "sick")}
-      // Вид у всех строк один и назван заголовком раздела, поэтому названия
-      // в строках нет: дата здесь и есть имя строки.
-      lines={groupOf(stats.absenceEntries, "sick").map((it) => absenceLine(it, false))}
-    />
-  );
-}
-
-/**
- * Командировки — разделом по записям, как больничные.
- *
- * Вопрос к ним тот же, что и к больничным: не «сколько всего суток», а
- * «когда и сколько раз». Две поездки по три дня и одна на шесть — разный
- * разговор и с руководителем, и с бухгалтерией, а год, в котором человека
- * отправляли шесть раз, виден только списком.
- *
- * В итоге заголовка стоят снятые из нормы часы: смены, попавшие в поездку,
- * не отрабатываются, и норма за них уменьшается (ст. 167 ТК РФ, п. 9
- * Положения № 749) — ровно как у отпуска и больничного.
- */
-function Trips({ stats }: { stats: Statistics }) {
-  return (
-    <Records
-      title="Командировки"
-      total={absenceTotal(stats.absences, "trip")}
-      lines={groupOf(stats.absenceEntries, "trip").map((it) => absenceLine(it, false))}
-    />
-  );
-}
-
-function TimeOff({ stats }: { stats: Statistics }) {
-  return (
-    <Records
-      title="Отгулы"
-      total={absenceTotal(stats.absences, "off")}
-      lines={groupOf(stats.absenceEntries, "off").map((it) => absenceLine(it, false))}
-    />
-  );
-}
-
-/** Раздел из одних записей: заголовок с итогом и строки событий. */
-function Records({
-  title,
-  total,
-  lines,
-}: {
-  title: string;
-  total: string | null;
-  lines: readonly EventLine[];
-}) {
-  if (lines.length === 0) return null;
-
-  return (
-    <section className={cn(PLATE, "space-y-2")}>
-      <div className="flex flex-wrap items-baseline justify-between gap-x-3">
-        <h3 className="font-display text-sm font-bold uppercase tracking-wide">
-          {title}
-        </h3>
-        {total === null ? null : (
-          <span className="font-mono text-xs tabular-nums text-ink-muted">
-            {total}
-          </span>
-        )}
       </div>
-
-      <ul className="divide-y divide-rule">
-        {lines.map((line) => (
-          <EventRow key={line.key} line={line} />
-        ))}
-      </ul>
     </section>
   );
 }
@@ -1347,61 +1393,52 @@ function noteWords(notes: readonly EventNote[], dated: boolean): string | null {
 }
 
 /**
- * Строка события: знак, дата, заметка и числа.
+ * Строка события: знак, дата и числа — одной строкой, пометка под ней.
  *
- * --- Почему слева дата, а вид справа ----------------------------------------
+ * --- Почему слева дата ------------------------------------------------------
  *
- * Слева, сразу за знаком, стоит то, что у строки главное, — КОГДА это было.
- * Раньше там стоял вид («Соревнования»), а дата уезжала в правый столбец, к
- * числам, и два соседних раздела читались по-разному: у отгулов слева дата,
- * у вызовов — слово. Теперь одинаково, а вид переехал вправо, к суткам и
- * часам: он отвечает на вопрос «что это было», то есть на тот же, что и
- * они.
+ * Слева, сразу за знаком, стоит то, что у строки главное, — КОГДА это было. Вид
+ * («Соревнования») и заметка идут вторым рядом, мельче: они отвечают на вопрос
+ * «что это было», который задают вторым, а числа справа — на «сколько».
  *
- * --- Почему заметка в строке, а не под ней ----------------------------------
+ * --- Почему заметка под датой, а не рядом -----------------------------------
  *
- * Строкой ниже она читалась вровень с датой и спорила с ней за внимание,
- * хотя это приписка, а не событие. В строке, сразу за датой, и цветом
- * тусклее — она стоит там, где её и ищут, и не бросается в глаза, пока не
- * понадобится. Длинную заметку строка переносит: обрезать её многоточием
- * значило бы прятать её ровно тогда, когда её читают.
+ * Рядом с датой она вытягивала строку в длину и на узкой колонке переносилась
+ * куда придётся, ломая и числа справа. Второй строкой она занимает ровно столько
+ * места, сколько ей нужно, цветом тусклее даты — приписка не должна её
+ * перебивать, — и длинную заметку строка переносит, а не обрезает: прятать её
+ * значило бы прятать ровно тогда, когда её читают.
+ *
+ * Знак — тот же, что стоит у этих суток на сетке, но на четверть мельче прежнего:
+ * строк в статистике много, и каждая точка высоты у них на счету.
  */
 function EventRow({ line }: { line: EventLine }) {
+  const aside = [line.label, line.note].filter((it) => it !== undefined && it !== null).join(" · ");
+
   return (
-    <li className="flex items-center gap-3 py-2.5">
+    <li className="flex items-start gap-2.5 py-1.5">
       <span
         aria-hidden
-        // Тот же значок, что стоит у этих суток на сетке: клетка в семь
-        // единиц, рамка, полужирный кегль. По СЕРЕДИНЕ строки, а не по её
-        // верху: клетка выше строки текста вдвое, и выровненная по верху
-        // она оставляла текст висеть над своей серединой.
         className={cn(
-          "grid size-7 shrink-0 place-items-center rounded-md border text-xs font-bold",
+          "mt-px grid size-6 shrink-0 place-items-center rounded-md border text-[11px] font-bold",
           line.tone,
         )}
       >
         {line.mark}
       </span>
-      <span className="flex min-w-0 flex-1 flex-wrap items-baseline justify-between gap-x-3">
-        <span className="min-w-0 text-sm">
-          {line.when}
-          {line.note === null ? null : (
-            // Цветом слабее самой тусклой подписи — как имя профиля над
-            // страницей: приписка не должна перебивать дату, рядом с
-            // которой стоит.
-            <span className="ml-2 text-xs text-ink-faint">{line.note}</span>
-          )}
+      <span className="min-w-0 flex-1">
+        {/* Первая строка не ниже знака: дата стоит против его середины, а не
+            против верха. Числа — неразрывным куском: «60» на одной строке и
+            «ч» на следующей — это не перенос, а поломка. */}
+        <span className="flex min-h-6 flex-wrap items-center justify-between gap-x-3">
+          <span className="min-w-0 text-sm">{line.when}</span>
+          <span className="font-mono text-xs tabular-nums whitespace-nowrap text-ink-muted">
+            {line.count}
+          </span>
         </span>
-        {/* Вид и числа — двумя неразрывными кусками, а не одной строкой.
-            Строкой они на телефоне переносились где придётся: «60» на одной
-            строке, «ч» на следующей. Перенос теперь бывает только между
-            видом и числами — то есть там, где смысл и так кончается. */}
-        <span className="flex flex-wrap items-baseline justify-end gap-x-1.5 font-mono text-xs tabular-nums text-ink-muted">
-          {line.label === undefined ? null : (
-            <span className="whitespace-nowrap">{line.label} ·</span>
-          )}
-          <span className="whitespace-nowrap">{line.count}</span>
-        </span>
+        {aside === "" ? null : (
+          <span className="-mt-0.5 block text-xs text-ink-faint">{aside}</span>
+        )}
       </span>
     </li>
   );
@@ -1414,171 +1451,9 @@ function spanWords(from: IsoDate, to: IsoDate): string {
     : `${formatDayMonthRu(from)} — ${formatDayMonthRu(to)}`;
 }
 
-/**
- * Из чего вышла норма: отпуска по видам и на сколько каждый её уменьшил.
- *
- * Цвет здесь несёт КЛЕТКА при названии — та самая, какой этот вид стоит на
- * сетке, — а полоски у всех видов одинаковые. Раскрасить полоски по видам
- * значило бы завести семь серий, которые надо различать на глаз: счётом их
- * цвета для такой роли не годятся (пара «доп. отпуск» и «отгул» расходится
- * всего на 3,6 при восьми положенных), а различать их и не требуется —
- * имя написано рядом.
- */
-function Absences({ stats }: { stats: Statistics }) {
-  // Больничный и отгул отсюда убраны и стоят своими разделами ниже:
-  // вопросы к ним другие (`Sick`, `TimeOff`). Свод по видам их при этом
-  // помнит (`absences` в `model/statistics.ts`) — разошлись не числа, а
-  // только места, где о них спрашивают.
-  const absences = stats.absences.filter((it) => groupNameOf(it.kind) === "leave");
-
-  if (absences.length === 0) {
-    return (
-      <section className={cn(PLATE, "space-y-2")}>
-        <h3 className="font-display text-sm font-bold uppercase tracking-wide">
-          Отпуска
-        </h3>
-        {/* Про норму здесь больше ни слова: уменьшить её мог больничный, о
-            котором говорит соседний раздел, и «норма не уменьшалась» было
-            бы прямой неправдой. */}
-        <p className="text-xs text-ink-muted">
-          {WHOLE_PERIOD[stats.part.kind]} не отмечено ни одного отпуска.
-        </p>
-      </section>
-    );
-  }
-
-  const most = Math.max(...absences.map((it) => it.days));
-
-  return (
-    <section className={cn(PLATE, "space-y-2")}>
-      <h3 className="font-display text-sm font-bold uppercase tracking-wide">
-        Отпуска
-      </h3>
-
-      {/* Строки разделяет линовка, а не вторая плашка у каждой: они стоят
-          на общей, и это один список, а не семь ответов (`ui/panel.tsx`,
-          `Card`). */}
-      <ul className="divide-y divide-rule">
-        {absences.map((it) => (
-          <li key={it.kind} className="py-2.5">
-            {/* Знак — по середине СТРОКИ, а не всей ячейки: полоска доли
-                лежит под строкой, и знак, выровненный по ним обоим, уходил
-                ниже слова, при котором стоит. Поэтому строка со знаком —
-                своя, а полоска под ней, с отступом до начала текста (клетка
-                в 28 и просвет в 12 — это 2,5 рема). */}
-            <span className="flex items-center gap-3">
-              <span
-                aria-hidden
-                // Тот же значок, что в перечне внесённых изменений: клетка в
-                // семь единиц, рамка, полужирный кегль.
-                className={cn(
-                  "grid size-7 shrink-0 place-items-center rounded-md border text-xs font-bold",
-                  ABSENCE_TONE[it.kind],
-                )}
-              >
-                {ABSENCE_MARK[it.kind]}
-              </span>
-              <span className="flex min-w-0 flex-1 flex-wrap items-baseline justify-between gap-x-3">
-                <span className="truncate text-sm">{ABSENCE_LABELS[it.kind]}</span>
-                <span className="font-mono text-xs tabular-nums text-ink-muted">
-                  {it.days} {numberWord(it.days, "день", "дня", "дней")}
-                  {it.hours !== null && it.hours.greaterThan(0)
-                    ? ` · −${hours(it.hours.toNumber())} из нормы`
-                    : ""}
-                </span>
-              </span>
-            </span>
-            <span className="ml-10 mt-1 block">
-              <ShareBar share={it.days / most} />
-            </span>
-          </li>
-        ))}
-      </ul>
-    </section>
-  );
-}
-
-/**
- * Таблица по месяцам.
- *
- * Она здесь не «для полноты»: всё, что нарисовано выше, обязано читаться и
- * без цвета — и потому, что цвет столбца на светлой бумаге не дотягивает
- * до трёх к одному, и потому, что число в таблице можно переписать в
- * заявление, а число на рисунке нельзя.
- *
- * Прокручивается она вбок сама, внутри своей коробки: двенадцать строк на
- * семь столбцов в узкий экран не влезут никак, а страница ездить вбок не
- * должна.
- */
-function MonthTable({ stats }: { stats: Statistics }) {
-  const shown = stats.months.filter((it) => !it.empty);
-
-  return (
-    <section className={cn(PLATE, "space-y-2")}>
-      <h3 className="font-display text-sm font-bold uppercase tracking-wide">
-        По месяцам
-      </h3>
-      {/* Прокручивается вбок сама, внутри плашки: двенадцать строк на семь
-          столбцов в узкий экран не влезут никак, а страница ездить вбок не
-          должна. */}
-      <div className="overflow-x-auto">
-        <table className="w-full min-w-[34rem] border-collapse text-sm">
-          <caption className="sr-only">
-            Норма, отработанные, ночные и праздничные часы по месяцам: за{" "}
-            {periodPhrase(stats.part, stats.year)}
-          </caption>
-          <thead>
-            <tr className="text-[11px] uppercase tracking-wide text-ink-faint">
-              <th scope="col" className="py-2 pr-3 text-left font-medium">
-                Месяц
-              </th>
-              <Head>Норма</Head>
-              <Head>Факт</Head>
-              <Head>Баланс</Head>
-              <Head>Ночные</Head>
-              <Head>Празд.</Head>
-              <Head>Смены</Head>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-rule">
-            {shown.map((it) => (
-              <Row key={it.month} month={it} />
-            ))}
-          </tbody>
-          <tfoot>
-            <tr className="border-t border-rule-strong font-medium">
-              <th scope="row" className="py-2 pr-3 text-left">
-                {WHOLE_PERIOD[stats.part.kind]}
-              </th>
-              <Cell>{hoursTrim(stats.total.normHours)}</Cell>
-              <Cell>{hoursTrim(stats.total.actualHours)}</Cell>
-              <Cell
-                tone={
-                  stats.total.overtimeHours.greaterThan(0)
-                    ? "over"
-                    : stats.total.undertimeHours.greaterThan(0)
-                      ? "under"
-                      : undefined
-                }
-              >
-                {signed(
-                  stats.total.actualHours.minus(stats.total.normHours).toNumber(),
-                )}
-              </Cell>
-              <Cell>{hoursTrim(stats.total.nightHours)}</Cell>
-              <Cell>{hoursTrim(stats.total.holidayHours)}</Cell>
-              <Cell>{stats.total.workedShifts}</Cell>
-            </tr>
-          </tfoot>
-        </table>
-      </div>
-    </section>
-  );
-}
-
 function Head({ children }: { children: React.ReactNode }) {
   return (
-    <th scope="col" className="px-3 py-2 text-right font-medium last:pr-0">
+    <th scope="col" className="px-3 py-1.5 text-right font-medium last:pr-0">
       {children}
     </th>
   );
@@ -1594,7 +1469,7 @@ function Cell({
   return (
     <td
       className={cn(
-        "px-3 py-2 text-right font-mono tabular-nums last:pr-0",
+        "px-3 py-1.5 text-right font-mono tabular-nums last:pr-0",
         tone === "over" && "text-verify",
         tone === "under" && "text-signal",
       )}
@@ -1604,138 +1479,119 @@ function Cell({
   );
 }
 
-/** Со знаком: «+24» и «−16». Минус — типографский, как и везде в числах. */
-function signed(value: number): string {
-  if (value === 0) return "0";
-  const text = hoursTrim(Math.abs(value));
-  return value > 0 ? `+${text}` : `−${text}`;
-}
-
-function Row({ month }: { month: MonthStat }) {
-  const balance = month.balance.toNumber();
-  return (
-    <tr>
-      <th scope="row" className="py-2 pr-3 text-left font-normal">
-        {MONTH_NAMES[month.month]}
-      </th>
-      <Cell>{hoursTrim(month.normHours)}</Cell>
-      <Cell>{hoursTrim(month.actualHours)}</Cell>
-      <Cell tone={balance > 0 ? "over" : balance < 0 ? "under" : undefined}>
-        {signed(balance)}
-      </Cell>
-      <Cell>{hoursTrim(month.nightHours)}</Cell>
-      <Cell>{hoursTrim(month.holidayHours)}</Cell>
-      <Cell>{month.workedShifts}</Cell>
-    </tr>
-  );
-}
-
 /**
- * Таблица по учётным периодам: кварталы и полугодия.
+ * Точные числа: по месяцам и по учётным периодам.
  *
- * --- Зачем она рядом с месячной ---------------------------------------------
- *
- * Месяцами человек живёт — табель, зарплата, график сменности, — а спорит он
- * не о месяце. Переработку считают ЗА УЧЁТНЫЙ ПЕРИОД (ст. 104 ТК РФ), и у
+ * Месяцами человек живёт — табель, зарплата, график сменности, — а спорит он не
+ * о месяце. Переработку считают ЗА УЧЁТНЫЙ ПЕРИОД (ст. 104 ТК РФ), и у
  * пожарной охраны это квартал, полугодие или год: тот самый выбор, что стоит
- * над сеткой. Внутри периода мартовская недоработка и майская переработка
- * гасят друг друга, и предъявляют только остаток на его конце — число,
- * которого в таблице месяцев не было ни в одной строке.
+ * над сеткой. Внутри периода мартовская недоработка и майская переработка гасят
+ * друг друга, и предъявляют только остаток на его конце — число, которого в
+ * таблице месяцев не было ни в одной строке. Поэтому таблиц две, и обе стоят
+ * на одной плашке.
  *
- * Сложить месяцы глазом вместо этой таблицы нельзя, и не из-за арифметики:
- * норма считается по отрезку, и норма квартала не равна сумме норм его
- * месяцев. Расхождение мелкое, но приложение существует ради того, чтобы
- * числа сходились с приказом, — поэтому каждый период посчитан сам по себе
- * (`partsOf` в `model/statistics.ts`).
+ * Сложить месяцы глазом вместо второй таблицы нельзя, и не из-за арифметики:
+ * норма считается по отрезку, и норма квартала не равна сумме норм его месяцев.
+ * Расхождение мелкое, но приложение существует ради того, чтобы числа сходились
+ * с приказом, — поэтому каждый период посчитан сам по себе (`partsOf` в
+ * `model/statistics.ts`).
  *
- * --- Почему кварталы и полугодия вместе, а года нет -------------------------
- *
- * Какой период учётный — решает приказ по части, и человек, открывший
- * статистику, своего выбора здесь не делает: он смотрит на тот ряд, который
- * его касается. Показывать по одному ряду за раз значило бы завести ещё один
- * переключатель ради двух строк разницы.
- *
- * Полугодия стоят под своими кварталами, потому что из них и складываются:
- * читая сверху вниз, видно, как два остатка сошлись в один. Года в таблице
- * нет — он уже стоит итогом в таблице месяцев и в полосе наверху.
+ * Кварталы и полугодия — вместе, а года среди них нет: он уже стоит итогом в
+ * таблице месяцев и в полосе наверху. Какой период учётный, решает приказ по
+ * части, и человек видит тот ряд, который его касается, а не выбирает его ещё
+ * одним переключателем ради двух строк разницы. Полугодия — после своих
+ * кварталов, за чертой: из них они и складываются.
  */
-function PartTable({ stats }: { stats: Statistics }) {
+function Numbers({ stats }: { stats: Statistics }) {
+  const { total } = stats;
+  const kind = stats.part.kind;
+
+  const months: LedgerColumn[] = [
+    ...stats.months
+      .filter((it) => !it.empty)
+      .map((it) => ({
+        key: String(it.month),
+        head: SHORT[it.month]!,
+        full: MONTH_NAMES[it.month]!,
+        norm: it.normHours,
+        actual: it.actualHours,
+        balance: it.balance.toNumber(),
+        night: it.nightHours,
+        holiday: it.holidayHours,
+        shifts: it.workedShifts,
+      })),
+    {
+      key: "total",
+      head: TOTAL_HEAD[kind],
+      full: WHOLE_PERIOD[kind],
+      total: true,
+      norm: total.normHours,
+      actual: total.actualHours,
+      balance: total.actualHours.minus(total.normHours).toNumber(),
+      night: total.nightHours,
+      holiday: total.holidayHours,
+      shifts: total.workedShifts,
+    },
+  ];
+
   const shown = stats.parts.filter((it) => !it.empty);
-  if (shown.length === 0) return null;
   // У полугодия вложены одни кварталы — так и названо.
   const quartersOnly = shown.every((it) => it.kind === "quarter");
+  const parts: LedgerColumn[] = shown.map((it) => {
+    const first = it.index * monthsIn(it.kind);
+    const number = it.index + 1;
+    return {
+      key: `${it.kind}:${it.index}`,
+      head: it.kind === "quarter" ? `${number}-й кв.` : `${number}-е пол.`,
+      full: partLabel(it.kind, it.index, 0),
+      // Какие это месяцы — тут же, мелко: «3-й квартал» человек считает в уме
+      // не всегда, а ошибка в этом счёте стоит целого разговора не о том
+      // отрезке.
+      sub: `${SHORT[first]} — ${SHORT[first + monthsIn(it.kind) - 1]}`,
+      norm: it.normHours,
+      actual: it.actualHours,
+      balance: it.balance.toNumber(),
+      night: it.nightHours,
+      holiday: it.holidayHours,
+      shifts: it.workedShifts,
+      split: it.kind === "half_year" && it.index === 0,
+    };
+  });
 
   return (
-    <section className={cn(PLATE, "space-y-2")}>
-      <h3 className="font-display text-sm font-bold uppercase tracking-wide">
-        {quartersOnly ? "По кварталам" : "По учётным периодам"}
-      </h3>
-      <div className="overflow-x-auto">
-        <table className="w-full min-w-[34rem] border-collapse text-sm">
-          <caption className="sr-only">
-            Норма, отработанные, ночные и праздничные часы по{" "}
-            {quartersOnly ? "кварталам" : "кварталам и полугодиям"}: за{" "}
-            {periodPhrase(stats.part, stats.year)}
-          </caption>
-          <thead>
-            <tr className="text-[11px] uppercase tracking-wide text-ink-faint">
-              <th scope="col" className="py-2 pr-3 text-left font-medium">
-                Период
-              </th>
-              <Head>Норма</Head>
-              <Head>Факт</Head>
-              <Head>Баланс</Head>
-              <Head>Ночные</Head>
-              <Head>Празд.</Head>
-              <Head>Смены</Head>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-rule">
-            {shown.map((it) => (
-              <PartRow key={`${it.kind}:${it.index}`} part={it} />
-            ))}
-          </tbody>
-        </table>
+    <section className={cn(PLATE, "space-y-5")}>
+      <div className="space-y-1">
+        <h3 className={TITLE}>По месяцам</h3>
+        <Ledger
+          caption={`Норма, отработанные, ночные и праздничные часы по месяцам: за ${periodPhrase(stats.part, stats.year)}`}
+          columns={months}
+        />
       </div>
+
+      {parts.length === 0 ? null : (
+        <div className="space-y-1">
+          <h3 className={TITLE}>{quartersOnly ? "По кварталам" : "По учётным периодам"}</h3>
+          <Ledger
+            caption={`Норма, отработанные, ночные и праздничные часы по ${
+              quartersOnly ? "кварталам" : "кварталам и полугодиям"
+            }: за ${periodPhrase(stats.part, stats.year)}`}
+            columns={parts}
+            // Шесть столбцов на всю ширину расходились на полтораста точек
+            // друг от друга, и строка переставала читаться строкой.
+            className="max-w-3xl"
+          />
+        </div>
+      )}
     </section>
   );
 }
 
-function PartRow({ part }: { part: PartStat }) {
-  const balance = part.balance.toNumber();
-  const from = part.index * monthsIn(part.kind);
-  return (
-    <tr
-      className={
-        // Полугодия отделены от кварталов чертой потолще — той же, какой
-        // таблица месяцев отбивает итог: ниже неё те же месяцы, сложенные
-        // крупнее, и без черты шесть строк читались бы одним рядом из шести
-        // разных периодов.
-        part.kind === "half_year" && part.index === 0
-          ? "border-t border-rule-strong"
-          : undefined
-      }
-    >
-      <th scope="row" className="py-2 pr-3 text-left font-normal">
-        {partLabel(part.kind, part.index, 0)}
-        {/* Какие это месяцы — тут же, мелко. «3-й квартал» человек считает в
-            уме не всегда, а ошибка в этом счёте стоит целого разговора не о
-            том отрезке. */}
-        <span className="ml-1.5 text-xs text-ink-faint">
-          {SHORT[from]} — {SHORT[from + monthsIn(part.kind) - 1]}
-        </span>
-      </th>
-      <Cell>{hoursTrim(part.normHours)}</Cell>
-      <Cell>{hoursTrim(part.actualHours)}</Cell>
-      <Cell tone={balance > 0 ? "over" : balance < 0 ? "under" : undefined}>
-        {signed(balance)}
-      </Cell>
-      <Cell>{hoursTrim(part.nightHours)}</Cell>
-      <Cell>{hoursTrim(part.holidayHours)}</Cell>
-      <Cell>{part.workedShifts}</Cell>
-    </tr>
-  );
-}
+/** Подпись итогового столбца — по виду периода. */
+const TOTAL_HEAD = {
+  year: "Год",
+  half_year: "Полугодие",
+  quarter: "Квартал",
+} as const;
 
 /**
  * Свод по всем профилям.
@@ -1808,30 +1664,52 @@ function Summary({
 
   const live = lines.filter((line) => line.totals.any);
 
+  // Группы событий — те же, что у одного профиля, и в том же порядке. Пустые
+  // отброшены, а строки расставлены от большего к меньшему сразу, чтобы плашка вокруг
+  // них не появлялась там, где показывать нечего.
+  const groups = [
+    {
+      title: "Сверх графика",
+      rows: live.map((line) => ({
+        id: line.sheet.id,
+        name: line.sheet.name,
+        value: line.totals.calloutHours.toNumber(),
+        count: hours(line.totals.calloutHours.toNumber()),
+        mark: CALLOUT_MARK,
+        tone: CALLOUT_TONE,
+        lines: line.totals.calloutEntries.map(calloutLine),
+      })),
+    },
+    // Отпуска названы в строках по видам, больничные, командировки и отгулы —
+    // нет: там вид один и он написан в заголовке группы.
+    { title: "Отпуска", rows: live.map((line) => absenceRow(line, "leave", true)) },
+    { title: "Больничные", rows: live.map((line) => absenceRow(line, "sick", false)) },
+    { title: "Командировки", rows: live.map((line) => absenceRow(line, "trip", false)) },
+    { title: "Отгулы", rows: live.map((line) => absenceRow(line, "off", false)) },
+  ]
+    .map((group) => ({
+      title: group.title,
+      rows: group.rows.filter((row) => row.value > 0).sort((a, b) => b.value - a.value),
+    }))
+    .filter((group) => group.rows.length > 0);
+
   return (
     <div className="space-y-4">
-      {/* Те же разделы, что у одного профиля, и в том же порядке: свод
-          отвечает на те же вопросы, только про всех сразу, и вторым строем
-          для этого заставлял бы выучить два способа читать одно и то же. */}
-      <Shares
-        title="Сверх графика"
-        rows={live.map((line) => ({
-          id: line.sheet.id,
-          name: line.sheet.name,
-          value: line.totals.calloutHours.toNumber(),
-          count: hours(line.totals.calloutHours.toNumber()),
-          mark: CALLOUT_MARK,
-          tone: CALLOUT_TONE,
-          lines: line.totals.calloutEntries.map(calloutLine),
-        }))}
-      />
-      {/* Отпуска названы в строках по видам, больничные и отгулы — нет: там
-          вид один и он написан в заголовке раздела. */}
-      <Shares title="Отпуска" rows={live.map((line) => absenceRow(line, "leave", true))} />
-      <Shares title="Больничные" rows={live.map((line) => absenceRow(line, "sick", false))} />
-      <Shares title="Командировки" rows={live.map((line) => absenceRow(line, "trip", false))} />
-      <Shares title="Отгулы" rows={live.map((line) => absenceRow(line, "off", false))} />
+      {/* Таблица — первой: свод открывают ради вопроса «у кого сколько», и
+          отвечает на него она, а полоски под ней — на «кто вырывается вперёд».
+          Раньше она стояла последней, под пятью перечнями. */}
       <ProfileTable lines={lines} onPick={onPick} />
+
+      {groups.length === 0 ? null : (
+        <section className={cn(PLATE, "space-y-3")}>
+          <h3 className={TITLE}>События</h3>
+          <div className="columns-1 gap-x-8 md:columns-2 xl:columns-3">
+            {groups.map((group) => (
+              <Shares key={group.title} title={group.title} rows={group.rows} />
+            ))}
+          </div>
+        </section>
+      )}
     </div>
   );
 }
@@ -1896,6 +1774,7 @@ function Shares({
   rows,
 }: {
   title: string;
+  /** Уже без нулей и от большего к меньшему: порядок и меру задаёт свод. */
   rows: readonly {
     id: string;
     name: string;
@@ -1908,19 +1787,14 @@ function Shares({
     lines: readonly EventLine[];
   }[];
 }) {
-  const shown = rows.filter((row) => row.value > 0).sort((a, b) => b.value - a.value);
-  if (shown.length === 0) return null;
-
-  const most = shown[0]!.value;
+  const most = rows[0]?.value ?? 1;
 
   return (
-    <section className={cn(PLATE, "space-y-2")}>
-      <h3 className="font-display text-sm font-bold uppercase tracking-wide">
-        {title}
-      </h3>
+    <section className="mb-4 break-inside-avoid">
+      <h4 className="font-display text-xs font-bold tracking-wide uppercase">{title}</h4>
 
-      <ul className="divide-y divide-rule">
-        {shown.map((row) => (
+      <ul className="mt-1 divide-y divide-rule">
+        {rows.map((row) => (
           <ShareRow key={row.id} row={row} share={row.value / most} />
         ))}
       </ul>
@@ -1969,7 +1843,7 @@ function ShareRow({
   );
 
   return (
-    <li className="py-2.5">
+    <li className="py-2">
       {many ? (
         <button
           type="button"
@@ -2075,11 +1949,16 @@ function ProfileTable({
   lines: readonly Line[];
   onPick: (id: string) => void;
 }) {
+  // Полоска баланса — доля от наибольшего по модулю: сравнивают людей друг с
+  // другом, а не с общим котлом (так же, как полоски в разделах событий).
+  const most = Math.max(
+    1,
+    ...lines.filter((line) => line.totals.any).map((line) => Math.abs(line.totals.balance.toNumber())),
+  );
+
   return (
     <section className={cn(PLATE, "space-y-2")}>
-      <h3 className="font-display text-sm font-bold uppercase tracking-wide">
-        По графикам
-      </h3>
+      <h3 className={TITLE}>По графикам</h3>
       <div className="overflow-x-auto">
         <table className="w-full min-w-[38rem] border-collapse text-sm">
           <caption className="sr-only">
@@ -2087,7 +1966,7 @@ function ProfileTable({
           </caption>
           <thead>
             <tr className="text-[11px] uppercase tracking-wide text-ink-faint">
-              <th scope="col" className="py-2 pr-3 text-left font-medium">
+              <th scope="col" className="py-1.5 pr-3 text-left font-medium">
                 График
               </th>
               <Head>Норма</Head>
@@ -2100,7 +1979,7 @@ function ProfileTable({
           </thead>
           <tbody className="divide-y divide-rule">
             {lines.map((line) => (
-              <ProfileRow key={line.sheet.id} line={line} onPick={onPick} />
+              <ProfileRow key={line.sheet.id} line={line} most={most} onPick={onPick} />
             ))}
           </tbody>
         </table>
@@ -2109,7 +1988,15 @@ function ProfileTable({
   );
 }
 
-function ProfileRow({ line, onPick }: { line: Line; onPick: (id: string) => void }) {
+function ProfileRow({
+  line,
+  most,
+  onPick,
+}: {
+  line: Line;
+  most: number;
+  onPick: (id: string) => void;
+}) {
   const { sheet, totals } = line;
 
   // Год, которого ещё не было, — прочерки, а не нули: ноль в колонке
@@ -2119,7 +2006,7 @@ function ProfileRow({ line, onPick }: { line: Line; onPick: (id: string) => void
       <tr className="text-ink-faint">
         <ProfileName sheet={sheet} onPick={onPick} />
         {Array.from({ length: 6 }, (_, index) => (
-          <td key={index} className="px-3 py-2 text-right font-mono tabular-nums last:pr-0">
+          <td key={index} className="px-3 py-1.5 text-right font-mono tabular-nums last:pr-0">
             —
           </td>
         ))}
@@ -2132,7 +2019,7 @@ function ProfileRow({ line, onPick }: { line: Line; onPick: (id: string) => void
       <ProfileName sheet={sheet} onPick={onPick} />
       <Cell>{hoursTrim(totals.total.normHours)}</Cell>
       <Cell>{hoursTrim(totals.total.actualHours)}</Cell>
-      <BalanceCell value={totals.balance} />
+      <BalanceCell value={totals.balance} most={most} />
       <Cell>{hoursTrim(totals.total.nightHours)}</Cell>
       <Cell>{hoursTrim(totals.calloutHours)}</Cell>
       <Cell>{totals.total.workedShifts}</Cell>
@@ -2148,7 +2035,7 @@ function ProfileName({
   onPick: (id: string) => void;
 }) {
   return (
-    <th scope="row" className="py-2 pr-3 text-left font-normal">
+    <th scope="row" className="py-1.5 pr-3 text-left font-normal">
       <button
         type="button"
         onClick={() => onPick(sheet.id)}
@@ -2170,12 +2057,33 @@ function ProfileName({
   );
 }
 
-/** Баланс в таблице: со знаком и цветом итога — как у месяцев. */
-function BalanceCell({ value }: { value: Decimal }) {
+/**
+ * Баланс в таблице: число со знаком и цветом итога, а слева от него — полоска.
+ *
+ * Число остаётся главным, и читается таблица без цвета и без полоски. Полоска
+ * добавляет то, чего в столбце цифр не видно с первого взгляда: у кого переработка
+ * больше всех и кто ушёл в минус. Знак передан и ею: цветом, и тем, что число
+ * рядом начинается с «+» или «−».
+ */
+function BalanceCell({ value, most }: { value: Decimal; most: number }) {
   const balance = value.toNumber();
   return (
     <Cell tone={balance > 0 ? "over" : balance < 0 ? "under" : undefined}>
-      {signed(balance)}
+      <span className="inline-flex items-center justify-end gap-2">
+        <span
+          aria-hidden
+          className="inline-block h-1.5 w-14 overflow-hidden rounded-full bg-paper-sunken"
+        >
+          <span
+            className={cn(
+              "block h-full rounded-full",
+              balance < 0 ? "bg-signal" : "bg-verify",
+            )}
+            style={{ width: `${balance === 0 ? 0 : Math.max(4, Math.round((Math.abs(balance) / most) * 100))}%` }}
+          />
+        </span>
+        {signed(balance)}
+      </span>
     </Cell>
   );
 }

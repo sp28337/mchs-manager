@@ -70,6 +70,9 @@ const PAD = { top: 18, right: 8, bottom: 24, left: 40 };
 const HEIGHT = { narrow: 190, wide: 230 };
 const NARROW = 520;
 
+/** Уже этой колонки месяц подписывается через один: подписи иначе слипаются. */
+const LABEL_BAND = 26;
+
 /** Толще этого столбец не бывает: «не заполнять гнездо целиком». */
 const MAX_BAR = 24;
 /** Доля колонки, которую занимает столбец; остаток — воздух. */
@@ -205,12 +208,15 @@ function Frame({
   note,
   keys,
   hovered,
+  keepLegendRoom,
   children,
 }: {
   title: string;
   note?: ReactNode;
   keys: readonly Key[];
   hovered: Column | null;
+  /** Оставить под легенду место, даже когда легенды нет: см. `ColumnChart`. */
+  keepLegendRoom?: boolean;
   children: ReactNode;
 }) {
   return (
@@ -223,7 +229,11 @@ function Frame({
       </div>
       {/* Легенда — только при двух ключах и больше: у одной серии коробка
           с единственной плашкой пересказывает заголовок. */}
-      {keys.length > 1 ? <Legend keys={keys} /> : null}
+      {keys.length > 1 ? (
+        <Legend keys={keys} />
+      ) : keepLegendRoom ? (
+        <div aria-hidden className="h-4" />
+      ) : null}
       <Readout column={hovered} keys={keys} />
       {children}
     </section>
@@ -322,6 +332,7 @@ export function ColumnChart({
   bar,
   target,
   format,
+  alignWithLegend,
 }: {
   title: string;
   note?: ReactNode;
@@ -331,6 +342,15 @@ export function ColumnChart({
   /** Ключ мерки, если у рисунка она есть. */
   target?: Key;
   format: (value: number) => string;
+  /**
+   * Держать место под легенду, даже когда у рисунка одна серия и легенды нет.
+   *
+   * Нужно рисункам, что стоят в ряд с теми, у кого легенда есть: без этого поле
+   * одиночного рисунка поднимается на высоту строки, и три оси рядом оказываются
+   * на разной высоте — сравнивать их по месяцам, ради чего их и поставили рядом,
+   * становится нечем.
+   */
+  alignWithLegend?: boolean;
 }) {
   const [box, width] = useWidth();
   const [hover, setHover] = useState<number | null>(null);
@@ -353,9 +373,11 @@ export function ColumnChart({
   // вровень с ним сливалась бы с его вершиной, когда факт равен норме.
   const tickWidth = Math.min(band - 2, barWidth + 8);
   const at = (value: number) => PAD.top + innerH - (value / top) * innerH;
-  // На узком экране двенадцать подписей встают в 20 точек каждая и
-  // сливаются: остаются каждая вторая и наведённая.
-  const every = narrow ? 2 : 1;
+  // Подпись месяца — три буквы в 11 точек, то есть около двадцати двух
+  // точек ширины, и ей нужен просвет. Когда колонка уже двадцати шести,
+  // подписи сливаются: остаются каждая вторая и наведённая. Меряется колонка,
+  // а не весь рисунок: три рисунка рядом на широком экране уже телефонного.
+  const every = band < LABEL_BAND ? 2 : 1;
 
   const keys = target ? [bar, target] : [bar];
 
@@ -365,6 +387,7 @@ export function ColumnChart({
       note={note}
       keys={keys}
       hovered={hover === null ? null : (columns[hover] ?? null)}
+      keepLegendRoom={alignWithLegend}
     >
       <div ref={box}>
         <svg
@@ -651,7 +674,7 @@ export function BalanceChart({
             band={band}
             left={PAD.left}
             baseline={height - 7}
-            every={narrow ? 2 : 1}
+            every={band < LABEL_BAND ? 2 : 1}
             hover={hover}
           />
 
