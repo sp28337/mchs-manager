@@ -28,15 +28,13 @@ import { formatHoursTrim as hoursTrim, type Decimal } from "../domain/decimal";
  * `table`, с подписью и заголовками строк и столбцов, а не сетка из `div`.
  */
 
-/** Один столбец: месяц, квартал, полугодие или итог. */
+/** Один столбец: месяц или итог. */
 export interface LedgerColumn {
   readonly key: string;
-  /** Подпись в шапке: «янв», «1-й кв.», «Год». */
+  /** Подпись в шапке: «янв», «Год». */
   readonly head: string;
-  /** Полное имя для программы чтения: «Январь», «1-й квартал». */
+  /** Полное имя для программы чтения: «Январь», «Год». */
   readonly full: string;
-  /** Что стоит под подписью мелко: у квартала — его месяцы. */
-  readonly sub?: string;
   readonly norm: Decimal;
   readonly actual: Decimal;
   /** Факт минус норма, со знаком. */
@@ -46,8 +44,6 @@ export interface LedgerColumn {
   readonly shifts: number;
   /** Итог по периоду: стоит последним и отбит чертой. */
   readonly total?: boolean;
-  /** Черта слева: полугодия отделены от кварталов, из которых сложены. */
-  readonly split?: boolean;
 }
 
 /** Со знаком: «+24» и «−16». Минус — типографский, как и везде в числах. */
@@ -109,16 +105,10 @@ export function Ledger({
                 title={column.full}
                 className={cn(
                   "px-2 py-1.5 text-right font-medium whitespace-nowrap",
-                  (column.total || column.split) && "border-l border-rule-strong",
-                  column.total && "text-ink-muted",
+                  column.total && "border-l border-rule-strong text-ink-muted",
                 )}
               >
                 {column.head}
-                {column.sub === undefined ? null : (
-                  <span className="block text-[10px] font-normal tracking-normal normal-case">
-                    {column.sub}
-                  </span>
-                )}
               </th>
             ))}
           </tr>
@@ -143,8 +133,7 @@ export function Ledger({
                     key={column.key}
                     className={cn(
                       "px-2 py-1.5 text-right font-mono tabular-nums",
-                      (column.total || column.split) && "border-l border-rule-strong",
-                      column.total && "font-medium",
+                      column.total && "border-l border-rule-strong font-medium",
                       tone === "over" && "text-verify",
                       tone === "under" && "text-signal",
                     )}

@@ -17,7 +17,7 @@ import {
 import { formatDayMonthRu } from "../domain/format";
 import { todayIso, type IsoDate } from "../domain/plain-date";
 import { MONTH_NAMES } from "./month-names";
-import { monthsIn, partLabel } from "./period-picker";
+import { partLabel } from "./period-picker";
 import { ABSENCE_MARK, ABSENCE_TONE, CALLOUT_MARK, CALLOUT_TONE } from "./day-marks";
 import { ABSENCE_LABELS, CALLOUT_LABELS } from "../schemas";
 import type { AbsenceKind } from "../domain/value-objects";
@@ -90,9 +90,8 @@ import { PeriodTimeline, type TimelineSpan } from "./stats-timeline";
  *     они уменьшили норму; вызовы, больничные, командировки и отгулы
  *     перечислены поимённо, потому что к ним вопрос другой — когда это было и
  *     за что.
- *  3. «Точные числа» — таблицы по месяцам и по учётным периодам (`Numbers`).
- *     Месяцы в них идут столбцами, а не строками: год помещается на экран, а не
- *     листается.
+ *  3. «Точные числа» — таблица по месяцам (`Numbers`). Месяцы в ней идут
+ *     столбцами, а не строками: год помещается на экран, а не листается.
  *
  * Прежде порядок был обратный — перечни, таблицы и только потом рисунки, — и
  * всё это стояло полосой плашек в три с половиной тысячи точек высоты:
@@ -1468,27 +1467,16 @@ function Cell({
 }
 
 /**
- * Точные числа: по месяцам и по учётным периодам.
+ * Точные числа: таблица по месяцам.
  *
- * Месяцами человек живёт — табель, зарплата, график сменности, — а спорит он не
- * о месяце. Переработку считают ЗА УЧЁТНЫЙ ПЕРИОД (ст. 104 ТК РФ), и у
- * пожарной охраны это квартал, полугодие или год: тот самый выбор, что стоит
- * над сеткой. Внутри периода мартовская недоработка и майская переработка гасят
- * друг друга, и предъявляют только остаток на его конце — число, которого в
- * таблице месяцев не было ни в одной строке. Поэтому таблиц две, и обе стоят
- * на одной плашке.
+ * Месяцами человек живёт — табель, зарплата, график сменности, — и всё, что
+ * нарисовано выше, читается здесь цифрами: норма, факт, баланс, ночные и
+ * праздничные часы, смены. Справа — итог выбранного периода, посчитанный своим
+ * расчётом, а не суммой месяцев: норма считается по отрезку (ст. 104 ТК РФ), и
+ * сумма месячных норм с ней может разойтись.
  *
- * Сложить месяцы глазом вместо второй таблицы нельзя, и не из-за арифметики:
- * норма считается по отрезку, и норма квартала не равна сумме норм его месяцев.
- * Расхождение мелкое, но приложение существует ради того, чтобы числа сходились
- * с приказом, — поэтому каждый период посчитан сам по себе (`partsOf` в
- * `model/statistics.ts`).
- *
- * Кварталы и полугодия — вместе, а года среди них нет: он уже стоит итогом в
- * таблице месяцев и в полосе наверху. Какой период учётный, решает приказ по
- * части, и человек видит тот ряд, который его касается, а не выбирает его ещё
- * одним переключателем ради двух строк разницы. Полугодия — после своих
- * кварталов, за чертой: из них они и складываются.
+ * Таблицы по кварталам и полугодиям здесь нет: она была, и её убрали — для
+ * кварталов есть выбор периода над сеткой, который перестраивает и статистику.
  */
 function Numbers({ stats }: { stats: Statistics }) {
   const { total } = stats;
@@ -1522,54 +1510,13 @@ function Numbers({ stats }: { stats: Statistics }) {
     },
   ];
 
-  const shown = stats.parts.filter((it) => !it.empty);
-  // У полугодия вложены одни кварталы — так и названо.
-  const quartersOnly = shown.every((it) => it.kind === "quarter");
-  const parts: LedgerColumn[] = shown.map((it) => {
-    const first = it.index * monthsIn(it.kind);
-    const number = it.index + 1;
-    return {
-      key: `${it.kind}:${it.index}`,
-      head: it.kind === "quarter" ? `${number}-й кв.` : `${number}-е пол.`,
-      full: partLabel(it.kind, it.index, 0),
-      // Какие это месяцы — тут же, мелко: «3-й квартал» человек считает в уме
-      // не всегда, а ошибка в этом счёте стоит целого разговора не о том
-      // отрезке.
-      sub: `${SHORT[first]} — ${SHORT[first + monthsIn(it.kind) - 1]}`,
-      norm: it.normHours,
-      actual: it.actualHours,
-      balance: it.balance.toNumber(),
-      night: it.nightHours,
-      holiday: it.holidayHours,
-      shifts: it.workedShifts,
-      split: it.kind === "half_year" && it.index === 0,
-    };
-  });
-
   return (
-    <section className="space-y-6">
-      <div className="space-y-1">
-        <h3 className={TITLE}>По месяцам</h3>
-        <Ledger
-          caption={`Норма, отработанные, ночные и праздничные часы по месяцам: за ${periodPhrase(stats.part, stats.year)}`}
-          columns={months}
-        />
-      </div>
-
-      {parts.length === 0 ? null : (
-        <div className="space-y-1">
-          <h3 className={TITLE}>{quartersOnly ? "По кварталам" : "По учётным периодам"}</h3>
-          <Ledger
-            caption={`Норма, отработанные, ночные и праздничные часы по ${
-              quartersOnly ? "кварталам" : "кварталам и полугодиям"
-            }: за ${periodPhrase(stats.part, stats.year)}`}
-            columns={parts}
-            // Шесть столбцов на всю ширину расходились на полтораста точек
-            // друг от друга, и строка переставала читаться строкой.
-            className="max-w-3xl"
-          />
-        </div>
-      )}
+    <section className="space-y-1">
+      <h3 className={TITLE}>По месяцам</h3>
+      <Ledger
+        caption={`Норма, отработанные, ночные и праздничные часы по месяцам: за ${periodPhrase(stats.part, stats.year)}`}
+        columns={months}
+      />
     </section>
   );
 }

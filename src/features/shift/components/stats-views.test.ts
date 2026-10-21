@@ -66,14 +66,13 @@ describe("таблица чисел: месяцы столбцами", () => {
     expect(cells[2]?.className).not.toMatch(/text-(verify|signal)/);
   });
 
-  it("итоговый столбец отбит чертой, полугодие — тоже", () => {
-    render([column(), column({ key: "t", head: "Год", total: true }), column({ key: "h", split: true })]);
+  it("итоговый столбец отбит чертой, месячные — нет", () => {
+    render([column(), column({ key: "t", head: "Год", total: true })]);
 
     // Первый заголовок — пустая ячейка над названиями показателей.
-    const [, plain, sum, half] = [...container.querySelectorAll('thead th[scope="col"]')];
+    const [, plain, sum] = [...container.querySelectorAll('thead th[scope="col"]')];
     expect(plain?.className).not.toContain("border-l");
     expect(sum?.className).toContain("border-l");
-    expect(half?.className).toContain("border-l");
   });
 
   it("часы без хвостовых нулей: 1621, а не 1621,0", () => {
