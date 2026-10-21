@@ -164,6 +164,7 @@ export function MenuMark({ cross, className }: { cross?: boolean; className?: st
       {/* Полосы разведены по всей высоте рисунка: рядом с квадратами
           логотипа сжатая стопка читалась бы как знак поменьше. */}
       <rect
+        data-bar="top"
         x="2"
         y="3.4"
         width="20"
@@ -173,6 +174,7 @@ export function MenuMark({ cross, className }: { cross?: boolean; className?: st
         className={cn(полоса, "fill-ink", cross === true && "translate-y-[7.4px] rotate-45")}
       />
       <rect
+        data-bar="middle"
         x="2"
         y="10.8"
         width="20"
@@ -182,6 +184,7 @@ export function MenuMark({ cross, className }: { cross?: boolean; className?: st
         className={cn(полоса, "fill-ink", cross === true && "opacity-0")}
       />
       <rect
+        data-bar="bottom"
         x="2"
         y="18.2"
         width="20"

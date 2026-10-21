@@ -4397,6 +4397,99 @@
   animation: demo-menu var(--demo-cycle) cubic-bezier(0.22, 1, 0.36, 1) infinite both;
 }
 
+/* Три полосы у слова «Меню» — те же, что у кнопки в шапке (`MenuMark`), и ход у
+   них тот же: пока меню раскрыто, они сложены крестиком, а когда оно закрылось,
+   расходятся обратно. Крестик в покое — он же начальный кадр: показ стоит в
+   нём, пока до него не долистали, и меню тогда тоже раскрыто.
+
+   Доли — те же, что у меню (`demo-menu`): крестик расходится, пока меню гаснет
+   (13–17), и складывается, пока оно возвращается (93–97). Ход — 4 % круга, то
+   есть 240 мс, у кнопки в приложении — 200. Крест из `MenuMark`: верхняя
+   съезжает на 7,4 и поворачивается на 45°, нижняя — зеркально, средняя
+   гаснет. */
+.demo-burger [data-bar="top"] {
+  translate: 0 7.4px;
+  rotate: 45deg;
+}
+
+.demo-burger [data-bar="middle"] {
+  opacity: 0;
+}
+
+.demo-burger [data-bar="bottom"] {
+  translate: 0 -7.4px;
+  rotate: -45deg;
+}
+
+@keyframes demo-bar-top {
+  0%,
+  13% {
+    translate: 0 7.4px;
+    rotate: 45deg;
+  }
+
+  17%,
+  93% {
+    translate: 0 0;
+    rotate: 0deg;
+  }
+
+  97%,
+  100% {
+    translate: 0 7.4px;
+    rotate: 45deg;
+  }
+}
+
+@keyframes demo-bar-middle {
+  0%,
+  13% {
+    opacity: 0;
+  }
+
+  17%,
+  93% {
+    opacity: var(--bar-rest);
+  }
+
+  97%,
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes demo-bar-bottom {
+  0%,
+  13% {
+    translate: 0 -7.4px;
+    rotate: -45deg;
+  }
+
+  17%,
+  93% {
+    translate: 0 0;
+    rotate: 0deg;
+  }
+
+  97%,
+  100% {
+    translate: 0 -7.4px;
+    rotate: -45deg;
+  }
+}
+
+.demo[data-play="on"] .demo-burger [data-bar="top"] {
+  animation: demo-bar-top var(--demo-cycle) ease-out infinite both;
+}
+
+.demo[data-play="on"] .demo-burger [data-bar="middle"] {
+  animation: demo-bar-middle var(--demo-cycle) ease-out infinite both;
+}
+
+.demo[data-play="on"] .demo-burger [data-bar="bottom"] {
+  animation: demo-bar-bottom var(--demo-cycle) ease-out infinite both;
+}
+
 /* Окно выгрузки. Открывается тем же движением, что и настоящее: приходит
    снизу, коротко и без отскока — окно не игрушка. */
 @keyframes demo-dialog {
@@ -4586,6 +4679,17 @@
   /* Имя файла набрано целиком, каретка снята, каретка переноса на месте. */
   .demo .demo-typed {
     width: 10ch !important;
+  }
+
+  /* Меню закрыто — значит, и полосы у «Меню» разошлись: крестик остался бы
+     без раскрытого списка, который он закрывает. */
+  .demo .demo-burger [data-bar] {
+    translate: 0 0 !important;
+    rotate: 0deg !important;
+  }
+
+  .demo .demo-burger [data-bar="middle"] {
+    opacity: var(--bar-rest) !important;
   }
 
   .demo .demo-carriage {

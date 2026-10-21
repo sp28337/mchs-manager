@@ -5,10 +5,10 @@ import {
   FolderOpen,
   Save,
   Settings,
-  UserRound,
   X,
 } from "lucide-react";
 
+import { HEADER_WORD, MARK_EMPTY, MenuMark } from "@/components/shared/header-action";
 import { MonthGrid } from "@/features/shift/components/month-grid";
 import {
   addDays,
@@ -48,7 +48,8 @@ import { HandIcon } from "./hand-icon";
  *   легенде расчёта, `CALLOUT_MARK`), «В» — свободные сутки;
  * * несомая смена повторяет `renderGhost` из `use-shift-drag` вплоть до
  *   слова «смена» под числом, наклона и тени;
- * * шапка, меню и окно выгрузки — тот же кружок, те же строки действий и
+ * * шапка, меню и окно выгрузки — то же слово «Меню» и те же три полосы,
+ *   что складываются в крестик, пока меню открыто, те же строки действий и
  *   то же поле «Имя файла», что в `HeaderMenu`, `WorkspaceMenuItems` и
  *   `SaveToFile`.
  *
@@ -837,9 +838,11 @@ export function DemoEvents() {
    самом деле: человек выбирает «Сохранить» в меню шапки, называет
    файл, и файл ложится на то же устройство.
 
-   Шапка, меню и окно здесь настоящие: тот же кружок, те же четыре строки
-   действий, тот же заголовок «Сохранить профиль в файл» и то же поле
-   «Имя файла».
+   Шапка, меню и окно здесь настоящие: то же слово «Меню» и три полосы,
+   которые, пока меню открыто, сложены крестиком, а когда оно закрылось,
+   разошлись обратно (`MenuMark` и тот же ход, что у кнопки в шапке), те же
+   пять строк действий, тот же заголовок «Сохранить график в файл» и то же
+   поле «Имя файла».
 
    Перечёркнутая стрелка в конце обязательна: без неё «сохранить в файл»
    читалось бы как «отправить». Это единственное место на странице, где
@@ -850,13 +853,20 @@ export function DemoStorage() {
   return (
     <Panel>
       <div className="w-full max-w-104">
-        {/* Шапка приложения: тот самый кружок, что стоит в ней на самом
-            деле (`shared/header-menu.tsx`). Полосы под ним нет — в
-            приложении шапка прозрачна, а поднят сам кружок. */}
+        {/* Шапка приложения: слово «Меню» и три полосы — то, что стоит в ней
+            на самом деле (`shared/header-menu.tsx`). Плашки под ними нет: в
+            приложении шапка прозрачна. Слово остаётся и при открытом меню,
+            а полосы складываются в крестик, как у настоящей кнопки; ход
+            задан в `globals.css` (`demo-bar-*`) долями круга показа, в такт
+            меню ниже. `--bar-rest` — прозрачность покоя средней полосы,
+            которую та получает назад, когда крестик расходится. */}
         <div className="flex items-center justify-end pb-3">
-          <span className="lit inline-flex size-9 shrink-0 items-center justify-center rounded-full bg-paper-raised">
-            <UserRound aria-hidden className="size-4.5 shrink-0 text-ink-muted" />
-            <span className="sr-only">Меню</span>
+          <span
+            className="demo-burger inline-flex items-center gap-2"
+            style={{ "--bar-rest": MARK_EMPTY.opacity } as CSSProperties}
+          >
+            <span className={HEADER_WORD}>Меню</span>
+            <MenuMark />
           </span>
         </div>
 
@@ -866,7 +876,7 @@ export function DemoStorage() {
             пятой строкой меню («События») на широком экране оно стало
             выше окна, и вынесенное из потока вылезало бы за ячейку. */}
         <div className="grid">
-        {/* Меню — то самое, что открывает кружок: пять действий
+        {/* Меню — то самое, что открывает эта кнопка: пять действий
             рабочего экрана. Нажимают здесь по последнему. Кайма — та же
             живая, что у меню в приложении (`lit`). */}
         <div className="demo-menu lit modal-lift relative col-start-1 row-start-1 w-60 self-start justify-self-end rounded-xl bg-paper-raised p-1.5 grid gap-1">
