@@ -78,9 +78,10 @@ const ROWS: readonly {
 
 /**
  * Первый столбец остаётся на месте при прокрутке вбок и закрывает собой то, что
- * под него уезжает, — заливкой плашки, на которой стоит таблица.
+ * под него уезжает, — заливкой страницы, на которой стоит таблица: плашки
+ * под ней больше нет.
  */
-const STICKY = "sticky left-0 z-10 bg-paper-raised";
+const STICKY = "sticky left-0 z-10 bg-paper";
 
 export function Ledger({
   caption,

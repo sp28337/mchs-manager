@@ -55,9 +55,15 @@ import { PeriodTimeline, type TimelineSpan } from "./stats-timeline";
  * выяснилось, что окно закрывает собой источник собственных чисел, —
  * доводы целиком там, у `statsOpen`.
  *
- * Отсюда и строй: разделы стоят плашками поднятой бумаги (`PLATE`), как
- * карточки настроек и плитки проводника, а не сплошной лентой, как было
- * внутри окна.
+ * Отсюда и строй: разделы стоят прямо на странице, без плашек, рамок и
+ * заливки, и отделены друг от друга просветом и заголовком. Плашки поднятой
+ * бумаги тут были, и на широком экране они лежали сплошной лентой в три с
+ * половиной тысячи точек: каждая рамка со своим светом по кромке отнимала
+ * внимание у того, что в ней, а рисунки и таблицы без них стоят ровнее.
+ *
+ * Ширина — та же, что у календаря (`frame-inset` в `workspace.tsx`): с
+ * `md` рамка уже страницы, и колонка знаков управления, которая стоит в поле
+ * сбоку, остаётся в поле, а не ложится на статистику.
  *
  * --- Зачем она отдельно от полосы с числами -------------------------------
  *
@@ -138,23 +144,6 @@ const TONE = {
   over: "var(--fps-verify)",
   under: "var(--fps-signal)",
 };
-
-/**
- * Плашка раздела: поднятая бумага со светом по кромке.
- *
- * Статистика стоит НА СТРАНИЦЕ, на месте графика (`workspace.tsx`), а не
- * окном поверх неё, и строй у неё тот же, что у проводника и настроек:
- * разделы — плашки на бумаге, а не куски сплошной ленты. Плашек ровно
- * столько, сколько вопросов: как шло, из чего вышло, точные числа.
- *
- * `lit` — плашка ловит свет лампы: блик по верхней кромке, мягкая тень
- * вниз и кайма под курсором. Забирает их ближайшая к указателю
- * поверхность, и потому внутри плашки второго `lit` быть не должно —
- * иначе кромка самой плашки гасла бы, стоило подвести курсор к числу.
- * В окне всё было наоборот: там поднятой бумагой было само окно, и
- * плашки внутри читались коробкой в коробке.
- */
-const PLATE = "lit rounded-xl bg-paper-raised p-4 sm:p-5";
 
 function hours(value: number): string {
   return `${hoursTrim(value)} ч`;
@@ -470,10 +459,10 @@ export function Statistics({
   }
 
   return (
-    // Просвет между плашками — тот же, что между карточками настроек и
-    // рядами проводника: разделы тут одного рода, и разводить их вдвое
-    // шире значило бы сказать, что они с разных страниц.
-    <div className="space-y-4">
+    // Выбор стоит над разделами с обычным просветом, а сами разделы друг
+    // от друга разведены шире (`space-y-10` ниже): плашек вокруг них нет, и
+    // границей служит один просвет.
+    <div className="space-y-6">
       {/* Выбор — только когда выбирать есть из чего. При одном профиле
           список из «Все профили» и его же имени предлагал бы выбор из
           одного и обещал бы свод, которого нет. */}
@@ -685,9 +674,9 @@ function ScopePicker({
     // Строка управления, а не плашка.
     // -----------------------------------------------------------------------
     // Подложки у неё нет — по той же причине, по какой её нет у строки над
-    // сеткой (`year-view.tsx`): плашка цвета бумаги над разделами, которые
-    // сами плашки, читается вторым слоем поверх первого. Управление держится
-    // формой самих кнопок, а не фоном под ними.
+    // сеткой (`year-view.tsx`): плашка цвета бумаги под кнопками читалась бы
+    // лишним слоем. Управление держится формой самих кнопок, а не фоном под
+    // ними.
     //
     // И форма эта — та же, что у соседей по приложению: выбор чьей-то
     // статистики стоит к выбору периода и режиму «Онлайн» ровно в том же
@@ -838,9 +827,9 @@ function OneProfile({ profile, part }: { profile: StoredProfile; part: PeriodPar
 
   if (!stats.any) {
     return (
-      // Пустой ответ — такой же плашкой, как у пустой папки в проводнике:
-      // страница не должна выглядеть недогрузившейся.
-      <p className={cn(PLATE, "text-center text-sm text-ink-muted")}>
+      // Пустой ответ — словами по центру: страница не должна выглядеть
+      // недогрузившейся.
+      <p className="py-6 text-center text-sm text-ink-muted">
         За {periodPhrase(stats.part, stats.year)} считать нечего: выбранный
         период ещё не начался или целиком раньше начала отсчёта.
       </p>
@@ -848,7 +837,7 @@ function OneProfile({ profile, part }: { profile: StoredProfile; part: PeriodPar
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-10">
       <Figures stats={stats} />
       <Course stats={stats} />
       <Events stats={stats} />
@@ -886,7 +875,7 @@ function Figures({ stats }: { stats: Statistics }) {
   const { total } = stats;
 
   return (
-    <section className={cn(PLATE, "space-y-2 lg:hidden")}>
+    <section className="space-y-2 lg:hidden">
       <h3 className="font-display text-sm font-bold uppercase tracking-wide">
         За {periodPhrase(stats.part, stats.year)}
       </h3>
@@ -1024,7 +1013,7 @@ function Course({ stats }: { stats: Statistics }) {
   const only = (id: CourseView) => (id === shown ? undefined : "max-lg:hidden");
 
   return (
-    <section className={cn(PLATE, "space-y-4")}>
+    <section className="space-y-4">
       <Segmented label="Рисунок" className="w-full lg:hidden">
         {views.map((it) => (
           <SegmentedItem
@@ -1211,18 +1200,17 @@ function Events({ stats }: { stats: Statistics }) {
 
   if (groups.length === 0) {
     return (
-      <section className={cn(PLATE, "space-y-2")}>
+      <section className="space-y-2">
         <h3 className={TITLE}>События</h3>
         <p className="text-xs text-ink-muted">
-          {WHOLE_PERIOD[stats.part.kind]} не отмечено ни отпусков, ни больничных,
-          ни командировок, ни отгулов, ни выходов помимо своих смен.
+          {WHOLE_PERIOD[stats.part.kind]} не отмечено ни одного события
         </p>
       </section>
     );
   }
 
   return (
-    <section className={cn(PLATE, "space-y-4")}>
+    <section className="space-y-4">
       <h3 className={TITLE}>События</h3>
 
       <PeriodTimeline
@@ -1236,7 +1224,7 @@ function Events({ stats }: { stats: Statistics }) {
         today={today}
       />
 
-      <div className="columns-1 gap-x-8 border-t border-rule pt-4 md:columns-2 xl:columns-3">
+      <div className="columns-1 gap-x-8 md:columns-2 2xl:columns-3">
         {groups.map((group) => (
           <section key={group.key} className="mb-4 break-inside-avoid">
             <div className="flex flex-wrap items-baseline justify-between gap-x-3">
@@ -1559,7 +1547,7 @@ function Numbers({ stats }: { stats: Statistics }) {
   });
 
   return (
-    <section className={cn(PLATE, "space-y-5")}>
+    <section className="space-y-6">
       <div className="space-y-1">
         <h3 className={TITLE}>По месяцам</h3>
         <Ledger
@@ -1694,16 +1682,16 @@ function Summary({
     .filter((group) => group.rows.length > 0);
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-10">
       {/* Таблица — первой: свод открывают ради вопроса «у кого сколько», и
           отвечает на него она, а полоски под ней — на «кто вырывается вперёд».
           Раньше она стояла последней, под пятью перечнями. */}
       <ProfileTable lines={lines} onPick={onPick} />
 
       {groups.length === 0 ? null : (
-        <section className={cn(PLATE, "space-y-3")}>
+        <section className="space-y-3">
           <h3 className={TITLE}>События</h3>
-          <div className="columns-1 gap-x-8 md:columns-2 xl:columns-3">
+          <div className="columns-1 gap-x-8 md:columns-2 2xl:columns-3">
             {groups.map((group) => (
               <Shares key={group.title} title={group.title} rows={group.rows} />
             ))}
@@ -1957,7 +1945,7 @@ function ProfileTable({
   );
 
   return (
-    <section className={cn(PLATE, "space-y-2")}>
+    <section className="space-y-2">
       <h3 className={TITLE}>По графикам</h3>
       <div className="overflow-x-auto">
         <table className="w-full min-w-[38rem] border-collapse text-sm">
