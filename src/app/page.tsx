@@ -4,6 +4,7 @@ import { ChevronDown } from "lucide-react";
 import { LandingHero } from "@/components/landing/hero";
 import { HeroCta } from "@/components/landing/hero-cta";
 import { HOW_STEPS, HowItWorks } from "@/components/landing/how-it-works";
+import { LandingIntro } from "@/components/landing/intro";
 import { SYNC_ENABLED } from "@/features/sync/ui/enabled";
 import { cn } from "@/lib/utils/cn";
 import { HelpMenuItem, OpenScheduleItem } from "@/components/shared/header-menu";
@@ -319,6 +320,8 @@ export default function LandingPage() {
 
       <main className="mx-auto w-full max-w-4xl px-6 xl:max-w-6xl 2xl:max-w-7xl">
         <LandingHero cta={<HeroCta />} />
+
+        <LandingIntro />
 
         <HowItWorks />
 
