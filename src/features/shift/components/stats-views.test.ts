@@ -4,16 +4,12 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { Dec } from "../domain/decimal";
-import type { IsoDate } from "../domain/plain-date";
 import { Ledger, signed, type LedgerColumn } from "./stats-ledger";
-import { PeriodTimeline } from "./stats-timeline";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
 let container: HTMLDivElement;
 let root: Root;
-
-const day = (iso: string) => iso as IsoDate;
 
 beforeEach(() => {
   container = document.createElement("div");
@@ -87,58 +83,5 @@ describe("таблица чисел: месяцы столбцами", () => {
     expect(signed(0)).toBe("0");
     expect(signed(24)).toBe("+24");
     expect(signed(-16)).toBe("−16");
-  });
-});
-
-describe("лента периода", () => {
-  const rows = [
-    {
-      key: "leave",
-      label: "Отпуска",
-      spans: [
-        { key: "a", from: day("2026-07-06"), to: day("2026-07-26"), tone: "x", title: "Отпуск, 6 июля — 26 июля" },
-        // Целиком вне ленты второго квартала: рисовать нечего.
-        { key: "b", from: day("2026-01-10"), to: day("2026-01-12"), tone: "x", title: "вне" },
-      ],
-    },
-    { key: "sick", label: "Больничные", spans: [] },
-  ];
-
-  function render(months: number[], today: string) {
-    act(() =>
-      root.render(createElement(PeriodTimeline, { year: 2026, months, rows, today: day(today) })),
-    );
-  }
-
-  it("для программы чтения её нет: те же события читаются перечнем под ней", () => {
-    render(Array.from({ length: 12 }, (_, month) => month), "2026-10-21");
-
-    expect(container.firstElementChild?.getAttribute("aria-hidden")).toBe("true");
-  });
-
-  it("в году рисуются оба отрезка, во втором квартале — только вошедший", () => {
-    render(Array.from({ length: 12 }, (_, month) => month), "2026-10-21");
-    expect(container.querySelectorAll("[title]")).toHaveLength(2);
-
-    render([6, 7, 8], "2026-08-10");
-    expect(container.querySelectorAll("[title]")).toHaveLength(1);
-    expect(container.querySelector("[title]")?.getAttribute("title")).toBe("Отпуск, 6 июля — 26 июля");
-  });
-
-  it("красная черта «сегодня» есть, только пока сегодня внутри периода", () => {
-    const today = () => container.querySelectorAll(".bg-signal");
-
-    render(Array.from({ length: 12 }, (_, month) => month), "2026-10-21");
-    expect(today()).toHaveLength(1);
-
-    render([0, 1, 2], "2026-10-21");
-    expect(today()).toHaveLength(0);
-  });
-
-  it("месяцы подписаны по порядку периода", () => {
-    render([3, 4, 5], "2026-05-01");
-
-    const labels = [...container.querySelectorAll("span.text-ink-faint")].map((it) => it.textContent);
-    expect(labels).toEqual(["апр", "май", "июн"]);
   });
 });

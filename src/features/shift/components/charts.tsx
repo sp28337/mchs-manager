@@ -691,28 +691,3 @@ export function BalanceChart({
     </Frame>
   );
 }
-
-/**
- * Полоска доли — для перечня освобождений.
- *
- * Одна и та же у всех видов, и это намеренно: цветом здесь отвечает
- * КЛЕТКА при названии — та самая, какой этот вид стоит на сетке, — а
- * полоска говорит только «сколько». Раскрасить полоски по видам значило бы
- * завести пять серий, которые надо различать на глаз: счётом их цвета для
- * такой роли не годятся (пара «доп. отпуск» и «отгул» расходится на 3,6
- * при восьми положенных), а различать их и не требуется — имя написано
- * рядом.
- */
-export function ShareBar({ share }: { share: number }) {
-  return (
-    <span
-      aria-hidden
-      className="block h-1.5 w-full overflow-hidden rounded-full bg-paper-sunken"
-    >
-      <span
-        className="block h-full rounded-full bg-ink-faint"
-        style={{ width: `${Math.max(2, Math.round(share * 100))}%` }}
-      />
-    </span>
-  );
-}
