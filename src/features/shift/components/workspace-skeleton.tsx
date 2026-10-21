@@ -137,7 +137,7 @@ export function WorkspaceSkeleton() {
         {/* С `md` имя стоит в строке шапки (`ProfileNameBone` ниже), а
             здесь его нет — как у расчёта. */}
         <header className="pb-12 md:hidden">
-          <h1 className="text-3xl font-hand sm:text-5xl opacity-10 leading-tight text-center">
+          <h1 className="text-3xl font-hand sm:text-5xl opacity-20 leading-tight text-center">
             <BoneText skeleton className="rounded-xl">
               Мой график
             </BoneText>
