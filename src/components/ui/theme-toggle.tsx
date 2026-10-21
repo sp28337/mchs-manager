@@ -155,7 +155,7 @@ export function ThemeCorner({
         // ряда: подпись не убегает, пока курсор в раскрытом окошке.
         docked
           ? KNOB_NEST
-          : "group/knob fixed right-6 z-90 flex bottom-[calc(1.5rem+var(--safe-bottom))]",
+          : "group/knob fixed right-6 z-90 flex bottom-[calc(1.5rem+var(--safe-bottom))] lg:right-4",
         className,
       )}
     >

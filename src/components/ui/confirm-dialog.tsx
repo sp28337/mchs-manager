@@ -82,7 +82,12 @@ export function ConfirmDialog({
    * её не запускают: те по-прежнему значат «закрыть и ничего не делать».
    */
   decline?: { label: string; onClick: () => void };
-  children: ReactNode;
+  /**
+   * Что произойдёт. Нет вовсе, когда заголовок и кнопка уже всё сказали:
+   * «Выйти из аккаунта?» с кнопкой «Выйти» ничего не теряет, и строка под
+   * ними пересказывала бы то же.
+   */
+  children?: ReactNode;
 }) {
   return (
     <Modal
@@ -103,7 +108,7 @@ export function ConfirmDialog({
         {/* Вопрос стоит прямо на бумаге окна: она и есть поднятая, и
             второй такой же плашки внутри быть не должно — как и у карточки
             настроек, оказавшейся в окне (`panel.tsx`). */}
-        <div className="space-y-2 py-1 text-sm">{children}</div>
+        {children === undefined ? null : <div className="space-y-2 py-1 text-sm">{children}</div>}
 
         <div className="flex flex-wrap items-center gap-2">
           <Button

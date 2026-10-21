@@ -4,6 +4,7 @@ import { Save } from "lucide-react";
 import { useRef, useState, type ReactNode } from "react";
 
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { useSync } from "@/features/sync/ui/sync-provider";
 
 import { profileNeedsExport, type StoredProfile } from "../storage/profile";
 import { useSaveToFile } from "./save-to-file";
@@ -30,11 +31,19 @@ import { useSaveToFile } from "./save-to-file";
  *
  * --- Когда он НЕ задаётся --------------------------------------------------
  *
- * Условия два, и нужны оба.
+ * Условий три, и нужны все.
  *
  * Первое — человек правил открытый профиль (`changed`). Второе — правка не
  * ушла в файл (`profileNeedsExport`), и об этом приложение судит не со
  * слов, а по делу: отметку ставит сама выгрузка.
+ *
+ * Третье — человек не вошёл в учётную запись. У вошедшего график лежит в
+ * базе на сервере и приезжает на любое устройство, а правка уезжает туда сама,
+ * без нажатия; файл ему не нужен ни при очистке браузера, ни при смене
+ * устройства — ради них вопрос и задавался. А спрашивать о ненужном — значит
+ * приучать не читать вопросов. Если правка по какой-то причине ещё не уехала
+ * (нет сети), её судьбу решает выход из аккаунта (`logout-dialog.tsx`), а не
+ * переключение между графиками: оба графика по-прежнему лежат в браузере.
  *
  * Одного второго было мало, и это была ошибка: отметки о выгрузке нет ни у
  * кого, кто ни разу не сохранял профиль файлом, — а таких большинство.
@@ -60,6 +69,7 @@ export function useConfirmSwitch(
   dialogs: ReactNode;
 } {
   const [warning, setWarning] = useState(false);
+  const { account } = useSync();
   // Продолжение живёт в ref, а не в состоянии: оно не участвует в
   // отрисовке, и лишний её прогон при каждом выборе профиля не нужен.
   const pending = useRef<(() => void) | null>(null);
@@ -74,7 +84,7 @@ export function useConfirmSwitch(
 
   return {
     ask: (proceed) => {
-      if (!changed || !profileNeedsExport(profile)) {
+      if (!changed || account !== null || !profileNeedsExport(profile)) {
         proceed();
         return;
       }
