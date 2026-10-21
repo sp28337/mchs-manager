@@ -1,11 +1,12 @@
 "use client";
 
 import { Pencil, RotateCcw, Trash2 } from "lucide-react";
-import { useId, useState } from "react";
+import { useId, useState, type ReactNode } from "react";
 
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Modal } from "@/components/ui/modal";
 import { Card, Field } from "@/components/ui/panel";
 import { Select } from "@/components/ui/select";
@@ -18,6 +19,7 @@ import {
   MIN_CUSTOM_DAYS,
   SCHEDULE_PATTERNS,
   schedulePatternOf,
+  type SchedulePatternId,
 } from "../domain/schedule-pattern";
 import {
   WEEKLY_NORM_GROUNDS,
@@ -37,6 +39,7 @@ import { formatHoursTrim as hoursTrim } from "../domain/decimal";
 import { shiftMinutes } from "../domain/shift-hours";
 import { HoursField, weeklyHoursFieldError } from "./hours-field";
 import { LiveModeSwitch } from "./live-mode";
+import { RhythmPicker } from "./rhythm-picker";
 import { TimeField } from "./time-field";
 
 /**
@@ -146,6 +149,70 @@ export function SettingsPanel({
    */
   const [tune, setTune] = useState<TuneKind | null>(null);
 
+  /**
+   * Ответ на «График» — один на список в настройках и ряд ритмов в окне
+   * «Создать график»: два места, где его можно дать, не вправе расходиться в
+   * том, что при этом меняется в профиле.
+   */
+  function changePattern(id: SchedulePatternId) {
+    // «Настроить» — это не ответ, а обещание его дать: числа цикла
+    // спрашиваются окном поверх настроек, сразу же.
+    if (id === CUSTOM_PATTERN_ID) setTune("pattern");
+    onChange((previous) => ({
+      ...previous,
+      schedulePattern: id,
+      // Продолжительность смены следует из графика: сутки через
+      // трое — 24 часа, два через два — 12, пятидневка — 8. Человек
+      // может поправить её ниже, но подставить обычное для графика
+      // значение приложение обязано само — иначе смена графика
+      // оставляла бы суточную смену в пятидневке.
+      //
+      // У своего цикла обычной продолжительности не бывает: 3|1
+      // водителя это восемь часов, а 3|1 сторожа — сутки. Поэтому
+      // при переходе на него поле остаётся тем, что человек уже
+      // поставил.
+      shiftDurationHours:
+        id === CUSTOM_PATTERN_ID
+          ? previous.shiftDurationHours
+          : schedulePatternOf(id).defaultShiftHours,
+    }));
+  }
+
+  /** Ответ на «Норма в неделю» — по той же причине один на оба места. */
+  function changeNormGround(next: WeeklyNormGround) {
+    if (next === "custom") setTune("norm");
+    // Выбрав «Настроить», человек получает поле, уже заполненное
+    // той нормой, что действует сейчас: её и правят. Пустое поле
+    // значило бы «своей нормы нет», и выбор откатился бы обратно
+    // в тот же миг.
+    const facts = weeklyNormGroundFacts(next, hoursTrim(weeklyNormOf(profile).hours));
+    onChange((previous) => ({ ...previous, ...facts }));
+  }
+
+  // Окно «Создать график» спрашивает то же, но выглядит иначе: рядом с ним
+  // стол с будущим календарём, и вопросы стоят в узкой колонке, а не
+  // строками карточки (`CreateAnswers`). Ответы идут через те же обработчики.
+  if (purpose === "create") {
+    return (
+      <>
+        <CreateAnswers
+          profile={profile}
+          onChange={onChange}
+          ground={ground}
+          onPattern={changePattern}
+          onNorm={changeNormGround}
+          onTune={setTune}
+        />
+        <TuneModal
+          kind={tune}
+          profile={profile}
+          onChange={onChange}
+          onClose={() => setTune(null)}
+        />
+      </>
+    );
+  }
+
   return (
     <div className="space-y-4">
       {/* Как показывать расчёт — отдельной карточкой и первой.
@@ -245,30 +312,7 @@ export function SettingsPanel({
         <Select
           id={patternId}
           value={pattern.id}
-          onChange={(event) => {
-            const id = event.target.value as StoredProfile["schedulePattern"];
-            // «Настроить» — это не ответ, а обещание его дать: числа цикла
-            // спрашиваются окном поверх настроек, сразу же.
-            if (id === CUSTOM_PATTERN_ID) setTune("pattern");
-            onChange((previous) => ({
-              ...previous,
-              schedulePattern: id,
-              // Продолжительность смены следует из графика: сутки через
-              // трое — 24 часа, два через два — 12, пятидневка — 8. Человек
-              // может поправить её ниже, но подставить обычное для графика
-              // значение приложение обязано само — иначе смена графика
-              // оставляла бы суточную смену в пятидневке.
-              //
-              // У своего цикла обычной продолжительности не бывает: 3|1
-              // водителя это восемь часов, а 3|1 сторожа — сутки. Поэтому
-              // при переходе на него поле остаётся тем, что человек уже
-              // поставил.
-              shiftDurationHours:
-                id === CUSTOM_PATTERN_ID
-                  ? previous.shiftDurationHours
-                  : schedulePatternOf(id).defaultShiftHours,
-            }));
-          }}
+          onChange={(event) => changePattern(event.target.value as SchedulePatternId)}
         >
           {SCHEDULE_PATTERNS.map((option) => (
             <option key={option.id} value={option.id}>
@@ -296,19 +340,7 @@ export function SettingsPanel({
         <Select
           id={normId}
           value={ground}
-          onChange={(event) => {
-            const next = event.target.value as WeeklyNormGround;
-            if (next === "custom") setTune("norm");
-            // Выбрав «Настроить», человек получает поле, уже заполненное
-            // той нормой, что действует сейчас: её и правят. Пустое поле
-            // значило бы «своей нормы нет», и выбор откатился бы обратно
-            // в тот же миг.
-            const facts = weeklyNormGroundFacts(
-              next,
-              hoursTrim(weeklyNormOf(profile).hours),
-            );
-            onChange((previous) => ({ ...previous, ...facts }));
-          }}
+          onChange={(event) => changeNormGround(event.target.value as WeeklyNormGround)}
         >
           {WEEKLY_NORM_GROUNDS.map((option) => (
             <option key={option} value={option}>
@@ -468,6 +500,195 @@ export function SettingsPanel({
       />
       </>
       )}
+    </div>
+  );
+}
+
+/**
+ * Вопросы анкеты в окне «Создать график».
+ *
+ * --- Чем это не `Card` настроек ---------------------------------------------
+ *
+ * В настройках человек ПРАВИТ: вопросы идут рядом строками «вопрос — ответ», а
+ * ответ стоит справа, у общей оси. Здесь он впервые ОТВЕЧАЕТ, и рядом лежит стол
+ * с календарём, который перестраивается на каждый ответ. Колонка узкая, строки
+ * «вопрос слева, ответ справа» в ней рвутся, поэтому подпись стоит над полем, а
+ * поля, которым хватает полстроки, встают парами.
+ *
+ * --- Почему график — ряд, а не список ---------------------------------------
+ *
+ * Самый важный ответ анкеты — график, и угадывать его по пятому пункту списка
+ * незачем: у каждого варианта нарисован его цикл (`RhythmPicker`). Остальное
+ * спрашивается так же, как в настройках, — теми же полями и теми же словами.
+ *
+ * --- Что здесь общего с настройками -----------------------------------------
+ *
+ * Поля, проверки, подстановка обычной продолжительности смены и окно со своими
+ * числами. Ответы на «График» и «Норму» приходят обработчиками из панели:
+ * второго места, где решается, что меняется в профиле при выборе графика, нет.
+ */
+function CreateAnswers({
+  profile,
+  onChange,
+  ground,
+  onPattern,
+  onNorm,
+  onTune,
+}: {
+  profile: StoredProfile;
+  onChange: (change: (previous: StoredProfile) => StoredProfile) => void;
+  ground: WeeklyNormGround;
+  onPattern: (id: SchedulePatternId) => void;
+  onNorm: (ground: WeeklyNormGround) => void;
+  onTune: (kind: TuneKind) => void;
+}) {
+  const nameId = useId();
+  const shiftId = useId();
+  const startId = useId();
+  const durationId = useId();
+  const normId = useId();
+  const countId = useId();
+
+  const pattern = patternOfProfile(profile);
+  const custom = profile.schedulePattern === CUSTOM_PATTERN_ID;
+
+  return (
+    <div className="space-y-5">
+      <Ask id={nameId} label="Имя графика">
+        <Input
+          id={nameId}
+          maxLength={200}
+          placeholder="Например: Основной график"
+          value={profile.displayName}
+          onChange={(event) => {
+            const displayName = event.target.value;
+            onChange((previous) => ({ ...previous, displayName }));
+          }}
+        />
+      </Ask>
+
+      <div className="space-y-1.5">
+        <div className="flex items-center justify-between gap-2">
+          {/* Подпись без `for`: у ряда нет одного поля, а сам ряд назван
+              (`radiogroup` с именем «График»). */}
+          <span className="text-xs font-medium tracking-wide text-ink-muted uppercase">
+            График
+          </span>
+          {custom ? <TuneButton label="График" onClick={() => onTune("pattern")} /> : null}
+        </div>
+        <RhythmPicker
+          value={pattern.id}
+          custom={
+            custom
+              ? {
+                  workDays: profile.customWorkDays,
+                  cycleDays: profile.customWorkDays + profile.customRestDays,
+                }
+              : null
+          }
+          customLabel={custom ? pattern.label : "Свой"}
+          onPick={onPattern}
+        />
+      </div>
+
+      {/* Колонки подбираются по ширине поля, а не по ширине окна: дата смены
+          занимает 184 точки, и в колонке уже этого поле нечем держать. Узкая
+          колонка — поля друг под другом, широкая — парами. */}
+      <div className="grid grid-cols-[repeat(auto-fit,minmax(11.5rem,1fr))] gap-x-3 gap-y-4">
+        {/* У пятидневки даты смены нет: её смены даёт производственный
+            календарь, и поле ничего бы не меняло. */}
+        {pattern.source === "calendar" ? null : (
+          <Ask id={shiftId} label="Дата смены">
+            <DateField
+              id={shiftId}
+              defaultValue={profile.firstShiftDate}
+              onChange={(value) => {
+                if (value === null) return;
+                onChange((previous) => ({ ...previous, firstShiftDate: value }));
+              }}
+            />
+          </Ask>
+        )}
+
+        <Ask id={startId} label="Начало смены">
+          <TimeField
+            id={startId}
+            value={profile.shiftStartTime}
+            onChange={(shiftStartTime) =>
+              onChange((previous) => ({ ...previous, shiftStartTime }))
+            }
+          />
+        </Ask>
+
+        <Ask id={durationId} label="Длительность">
+          <HoursField
+            id={durationId}
+            value={profile.shiftDurationHours}
+            onChange={(shiftDurationHours) =>
+              onChange((previous) => ({ ...previous, shiftDurationHours }))
+            }
+          />
+        </Ask>
+
+        <Ask id={normId} label="Норма в неделю">
+          <div className="flex items-center gap-1">
+            <Select
+              id={normId}
+              value={ground}
+              onChange={(event) => onNorm(event.target.value as WeeklyNormGround)}
+            >
+              {WEEKLY_NORM_GROUNDS.map((option) => (
+                <option key={option} value={option}>
+                  {option === "custom" && profile.weeklyNormHours !== null
+                    ? `${profile.weeklyNormHours} ч`
+                    : WEEKLY_NORM_GROUND_LABELS[option]}
+                </option>
+              ))}
+            </Select>
+            {ground === "custom" ? (
+              <TuneButton label="Норма в неделю" onClick={() => onTune("norm")} />
+            ) : null}
+          </div>
+        </Ask>
+
+        <Ask id={countId} label="Начало отсчёта" className="col-span-full">
+          <DateField
+            id={countId}
+            defaultValue={profile.countFrom ?? undefined}
+            onChange={(countFrom) => onChange((previous) => ({ ...previous, countFrom }))}
+          />
+        </Ask>
+      </div>
+
+      {/* Смены встык — предупреждение, а не запрет: причины те же, что в
+          настройках, и текст тот же. */}
+      {pattern.workDays > 1 && shiftMinutes(profile.shiftDurationHours) >= 24 * 60 ? (
+        <p className="rounded-xl bg-signal-soft px-4 py-3 text-xs">
+          {pattern.workDays} рабочих суток подряд по 24 часа — смены пойдут
+          встык, без перерыва между ними. Проверьте продолжительность: у
+          такого цикла она обычно 8 или 12 часов.
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+/** Вопрос над полем — подпись и ответ столбиком. */
+function Ask({
+  id,
+  label,
+  className,
+  children,
+}: {
+  id?: string;
+  label: string;
+  className?: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className={cn("space-y-1.5", className)}>
+      <Label htmlFor={id}>{label}</Label>
+      {children}
     </div>
   );
 }

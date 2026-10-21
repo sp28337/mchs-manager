@@ -1,6 +1,6 @@
 "use client";
 
-import { Upload } from "lucide-react";
+import { CalendarDays, Upload } from "lucide-react";
 import { useState, type ReactNode } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -20,6 +20,7 @@ import {
   type StoredProfile,
 } from "../storage/profile";
 import { pickProfileFile } from "./pick-profile-file";
+import { SchedulePreview } from "./schedule-preview";
 import { SettingsPanel } from "./settings-panel";
 
 /**
@@ -54,7 +55,7 @@ import { SettingsPanel } from "./settings-panel";
  * Внизу окна стоял блок «Уже заполняли раньше» — заголовок, две строки
  * пояснения и выбор файла, — и его убрали по делу: человеку, который
  * заводит профиль впервые (а это почти все, кто сюда попадает), он отвечал
- * на вопрос, которого тот не задавал, и отодвигал кнопку «Построить мой
+ * на вопрос, которого тот не задавал, и отодвигал кнопку «Построить
  * график» на полэкрана вниз.
  *
  * Но вместе с блоком пропал и сам путь, а он нужен ровно здесь. Тот, у кого
@@ -65,8 +66,12 @@ import { SettingsPanel } from "./settings-panel";
  * что восстановить профиль предлагается там, куда без профиля не попасть.
  *
  * Поэтому здесь стоит ОДНА кнопка под главной — без заголовка и пояснений.
- * Она ничего не отодвигает: «Построить мой график» остаётся на своём месте,
+ * Она ничего не отодвигает: «Построить график» остаётся на своём месте,
  * а вторую находит тот, кто её ищет.
+ *
+ * Обе кнопки со значком слева: у главной тот же календарь, что на кнопке первого
+ * экрана (человек нажимает ту же дверь, и узнать её должен), у второй —
+ * стрелка загрузки. Одна со значком, другая без — выглядело бы недосказанным.
  *
  * Профиль из файла не создаётся заново и не правится этой формой: он
  * открывается как есть, вместе с папками, которые в файле лежат
@@ -81,6 +86,22 @@ import { SettingsPanel } from "./settings-panel";
  * готовый профиль с умолчаниями, панель правит его, а кнопка сохраняет.
  * Заодно исчезает разнобой умолчаний: то, что подставлено в черновике, и
  * есть то, что человек увидит в настройках потом.
+ *
+ * --- Почему рядом стол с календарём ----------------------------------------
+ *
+ * Это первое, что человек видит в приложении, и до сих пор он видел форму: пять
+ * полей и кнопку, без единого признака, что из этого получится. Отвечать на
+ * вопросы вслепую — значит бояться ошибиться, а ошибиться тут легко: поставить
+ * смену не на те сутки, выбрать не тот график.
+ *
+ * Поэтому слева лежит стол (`SchedulePreview`) — ближайшие пять недель его
+ * графика теми же клетками, что в расчёте, и итог месяца теми же цифрами. Он
+ * перестраивается на каждый ответ, и «тот ли это график» человек узнаёт
+ * глазами, не дожидаясь кнопки. Имя графика стоит над сеткой тем же
+ * рукописным шрифтом, каким оно встанет в шапке расчёта.
+ *
+ * Справа — вопросы. На телефоне стол стоит над ними: пока человек не нажал ни
+ * одной кнопки, первым он видит свой будущий календарь, а не пустое поле.
  */
 
 const CURRENT_YEAR = new Date().getUTCFullYear();
@@ -131,6 +152,16 @@ export function CreateProfileModal({
   const [draft, setDraft] = useState<StoredProfile>(blankProfile);
   const [error, setError] = useState<string | null>(null);
 
+  // Сколько раз окно открывали: номер пересобирает стол, и клетки приходят
+  // волной на глазах, а не за закрытой дверью. Номер меняется по ходу
+  // отрисовки, а не в эффекте — так в кадре открытия не бывает прежнего стола.
+  const [round, setRound] = useState(0);
+  const [wasOpen, setWasOpen] = useState(open);
+  if (open !== wasOpen) {
+    setWasOpen(open);
+    if (open) setRound((previous) => previous + 1);
+  }
+
   function submit() {
     setError(null);
     // Пустое имя — не ошибка: обращение нужно человеку, а не расчёту, и
@@ -172,29 +203,49 @@ export function CreateProfileModal({
       onClose={onClose}
       sheet
       title="Создать график"
+      // Шире обычного окна: слева стол с календарём, справа вопросы.
+      className="w-[min(60rem,calc(100vw-2rem))]"
     >
-      <div className="space-y-5">
+      <div className="space-y-4">
         {notice}
 
-        {error ? (
-          <p className="rounded-xl bg-signal-soft px-4 py-3 text-sm">{error}</p>
-        ) : null}
+        <div className="grid gap-5 md:grid-cols-[minmax(0,1fr)_22rem] md:gap-6 lg:grid-cols-[minmax(0,1fr)_24rem]">
+          <SchedulePreview profile={draft} round={round} />
 
-        <SettingsPanel profile={draft} onChange={setDraft} purpose="create" />
+          {/* Вопросы — сверху, кнопки — у нижней кромки колонки: стол слева
+              тянется во всю высоту окна, и кнопки встают против его итога, а
+              не повисают под последним полем с пустотой внизу. */}
+          <div className="flex flex-col gap-5">
+            <SettingsPanel profile={draft} onChange={setDraft} purpose="create" />
 
-        {/* Главная кнопка и возврат из файла — столбиком, а не строкой:
-            строка из двух равных половин уравняла бы их в весе, а это не
-            две равные дороги. Вторая говорит вполголоса (`outline`) и
-            стоит ПОД главной — там, где её ищет тот, кто уже знает, что
-            заполнять ничего не нужно. */}
-        <div className="space-y-2 pt-1">
-          <Button type="button" onClick={submit}>
-            Построить мой график
-          </Button>
-          <Button type="button" variant="outline" onClick={fromFile}>
-            <Upload aria-hidden />
-            Открыть график из файла
-          </Button>
+            <div className="mt-auto space-y-3">
+              {error ? (
+                <p role="alert" className="rounded-xl bg-signal-soft px-4 py-3 text-sm">
+                  {error}
+                </p>
+              ) : null}
+
+              {/* Главная кнопка и возврат из файла — столбиком, а не строкой:
+                  строка из двух равных половин уравняла бы их в весе, а это не
+                  две равные дороги. Вторая говорит вполголоса (`outline`) и
+                  стоит ПОД главной — там, где её ищет тот, кто уже знает, что
+                  заполнять ничего не нужно. */}
+              <div className="space-y-2">
+                <Button type="button" onClick={submit}>
+                  <CalendarDays aria-hidden />
+                  Построить график
+                </Button>
+                <Button type="button" variant="outline" onClick={fromFile}>
+                  <Upload aria-hidden />
+                  Загрузить из файла
+                </Button>
+              </div>
+
+              <p className="text-center text-xs text-ink-faint">
+                Ответы можно поправить в настройках графика.
+              </p>
+            </div>
+          </div>
         </div>
       </div>
     </Modal>
