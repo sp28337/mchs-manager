@@ -3,7 +3,7 @@ import { act, createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { CtaBody } from "./to-calculator";
+import { ctaClass, CtaBody } from "./to-calculator";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -65,10 +65,71 @@ describe("знак кнопки первого экрана", () => {
     }
   });
 
-  it("надпись и стрелка на месте, а знак и стрелка скрыты от программы чтения", () => {
+  it("надпись одна для программы чтения: невидимая, что держит ширину, скрыта", () => {
     render();
 
-    expect(container.textContent).toBe("Открыть график");
-    expect(container.querySelectorAll("[aria-hidden]").length).toBeGreaterThanOrEqual(2);
+    // Видимой остаётся одна надпись; под самую длинную отведено место, но
+    // озвучиваться она не должна — иначе кнопка называлась бы двумя.
+    const heard = [...container.querySelectorAll("span")]
+      .filter((el) => el.children.length === 0 && !el.closest("[aria-hidden='true']"))
+      .map((el) => el.textContent)
+      .filter(Boolean);
+    expect(heard).toEqual(["Открыть график"]);
+    expect(container.querySelector(".invisible")?.getAttribute("aria-hidden")).toBe("true");
+    expect(container.querySelector(".invisible")?.textContent).toBe("Построить график");
+  });
+});
+
+describe("стрелка кнопки", () => {
+  const render = (size?: "sm" | "md") =>
+    act(() =>
+      root.render(
+        createElement(CtaBody, { size } as Parameters<typeof CtaBody>[0], "Открыть график"),
+      ),
+    );
+  const arrow = () => container.querySelector("svg.lucide-arrow-right")!;
+
+  it("стоит по середине свободного места: зона растягивается, стрелка в ней по центру", () => {
+    render();
+
+    const zone = arrow().parentElement!;
+    expect(zone.className).toContain("flex-1");
+    expect(zone.className).toContain("justify-center");
+    // Зона лежит в одной клетке с видимой надписью, а не после неё: иначе запас,
+    // оставленный под самую длинную надпись, лёг бы между текстом и стрелкой.
+    expect(zone.parentElement?.className).toContain("col-start-1");
+  });
+
+  it("у невидимой надписи место под зону стрелки той же ширины: два поля и сама стрелка", () => {
+    render();
+    expect(container.querySelector(".invisible span")?.className).toContain("w-17");
+
+    render("sm");
+    expect(container.querySelector(".invisible span")?.className).toContain("w-12");
+  });
+
+  it("плавно отъезжает под указателем и под фокусом; переход назван по `translate`", () => {
+    render();
+
+    const classes = arrow().getAttribute("class") ?? "";
+    expect(classes).toContain("group-hover:translate-x-1.5");
+    expect(classes).toContain("group-focus-visible:translate-x-1.5");
+    // В Tailwind 4 сдвиг пишет свойство `translate`; переход, назначенный на
+    // `transform`, его не видит, и стрелка прыгала.
+    expect(classes).toContain("transition-[translate,color]");
+    expect(classes).not.toContain("transition-[transform");
+    expect(classes).toMatch(/duration-\d+/);
+  });
+
+  it("справа от стрелки поля плашки нет: зазор до края задаёт сама зона", () => {
+    for (const size of ["sm", "md"] as const) {
+      const classes = ctaClass(size).split(/\s+/);
+      expect(classes.some((name) => /^pr-/.test(name))).toBe(false);
+    }
+  });
+
+  it("стрелка скрыта от программы чтения", () => {
+    render();
+    expect(arrow().closest("[aria-hidden='true']")).not.toBeNull();
   });
 });

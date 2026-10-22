@@ -11,7 +11,7 @@ import {
 } from "@/features/shift/storage/library";
 import { saveProfile } from "@/features/shift/storage/profile";
 
-import { ctaClass, CtaBody, CtaLabel, ToCalculator } from "./to-calculator";
+import { ctaClass, CtaBody, ToCalculator } from "./to-calculator";
 
 function subscribeToHash(callback: () => void) {
   window.addEventListener("hashchange", callback);
@@ -82,22 +82,15 @@ export function HeroCta({ answersAddress = true }: { answersAddress?: boolean })
     }
   };
 
-  // Обе надписи — через `CtaLabel`: он держит ширину по самой длинной из
+  // Обе надписи — через `CtaBody`: он держит ширину по самой длинной из
   // них, и подмена одной на другую ничего не двигает. Зачем это нужно —
-  // в самом `CtaLabel`.
-  if (built)
-    return (
-      <ToCalculator>
-        <CtaLabel>Открыть график</CtaLabel>
-      </ToCalculator>
-    );
+  // в самом `CtaBody`.
+  if (built) return <ToCalculator>Открыть график</ToCalculator>;
 
   return (
     <>
       <button type="button" className={ctaClass()} onClick={() => setOpen(true)}>
-        <CtaBody>
-          <CtaLabel>Построить график</CtaLabel>
-        </CtaBody>
+        <CtaBody>Построить график</CtaBody>
       </button>
 
       <CreateProfileModal
