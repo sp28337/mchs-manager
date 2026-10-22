@@ -29,8 +29,9 @@ import { scrollMonthUnderBar, topmostVisibleMonth } from "./month-anchor";
 import { useConfirmSwitch } from "./open-profile";
 import { FollowSummary } from "./follow-summary";
 import { PeriodPicker } from "./period-picker";
-import { PeriodSummary, REVEAL_DELAY_MS, type FigurePairs } from "./period-summary";
+import { PeriodSummary, type FigurePairs } from "./period-summary";
 import { SECTION_HASH, sectionFromHash } from "./section-hash";
+import { useSectionSwap, type Section } from "./section-swap";
 import { ProfileExplorer, useExplorerTools, useLibrary } from "./profile-explorer";
 import { ProfileFooter } from "./profile-footer";
 import { ProfileName } from "./profile-name";
@@ -282,16 +283,7 @@ export function Workspace({
    * кадра с чужой прокруткой под новым содержимым просто не бывает.
    */
   function toggleSettings() {
-    setSwitched(true);
-    setSettingsOpen((open) => {
-      const next = !open;
-      if (next) window.scrollTo(0, 0);
-      return next;
-    });
-    setExplorerOpen(false);
-    setStatsOpen(false);
-    setEventsOpen(false);
-    setStatsShown(null);
+    goTo("settings");
   }
 
   /**
@@ -348,18 +340,7 @@ export function Workspace({
   const [stripPairs, setStripPairs] = useState<FigurePairs>(0);
 
   function toggleStats() {
-    setSwitched(true);
-    setStatsOpen((open) => {
-      const next = !open;
-      if (next) window.scrollTo(0, 0);
-      return next;
-    });
-    setSettingsOpen(false);
-    setExplorerOpen(false);
-    setEventsOpen(false);
-    // И на входе, и на выходе: статистика всегда открывается на том
-    // профиле, что открыт, и всегда оставляет после себя его же.
-    setStatsShown(null);
+    goTo("stats");
   }
 
   /**
@@ -383,16 +364,7 @@ export function Workspace({
   const [eventsOpen, setEventsOpen] = useState(entrance === SECTION_HASH.events);
 
   function toggleEvents() {
-    setSwitched(true);
-    setEventsOpen((open) => {
-      const next = !open;
-      if (next) window.scrollTo(0, 0);
-      return next;
-    });
-    setSettingsOpen(false);
-    setExplorerOpen(false);
-    setStatsOpen(false);
-    setStatsShown(null);
+    goTo("events");
   }
 
   /**
@@ -414,17 +386,39 @@ export function Workspace({
   const explorerTools = useExplorerTools();
 
   function toggleExplorer() {
-    setSwitched(true);
-    setExplorerOpen((open) => {
-      const next = !open;
-      if (next) window.scrollTo(0, 0);
-      return next;
-    });
-    setSettingsOpen(false);
-    setStatsOpen(false);
-    setEventsOpen(false);
-    setStatsShown(null);
+    goTo("explorer");
   }
+
+  /**
+   * Какой раздел показан на месте графика сейчас. Порядок тот же, в каком
+   * разделы перекрывают друг друга в разметке ниже.
+   */
+  const currentSection: Section = explorerOpen
+    ? "explorer"
+    : showSettings
+      ? "settings"
+      : eventsOpen
+        ? "events"
+        : statsOpen
+          ? "stats"
+          : "calendar";
+
+  /**
+   * Сама смена — в миг, когда прежнее содержимое уже погасло (`section-swap.ts`).
+   * Прокрутка к началу тоже здесь: страница под гаснущим содержимым не видна, и
+   * скачок не заметен. Прежде он случался на глазах.
+   */
+  const goTo = useSectionSwap(currentSection, (next) => {
+    setSwitched(true);
+    if (next !== "calendar") window.scrollTo(0, 0);
+    setSettingsOpen(next === "settings");
+    setStatsOpen(next === "stats");
+    setEventsOpen(next === "events");
+    setExplorerOpen(next === "explorer");
+    // И на входе, и на выходе: статистика всегда открывается на том профиле,
+    // что открыт, и всегда оставляет после себя его же.
+    setStatsShown(null);
+  });
 
   /**
    * Удаление открытого графика — и возврат к графику.
@@ -757,7 +751,7 @@ export function Workspace({
               посреди страницы, а не под шапкой. Полоса без имени над собой
               встаёт на то же место, что и с `md` (`flush`). */}
           {inStats ? null : (
-            <header className="pb-12 md:hidden">
+            <header data-piece="name" className="pb-12 md:hidden">
               <ProfileName
                 profile={headProfile}
                 others={otherEntries}
@@ -790,14 +784,12 @@ export function Workspace({
 
       {/* Колонка, а не `space-y`: подвалу нужно `mt-auto`, а оно работает
           только во флексе. */}
-      <div className="flex flex-1 flex-col gap-10">
+      <div data-section-body className="flex flex-1 flex-col gap-10">
       {explorerOpen ? (
         // Проявляется тем же порядком, что настройки: сперва страница
-        // расчищается, потом проступает раздел. Пауза (`REVEAL_DELAY_MS`)
-        // та же — она отмеряна по тому, за сколько гаснут цифры наверху, а
-        // гаснут они теперь и здесь; без неё проводник наезжал бы на
-        // уходящую полосу, и два движения шли бы одно сквозь другое.
-        <FadeIn key="explorer" delayMs={REVEAL_DELAY_MS} instant={!switched}>
+        // расчищается (прежнее гаснет до смены раздела, `goTo`), потом
+        // проступает раздел.
+        <FadeIn key="explorer" instant={!switched}>
           {/* Верхнего поля нет: имя и числа отсюда убраны, и список
               начинается сразу под шапкой. */}
           {/* `frame-inset` — рамка той же ширины, что у графика (`.year-room`):
@@ -819,7 +811,7 @@ export function Workspace({
         // Настройки на месте графика — не поверх страницы, а вместо той
         // его части, что сейчас не нужна: нижний ряд знаков (`GridDock`,
         // ниже) при этом тоже скрыт — управлять им больше нечем.
-        <FadeIn key="settings" delayMs={REVEAL_DELAY_MS} instant={!switched}>
+        <FadeIn key="settings" instant={!switched}>
           {/* Анкета не растягивается во всю ширину монитора: строка
               «Норма в неделю» с полем у правого края в двух тысячах точек
               читалась бы как две разные строки. Предел тот же, что был у
@@ -986,7 +978,7 @@ export function Workspace({
         // (`explorer-dock.tsx`).
         <ExplorerDock tools={explorerTools} />
       ) : showSettings || statsOpen || eventsOpen ? (
-        <ThemeCorner />
+        <ThemeCorner piece="corner" />
       ) : (
         <GridDock
           profile={profile}
@@ -1016,18 +1008,18 @@ export function Workspace({
  * каждой смене раздела — календарь, анкета профиля, события, статистика, — и
  * проступание играет заново.
  *
- * `delayMs` — не украшение, а очерёдность: у разделов без полосы цифр
- * (проводник, настройки) полоса сперва уходит, и только потом проступает
- * раздел (`REVEAL_DELAY_MS` в `period-summary.tsx`) — иначе одно ехало бы
- * сквозь другое.
+ * Паузы перед проступанием нет. Она стояла у разделов без полосы цифр
+ * (проводник, настройки): полоса сперва уходила, и раздел ждал двести
+ * двадцать миллисекунд, чтобы не ехать сквозь неё. Полоса давно уходит не
+ * анимацией, а вместе с прежним содержимым, до самой смены раздела
+ * (`goTo`), — так что ждать стало нечего, а пустая страница на пятую долю
+ * секунды читалась как зависание.
  */
 function FadeIn({
   children,
-  delayMs = 0,
   instant = false,
 }: {
   children: ReactNode;
-  delayMs?: number;
   /**
    * Показать сразу, без проступания.
    *
@@ -1047,17 +1039,11 @@ function FadeIn({
 
   useEffect(() => {
     if (shown) return;
-    // Без паузы — кадром: он обязан прийти с уже нулевой прозрачностью, а
-    // не мелькнуть готовым видом на один кадр раньше, чем должен. С паузой
-    // мелькать нечему — она сама и есть ожидание, поэтому там довольно
-    // обычного таймера.
-    if (delayMs > 0) {
-      const timer = window.setTimeout(() => setShown(true), delayMs);
-      return () => window.clearTimeout(timer);
-    }
+    // Кадром: он обязан прийти с уже нулевой прозрачностью, а не мелькнуть
+    // готовым видом на один кадр раньше, чем должен.
     const frame = requestAnimationFrame(() => setShown(true));
     return () => cancelAnimationFrame(frame);
-  }, [shown, delayMs]);
+  }, [shown]);
 
   return (
     <div
@@ -1067,7 +1053,7 @@ function FadeIn({
         // целой странице — календаре, настройках, статистике — он читался как
         // «график показали не в фокусе», а не как появление. Слову на кнопке он
         // идёт, блоку во всю колонку — нет.
-        "transition-opacity duration-300 ease-out",
+        "transition-opacity duration-[220ms] ease-out",
         shown ? "opacity-100" : "opacity-0",
       )}
     >

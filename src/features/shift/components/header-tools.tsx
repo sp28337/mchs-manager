@@ -190,6 +190,7 @@ export function WorkspaceRail({
         <div
           role="group"
           aria-label="Действия со списком графиков"
+          data-piece="explorer"
           className="mt-11 flex flex-col items-end"
         >
           {extra}

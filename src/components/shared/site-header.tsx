@@ -251,7 +251,9 @@ export function SiteHeader({
   // самого), а не выталкивало меню за край.
   const heading =
     title === undefined ? null : (
-      <div className={cn("hidden min-w-0", TITLE_FROM, centered && TITLE_CAP)}>{title}</div>
+      <div data-piece="title" className={cn("hidden min-w-0", TITLE_FROM, centered && TITLE_CAP)}>
+        {title}
+      </div>
     );
 
   return (
@@ -300,7 +302,11 @@ export function SiteHeader({
           </>
         )}
 
-        {centered ? <div className="flex justify-center">{center}</div> : null}
+        {centered ? (
+          <div data-piece="picker" className="flex justify-center">
+            {center}
+          </div>
+        ) : null}
 
         {/* Справа — меню, последним и на каждой странице: правый верхний
             угол это то место, где его ищут, не читая страницу. Оно не

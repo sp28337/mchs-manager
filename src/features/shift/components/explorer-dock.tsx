@@ -53,7 +53,7 @@ import type { ExplorerTools } from "./profile-explorer";
  */
 export function ExplorerDock({ tools }: { tools: ExplorerTools }) {
   return (
-    <div role="group" aria-label="Действия со списком графиков" className={DOCK}>
+    <div role="group" aria-label="Действия со списком графиков" data-piece="explorer" className={DOCK}>
       <div className={DOCK_RIGHT_EXPLORER}>
         {/* `md:mb-11` — пусто на одну клетку знака (44 точки) до темы, как у
             колонки масштаба в календаре (`SCALE_KNOBS`). На телефоне группа

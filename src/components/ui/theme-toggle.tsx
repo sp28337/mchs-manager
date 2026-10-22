@@ -119,7 +119,13 @@ export function ThemeToggle() {
 export function ThemeCorner({
   docked = false,
   className,
+  piece,
 }: {
+  /**
+   * Имя части экрана для смены раздела (`data-piece`, `globals.css`): знак,
+   * стоящий в углу сам по себе, приходит и уходит вместе с разделом.
+   */
+  piece?: string;
   /**
    * Знак стоит в нижнем ряду рабочего экрана (`grid-dock.tsx`) — последним,
    * у правого края, — и место ему задаёт ряд. Без ряда (посадочная,
@@ -146,6 +152,7 @@ export function ThemeCorner({
   return (
     <div
       ref={гнездо}
+      data-piece={piece}
       className={cn(
         // Сам по себе — в углу: та же высота от нижней кромки и то же поле
         // от боковой, что у нижнего ряда рабочего экрана, иначе знак

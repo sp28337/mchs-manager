@@ -826,7 +826,7 @@ function ScopeDeck({
   if (typeof document === "undefined") return null;
 
   return createPortal(
-    <div className={DECK_SHELL}>
+    <div data-piece="deck" className={DECK_SHELL}>
       <div className={DECK_ROW}>
         <ScopeField
           id="stats-scope-deck"
