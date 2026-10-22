@@ -29,7 +29,7 @@ import { scrollMonthUnderBar, topmostVisibleMonth } from "./month-anchor";
 import { useConfirmSwitch } from "./open-profile";
 import { FollowSummary } from "./follow-summary";
 import { PeriodPicker } from "./period-picker";
-import { PeriodSummary, REVEAL_DELAY_MS } from "./period-summary";
+import { PeriodSummary, REVEAL_DELAY_MS, type FigurePairs } from "./period-summary";
 import { SECTION_HASH, sectionFromHash } from "./section-hash";
 import { ProfileExplorer, useExplorerTools, useLibrary } from "./profile-explorer";
 import { ProfileFooter } from "./profile-footer";
@@ -339,6 +339,13 @@ export function Workspace({
    * переработкой.
    */
   const [statsShown, setStatsShown] = useState<StoredProfile | null>(null);
+
+  /**
+   * Сколько пар мелких итогов полоса цифр показала по сторонам. Меряет себя
+   * сама полоса, а нужно это статистике: она дописывает под полосой то, что
+   * в неё не влезло (`SummaryExtras`), и больше ничего.
+   */
+  const [stripPairs, setStripPairs] = useState<FigurePairs>(0);
 
   function toggleStats() {
     setSwitched(true);
@@ -759,6 +766,7 @@ export function Workspace({
               accountingYear={headProfile.accountingYear}
               overtimeInShifts={headProfile.overtimeInDays}
               shiftDurationHours={headProfile.shiftDurationHours}
+              onPairs={setStripPairs}
             />
           )}
         </>
@@ -861,7 +869,12 @@ export function Workspace({
             {/* За ту же долю года, что выбрана в шапке и посчитана в
                 полосе цифр: квартальная полоса над годовой статистикой
                 давала бы два разных ответа на один вопрос. */}
-            <Statistics profile={profile} part={statutory} onShow={setStatsShown} />
+            <Statistics
+              profile={profile}
+              part={statutory}
+              pairs={stripPairs}
+              onShow={setStatsShown}
+            />
           </section>
         </FadeIn>
       ) : (

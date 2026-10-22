@@ -61,8 +61,16 @@ export function PeriodSummary({
   accountingYear,
   overtimeInShifts,
   shiftDurationHours,
+  onPairs,
 }: {
   calculation: PeriodCalculation;
+  /**
+   * Сколько пар мелких итогов полоса показала по сторонам — сообщается
+   * наверх, чтобы то, что в неё не поместилось, дописала под ней статистика
+   * (`SummaryExtras`). Знает это только сама полоса: она меряет себя по
+   * содержимому.
+   */
+  onPairs?: (pairs: FigurePairs) => void;
   accountingYear: number;
   /** В чём показывать переработку: в часах или сменами и часами. */
   overtimeInShifts: boolean;
@@ -100,6 +108,7 @@ export function PeriodSummary({
           calculation={calculation}
           inShifts={overtimeInShifts}
           shiftHours={shiftDurationHours}
+          onPairs={onPairs}
         />
       </div>
 
@@ -194,15 +203,22 @@ function FiguresRow({
   calculation,
   inShifts,
   shiftHours,
+  onPairs,
 }: {
   calculation: PeriodCalculation;
   inShifts: boolean;
   shiftHours: string;
+  onPairs?: (pairs: FigurePairs) => void;
 }) {
   const row = useRef<HTMLDivElement>(null);
   const probe = useRef<HTMLDivElement>(null);
-  /** Сколько пар мелких итогов помещается: ни одной, одна или обе. */
-  const [pairs, setPairs] = useState<0 | 1 | 2>(0);
+  const [pairs, setPairs] = useState<FigurePairs>(0);
+  // Свежий обработчик, а не зависимость эффекта: замер подписан на размеры
+  // один раз, и пересобирать наблюдателей из-за новой функции нечем и незачем.
+  const notify = useRef(onPairs);
+  useLayoutEffect(() => {
+    notify.current = onPairs;
+  });
 
   // Замер ДО первой отрисовки, а не после неё.
   //
@@ -249,7 +265,9 @@ function FiguresRow({
         2 * between +
         2 * (Math.max(pair(planned, worked), pair(night, holiday)) + slack);
 
-      setPairs(two <= width ? 2 : one <= width ? 1 : 0);
+      const fits: FigurePairs = two <= width ? 2 : one <= width ? 1 : 0;
+      setPairs(fits);
+      notify.current?.(fits);
     };
 
     measure();
@@ -341,6 +359,24 @@ interface MinorItem {
 }
 
 /**
+ * Сколько пар мелких итогов поместилось в полосу: ни одной, одна или обе.
+ * Остальное — то, что полоса не показала, — достраивает `SummaryExtras`.
+ */
+export type FigurePairs = 0 | 1 | 2;
+
+/**
+ * Из чего складываются мелкие итоги. Есть и у расчёта периода, и у статистики
+ * профиля, поэтому читается по именам полей, а не по типу.
+ */
+export interface MinorTotals {
+  readonly scheduledShifts: number;
+  readonly workedShifts: number;
+  readonly absentShifts: number;
+  readonly nightHours: Decimal;
+  readonly holidayHours: Decimal;
+}
+
+/**
  * Мелкие итоги по сторонам от главных чисел.
  *
  * Каждая сторона — в порядке ПОЯВЛЕНИЯ: первое число показывается уже
@@ -348,7 +384,7 @@ interface MinorItem {
  * этом читается в том же порядке («По графику», потом «Отработано»), а
  * правая — от главных наружу («Ночные», потом «Праздничные»).
  */
-function sideItems(calculation: PeriodCalculation): {
+function sideItems(calculation: MinorTotals): {
   left: readonly MinorItem[];
   right: readonly MinorItem[];
 } {
@@ -407,12 +443,106 @@ function MinorFigure({
   caption,
   hint,
   tight,
+  className,
 }: MinorItem & {
   /** Эталон: по содержимому, без отсчёта числа в пути. */
   tight?: boolean;
+  className?: string;
 }) {
   return (
-    <Figure parts={[{ value, unit }]} caption={caption} hint={hint} still={tight} minor />
+    <Figure
+      parts={[{ value, unit }]}
+      caption={caption}
+      hint={hint}
+      still={tight}
+      className={className}
+      minor
+    />
+  );
+}
+
+/**
+ * Пропущенные смены: по графику положены, но не отработаны.
+ *
+ * Полосе это число не нужно — оно разность двух соседних («по графику» минус
+ * «отработано»), и третье число с ним повторяло бы то, что видно и так, а
+ * место полосы самое дорогое на экране. Но статистика, у которой места
+ * больше, его показывает: в ней спрашивают именно «сколько смен ушло».
+ */
+function absentItem(totals: MinorTotals): MinorItem {
+  return {
+    value: String(totals.absentShifts),
+    unit: "см",
+    caption: "Пропущено",
+    hint: "Пропущено: смены по графику, которые вы не отработали, — пришедшиеся на отпуск, больничный и другие освобождения.",
+  };
+}
+
+/**
+ * Мелкие итоги, которые полоса не показала, — и пропущенные смены.
+ *
+ * Порядок тот же, что у полосы, если читать её слева направо: смены по
+ * графику, отработанные, пропущенные, ночные, праздничные. Каждая сторона
+ * полосы появляется в порядке своего списка (`sideItems`): сначала первое
+ * число, потом второе. Значит, `slice(pairs)` у обеих сторон отбрасывает ровно
+ * то, что на экране уже есть. Когда полоса показала обе пары, дописывать
+ * нечего.
+ */
+function hiddenItems(totals: MinorTotals, pairs: FigurePairs): MinorItem[] {
+  if (pairs === 2) return [];
+  const { left, right } = sideItems(totals);
+  return [...left.slice(pairs), absentItem(totals), ...right.slice(pairs)];
+}
+
+/**
+ * Продолжение полосы: то, что в неё не поместилось, — вторым рядом под ней.
+ *
+ * --- Зачем это, и почему не отдельным разделом ------------------------------
+ *
+ * Полоса прячет мелкие итоги, когда для них нет ширины, — на телефоне и на
+ * планшете остаётся только главная тройка. Статистика дописывала их сама,
+ * отдельным разделом «За 2026 год»: свои заголовок, сетка слева направо, своя
+ * подпись над числом. Рядом с полосой это читалось двумя разными вещами, хотя
+ * числа — те же, что у полосы по сторонам, и спрятаны они от неё же.
+ *
+ * Теперь они стоят её же числами: число над подписью, того же кегля и веса, по
+ * оси экрана, и вплотную под полосой — вторым рядом того же блока, без
+ * заголовка и без собственного отступа от неё. Подписи («с 22 до 6 часов»)
+ * живут в подсказках, как у самой полосы.
+ *
+ * --- Почему только скрытое ---------------------------------------------------
+ *
+ * Показывать их все значило бы повторять то, что полоса уже показала: «91 см»
+ * наверху и «91 см» ниже — это не продолжение, а эхо. Поэтому берётся ровно
+ * то, что не влезло (`hiddenItems`), и пропущенные смены, которых в полосе нет
+ * вовсе. Ни одной скрытой пары — ряда нет: на широком экране полоса показывает
+ * всё сама.
+ *
+ * --- Почему колонки одной ширины --------------------------------------------
+ *
+ * Как и у сторон полосы: числа стоят на равном расстоянии друг от друга, а не
+ * там, где их оставила подпись подлиннее. Ряд переносится, а не вылезает за
+ * край, и на узком телефоне пять чисел идут тремя и двумя, по центру.
+ */
+export function SummaryExtras({
+  totals,
+  pairs,
+  className,
+}: {
+  totals: MinorTotals;
+  pairs: FigurePairs;
+  /** Место ряда на странице: подъём к полосе зависит от того, как стоит раздел под ней. */
+  className?: string;
+}) {
+  const items = hiddenItems(totals, pairs);
+  if (items.length === 0) return null;
+
+  return (
+    <dl className={cn("flex flex-wrap items-start justify-center gap-x-5 gap-y-3", className)}>
+      {items.map((item) => (
+        <MinorFigure key={item.caption} {...item} className="w-24" />
+      ))}
+    </dl>
   );
 }
 

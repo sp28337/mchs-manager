@@ -41,6 +41,7 @@ import {
 } from "../storage/library";
 import type { StoredProfile } from "../storage/profile";
 import { BalanceChart, ColumnChart, ShareBar, type Column } from "./charts";
+import { SummaryExtras, type FigurePairs } from "./period-summary";
 import { useLibrary } from "./profile-explorer";
 import { Ledger, signed, type LedgerColumn } from "./stats-ledger";
 
@@ -380,9 +381,16 @@ function within(library: Library, folderId: string, rootId: string): boolean {
 export function Statistics({
   profile,
   part,
+  pairs,
   onShow,
 }: {
   profile: StoredProfile;
+  /**
+   * Сколько пар мелких итогов полоса цифр наверху показала по сторонам
+   * (`PeriodSummary`, `onPairs`). Что в неё не поместилось, дописывается под
+   * ней — и только это, чтобы не повторять уже показанное.
+   */
+  pairs: FigurePairs;
   /**
    * Доля учётного года, выбранная кнопкой в шапке: за неё считается всё —
    * и один профиль, и свод. Отрезок тот же, что у полосы цифр наверху, и
@@ -432,6 +440,22 @@ export function Statistics({
 
   const choices = useMemo(() => choicesOf(library, sheets), [library, sheets]);
 
+  // Расчётов до девятнадцати — период, его месяцы и вложенные доли, — и
+  // делать их заново на каждую отрисовку незачем: пока профиль и период те
+  // же, и числа те же. Зависимость — от вида и номера доли, а не от объекта:
+  // тот же выбор, пришедший новым объектом, считать заново незачем.
+  //
+  // Считается здесь, а не в `OneProfile`: числа нужны и самому разделу, и
+  // продолжению полосы цифр над ним, а оно стоит выше выбора профиля.
+  const shownProfile = one?.profile ?? null;
+  const stats = useMemo(
+    () =>
+      shownProfile === null
+        ? null
+        : statisticsOf(shownProfile, undefined, { kind: part.kind, index: part.index }),
+    [shownProfile, part.kind, part.index],
+  );
+
   /**
    * Не `scope`, а то, что ПОКАЗАНО.
    *
@@ -461,6 +485,21 @@ export function Statistics({
     // от друга разведены шире (`space-y-10` ниже): плашек вокруг них нет, и
     // границей служит один просвет.
     <div className="space-y-6">
+      {/* Продолжение полосы цифр — первым, вплотную под ней, выше выбора
+          профиля: оно часть полосы, а не раздела. Выбор профиля, стоящий
+          между ними, разрывал бы одно целое надвое. Только у одного
+          профиля: у свода по папке или по всем второго ряда у полосы нет —
+          полоса показывает открытый график, а не сумму.
+
+          `-mt-6` — чтобы ряд встал вплотную, а не там, где стоял бы в потоке.
+          Полоса поднята на 32 точки (`-translate-y-8`), раздел под ней — на
+          8 (`workspace.tsx`): оставшиеся 24 были бы зазором между рядами втрое
+          шире того, что между строками внутри самого ряда (`gap-y-3`).
+          Поле уходит вместе с рядом: когда ряда нет, раздел стоит как стоял. */}
+      {stats?.any ? (
+        <SummaryExtras totals={stats.total} pairs={pairs} className="-mt-6" />
+      ) : null}
+
       {/* Выбор — только когда выбирать есть из чего. При одном профиле
           список из «Все профили» и его же имени предлагал бы выбор из
           одного и обещал бы свод, которого нет. */}
@@ -479,10 +518,10 @@ export function Statistics({
 
       {group !== null ? (
         <Summary sheets={group} part={part} onPick={(id) => choose({ kind: "one", id })} />
-      ) : one === null ? (
+      ) : stats === null ? (
         <Summary sheets={sheets} part={part} onPick={(id) => choose({ kind: "one", id })} />
       ) : (
-        <OneProfile profile={one.profile} part={part} />
+        <OneProfile stats={stats} />
       )}
     </div>
   );
@@ -813,16 +852,7 @@ function ScopeDeck({
  * перечни событий. Последними идут точные числа таблицей: их переписывают в
  * заявление, и читают их те, кто уже понял картину.
  */
-function OneProfile({ profile, part }: { profile: StoredProfile; part: PeriodPart }) {
-  // Расчётов до девятнадцати — период, его месяцы и вложенные доли, — и
-  // делать их заново на каждую отрисовку незачем: пока профиль и период те
-  // же, и числа те же. Зависимость — от вида и номера доли, а не от объекта:
-  // тот же выбор, пришедший новым объектом, считать заново незачем.
-  const stats = useMemo(
-    () => statisticsOf(profile, undefined, { kind: part.kind, index: part.index }),
-    [profile, part.kind, part.index],
-  );
-
+function OneProfile({ stats }: { stats: Statistics }) {
   if (!stats.any) {
     return (
       // Пустой ответ — словами по центру: страница не должна выглядеть
@@ -836,97 +866,9 @@ function OneProfile({ profile, part }: { profile: StoredProfile; part: PeriodPar
 
   return (
     <div className="space-y-10">
-      <Figures stats={stats} />
       <Course stats={stats} />
       <Events stats={stats} />
       <Numbers stats={stats} />
-    </div>
-  );
-}
-
-/**
- * То, что полоса наверху прячет на узком экране, — и ровно это.
- *
- * --- Чего здесь нет и почему ------------------------------------------------
- *
- * Ничего, что на экране УЖЕ есть. Полоса наверху закреплена и видна всё
- * время, пока открыта статистика; три её главных числа — норма, фактически,
- * переработка — стоят на любой ширине, и повторять их значило заставить
- * сверять, не разошлись ли два ответа на один вопрос. Отсюда ушли и крупное
- * число переработки, и «Норма года» с «Отработано».
- *
- * Не осталось и того, чего в полосе нет вовсе («рабочих дней в году»):
- * плашка отвечает на один вопрос — «что пропало, когда экран стал узким», —
- * и всё лишнее в ней снова превращает её в свод, которым она была.
- *
- * --- Что остаётся -----------------------------------------------------------
- *
- * Пять величин, которые полоса прячет ниже `lg`, потому что для них нет
- * ширины: смены по графику, отработанные, пропущенные, ночные и
- * праздничные часы (`minorItems` в `period-summary.tsx`). Те же слова и в
- * том же порядке — это одни и те же числа, просто показанные там, где для
- * них нашлось место.
- *
- * Отрезок у них тоже один — выбранная в шапке доля года.
- */
-function Figures({ stats }: { stats: Statistics }) {
-  const { total } = stats;
-
-  return (
-    <section className="space-y-2 lg:hidden">
-      <h3 className="font-display text-sm font-bold uppercase tracking-wide">
-        За {periodPhrase(stats.part, stats.year)}
-      </h3>
-
-      <dl className="grid grid-cols-2 gap-x-6 gap-y-3 sm:grid-cols-3">
-        <Tile label="Смен по графику" value={String(total.scheduledShifts)} />
-        <Tile label="Отработано смен" value={String(total.workedShifts)} />
-        <Tile label="Пропущено" value={String(total.absentShifts)} />
-        <Tile
-          label="Ночные часы"
-          value={hours(total.nightHours.toNumber())}
-          note="с 22 до 6 часов"
-        />
-        <Tile
-          label="Праздничные часы"
-          value={hours(total.holidayHours.toNumber())}
-          note="в нерабочие праздничные дни"
-        />
-      </dl>
-    </section>
-  );
-}
-
-function Tile({
-  label,
-  value,
-  note,
-  tone,
-}: {
-  label: string;
-  value: string;
-  note?: string;
-  /** Цвет итога — только у баланса: плюс зелёный, минус сигнальный. */
-  tone?: "over" | "under";
-}) {
-  return (
-    // Своей плашки у величины нет: она стоит на общей, вместе с крупным
-    // числом. Держит величины сетка и подпись под ними.
-    <div>
-      <dt className="text-[11px] uppercase tracking-wide text-ink-faint">{label}</dt>
-      {/* Крупное число набирается обычными цифрами, а не табличными:
-          табличные дают каждой цифре ширину нуля, и «121» на таком кегле
-          рассыпается. Табличные — ниже, в таблице, где столбцы. */}
-      <dd
-        className={cn(
-          "font-mono text-lg font-medium leading-tight",
-          tone === "over" && "text-verify",
-          tone === "under" && "text-signal",
-        )}
-      >
-        {value}
-      </dd>
-      {note ? <p className="text-[11px] text-ink-faint">{note}</p> : null}
     </div>
   );
 }

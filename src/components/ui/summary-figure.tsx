@@ -107,7 +107,10 @@ export function Figure({
   minor,
   size,
   hint,
+  className,
 }: {
+  /** Ширина и место числа в чужой раскладке — например, равные колонки второго ряда. */
+  className?: string;
   parts: readonly FigurePart[];
   caption: ReactNode;
   tone?: "signal" | "verify";
@@ -135,6 +138,7 @@ export function Figure({
       className={cn(
         "flex min-w-0 flex-col items-center justify-center gap-1",
         still && "shrink-0",
+        className,
       )}
     >
       {/* Число и его единица не разрываются переносом: «1796,00» на одной
