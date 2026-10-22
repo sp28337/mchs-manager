@@ -48,15 +48,98 @@ import { LoadingMark } from "./loading-mark";
  * поэтому условие проверяется здесь. Там, где Web Animations нет (старые
  * браузеры, `jsdom`), плёнка просто снимается через то же время.
  *
+ * --- Когда она уходит ---------------------------------------------------------------
+ *
+ * Не в тот миг, когда страница поставлена в разметку, а когда она затихла
+ * (`whenSettled`). Замер в Chromium показал: в этот миг React впервые рисует
+ * весь график, и основной поток занят — в сборке для сайта четверть секунды, в
+ * режиме разработки около трёх четвертей, на слабом телефоне секунды. Растворение,
+ * начатое посреди этой работы, стоит на месте, а потом идёт рывками между долгими
+ * задачами: сама прозрачность считается отдельно от потока, но стартует она с
+ * первым кадром после работы, а числа и клетки знака, которые рисует основной
+ * поток, дёргаются. Знак при этом остаётся на экране и ничего не обещает: он
+ * лучше пустой паузы и рывков.
+ *
  * --- Что остаётся человеку ---------------------------------------------------------
  *
- * Пока плёнка уходит, она не ловит нажатий (`pointer-events-none`) и скрыта от
- * программы чтения (`aria-hidden`): страница под ней уже готова, и пользоваться
- * ею можно, как только она показалась. Признак ухода — `data-leaving`.
+ * С момента «готово» плёнка не ловит нажатий (`pointer-events-none`) и скрыта от
+ * программы чтения (`aria-hidden`): страница под ней готова, и пользоваться ею
+ * можно, как только она показалась. Признак — `data-leaving`.
  */
 
 /** Сколько плёнка растворяется. Где анимаций нет, столько же она остаётся в разметке. */
 export const CURTAIN_EXIT_MS = 400;
+
+/** Признак на корне страницы, пока плёнка растворяется (его читает `globals.css`). */
+const FADING = "data-curtain-fading";
+
+/** Как часто проверять, что страница затихла. */
+const SETTLE_TICK_MS = 16;
+/** Опоздание проверки, за которым главный поток считается занятым. */
+const SETTLE_LATE_MS = 12;
+/** Сколько проверок подряд должны прийти вовремя, чтобы страница считалась затихшей. */
+const SETTLE_CALM_TICKS = 4;
+
+/** Меньше этого плёнка после «готово» не ждёт: столько идут подряд спокойные проверки. */
+export const CURTAIN_SETTLE_MIN_MS = SETTLE_TICK_MS * SETTLE_CALM_TICKS;
+/** Дольше этого плёнка не ждёт никогда: слабое устройство не должно держать её вечно. */
+export const CURTAIN_SETTLE_MAX_MS = 1500;
+
+/**
+ * Дождаться, пока страница под плёнкой затихнет; вернуть то, что ожидание
+ * отменяет.
+ *
+ * «Готово» у страницы — это момент, когда React поставил её в разметку. Но на
+ * этом работа не кончается: браузер считает стили и раскладку сотен клеток,
+ * срабатывают эффекты, замеры и отсчёт чисел. Всё это занимает главный поток на
+ * 200–700 мс, и растворение, начатое в этот миг, стояло бы на месте, а потом шло
+ * рывками между долгими задачами. Поэтому плёнка со знаком остаётся на экране,
+ * пока всё не уляжется, и растворяется уже по затихшей странице.
+ *
+ * Затихло — это несколько проверок подряд, пришедших вовремя. Проверка — обычный
+ * таймер: долгая задача откладывает его на свою длину, и опоздание показывает,
+ * что поток занят. Считать кадры (`requestAnimationFrame`) тут не нужно: нужно
+ * знать только, свободен ли поток, а не доходит ли до экрана кадр, — и таймер
+ * при этом одинаково работает и в браузере, и под тестовыми часами.
+ *
+ * Кроме потока — шрифты: пока они грузятся, текст на странице меняет вид, и
+ * подмена под растворяющейся плёнкой была бы видна.
+ *
+ * Ждать вечно нельзя, поэтому есть потолок (`CURTAIN_SETTLE_MAX_MS`): по его
+ * истечении плёнка растворяется как есть. На вкладке в фоне таймеры замедлены до
+ * секунды, и она тоже уходит по потолку.
+ */
+function whenSettled(done: () => void): () => void {
+  let calm = 0;
+  let last = Date.now();
+  let tick = 0;
+
+  const finish = () => {
+    window.clearTimeout(cap);
+    window.clearTimeout(tick);
+    done();
+  };
+
+  const step = () => {
+    const now = Date.now();
+    const late = now - last - SETTLE_TICK_MS;
+    last = now;
+
+    calm = late <= SETTLE_LATE_MS ? calm + 1 : 0;
+    const fontsLoading = document.fonts?.status === "loading";
+
+    if (calm >= SETTLE_CALM_TICKS && !fontsLoading) finish();
+    else tick = window.setTimeout(step, SETTLE_TICK_MS);
+  };
+
+  const cap = window.setTimeout(finish, CURTAIN_SETTLE_MAX_MS);
+  tick = window.setTimeout(step, SETTLE_TICK_MS);
+
+  return () => {
+    window.clearTimeout(cap);
+    window.clearTimeout(tick);
+  };
+}
 
 function exitDuration(): number {
   if (typeof window.matchMedia !== "function") return CURTAIN_EXIT_MS;
@@ -97,11 +180,23 @@ function dissolve(film: HTMLElement, ms: number, done: () => void): () => void {
     easing: "ease-out",
     fill: "forwards",
   });
-  fade.onfinish = done;
+
+  // Пока плёнка прозрачна не до конца, браузер пересчитывает размытие дымки
+  // (`backdrop-filter` у `.veil`) каждый кадр: на экране расчёта это 36 кадров в
+  // секунду против 52 без него. На время растворения оно выключено, а потом
+  // возвращается плавно (`globals.css`, `data-curtain-fading`).
+  const root = document.documentElement;
+  root.setAttribute(FADING, "");
+
+  fade.onfinish = () => {
+    root.removeAttribute(FADING);
+    done();
+  };
 
   return () => {
     fade.onfinish = null;
     fade.cancel();
+    root.removeAttribute(FADING);
     if (mark !== null) mark.style.opacity = "";
   };
 }
@@ -140,7 +235,18 @@ export function LoadingCurtain({
     const element = film.current;
     if (element === null) return;
 
-    return dissolve(element, exitDuration(), () => setMounted(false));
+    // Страница готова — но плёнка уходит не сразу, а когда страница затихла
+    // (`whenSettled`): растворение по занятому потоку рывками хуже, чем
+    // небольшая задержка перед ним.
+    let undo: () => void = () => undefined;
+    const stop = whenSettled(() => {
+      undo = dissolve(element, exitDuration(), () => setMounted(false));
+    });
+
+    return () => {
+      stop();
+      undo();
+    };
   }, [show]);
 
   if (!show && !mounted) return null;
@@ -158,6 +264,7 @@ export function LoadingCurtain({
     // незачем.
     <div
       ref={film}
+      data-curtain={variant}
       data-leaving={show ? undefined : ""}
       aria-hidden={show ? undefined : true}
       className={cn(

@@ -15,7 +15,7 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: mocked.push, replace: mocked.replace }),
 }));
 
-import { CURTAIN_EXIT_MS } from "@/components/ui/loading-curtain";
+import { CURTAIN_EXIT_MS, CURTAIN_SETTLE_MIN_MS } from "@/components/ui/loading-curtain";
 import { NavigationLoading, startNavigation, useNavigate } from "./navigation-loading";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -97,7 +97,8 @@ describe("загрузка при переходе", () => {
     expect(film?.getAttribute("aria-hidden")).toBe("true");
     expect(film?.className).toContain("pointer-events-none");
 
-    await wait(CURTAIN_EXIT_MS - 1);
+    // Знак ждёт, пока новая страница затихнет, и только потом тает.
+    await wait(CURTAIN_SETTLE_MIN_MS + CURTAIN_EXIT_MS - 1);
     expect(present()).toBe(true);
 
     await wait(1);
@@ -112,7 +113,7 @@ describe("загрузка при переходе", () => {
     expect(shown()).toBe(false);
     expect(present()).toBe(true);
 
-    await wait(CURTAIN_EXIT_MS);
+    await wait(CURTAIN_SETTLE_MIN_MS + CURTAIN_EXIT_MS);
     expect(present()).toBe(false);
   });
 
