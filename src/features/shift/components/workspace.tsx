@@ -618,6 +618,10 @@ export function Workspace({
           ? "events"
           : undefined;
 
+  // Показана именно статистика: ту же цепочку ветвей повторяет содержимое
+  // страницы ниже (проводник, настройки и события её перекрывают).
+  const inStats = statsOpen && !explorerOpen && !showSettings && !eventsOpen;
+
   return (
     // Масштаб сетки живёт здесь: месяцы в разделе, а знаки масштаба — у кромки
     // окна, вне него (`grid-scale.tsx`).
@@ -746,14 +750,21 @@ export function Workspace({
               гасит просвет под шапкой), и без этого зазора щиток лёг бы
               прямо на имя. */}
           {/* С `md` имя уезжает в строку шапки (`title` у `SiteHeader`
-              выше), и здесь его нет — вместе с полем под ним. */}
-          <header className="pb-12 md:hidden">
-            <ProfileName
-              profile={headProfile}
-              others={otherEntries}
-              onPick={askOpenEntry}
-            />
-          </header>
+              выше), и здесь его нет — вместе с полем под ним.
+              В статистике его нет и ниже `md`: чей график показан, говорит
+              выбор «Чья статистика» (`ScopeField`), а имя между часами периода
+              и числами повторяло его, да и ломало строй — числа начинались
+              посреди страницы, а не под шапкой. Полоса без имени над собой
+              встаёт на то же место, что и с `md` (`flush`). */}
+          {inStats ? null : (
+            <header className="pb-12 md:hidden">
+              <ProfileName
+                profile={headProfile}
+                others={otherEntries}
+                onPick={askOpenEntry}
+              />
+            </header>
+          )}
 
           {/* Итог — закреплённой полосой, календарь — во всю ширину под ней.
               Числа и сетка нужны одновременно: человек отмечает день и тут
@@ -767,6 +778,11 @@ export function Workspace({
               overtimeInShifts={headProfile.overtimeInDays}
               shiftDurationHours={headProfile.shiftDurationHours}
               onPairs={setStripPairs}
+              flush={inStats}
+              // Второй ряд чисел есть, когда в полосу влезли не все пары
+              // (`Statistics`, `SummaryExtras`): у свода его нет, но укороченное
+              // растворение там ничему не мешает.
+              extras={inStats && stripPairs < 2}
             />
           )}
         </>

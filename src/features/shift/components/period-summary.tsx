@@ -62,8 +62,23 @@ export function PeriodSummary({
   overtimeInShifts,
   shiftDurationHours,
   onPairs,
+  flush,
+  extras,
 }: {
   calculation: PeriodCalculation;
+  /**
+   * Под полосой стоит её продолжение (`SummaryExtras`): растворение под ней
+   * тогда короче (`globals.css`, `data-extras`) — иначе второй ряд чисел
+   * выходил из-под дымки серым и размытым.
+   */
+  extras?: boolean;
+  /**
+   * Над полосой нет имени профиля, и ниже `md`: она встаёт на то место, где
+   * закрепится, — как с `md`, где имя в шапке. Иначе полоса стояла бы на
+   * восемь точек ниже и при первом движении колеса проезжала их (тот же
+   * довод, что у `md:-mt-2` ниже).
+   */
+  flush?: boolean;
   /**
    * Сколько пар мелких итогов полоса показала по сторонам — сообщается
    * наверх, чтобы то, что в неё не поместилось, дописала под ней статистика
@@ -102,7 +117,11 @@ export function PeriodSummary({
           первой же точки прокрутки она уже стоит. */}
       <div
         data-summary
-        className="sticky top-[calc(6rem+var(--safe-top))] z-40 -mx-6 -translate-y-8 md:-mt-2"
+        data-extras={extras ? "" : undefined}
+        className={cn(
+          "sticky top-[calc(6rem+var(--safe-top))] z-40 -mx-6 -translate-y-8 md:-mt-2",
+          flush && "-mt-2",
+        )}
       >
         <FiguresRow
           calculation={calculation}
