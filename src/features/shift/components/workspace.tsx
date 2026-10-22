@@ -820,7 +820,12 @@ export function Workspace({
                 прямо здесь, поверх перечня (`changes-list.tsx`). Уводит
                 только начало отсчёта — оно задаётся в анкете, и строка с
                 ним открывает настройки. */}
-            <ChangesList profile={profile} onChange={onChange} onOpenProfile={toggleSettings} />
+            <ChangesList
+              profile={profile}
+              onChange={onChange}
+              onOpenProfile={toggleSettings}
+              onOpenCalendar={toggleEvents}
+            />
           </section>
         </FadeIn>
       ) : statsOpen ? (
