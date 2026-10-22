@@ -86,6 +86,30 @@ export const CURTAIN_SETTLE_MIN_MS = SETTLE_TICK_MS * SETTLE_CALM_TICKS;
 export const CURTAIN_SETTLE_MAX_MS = 1500;
 
 /**
+ * Играет ли на странице что-то конечное, кроме самой плёнки.
+ *
+ * Лампа зажигается 1,3 с с момента открытия страницы (`lamp-strike`), и в
+ * сборке для сайта растворение плёнки приходилось как раз на это время: два
+ * движения шли разом, а на слабой видеосистеме растворение превращалось в три
+ * кадра с паузой в полсекунды — график «выскакивал». Поэтому плёнка ждёт, пока
+ * вводные анимации страницы доиграют.
+ *
+ * Бесконечные не считаются: клетки знака на самой плёнке горят по кругу, и
+ * ждать их конца значило бы не уйти никогда.
+ */
+function pageAnimating(film: HTMLElement | null): boolean {
+  if (typeof document.getAnimations !== "function") return false;
+
+  return document.getAnimations().some((animation) => {
+    if (animation.playState !== "running") return false;
+    if (animation.effect?.getComputedTiming().iterations === Infinity) return false;
+
+    const target = (animation.effect as KeyframeEffect | null)?.target;
+    return !(target instanceof Node && film?.contains(target));
+  });
+}
+
+/**
  * Дождаться, пока страница под плёнкой затихнет; вернуть то, что ожидание
  * отменяет.
  *
@@ -103,13 +127,14 @@ export const CURTAIN_SETTLE_MAX_MS = 1500;
  * при этом одинаково работает и в браузере, и под тестовыми часами.
  *
  * Кроме потока — шрифты: пока они грузятся, текст на странице меняет вид, и
- * подмена под растворяющейся плёнкой была бы видна.
+ * подмена под растворяющейся плёнкой была бы видна. И вводные анимации
+ * страницы (`pageAnimating`): растворению не нужно делить кадры с лампой.
  *
  * Ждать вечно нельзя, поэтому есть потолок (`CURTAIN_SETTLE_MAX_MS`): по его
  * истечении плёнка растворяется как есть. На вкладке в фоне таймеры замедлены до
  * секунды, и она тоже уходит по потолку.
  */
-function whenSettled(done: () => void): () => void {
+function whenSettled(film: HTMLElement | null, done: () => void): () => void {
   let calm = 0;
   let last = Date.now();
   let tick = 0;
@@ -128,7 +153,7 @@ function whenSettled(done: () => void): () => void {
     calm = late <= SETTLE_LATE_MS ? calm + 1 : 0;
     const fontsLoading = document.fonts?.status === "loading";
 
-    if (calm >= SETTLE_CALM_TICKS && !fontsLoading) finish();
+    if (calm >= SETTLE_CALM_TICKS && !fontsLoading && !pageAnimating(film)) finish();
     else tick = window.setTimeout(step, SETTLE_TICK_MS);
   };
 
@@ -181,10 +206,11 @@ function dissolve(film: HTMLElement, ms: number, done: () => void): () => void {
     fill: "forwards",
   });
 
-  // Пока плёнка прозрачна не до конца, браузер пересчитывает размытие дымки
-  // (`backdrop-filter` у `.veil`) каждый кадр: на экране расчёта это 36 кадров в
-  // секунду против 52 без него. На время растворения оно выключено, а потом
-  // возвращается плавно (`globals.css`, `data-curtain-fading`).
+  // Пока плёнка прозрачна не до конца, браузер перерисовывает под ней всё каждый
+  // кадр, и слои дымки (маска и размытие у каждого) — самое дорогое: на экране
+  // расчёта 36 кадров в секунду против 52 без размытия, а на тяжёлой композиции
+  // растворение вырождалось в три кадра. На время растворения дымки нет, а
+  // потом она проступает сама (`globals.css`, `data-curtain-fading`).
   const root = document.documentElement;
   root.setAttribute(FADING, "");
 
@@ -239,7 +265,7 @@ export function LoadingCurtain({
     // (`whenSettled`): растворение по занятому потоку рывками хуже, чем
     // небольшая задержка перед ним.
     let undo: () => void = () => undefined;
-    const stop = whenSettled(() => {
+    const stop = whenSettled(element, () => {
       undo = dissolve(element, exitDuration(), () => setMounted(false));
     });
 

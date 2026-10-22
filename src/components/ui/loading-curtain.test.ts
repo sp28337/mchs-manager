@@ -53,6 +53,7 @@ afterEach(() => {
   Reflect.deleteProperty(Element.prototype, "animate");
   Reflect.deleteProperty(Element.prototype, "getAnimations");
   Reflect.deleteProperty(document, "fonts");
+  Reflect.deleteProperty(document, "getAnimations");
 });
 
 describe("плёнка загрузки: на месте", () => {
@@ -223,6 +224,68 @@ describe("плёнка загрузки: ожидание затишья", () =>
 
     fonts.status = "loaded";
     await wait(16);
+    expect(animate).toHaveBeenCalledTimes(1);
+  });
+
+  /** Подмена `document.getAnimations`: список чужих анимаций страницы, который можно менять. */
+  function pageAnimations() {
+    const list: unknown[] = [];
+    Object.defineProperty(document, "getAnimations", { value: () => list, configurable: true });
+    const running = (target: Node | null, iterations = 1) => ({
+      playState: "running",
+      effect: { getComputedTiming: () => ({ iterations }), target },
+    });
+    return { list, running };
+  }
+
+  it("пока на странице доигрывает вводная анимация (лампа), плёнка ждёт: два движения разом тормозят", async () => {
+    const animate = watchAnimate();
+    const { list, running } = pageAnimations();
+    list.push(running(document.body));
+
+    await render(true);
+    await render(false);
+    await wait(CURTAIN_SETTLE_MIN_MS * 4);
+    expect(animate).not.toHaveBeenCalled();
+
+    list.length = 0;
+    await wait(16);
+    expect(animate).toHaveBeenCalledTimes(1);
+  });
+
+  it("бесконечные анимации не в счёт: клетки знака горят по кругу, и ждать их конца значило бы не уйти", async () => {
+    const animate = watchAnimate();
+    const { list, running } = pageAnimations();
+    list.push(running(document.body, Infinity));
+
+    await render(true);
+    await render(false);
+    await settle();
+
+    expect(animate).toHaveBeenCalledTimes(1);
+  });
+
+  it("анимации на самой плёнке тоже не в счёт", async () => {
+    const animate = watchAnimate();
+    const { list, running } = pageAnimations();
+
+    await render(true);
+    list.push(running(film()));
+    await render(false);
+    await settle();
+
+    expect(animate).toHaveBeenCalledTimes(1);
+  });
+
+  it("анимация, не закончившаяся вовремя, не держит плёнку дольше потолка", async () => {
+    const animate = watchAnimate();
+    const { list, running } = pageAnimations();
+    list.push(running(document.body));
+
+    await render(true);
+    await render(false);
+    await wait(CURTAIN_SETTLE_MAX_MS);
+
     expect(animate).toHaveBeenCalledTimes(1);
   });
 

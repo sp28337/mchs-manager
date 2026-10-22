@@ -15,10 +15,12 @@ import { cn } from "@/lib/utils/cn";
  * ещё и НАВОДИТСЯ на фокус, — и середина хода читается как момент, когда
  * что-то складывается, а не просто гаснет и включается.
  *
- * Используется везде, где страница на телефоне называет себя заново:
- * слово на кнопке меню и раздел на месте графика (`header-menu.tsx`,
- * `workspace.tsx`). Один приём на все — чтобы это читалось одним
- * превращением, а не несколькими разными.
+ * Сейчас им пользуется лист входа (`auth-screen.tsx`). Слово в шапке,
+ * сменяющее «Меню» названием раздела, проступает без расфокусировки
+ * (`blur={false}`): оно меняется в одной смене раздела с содержимым, полосой
+ * цифр и нижним рядом знаков, и размытие было среди них единственным.
+ * Замер показал, что на кадры оно почти не влияло, — убрано как лишнее
+ * движение, а не как тормоз.
  */
 export function Materialize({
   show,
@@ -26,6 +28,7 @@ export function Materialize({
   className,
   durationClassName = "duration-300",
   blurClassName = "blur-[6px]",
+  blur = true,
   ariaHidden,
 }: {
   show: boolean;
@@ -35,6 +38,14 @@ export function Materialize({
   durationClassName?: string;
   /** Насколько мутно то, что ещё не проступило. */
   blurClassName?: string;
+  /**
+   * Расфокусировка вообще. Выключена — остаётся одна прозрачность: слово в
+   * шапке, меняющее «Меню» на название раздела, проступает без размытия
+   * (`header-menu.tsx`). Размытие там читалось как «слово показали не в
+   * фокусе», а не как смена названия, и вдобавок шло рядом с другими
+   * движениями смены раздела, которые размытия не имеют.
+   */
+  blur?: boolean;
   /**
    * Читать ли текст программе чтения. Нужен, когда `Materialize` стоит в
    * стопке — гаснущее и проступающее лежат в одной ячейке грида, и без
@@ -46,9 +57,10 @@ export function Materialize({
     <span
       aria-hidden={ariaHidden}
       className={cn(
-        "inline-block transition-[opacity,filter] ease-out",
+        "inline-block ease-out",
+        blur ? "transition-[opacity,filter]" : "transition-opacity",
         durationClassName,
-        show ? "opacity-100 blur-none" : cn("opacity-0", blurClassName),
+        show ? cn("opacity-100", blur && "blur-none") : cn("opacity-0", blur && blurClassName),
         className,
       )}
     >

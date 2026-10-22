@@ -267,6 +267,7 @@ export function HeaderMenu({
             show={section === undefined}
             ariaHidden={section !== undefined}
             durationClassName="duration-200"
+            blur={false}
             className={cn("col-start-1 row-start-1", HEADER_WORD)}
           >
             Меню
@@ -275,6 +276,7 @@ export function HeaderMenu({
             show={section !== undefined}
             ariaHidden={section === undefined}
             durationClassName="duration-200"
+            blur={false}
             className={cn("col-start-1 row-start-1", HEADER_WORD)}
           >
             {прежнее}
