@@ -71,6 +71,19 @@ describe("содержимое разделов", () => {
     expect(total).toBeLessThan(20);
   });
 
+  it("добавление графика названо так, а кнопки «Из файла» в проводнике справка не знает", () => {
+    act(() => root.render(createElement(HelpSection, { id: "create" })));
+    expect(rows()).toContain("Добавление нового графика");
+    expect(rows()).not.toContain("Откуда открыть");
+
+    // Кнопки «Из файла» в «Графиках» больше нет — файл загружают в окне
+    // создания графика, и ни один раздел не должен отсылать к прежней.
+    for (const section of HELP_SECTIONS) {
+      act(() => root.render(createElement(HelpSection, { id: section.id })));
+      expect(container.textContent, section.title).not.toContain("«Из файла»");
+    }
+  });
+
   it("слова из справки находятся на экране буквально: названия кнопок в кавычках", () => {
     act(() => root.render(createElement(HelpSection, { id: "create" })));
     expect(container.textContent).toContain("«Построить график»");

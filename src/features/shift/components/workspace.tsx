@@ -21,7 +21,7 @@ import type { StoredProfile } from "../storage/profile";
 import { useBalancePop } from "./balance-pop";
 import { ChangesList } from "./changes-list";
 import { DayRing } from "./day-ring";
-import { ExplorerDock } from "./explorer-dock";
+import { ExplorerDock, ExplorerRailKnobs } from "./explorer-dock";
 import { GridDock } from "./grid-dock";
 import { GridScaleProvider } from "./grid-scale";
 import { WorkspaceMenuItems, WorkspaceRail, type OpenedSection } from "./header-tools";
@@ -687,6 +687,9 @@ export function Workspace({
             onToggleStats={toggleStats}
             onToggleExplorer={toggleExplorer}
             onSave={saveToFile.ask}
+            // Действия проводника — в той же колонке, под меню: у списка
+            // графиков они, а не в другом углу окна (`explorer-dock.tsx`).
+            extra={explorerOpen ? <ExplorerRailKnobs tools={explorerTools} /> : undefined}
           />
         }
       />
@@ -949,8 +952,9 @@ export function Workspace({
           на сетке. Стоит он там же, где кончается ряд, и при открытии
           раздела не сдвигается ни на точку. */}
       {explorerOpen ? (
-        // У проводника свои знаки — «Папка», «График», «Из файла»: на том же
-        // месте и в том же виде, что у календаря (`explorer-dock.tsx`).
+        // У проводника свои знаки — «Папка» и «График»: с `lg` они в колонке
+        // под меню, ниже — у кромки, в том же виде, что у календаря
+        // (`explorer-dock.tsx`).
         <ExplorerDock tools={explorerTools} />
       ) : showSettings || statsOpen || eventsOpen ? (
         <ThemeCorner />

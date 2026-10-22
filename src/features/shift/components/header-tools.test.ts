@@ -77,6 +77,28 @@ describe("меню и колонка знаков под ним", () => {
     expect([...container.querySelectorAll("button")].map((it) => it.getAttribute("aria-label"))).toEqual(FIVE);
   });
 
+  it("действия открытого раздела — группой под пятью знаками, через клетку (44 точки)", () => {
+    render(
+      createElement(WorkspaceRail, {
+        ...handlers,
+        extra: createElement("button", { type: "button", "aria-label": "Своё действие" }),
+      }),
+    );
+
+    const group = container.querySelector("[role=group]")!;
+    expect(group.getAttribute("aria-label")).toBe("Действия со списком графиков");
+    expect(group.className).toContain("mt-11");
+    // После пяти основных, а не среди них.
+    const all = [...container.querySelectorAll("button")].map((it) => it.getAttribute("aria-label"));
+    expect(all).toEqual([...FIVE, "Своё действие"]);
+    expect(group.querySelector("button")?.getAttribute("aria-label")).toBe("Своё действие");
+  });
+
+  it("без действий раздела группы нет вовсе", () => {
+    render(createElement(WorkspaceRail, handlers));
+    expect(container.querySelector("[role=group]")).toBeNull();
+  });
+
   it("колонка страницы записи — ссылки на расчёт с адресом раздела", () => {
     render(createElement(AccountRail));
 

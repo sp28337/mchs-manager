@@ -67,6 +67,7 @@ const ON = "text-black/80 dark:text-ink";
 export function RailKnob({
   icon: Icon,
   label,
+  caption,
   active,
   href,
   onClick,
@@ -74,6 +75,12 @@ export function RailKnob({
   icon: LucideIcon;
   /** Имя действия: и подпись, что выезжает, и имя для программы чтения. */
   label: string;
+  /**
+   * Короче имени — подпись, что выезжает, если полное имя для неё длинно: у
+   * действий проводника имя «Создать график», а на знаке достаточно «График».
+   * Программа чтения всё равно читает `label`.
+   */
+  caption?: string;
   /**
    * Раздел открыт: знак горит, а нажатие закрывает его. Не задан у действий,
    * которые разделом не являются («Сохранить»): «нажата» у них нечему.
@@ -88,7 +95,7 @@ export function RailKnob({
       {/* Подпись — слева: справа у знака кромка окна. Перед значком в
           разметке, чтобы значок стоял на месте, а подпись росла от него
           (`KnobLabel`). */}
-      <KnobLabel side="left">{label}</KnobLabel>
+      <KnobLabel side="left">{caption ?? label}</KnobLabel>
       <span
         className={cn(KNOB_ICON, "transition-[color,opacity] duration-200", active === true ? ON : MARK_EMPTY_CLASS)}
       >

@@ -8,6 +8,7 @@ import {
   Save,
   Settings,
 } from "lucide-react";
+import type { ReactNode } from "react";
 
 import { HelpMenuItem, MenuItem } from "@/components/shared/header-menu";
 import { RailKnob } from "@/components/shared/header-rail";
@@ -51,9 +52,9 @@ import { SECTION_HASH } from "./section-hash";
  * (`shared/header-menu.tsx`). Значит, список видят только из расчёта, и
  * строка «Закрыть настройки» в нём никогда бы не появилась.
  *
- * По той же причине три действия проводника — папка, профиль, из файла —
- * живут теперь в самом проводнике, в строке пути (`profile-explorer.tsx`):
- * из меню до них было бы не добраться.
+ * По той же причине два действия проводника — папка и график — живут
+ * не в меню, а в самом проводнике: знаками под колонкой меню и у нижней кромки
+ * (`explorer-dock.tsx`). Из списка меню до них было бы не добраться.
  *
  * --- Почему выгрузка живёт не здесь ----------------------------------------
  *
@@ -133,6 +134,7 @@ export function WorkspaceRail({
   onToggleStats,
   onToggleExplorer,
   onSave,
+  extra,
 }: {
   opened?: OpenedSection;
   onToggleSettings: () => void;
@@ -141,6 +143,15 @@ export function WorkspaceRail({
   onToggleExplorer: () => void;
   /** Открыть окно выгрузки профиля в файл. */
   onSave: () => void;
+  /**
+   * Знаки открытого раздела — группой под пятью основными, через клетку знака.
+   *
+   * Нужны проводнику: «Создать график» и «Создать папку» относятся к самому
+   * списку графиков и стоят в той же колонке, что и меню, сразу под ним, а не
+   * в отдельном углу окна. Пусто — на всех прочих разделах: у них действий
+   * для колонки нет.
+   */
+  extra?: ReactNode;
 }) {
   return (
     <>
@@ -170,6 +181,20 @@ export function WorkspaceRail({
       />
       {/* «Сохранить» не раздел, а окно: гореть ему нечем. */}
       <RailKnob icon={Save} label="Сохранить" onClick={onSave} />
+      {/* `mt-11` — пусто на одну клетку знака (44 точки): столько же стояло
+          между этими знаками и знаком темы, когда они были внизу окна, и
+          та же клетка отделяет колонку масштаба от темы в календаре
+          (`SCALE_KNOBS`). Группа отделена, потому что это не раздел меню, а
+          действия внутри открытого раздела. */}
+      {extra === undefined ? null : (
+        <div
+          role="group"
+          aria-label="Действия со списком графиков"
+          className="mt-11 flex flex-col items-end"
+        >
+          {extra}
+        </div>
+      )}
     </>
   );
 }

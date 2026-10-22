@@ -158,7 +158,7 @@ function SaveDialog({
       // графиком. Ничего не стирается и ничем не рискуют.
       icon={<FileDown />}
       tone="verify"
-      lead="Файл можно открыть на любом устройстве — кнопкой «Из файла» в «Графиках»."
+      lead="Файл можно открыть на любом устройстве — кнопкой «Загрузить из файла» в окне создания графика."
       className={cn("w-[min(30rem,calc(100vw-2rem))]", over && "modal-over-modal")}
       footer={
         <DialogActions>
