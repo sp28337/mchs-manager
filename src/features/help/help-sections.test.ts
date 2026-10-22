@@ -106,6 +106,42 @@ describe("содержимое разделов", () => {
     expect(heads.filter((it) => it.startsWith("Как ")).length).toBeGreaterThanOrEqual(heads.length - 4);
   });
 
+  it("в «Добавлении графика» «Графики» → «График» и «Загрузить из файла» — со значками", () => {
+    act(() => root.render(createElement(HelpSection, { id: "create" })));
+
+    const withIcon = (label: string) => {
+      const found = [...container.querySelectorAll("span")].find(
+        (el) => el.textContent === `«${label}»` && el.querySelector("svg") !== null,
+      );
+      return found?.querySelector("svg") ?? null;
+    };
+    expect(withIcon("Графики")).not.toBeNull();
+    expect(withIcon("График")).not.toBeNull();
+    expect(withIcon("Загрузить из файла")).not.toBeNull();
+    // Значок не озвучивается: слово рядом говорит то же.
+    expect(withIcon("График")?.getAttribute("aria-hidden")).toBe("true");
+    // «Построить график» — без значка: на главной у кнопки свой, и в тексте он не нужен.
+    expect(
+      [...container.querySelectorAll("span")].some(
+        (el) => el.textContent === "«Построить график»" && el.querySelector("svg") !== null,
+      ),
+    ).toBe(false);
+  });
+
+  it("про события и папки при загрузке из файла справка не обещает: хвост убран", () => {
+    act(() => root.render(createElement(HelpSection, { id: "create" })));
+
+    expect(container.textContent).not.toContain("восстановятся");
+    expect(container.textContent).toContain("«Загрузить из файла».");
+  });
+
+  it("раздел «График» начинается с выбора периода", () => {
+    act(() => root.render(createElement(HelpSection, { id: "schedule" })));
+
+    expect(rows()[0]).toBe("Как выбрать период");
+    expect(rows()[1]).toBe("Как читать итог");
+  });
+
   it("кнопки «Из файла» в проводнике справка не знает: файл загружают в окне создания", () => {
     for (const section of HELP_SECTIONS) {
       act(() => root.render(createElement(HelpSection, { id: section.id })));

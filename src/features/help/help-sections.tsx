@@ -9,10 +9,12 @@ import {
   FolderOpen,
   FolderPlus,
   Grid3x3,
+  Plus,
   RotateCcw,
   Save,
   Settings,
   Sigma,
+  Upload,
   UserRound,
   type LucideIcon,
 } from "lucide-react";
@@ -163,6 +165,22 @@ function Q({ children }: { children: ReactNode }) {
   return <span className="text-ink">«{children}»</span>;
 }
 
+/**
+ * Название кнопки со значком — тем же, что на самой кнопке.
+ *
+ * Для тех, кого в тексте легко не найти: «Графики», «График» и «Загрузить из
+ * файла» стоят знаками без подписи или внутри окна, и по одному слову человек
+ * ищет глазами, а по знаку — находит. Значок строчный, в цвет слова, и не
+ * отрывается от него при переносе строки.
+ */
+function QI({ icon: Icon, children }: { icon: LucideIcon; children: ReactNode }) {
+  return (
+    <span className="inline-flex items-center gap-1 whitespace-nowrap align-bottom text-ink">
+      <Icon aria-hidden className="size-4 shrink-0 text-ink-muted" />«{children}»
+    </span>
+  );
+}
+
 /** Первая буква строчная — чтобы фраза из словаря встала после тире. */
 function lowerFirst(text: string): string {
   return text.charAt(0).toLowerCase() + text.slice(1);
@@ -200,8 +218,8 @@ function Create() {
       <Row picture={<Big icon={CalendarPlus} />} title="Добавление графика">
         <p>
           Чтобы создать ещё один график, нажмите <Q>Построить график</Q> на главной странице или
-          откройте <Q>Графики</Q> → <Q>График</Q>. Если у вас уже есть сохранённый файл, выберите{" "}
-          <Q>Загрузить из файла</Q> — вместе с графиком восстановятся события и папки.
+          откройте <QI icon={FolderOpen}>Графики</QI> → <QI icon={Plus}>График</QI>. Если у вас уже
+          есть сохранённый файл, выберите <QI icon={Upload}>Загрузить из файла</QI>.
         </p>
       </Row>
       <Row picture={<Big icon={Settings} />} title="Изменение настроек">
@@ -250,6 +268,26 @@ function Schedule() {
     <Rows>
       <Row
         picture={
+          <PictureGroup>
+            <PeriodIcon kind="year" index={0} className="size-11" />
+            <PeriodIcon kind="half_year" index={0} className="size-11" />
+            <PeriodIcon kind="quarter" index={1} className="size-11" />
+          </PictureGroup>
+        }
+        title="Как выбрать период"
+      >
+        <p>
+          Нажмите на часы вверху и выберите год, полугодие или квартал. Переработку считают по итогу
+          учётного периода (ст. 104 ТК РФ), поэтому выбирайте тот, что принят у вас. Другой год
+          выбирается знаком <Q>Год</Q> внизу.
+        </p>
+        <p>
+          Чтобы увидеть, сколько набежало к сегодняшнему дню, включите <Q>Онлайн</Q> внизу: итог
+          посчитается только до сегодняшних суток.
+        </p>
+      </Row>
+      <Row
+        picture={
           <dl>
             <Figure
               size="hero"
@@ -268,26 +306,6 @@ function Schedule() {
         <p>
           Слева и справа — смены, ночные и праздничные часы. Итог пересчитывается после каждой
           правки: над клеткой на миг всплывает, на сколько он изменился.
-        </p>
-      </Row>
-      <Row
-        picture={
-          <PictureGroup>
-            <PeriodIcon kind="year" index={0} className="size-11" />
-            <PeriodIcon kind="half_year" index={0} className="size-11" />
-            <PeriodIcon kind="quarter" index={1} className="size-11" />
-          </PictureGroup>
-        }
-        title="Как выбрать период"
-      >
-        <p>
-          Нажмите на часы вверху и выберите год, полугодие или квартал. Переработку считают по итогу
-          учётного периода (ст. 104 ТК РФ), поэтому выбирайте тот, что принят у вас. Другой год
-          выбирается знаком <Q>Год</Q> внизу.
-        </p>
-        <p>
-          Чтобы увидеть, сколько набежало к сегодняшнему дню, включите <Q>Онлайн</Q> внизу: итог
-          посчитается только до сегодняшних суток.
         </p>
       </Row>
       <Row
