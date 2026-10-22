@@ -67,6 +67,22 @@ export function ShiftsIcon({ className }: { className?: string }) {
   return <Logo mono className={cn("size-4.5 shrink-0", SHIFTS_FIT, className)} />;
 }
 
+/**
+ * Показанный график: значок чернилами названия сайта (`HEADER_WORD`), а
+ * залитая клетка — зелёным смен. Клетка — первый прямоугольник знака
+ * (`ui/logo.tsx`); заливка у неё атрибутом `currentColor`, и правило
+ * таблицы стилей сильнее атрибута.
+ *
+ * Лежит здесь, а не у нижнего ряда знаков (`grid-dock.tsx`), затем что нужен
+ * и вне его: кнопка первого экрана (`landing/to-calculator.tsx`) рисует тот же
+ * знак тем же цветом. А нижний ряд — клиентский модуль, и строка из него дошла
+ * бы до серверной страницы ссылкой, а не строкой.
+ */
+export const SHIFTS_ON = "text-black/80 dark:text-ink [&_svg>rect:first-child]:fill-verify";
+
+/** Показанный календарь: значок целиком приглушённой охрой. */
+export const CALENDAR_ON = "text-calendar-mark";
+
 export function CalendarIcon({ className }: { className?: string }) {
   return (
     <CalendarDays aria-hidden className={cn("size-4.5 shrink-0", CALENDAR_FIT, className)} />

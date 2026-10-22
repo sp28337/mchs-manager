@@ -10,7 +10,8 @@ import { KNOB_ICON, KNOB_NEST } from "@/components/ui/knob";
 import { cn } from "@/lib/utils/cn";
 
 import { datesOfMonth, dayOfMonth } from "../domain/plain-date";
-import { DOCK, DOCK_LEFT, DOCK_RIGHT, SCALE_KNOBS, SHIFTS_ON } from "./grid-dock";
+import { DOCK, DOCK_LEFT, DOCK_RIGHT, SCALE_KNOBS } from "./grid-dock";
+import { SHIFTS_ON } from "./grid-icons";
 import { CalendarIcon, PeriodIcon, ShiftsIcon, YearMark } from "./grid-icons";
 import { LiveSignal } from "./live-mode";
 import { META_UNIT, MetaSep, MonthGrid, YEAR_BOX, YEAR_GRID } from "./month-grid";

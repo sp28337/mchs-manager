@@ -12,7 +12,7 @@ import { cn } from "@/lib/utils/cn";
 
 import { numberWord } from "../domain/decimal";
 import type { StoredProfile } from "../storage/profile";
-import { CalendarIcon, ShiftsIcon } from "./grid-icons";
+import { CALENDAR_ON, CalendarIcon, SHIFTS_ON, ShiftsIcon } from "./grid-icons";
 import { MONTHS_MIN, ZOOM_MIN, useGridScale } from "./grid-scale";
 import { LegendButton } from "./legend-button";
 import { LiveModeKnob } from "./live-mode";
@@ -159,17 +159,6 @@ export const DOCK_RIGHT_EXPLORER =
  * (`HEADER_RAIL`).
  */
 export const SCALE_KNOBS = "max-lg:hidden lg:mb-11 lg:flex lg:flex-col lg:items-end";
-
-/**
- * Показанный график: значок чернилами названия сайта (`HEADER_WORD`), а
- * залитая клетка — зелёным смен. Клетка — первый прямоугольник знака
- * (`ui/logo.tsx`); заливка у неё атрибутом `currentColor`, и правило
- * таблицы стилей сильнее атрибута.
- */
-export const SHIFTS_ON = "text-black/80 dark:text-ink [&_svg>rect:first-child]:fill-verify";
-
-/** Показанный календарь: значок целиком приглушённой охрой. */
-export const CALENDAR_ON = "text-calendar-mark";
 
 export function GridDock({
   profile,

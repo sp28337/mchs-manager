@@ -52,7 +52,10 @@ export function SectionLayout<Id extends string>({
                   onClick={() => onSelect(id)}
                   className={cn(
                     "flex cursor-pointer items-center gap-2.5 rounded-lg px-3 py-2",
-                    "text-left text-sm whitespace-nowrap",
+                    // На узком экране разделы — ряд кнопок, и перенос слов внутри
+                    // кнопки ломал бы ряд; в колонке слева, где ширина задана,
+                    // длинное название («Производственный календарь») переносится.
+                    "text-left text-sm whitespace-nowrap md:whitespace-normal",
                     MENU_ROW_HOVER,
                     "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ink",
                     on ? "bg-paper-sunken font-medium text-ink" : "text-ink-muted",
