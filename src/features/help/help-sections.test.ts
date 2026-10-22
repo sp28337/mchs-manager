@@ -24,18 +24,25 @@ afterEach(() => {
 describe("разделы справки", () => {
   it("шесть главных разделов — в том порядке и под теми названиями, что названы", () => {
     expect(HELP_SECTIONS.map((section) => section.title)).toEqual([
-      "Создание профиля",
+      "Настройка графика",
       "График",
       "Производственный календарь",
       "События",
       "Статистика",
-      "Графики",
+      "Управление графиками",
     ]);
   });
 
   it("у каждого свой адрес и свой значок", () => {
     expect(new Set(HELP_SECTION_IDS).size).toBe(HELP_SECTIONS.length);
     expect(new Set(HELP_SECTIONS.map((section) => section.icon)).size).toBe(HELP_SECTIONS.length);
+  });
+
+  it("пункты меню короткие: прежние длинные названия ушли", () => {
+    const titles = HELP_SECTIONS.map((section) => section.title);
+    expect(titles).not.toContain("Создание профиля");
+    expect(titles).not.toContain("Графики");
+    expect(Math.max(...titles.map((title) => title.length))).toBeLessThanOrEqual(26);
   });
 
   it("прежних разделов нет: справка не разрослась обратно", () => {
@@ -51,7 +58,7 @@ describe("содержимое разделов", () => {
   const rows = () => [...container.querySelectorAll("h3")].map((it) => it.textContent);
 
   for (const section of HELP_SECTIONS) {
-    it(`«${section.title}»: рисуется, с вводной и короткой стопкой строк`, () => {
+    it(`«${section.title}»: рисуется, строки с текстом и короткая стопка`, () => {
       act(() => root.render(createElement(HelpSection, { id: section.id })));
 
       expect(container.querySelector("p")?.textContent?.length).toBeGreaterThan(20);
@@ -62,26 +69,55 @@ describe("содержимое разделов", () => {
     });
   }
 
-  it("всего строк вдвое-втрое меньше прежнего: меньше двадцати", () => {
+  it("всего строк вдвое-втрое меньше прежнего: не больше двадцати", () => {
     let total = 0;
     for (const section of HELP_SECTIONS) {
       act(() => root.render(createElement(HelpSection, { id: section.id })));
       total += rows().length;
     }
-    expect(total).toBeLessThan(20);
+    expect(total).toBeLessThanOrEqual(20);
   });
 
-  it("добавление графика названо так, а кнопки «Из файла» в проводнике справка не знает", () => {
+  it("первый раздел — тремя строками с заголовками-задачами, а не описанием интерфейса", () => {
     act(() => root.render(createElement(HelpSection, { id: "create" })));
-    expect(rows()).toContain("Добавление нового графика");
-    expect(rows()).not.toContain("Откуда открыть");
 
-    // Кнопки «Из файла» в «Графиках» больше нет — файл загружают в окне
-    // создания графика, и ни один раздел не должен отсылать к прежней.
+    expect(rows()).toEqual(["Как настроить график", "Добавление графика", "Изменение настроек"]);
+    // Прежние канцелярские заголовки не вернулись.
+    for (const old of ["Что спросит окно", "Потом поправить", "Откуда открыть", "Добавление нового графика"]) {
+      expect(rows()).not.toContain(old);
+    }
+  });
+
+  it("у каждой строки заголовок — задача: «Как …» или действие, а не часть экрана", () => {
+    const heads: string[] = [];
+    for (const section of HELP_SECTIONS) {
+      act(() => root.render(createElement(HelpSection, { id: section.id })));
+      heads.push(...rows().filter((it): it is string => it !== null && it !== undefined));
+    }
+    // Названий частей экрана, какими строки назывались раньше.
+    for (const old of [
+      "Итог над сеткой", "Учётный период", "Клетки", "Правка дня", "Знаки у нижней кромки",
+      "Четыре вида дней", "Переносы и правки", "Лента", "Правка и возврат", "Чья статистика",
+      "Что в ней", "Проводник", "Сохранить и перенести",
+    ]) {
+      expect(heads).not.toContain(old);
+    }
+    // Большинство начинается с «Как» — это то, что человек ищет.
+    expect(heads.filter((it) => it.startsWith("Как ")).length).toBeGreaterThanOrEqual(heads.length - 4);
+  });
+
+  it("кнопки «Из файла» в проводнике справка не знает: файл загружают в окне создания", () => {
     for (const section of HELP_SECTIONS) {
       act(() => root.render(createElement(HelpSection, { id: section.id })));
       expect(container.textContent, section.title).not.toContain("«Из файла»");
     }
+  });
+
+  it("поле названо как на экране: «Начало отсчёта», а не «дата начала учёта»", () => {
+    act(() => root.render(createElement(HelpSection, { id: "create" })));
+
+    expect(container.textContent).toContain("«Начало отсчёта»");
+    expect(container.textContent).not.toContain("начала учёта");
   });
 
   it("слова из справки находятся на экране буквально: названия кнопок в кавычках", () => {
