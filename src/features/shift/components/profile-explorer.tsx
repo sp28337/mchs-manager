@@ -622,10 +622,18 @@ export function ProfileExplorer({
         confirm="Удалить"
         destructive
         icon={<Trash2 aria-hidden />}
+        subject={
+          <>
+            <p className="text-[11px] tracking-wide text-ink-faint uppercase">Папка</p>
+            <p className="mt-1.5 font-display text-xl leading-6 font-bold break-words">
+              {removing?.name}
+            </p>
+          </>
+        }
       >
         <p>
-          Папка «{removing?.name}» исчезнет, а всё, что в ней лежало,
-          поднимется на ступень выше. Данные не пропадут.
+          Папка исчезнет, а всё, что в ней лежало, поднимется на ступень
+          выше. Данные не пропадут.
         </p>
       </ConfirmDialog>
 

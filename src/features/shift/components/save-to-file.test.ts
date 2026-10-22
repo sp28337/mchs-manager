@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { fileNameOf } from "./save-to-file";
+import type { StoredProfile } from "../storage/profile";
+import { chosenFileName, fileNameOf, fileSizeRu } from "./save-to-file";
 
 /**
  * Имя файла собирается из имени профиля, а его человек пишет свободной
@@ -35,5 +36,35 @@ describe("имя файла выгрузки", () => {
 
   it("длинное имя обрезается: у файловых систем есть предел", () => {
     expect(fileNameOf("а".repeat(300))).toHaveLength(100);
+  });
+});
+
+describe("имя, которое окно показывает заранее", () => {
+  const profile = { displayName: "Петров И. С." } as StoredProfile;
+
+  it("пустое поле — имя профиля: окно показывает то, под чем файл уйдёт", () => {
+    // Точка в конце имени срезается, как и при выгрузке: имя, оканчивающееся
+    // точкой, в Windows недопустимо.
+    expect(chosenFileName(profile, "")).toBe("Петров И. С");
+    expect(chosenFileName(profile, "   ")).toBe("Петров И. С");
+  });
+
+  it("набранное расширение снимается, а не удваивается", () => {
+    expect(chosenFileName(profile, "до отпуска.json")).toBe("до отпуска");
+    expect(chosenFileName(profile, "до отпуска.JSON")).toBe("до отпуска");
+  });
+
+  it("опасные знаки чистятся тем же правилом, что и при выгрузке", () => {
+    expect(chosenFileName(profile, "смены: март/апрель")).toBe("смены- март-апрель");
+  });
+});
+
+describe("размер файла по-русски", () => {
+  it("байты, килобайты и мегабайты с запятой", () => {
+    expect(fileSizeRu(0)).toBe("0 Б");
+    expect(fileSizeRu(812)).toBe("812 Б");
+    expect(fileSizeRu(1024)).toBe("1,0 КБ");
+    expect(fileSizeRu(3300)).toBe("3,2 КБ");
+    expect(fileSizeRu(1024 * 1024 * 1.4)).toBe("1,4 МБ");
   });
 });

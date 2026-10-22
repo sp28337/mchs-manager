@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { CalendarRange, StickyNote } from "lucide-react";
+import { useState } from "react";
 
-import { Button } from "@/components/ui/button";
+import { DialogActions, DialogButton } from "@/components/ui/dialog-parts";
 import { Input } from "@/components/ui/input";
 import { Modal } from "@/components/ui/modal";
 import { cn } from "@/lib/utils/cn";
@@ -11,6 +12,7 @@ import { Card, Field } from "@/components/ui/panel";
 import { parseHours } from "../domain/decimal";
 import { formatDayMonthRu } from "../domain/format";
 import type { IsoDate } from "../domain/plain-date";
+import { dayRu, spanRu } from "./changes-timeline";
 import { DateField } from "./date-field";
 
 /**
@@ -104,36 +106,44 @@ export function SpanModal({
       open={open}
       onClose={onClose}
       title={title}
+      icon={<CalendarRange />}
+      // Строка под заголовком — событие таким, каким оно станет: пока человек
+      // двигает дату, под названием меняются и отрезок, и число суток. Так он
+      // видит итог правки, а не только поле, в котором её делает.
+      lead={`${spanRu(startsOn, until < startsOn ? startsOn : until)}${
+        hours === null ? "" : ` · ${perDay.trim() === "" ? "…" : perDay.trim()} ч в сутки`
+      }`}
       className={cn("w-[min(30rem,calc(100vw-2rem))]", className)}
+      footer={
+        <DialogActions>
+          <DialogButton variant="primary" onClick={commit}>
+            Готово
+          </DialogButton>
+        </DialogActions>
+      }
     >
-      <div className="flex flex-col items-center space-y-4">
-        <Card>
-          <Field id="day-event-ends" label="По дату включительно">
-            <DateField
-              id="day-event-ends"
-              defaultValue={endsOn}
-              min={startsOn}
-              onChange={(next) => setUntil(next ?? startsOn)}
+      <Card>
+        <Field id="day-event-ends" label="По дату включительно">
+          <DateField
+            id="day-event-ends"
+            defaultValue={endsOn}
+            min={startsOn}
+            onChange={(next) => setUntil(next ?? startsOn)}
+          />
+        </Field>
+
+        {hours === null ? null : (
+          <Field id="day-event-hours" label="Часов в сутки">
+            <Input
+              id="day-event-hours"
+              inputMode="decimal"
+              value={perDay}
+              onChange={(event) => setPerDay(event.target.value)}
+              className="w-28 font-mono"
             />
           </Field>
-
-          {hours === null ? null : (
-            <Field id="day-event-hours" label="Часов в сутки">
-              <Input
-                id="day-event-hours"
-                inputMode="decimal"
-                value={perDay}
-                onChange={(event) => setPerDay(event.target.value)}
-                className="w-28 font-mono"
-              />
-            </Field>
-          )}
-        </Card>
-
-        <Button type="button" onClick={commit}>
-          Готово
-        </Button>
-      </div>
+        )}
+      </Card>
     </Modal>
   );
 }
@@ -164,53 +174,48 @@ export function NoteModal({
 }) {
   const [draft, setDraft] = useState(text);
 
-  /**
-   * Фокус в поле — после того, как окно открылось.
-   *
-   * `showModal()` уводит его на первое, за что в окне можно зацепиться, то
-   * есть на крестик, и родной `autoFocus` до этого мига не доживает: поле
-   * появляется раньше, чем окно открывают. Этот эффект стоит в РОДИТЕЛЕ
-   * окна, а родительские эффекты выполняются после его собственных —
-   * значит, последнее слово о фокусе остаётся за ним.
-   */
-  useEffect(() => {
-    if (!open) return;
-    document.getElementById("day-event-note")?.focus();
-  }, [open]);
-
   return (
     <Modal
       open={open}
       onClose={onClose}
-      title={`Заметка · ${formatDayMonthRu(day)}`}
+      title="Заметка"
+      icon={<StickyNote />}
+      // Дата — под заголовком, с днём недели: заметку ставят к суткам, и
+      // «вт, 10 февраля» отвечает, к каким именно.
+      lead={dayRu(day)}
       // Плашки внутри нет: вопрос один, и собирать его не с чем. Бумага
       // у окна и так поднятая — та же, что была у плашки, — поэтому
-      // заголовок «Заметка · 3 марта» и поле под ним читаются одним
-      // блоком. Поле при этом остаётся видно: оно темнее (`bg-paper` у
-      // `Input`) и обведено.
+      // заголовок и поле под ним читаются одним блоком. Поле при этом
+      // остаётся видно: оно темнее (`bg-paper` у `Input`) и обведено.
       className={cn("w-[min(30rem,calc(100vw-2rem))]", className)}
+      footer={
+        <DialogActions>
+          <DialogButton variant="primary" onClick={() => onCommit(draft)}>
+            Готово
+          </DialogButton>
+        </DialogActions>
+      }
     >
-      <div className="space-y-4">
-        {/* Подписи над полем нет. Она повторяла заголовок окна другими
-            словами — «Заметка · 3 марта» и «Что было в этот день», — а
-            пример внутри поля («Например: обещали отгул») отвечает на тот
-            же вопрос точнее любой подписи. */}
-        <Input
-          id="day-event-note"
-          value={draft}
-          maxLength={500}
-          placeholder="Оставьте заметку"
-          aria-label={`Заметка к ${formatDayMonthRu(day)}`}
-          onChange={(event) => setDraft(event.target.value)}
-          onKeyDown={(event) => {
-            if (event.key === "Enter") onCommit(draft);
-          }}
-        />
+      {/* Подписи над полем нет. Она повторяла бы заголовок другими словами, а
+          пример внутри поля («Оставьте заметку») отвечает на тот же вопрос
+          точнее любой подписи.
 
-        <Button type="button" className="w-full" onClick={() => onCommit(draft)}>
-          Готово
-        </Button>
-      </div>
+          Фокус — в поле: `data-autofocus` читает само окно после открытия.
+          Раньше его ставил эффект в родителе, в обход окна: `showModal()`
+          уводил фокус на крестик, и родной `autoFocus` до этого мига не
+          доживал. */}
+      <Input
+        id="day-event-note"
+        data-autofocus=""
+        value={draft}
+        maxLength={500}
+        placeholder="Оставьте заметку"
+        aria-label={`Заметка к ${formatDayMonthRu(day)}`}
+        onChange={(event) => setDraft(event.target.value)}
+        onKeyDown={(event) => {
+          if (event.key === "Enter") onCommit(draft);
+        }}
+      />
     </Modal>
   );
 }

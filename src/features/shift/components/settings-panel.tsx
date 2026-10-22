@@ -1,10 +1,11 @@
 "use client";
 
-import { Pencil, RotateCcw, Trash2 } from "lucide-react";
+import { Gauge, Pencil, Repeat, RotateCcw, Trash2 } from "lucide-react";
 import { useId, useState, type ReactNode } from "react";
 
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { DialogActions, DialogButton } from "@/components/ui/dialog-parts";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Modal } from "@/components/ui/modal";
@@ -770,8 +771,21 @@ function TuneModal({
       open={kind !== null}
       onClose={onClose}
       title={kind === "norm" ? "Норма в неделю" : "График"}
+      icon={kind === "norm" ? <Gauge /> : <Repeat />}
+      lead={
+        kind === "norm"
+          ? "Своя недельная норма — если она не та, что даёт закон."
+          : "Свой цикл смен: сколько суток работать и сколько отдыхать."
+      }
       // Узкое и поверх — как окно времени в сутках: довод там же.
       className="modal-over-modal w-[min(26rem,calc(100vw-2rem))]"
+      footer={
+        <DialogActions>
+          <DialogButton variant="primary" onClick={onClose}>
+            Готово
+          </DialogButton>
+        </DialogActions>
+      }
     >
       <div className="flex flex-col items-center space-y-4">
         <Card>
@@ -832,10 +846,6 @@ function TuneModal({
             </Field>
           ) : null}
         </Card>
-
-        <Button type="button" onClick={onClose}>
-          Готово
-        </Button>
       </div>
     </Modal>
   );
@@ -986,6 +996,10 @@ export function DangerActions({
         title="Сбросить календарь"
         confirm="Сбросить"
         icon={<RotateCcw aria-hidden />}
+        // Красным: сброс стирает всё отмеченное за год разом, а возврата у
+        // него нет — в отличие от крестика в «Событиях», где убранное
+        // несколько секунд можно вернуть.
+        destructive
       >
         <p>
           Убрать с календаря и графика всё отмеченное — отсутствия, вызовы,

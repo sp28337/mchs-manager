@@ -1,8 +1,9 @@
 "use client";
 
+import { CircleHelp, TriangleAlert } from "lucide-react";
 import type { ReactNode } from "react";
 
-import { Button } from "./button";
+import { DialogActions, DialogButton, type DialogTone } from "./dialog-parts";
 import { Modal } from "./modal";
 
 /**
@@ -48,6 +49,9 @@ export function ConfirmDialog({
   confirm,
   icon,
   destructive,
+  tone,
+  lead,
+  subject,
   decline,
   children,
 }: {
@@ -57,16 +61,34 @@ export function ConfirmDialog({
   title: string;
   /** Надпись на кнопке согласия: она называет действие, а не «Да». */
   confirm: string;
-  /** Знак действия — тот же, что на кнопке, которой окно открыли. */
+  /**
+   * Знак действия — тот же, что на кнопке, которой окно открыли, — плиткой
+   * слева от заголовка. На самой кнопке согласия знака нет: плитка и слово
+   * рядом говорят то же, и второй раз он только шумел бы.
+   */
   icon?: ReactNode;
   /**
    * Действие стирает данные безвозвратно.
    *
    * Сигнальный цвет в этом интерфейсе означает «требует решения человека»
    * и кнопку «Сохранить» не красит никогда. Здесь он на месте: удаление
-   * профиля — само по себе вмешательство.
+   * профиля — само по себе вмешательство. Красной становится и плитка окна, а
+   * фокус при открытии встаёт на «Отмену»: случайный Enter не должен стирать.
    */
   destructive?: boolean;
+  /**
+   * Смысл окна, если он не «стирает» и не «нейтрально»: например, зелёным
+   * окно, которое предлагает сохранить. Без него — по `destructive`.
+   */
+  tone?: DialogTone;
+  /** Строка под заголовком: чем кончится, если согласиться. */
+  lead?: ReactNode;
+  /**
+   * Предмет вопроса — то, к чему действие относится, в углублении на бумаге
+   * окна: имя удаляемого графика, папки. Человек, нажавший «Удалить» мимоходом,
+   * сверяет не заголовок, а имя.
+   */
+  subject?: ReactNode;
   /**
    * Вторая кнопка, если «Отмена» — не то слово.
    *
@@ -89,11 +111,18 @@ export function ConfirmDialog({
    */
   children?: ReactNode;
 }) {
+  const meaning: DialogTone = tone ?? (destructive === true ? "signal" : "neutral");
+
   return (
     <Modal
       open={open}
       onClose={onClose}
       title={title}
+      // Плитка у каждого окна вопроса: без знака окно осталось бы прежним, из
+      // одного заголовка, — а вопрос обязан по виду отличаться от формы.
+      icon={icon ?? (meaning === "signal" ? <TriangleAlert /> : <CircleHelp />)}
+      tone={meaning}
+      lead={lead}
       // Окно вопроса узкое намеренно: в нём три строки текста, и растянутые
       // на сорок четыре рема они читались бы как страница, а не как вопрос.
       //
@@ -102,40 +131,45 @@ export function ConfirmDialog({
       // слое браузера и гасило вместе со страницей лампу, а лампа освещает
       // комнату, а не лежит в ней. По метке общий слой становится плотнее —
       // подробности у самого правила в `globals.css`.
-      className="modal-over-modal w-[min(26rem,calc(100vw-2rem))]"
-    >
-      <div className="space-y-4">
-        {/* Вопрос стоит прямо на бумаге окна: она и есть поднятая, и
-            второй такой же плашки внутри быть не должно — как и у карточки
-            настроек, оказавшейся в окне (`panel.tsx`). */}
-        {children === undefined ? null : <div className="space-y-2 py-1 text-sm">{children}</div>}
-
-        <div className="flex flex-wrap items-center gap-2">
-          <Button
-            type="button"
-            variant={destructive ? "signal" : "default"}
-            size="sm"
-            onClick={() => {
-              onConfirm();
-              onClose();
-            }}
-          >
-            {icon}
-            {confirm}
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
+      className="modal-over-modal w-[min(27rem,calc(100vw-2rem))]"
+      footer={
+        <DialogActions>
+          {/* Вторая кнопка стоит первой в разметке: клавиатура идёт от отказа
+              к согласию, а на телефоне `DialogActions` переворачивает столбик,
+              и главная оказывается сверху. Когда действие стирает, фокус
+              встаёт на неё — на безопасный выход, а не на согласие. */}
+          <DialogButton
+            data-autofocus={destructive === true ? "" : undefined}
             onClick={() => {
               decline?.onClick();
               onClose();
             }}
           >
             {decline?.label ?? "Отмена"}
-          </Button>
-        </div>
-      </div>
+          </DialogButton>
+          <DialogButton
+            variant={destructive === true ? "danger" : "primary"}
+            data-autofocus={destructive === true ? undefined : ""}
+            onClick={() => {
+              onConfirm();
+              onClose();
+            }}
+          >
+            {confirm}
+          </DialogButton>
+        </DialogActions>
+      }
+    >
+      {/* Вопрос стоит прямо на бумаге окна: она и есть поднятая, и второй
+          такой же плашки внутри быть не должно — как и у карточки настроек,
+          оказавшейся в окне (`panel.tsx`). Углубление под предметом — не
+          плашка, а лунка: оно темнее бумаги, а не выше неё. */}
+      {subject === undefined ? null : (
+        <div className="mb-3 rounded-lg bg-paper px-3.5 py-3">{subject}</div>
+      )}
+      {children === undefined ? null : (
+        <div className="space-y-2 text-sm leading-6 text-pretty">{children}</div>
+      )}
     </Modal>
   );
 }

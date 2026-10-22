@@ -3,6 +3,7 @@ import { act, createElement, useState } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { changeCountOf } from "../model/derive";
 import type { StoredProfile } from "../storage/profile";
 import { ChangesList, changesOf } from "./changes-list";
 import { blankProfile } from "./create-profile-modal";
@@ -262,6 +263,20 @@ describe("обратное к удалению", () => {
       expect(removed, row.id).not.toEqual(profile);
       expect(row.restore(removed), row.id).toEqual(profile);
     }
+  });
+
+  it("число внесённого, которое видит окно сохранения, равно числу строк перечня", () => {
+    const full = withEvents({
+      shiftOverrides: { "2026-05-01": "shift", "2026-05-02": "off" },
+      shiftTimes: { "2026-05-03": { startsAt: "09:00", endsAt: "13:00" } },
+      calendarOverrides: { "2026-05-04": "holiday" },
+      countFrom: "2026-02-01",
+    });
+    expect(changeCountOf(full)).toBe(changesOf(full).length);
+    expect(changeCountOf(withEvents())).toBe(changesOf(withEvents()).length);
+    // Пустое начало отсчёта — не правка, а умолчание.
+    expect(changeCountOf({ ...full, countFrom: null })).toBe(changesOf({ ...full, countFrom: null }).length);
+    expect(changeCountOf(withEvents({ absences: [], callouts: [], dayNotes: {} }))).toBe(0);
   });
 
   it("возврат того, что уже на месте, ничего не удваивает", () => {

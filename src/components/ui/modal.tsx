@@ -5,6 +5,8 @@ import { createContext, useEffect, useId, useRef, type ReactNode } from "react";
 
 import { cn } from "@/lib/utils/cn";
 
+import { DialogTile, HEAD_TINT, type DialogTone } from "./dialog-parts";
+
 /**
  * Модальное окно со справкой.
  *
@@ -233,6 +235,10 @@ export function Modal({
   open,
   onClose,
   title,
+  icon,
+  tone = "neutral",
+  lead,
+  footer,
   sheet,
   closable = true,
   children,
@@ -244,6 +250,25 @@ export function Modal({
   onClose: () => void;
   /** Заголовок окна: он же его имя для экранного диктора. */
   title: ReactNode;
+  /**
+   * Знак действия — плиткой слева от заголовка. Есть он — окно собрано по
+   * «карточке действия»: плитка, заголовок с пояснением, тело и нижняя
+   * полоса с кнопками (`dialog-parts.tsx`). Нет — окно прежнее, из одного
+   * заголовка и тела: так остались окна со своей собственной вёрсткой
+   * (создание графика, согласие, лист расхождений).
+   *
+   * Только для обычного окна: лист (`sheet`) во весь экран держит свою шапку.
+   */
+  icon?: ReactNode;
+  /** Чем окно по смыслу: красит плитку и чуть подцвечивает шапку. */
+  tone?: DialogTone;
+  /** Одна строка под заголовком: что здесь будет и чем кончится. */
+  lead?: ReactNode;
+  /**
+   * Нижняя полоса окна — кнопки (`DialogActions`). Стоит вне прокручиваемого
+   * тела: на низком экране содержимое уезжает, а ответ остаётся под рукой.
+   */
+  footer?: ReactNode;
   /**
    * `false` — без крестика: окно, из которого нельзя «потом», а только ответить
    * (`consent-renewal.tsx`). Мёртвая кнопка «Закрыть» обещала бы выход, которого нет.
@@ -259,6 +284,8 @@ export function Modal({
   bodyClassName?: string;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
+  // Карточка действия — только у обычного окна со знаком; у листа своя шапка.
+  const card = icon !== undefined && !sheet;
   // Опознаватель заголовка выдаётся, а не пишется руками: окон на
   // странице бывает несколько сразу — настройки, выбор периода и правка
   // суток живут рядом, — и одинаковый `id` у двух заголовков это и
@@ -281,7 +308,14 @@ export function Modal({
         window.clearTimeout(leaving.current);
         leaving.current = null;
       }
-      if (!dialog.open) dialog.showModal();
+      if (!dialog.open) {
+        dialog.showModal();
+        // Куда встать фокусу, решает содержимое. По умолчанию браузер ставит
+        // его на первое, что можно нажать, — а это крестик в шапке; у окна,
+        // что спрашивает «стереть?», правильное место — отказ, а у окна с
+        // полем — само поле. Метка `data-autofocus` и есть такой выбор.
+        dialog.querySelector<HTMLElement>("[data-autofocus]")?.focus();
+      }
 
       // Кадр «закрыто», перевёрстка, кадр «открыто» — иначе переходить
       // не с чего: браузер склеит два состояния в одно и покажет окно
@@ -433,20 +467,34 @@ export function Modal({
           // внешнему краю (`border-box`): при ровных четырёх ремах линия
           // съедала бы точку у содержимого.
           sheet && "max-sm:h-[calc(4rem+1px)] max-sm:items-center max-sm:px-6 max-sm:py-0",
+          // Шапка карточки действия: плитка слева, чуть больше воздуха сверху
+          // и лёгкий налёт цвета смысла, гаснущий к телу окна.
+          card && ["gap-3.5 pt-5 pb-3", HEAD_TINT[tone]],
           headerClassName,
         )}
       >
-        {/* Заголовок — голосом сайта: тот же наборный шрифт, прописные и
-            разрядка, что у знака в шапке, у названий месяцев и у подписей
-            в карточках. Раньше он был набран обычным текстом на два
-            кегля крупнее — единственная строка во всём приложении,
-            набранная так. */}
-        <h2
-          id={titleId}
-          className="min-w-0 flex-1 font-display text-base font-bold uppercase leading-6 tracking-wide"
-        >
-          {title}
-        </h2>
+        {card ? <DialogTile tone={tone}>{icon}</DialogTile> : null}
+
+        <div className="min-w-0 flex-1">
+          {/* Заголовок — голосом сайта: тот же наборный шрифт, прописные и
+              разрядка, что у знака в шапке, у названий месяцев и у подписей
+              в карточках. Раньше он был набран обычным текстом на два
+              кегля крупнее — единственная строка во всём приложении,
+              набранная так. У карточки действия он на ступень крупнее:
+              рядом плитка, и мелкая строка рядом с ней терялась бы. */}
+          <h2
+            id={titleId}
+            className={cn(
+              "font-display font-bold uppercase tracking-wide",
+              card ? "pt-0.5 text-lg leading-6" : "text-base leading-6",
+            )}
+          >
+            {title}
+          </h2>
+          {card && lead !== undefined ? (
+            <p className="mt-1 text-sm text-pretty text-ink-muted">{lead}</p>
+          ) : null}
+        </div>
         {closable && (
           <button
             type="button"
@@ -485,11 +533,22 @@ export function Modal({
           // ровно над содержимым, а не с уступом в четыре точки.
           "min-h-0 flex-auto overflow-y-auto overscroll-contain bg-paper-raised px-5 pt-2 pb-5",
           sheet && "max-sm:px-4",
+          // С нижней полосой тело кончается раньше: воздух под ним даёт
+          // сама полоса, и двойной отступ растягивал бы окно впустую.
+          card && footer !== undefined && "pt-1 pb-4",
           bodyClassName,
         )}
       >
         {children}
       </div>
+
+      {/* Нижняя полоса — тоном глубже тела, а не линией над ним: линовка в
+          этом приложении живёт внутри карточек, и черта поперёк окна читалась
+          бы рамкой. Вне прокручиваемого тела: ответ остаётся под рукой, как
+          бы ни был длинен вопрос над ним. */}
+      {footer !== undefined ? (
+        <footer className="shrink-0 bg-paper-sunken px-5 py-3.5">{footer}</footer>
+      ) : null}
       </InsideModal>
     </dialog>
   );

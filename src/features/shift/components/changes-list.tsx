@@ -29,8 +29,7 @@ import {
   eventsRu,
   GROUP_LABELS,
   groupsOf,
-  periodRu,
-  spanDays,
+  spanRu,
   timeline,
   type ChangeGroup,
   type Phase,
@@ -199,12 +198,6 @@ function without<T>(record: Record<string, T>, key: string): Record<string, T> {
   return rest;
 }
 
-/** «21 дн.» у отрезка длиннее суток; у одних суток длительность — пустая. */
-function lasting(start: IsoDate, end: IsoDate): string {
-  const days = spanDays(start, end);
-  return days > 1 ? ` · ${days} дн.` : "";
-}
-
 /**
  * Собрать перечень из профиля.
  *
@@ -229,7 +222,7 @@ export function changesOf(profile: StoredProfile): Change[] {
         <Mark tone={ABSENCE_TONE[absence.kind]}>{ABSENCE_MARK[absence.kind]}</Mark>
       ),
       what: ABSENCE_LABELS[absence.kind],
-      when: `${periodRu(start, end)}${lasting(start, end)}`,
+      when: spanRu(start, end),
       edit: {
         modal: "span",
         title: ABSENCE_LABELS[absence.kind],
@@ -259,7 +252,7 @@ export function changesOf(profile: StoredProfile): Change[] {
       group: "callout",
       mark: <Mark tone={CALLOUT_TONE}>{CALLOUT_MARK}</Mark>,
       what: CALLOUT_LABELS[callout.kind],
-      when: `${periodRu(start, end)}${lasting(start, end)} · ${callout.hoursPerDay} ч в сутки`,
+      when: `${spanRu(start, end)} · ${callout.hoursPerDay} ч в сутки`,
       edit: {
         modal: "span",
         title: CALLOUT_LABELS[callout.kind],

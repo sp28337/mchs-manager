@@ -660,6 +660,26 @@ export function withNoteAt(
 }
 
 /**
+ * Сколько всего человек внёс в график: отсутствия, вызовы, переносы и
+ * отмены смен, свои часы, виды дней, начало отсчёта, заметки.
+ *
+ * Ровно столько строк в перечне «События» (`changes-list.tsx`) — это число
+ * и сверяется тестом, чтобы счёт в окне сохранения и перечень не разошлись.
+ * Пустое «начало отсчёта» не в счёт: это умолчание, а не правка.
+ */
+export function changeCountOf(profile: StoredProfile): number {
+  return (
+    profile.absences.length +
+    profile.callouts.length +
+    Object.keys(profile.shiftOverrides).length +
+    Object.keys(profile.shiftTimes).length +
+    Object.keys(profile.calendarOverrides).length +
+    Object.keys(profile.dayNotes).length +
+    (profile.countFrom === null ? 0 : 1)
+  );
+}
+
+/**
  * Докуда длится отметка: срок у записи, накрывающей эти сутки.
  *
  * Отметка в кольце (`day-ring.tsx`) ложится на один день, а спрошенный

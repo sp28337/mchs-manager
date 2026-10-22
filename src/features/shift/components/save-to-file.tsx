@@ -1,14 +1,18 @@
 "use client";
 
-import { useId, useState, type ReactNode } from "react";
+import { FileBraces, FileDown } from "lucide-react";
+import { useId, useMemo, useState, type ReactNode } from "react";
 
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { DialogActions, DialogButton } from "@/components/ui/dialog-parts";
+import { Label } from "@/components/ui/label";
 import { Modal } from "@/components/ui/modal";
-import { Card, Field } from "@/components/ui/panel";
+import { cn } from "@/lib/utils/cn";
 
+import { schedulePatternOf } from "../domain/schedule-pattern";
+import { changeCountOf } from "../model/derive";
 import { profileFileText } from "../storage/library";
 import { markProfileExported, type StoredProfile } from "../storage/profile";
+import { eventsRu } from "./changes-timeline";
 
 /**
  * Выгрузка профиля в файл.
@@ -124,6 +128,17 @@ function SaveDialog({
 }) {
   const nameId = useId();
   const suggested = fileNameOf(profile.displayName);
+  const chosen = chosenFileName(profile, name);
+
+  // Размер — того файла, что действительно уйдёт: тот же текст, что у
+  // выгрузки. Считается, только пока окно открыто, и заново лишь когда
+  // меняется профиль: имя файла на размер не влияет, а набор текста не
+  // должен каждый раз собирать весь файл.
+  const bytes = useMemo(
+    () => (open ? new Blob([profileFileText(profile)]).size : 0),
+    [open, profile],
+  );
+  const events = changeCountOf(profile);
 
   function submit() {
     downloadProfile(profile, name);
@@ -139,12 +154,39 @@ function SaveDialog({
       open={open}
       onClose={onClose}
       title="Сохранить график в файл"
-      className={over ? "modal-over-modal" : undefined}
+      // Зелёным: человек получает то, ради чего пришёл, — файл со своим
+      // графиком. Ничего не стирается и ничем не рискуют.
+      icon={<FileDown />}
+      tone="verify"
+      lead="Файл можно открыть на любом устройстве — кнопкой «Из файла» в «Графиках»."
+      className={cn("w-[min(30rem,calc(100vw-2rem))]", over && "modal-over-modal")}
+      footer={
+        <DialogActions>
+          <DialogButton onClick={onClose}>Отмена</DialogButton>
+          {/* Фокус — на «Сохранить», а не на поле: в девяти случаях из десяти
+              имя подтверждают как есть, и на телефоне клавиатура, выскочившая
+              при открытии, закрывала бы половину окна. Править имя — нажать
+              на поле; Enter в поле по-прежнему сохраняет. */}
+          <DialogButton variant="primary" data-autofocus="" onClick={submit}>
+            Сохранить
+          </DialogButton>
+        </DialogActions>
+      }
     >
       <div className="space-y-4">
-        <Card>
-          <Field id={nameId} label="Имя файла" stack>
-            <Input
+        <div className="space-y-2">
+          <Label htmlFor={nameId}>Имя файла</Label>
+          {/* Поле и расширение — одной коробкой: `.json` приписывается всегда
+              (`downloadProfile`), и набрать его самому не нужно, а набранное
+              снимается. Коробка, а не `Input`: у того своя рамка, а здесь она
+              одна на поле и суффикс. */}
+          <div
+            className={cn(
+              "flex h-10 items-center rounded-lg border border-paper bg-paper transition-colors",
+              "hover:border-ink-muted focus-within:border-ink",
+            )}
+          >
+            <input
               id={nameId}
               value={name}
               maxLength={100}
@@ -153,24 +195,32 @@ function SaveDialog({
               onKeyDown={(event) => {
                 if (event.key === "Enter") submit();
               }}
+              className="h-full min-w-0 flex-1 bg-transparent pl-3 text-sm text-ink outline-none placeholder:text-ink-faint"
             />
-          </Field>
-        </Card>
+            <span aria-hidden className="pr-3 font-mono text-sm text-ink-faint select-none">
+              .json
+            </span>
+          </div>
+        </div>
 
-        {/* Две кнопки строкой и поровну. Строка, а не столбик: кнопка
-            `ui/button.tsx` тянется во всю ширину, и в переносящейся строке
-            каждая занимала бы свою — согласие и отказ вставали бы друг под
-            друга лестницей, хотя это одна развилка из двух равных выходов.
-            `flex-1` задаёт основу в ноль и берёт верх над этой шириной, так
-            что половины ровные на любом экране — ровно как в показе на
-            главной. */}
-        <div className="flex gap-2 pt-1">
-          <Button type="button" className="flex-1" onClick={submit}>
-            Сохранить
-          </Button>
-          <Button type="button" variant="outline" className="flex-1" onClick={onClose}>
-            Отмена
-          </Button>
+        {/* Что получится: итоговое имя (с учётом чистки и пустого поля),
+            состав и размер. Человек видит, что именно положат в «Загрузки», до
+            нажатия, а не по строке внизу окна браузера после. Лунка, а не
+            плашка: окно уже поднятая бумага, и второй такой внутри не нужно. */}
+        <div className="flex items-center gap-3 rounded-lg bg-paper px-3 py-2.5">
+          <span
+            aria-hidden
+            className="grid size-9 shrink-0 place-items-center rounded-lg border border-rule bg-paper-raised text-ink-muted [&_svg]:size-4"
+          >
+            <FileBraces />
+          </span>
+          <span className="min-w-0">
+            <span className="block truncate text-sm font-medium">{chosen}.json</span>
+            <span className="block truncate text-xs text-ink-muted tabular-nums">
+              График {schedulePatternOf(profile.schedulePattern).label} · {profile.accountingYear} г.
+              · {events === 0 ? "без событий" : eventsRu(events)} · {fileSizeRu(bytes)}
+            </span>
+          </span>
         </div>
       </div>
     </Modal>
@@ -196,10 +246,7 @@ export function downloadProfile(profile: StoredProfile, name: string): void {
   // Отметка о выгрузке ставится здесь, а не в диалоге: файл отдан человеку
   // именно тут, и любой другой способ его получить прошёл бы мимо отметки.
   markProfileExported(profile.savedAt);
-  // Расширение снимается, если человек его набрал: иначе получилось бы
-  // «график.json.json».
-  const typed = name.replace(/\.json$/i, "").trim();
-  const chosen = fileNameOf(typed === "" ? profile.displayName : typed);
+  const chosen = chosenFileName(profile, name);
   const blob = new Blob([profileFileText(profile)], { type: "application/json" });
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
@@ -212,6 +259,27 @@ export function downloadProfile(profile: StoredProfile, name: string): void {
   link.click();
   link.remove();
   URL.revokeObjectURL(url);
+}
+
+/**
+ * Имя файла без расширения: то, что уйдёт в «Загрузки», и то, что окно
+ * показывает заранее, — из одного места, чтобы показанное не разошлось с
+ * отданным.
+ *
+ * Расширение снимается, если человек его набрал: иначе получилось бы
+ * «график.json.json». Пустое поле — имя профиля.
+ */
+export function chosenFileName(profile: StoredProfile, typedName: string): string {
+  const typed = typedName.replace(/\.json$/i, "").trim();
+  return fileNameOf(typed === "" ? profile.displayName : typed);
+}
+
+/** Размер файла по-русски: «812 Б», «3,2 КБ», «1,4 МБ». */
+export function fileSizeRu(bytes: number): string {
+  if (bytes < 1024) return `${bytes} Б`;
+  const kb = bytes / 1024;
+  if (kb < 1024) return `${kb.toFixed(1).replace(".", ",")} КБ`;
+  return `${(kb / 1024).toFixed(1).replace(".", ",")} МБ`;
 }
 
 /**

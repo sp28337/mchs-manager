@@ -61,6 +61,18 @@ export function spanDays(start: IsoDate, end: IsoDate): number {
   return Math.max(1, daysBetween(start, end) + 1);
 }
 
+/**
+ * Отрезок с длительностью: «6–26 июля · 21 дн.». У одних суток длительности
+ * нет — её говорит сама дата: «10 февраля, вт».
+ *
+ * Один на перечень «События» и на окно срока: человек правит ту же строку,
+ * что читал, и слова в них должны совпадать.
+ */
+export function spanRu(start: IsoDate, end: IsoDate): string {
+  const days = spanDays(start, end);
+  return days > 1 ? `${periodRu(start, end)} · ${days} дн.` : periodRu(start, end);
+}
+
 /** `2026-02-10` → «10 февраля, вт». */
 export function dayRu(day: IsoDate): string {
   return `${formatDayMonthRu(day)}, ${WEEKDAY_LABELS[weekday(day)] ?? ""}`;
