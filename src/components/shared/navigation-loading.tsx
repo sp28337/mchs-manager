@@ -3,7 +3,7 @@
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 
-import { LoadingMark } from "@/components/ui/loading-mark";
+import { LoadingCurtain } from "@/components/ui/loading-curtain";
 
 /**
  * Загрузка при переходе между страницами: знак сайта поверх страницы, которую
@@ -42,6 +42,13 @@ import { LoadingMark } from "@/components/ui/loading-mark";
  * знаком: он показывается, лишь если страница не открылась за `SHOW_AFTER_MS`.
  * Сам знак ещё и проступает из пустоты (`globals.css`), так что даже при долгом
  * ожидании экран не вспыхивает.
+ *
+ * --- Как уходит ----------------------------------------------------------------
+ *
+ * Когда страница открылась, знак не пропадает в один кадр, а растворяется
+ * (`LoadingCurtain`), и новая страница проступает сквозь него. Растворяется он
+ * и когда мы отступились (десять секунд), и поверх экрана расчёта, у которого
+ * есть своя такая же плёнка, — одна передаёт место другой.
  */
 
 /** Сколько ждать, прежде чем показать знак: быстрый переход мигать не должен. */
@@ -186,19 +193,9 @@ export function NavigationLoading() {
     };
   }, [going]);
 
-  if (going === null || shownFor !== going.id) return null;
+  // Знак ушёл вместе с переходом — но не рывком: плёнка сама растворяется
+  // (`LoadingCurtain`) и снимается из разметки, когда растворится.
+  const visible = going !== null && shownFor === going.id;
 
-  return (
-    // Поверх страницы целиком: выше шапки и боковых знаков (z-100), выше
-    // перечня у дня (z-115) — страница под знаком та, которую человек покидает, и
-    // нажимать на ней уже нечего. Ниже лампы (z-120): она общая у всех страниц и
-    // у экрана загрузки на странице расчёта, и гаснуть на время перехода ей
-    // незачем.
-    <div className="nav-loading fixed inset-0 z-[118] grid place-items-center bg-paper">
-      <LoadingMark />
-      <p className="sr-only" role="status">
-        Загружаем страницу
-      </p>
-    </div>
-  );
+  return <LoadingCurtain show={visible} label="Загружаем страницу" variant="navigation" />;
 }

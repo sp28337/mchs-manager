@@ -3,7 +3,7 @@
 import { useEffect } from "react";
 
 import { Button } from "@/components/ui/button";
-import { LoadingScreen } from "@/components/ui/loading-mark";
+import { LoadingCurtain } from "@/components/ui/loading-curtain";
 import { useNavigate } from "@/components/shared/navigation-loading";
 import { SiteHeader } from "@/components/shared/site-header";
 import { RegisterForm } from "./register-form";
@@ -28,12 +28,17 @@ import { useProfile } from "../storage/use-profile";
  *
  * --- Что человек видит, пока профиля нет --------------------------------
  *
- * Пока профиль читается — знак загрузки по центру (`LoadingScreen`), клетки
+ * Пока профиль читается — знак загрузки по центру (`LoadingCurtain`), клетки
  * которого по очереди горят цветами событий. Прежде здесь стояла заглушка
  * рабочего экрана: кости на тех же местах и тех же размеров, что числа и
  * сетки. Она обязана была совпадать с расчётом до точки, и каждая правка
  * экрана тянула правку заглушки; она осталась в `workspace-skeleton.tsx`,
  * но экран ею пока не пользуется.
+ *
+ * Когда профиль прочитан, плёнка не пропадает, а растворяется поверх уже
+ * нарисованного расчёта: он проступает сквозь неё. Поэтому плёнка стоит
+ * РЯДОМ с рабочим экраном, а не вместо него — подмена одного другим была бы
+ * тем самым рывком, ради которого плёнка уходит плавно.
  *
  * Если профиля НЕТ — этой странице показывать нечего, и человек
  * возвращается на главную. Там его и ждёт окно «Создать профиль»: оно
@@ -74,32 +79,33 @@ export function CalculatorScreen() {
     if (empty) navigate.replace("/");
   }, [empty, navigate]);
 
-  if (state.status === "ok") {
-    return (
-      <Workspace
-        profile={state.profile}
-        onChange={update}
-        onReplace={save}
-        touched={touched}
-        onForget={forget}
-      />
-    );
-  }
-
   // Пока профиль читается, и те доли секунды, пока идёт возврат на главную, —
   // знак по центру. Пустая страница на его месте читалась бы как поломка.
-  if (state.status !== "corrupt") {
-    return (
-      <LoadingScreen label={empty ? "Графика нет, открываем главную" : "Открываем ваш график"} />
-    );
-  }
+  const loading = state.status !== "ok" && state.status !== "corrupt";
 
   return (
     <>
-      <SiteHeader />
-      <RegisterForm
-        onCreated={save}
-        notice={<CorruptNotice reason={state.reason} raw={state.raw} />}
+      {state.status === "ok" && (
+        <Workspace
+          profile={state.profile}
+          onChange={update}
+          onReplace={save}
+          touched={touched}
+          onForget={forget}
+        />
+      )}
+      {state.status === "corrupt" && (
+        <>
+          <SiteHeader />
+          <RegisterForm
+            onCreated={save}
+            notice={<CorruptNotice reason={state.reason} raw={state.raw} />}
+          />
+        </>
+      )}
+      <LoadingCurtain
+        show={loading}
+        label={empty ? "Графика нет, открываем главную" : "Открываем ваш график"}
       />
     </>
   );

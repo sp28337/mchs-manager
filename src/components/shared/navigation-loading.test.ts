@@ -15,6 +15,7 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: mocked.push, replace: mocked.replace }),
 }));
 
+import { CURTAIN_EXIT_MS } from "@/components/ui/loading-curtain";
 import { NavigationLoading, startNavigation, useNavigate } from "./navigation-loading";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -24,7 +25,11 @@ let root: Root;
 
 const render = () => act(() => root.render(createElement(NavigationLoading)));
 
-const shown = () => container.querySelector(".nav-loading") !== null;
+/** Знак на месте и держит страницу; уходящий (`data-leaving`) уже не в счёт. */
+const shown = () => container.querySelector(".nav-loading:not([data-leaving])") !== null;
+
+/** Плёнка есть в разметке — на месте или ещё растворяется. */
+const present = () => container.querySelector(".nav-loading") !== null;
 
 /** Нажатие на ссылку так, как оно доходит до документа: `Link` уже отменил переход. */
 function clickLink(href: string, init: MouseEventInit & { prevent?: boolean; target?: string } = {}) {
@@ -78,6 +83,58 @@ describe("загрузка при переходе", () => {
     expect(shown()).toBe(false);
   });
 
+  it("знак уходит не рывком: пока растворяется, он в разметке, но скрыт и не ловит нажатий", async () => {
+    await click("/calculator");
+    await wait(130);
+    expect(present()).toBe(true);
+
+    mocked.pathname = "/calculator";
+    await render();
+
+    const film = container.querySelector<HTMLElement>(".nav-loading");
+    expect(film).not.toBeNull(); // страница открылась, а знак ещё тает
+    expect(film?.hasAttribute("data-leaving")).toBe(true);
+    expect(film?.getAttribute("aria-hidden")).toBe("true");
+    expect(film?.className).toContain("pointer-events-none");
+
+    await wait(CURTAIN_EXIT_MS - 1);
+    expect(present()).toBe(true);
+
+    await wait(1);
+    expect(present()).toBe(false);
+  });
+
+  it("если страница не открылась и знак отступился, он тоже растворяется, а не пропадает", async () => {
+    await click("/calculator");
+    await wait(200);
+
+    await wait(10_000);
+    expect(shown()).toBe(false);
+    expect(present()).toBe(true);
+
+    await wait(CURTAIN_EXIT_MS);
+    expect(present()).toBe(false);
+  });
+
+  it("новый переход, пока прежний знак тает, возвращает знак на место", async () => {
+    await click("/calculator");
+    await wait(130);
+    mocked.pathname = "/calculator";
+    await render();
+    expect(shown()).toBe(false);
+    expect(present()).toBe(true);
+
+    await click("/help");
+    await wait(130);
+
+    expect(shown()).toBe(true);
+    expect(container.querySelectorAll(".nav-loading")).toHaveLength(1);
+
+    // Старый таймер ухода не должен снять вернувшийся знак.
+    await wait(CURTAIN_EXIT_MS);
+    expect(shown()).toBe(true);
+  });
+
   it("быстрый переход знака не показывает вовсе", async () => {
     await click("/calculator");
     await wait(50);
@@ -86,14 +143,14 @@ describe("загрузка при переходе", () => {
     await render();
     await wait(500);
 
-    expect(shown()).toBe(false);
+    expect(present()).toBe(false);
   });
 
   it("ссылку, которую ведёт браузер, а не приложение, знаком не встречают", async () => {
     await click("/calculator", { prevent: false });
     await wait(500);
 
-    expect(shown()).toBe(false);
+    expect(present()).toBe(false);
   });
 
   it("переход на ту же страницу (другой якорь) ничего не начинает", async () => {
