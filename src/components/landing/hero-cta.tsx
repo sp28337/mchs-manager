@@ -11,7 +11,7 @@ import {
 } from "@/features/shift/storage/library";
 import { saveProfile } from "@/features/shift/storage/profile";
 
-import { ctaClass, CtaIcon, CtaLabel, ToCalculator } from "./to-calculator";
+import { ctaClass, CtaBody, CtaLabel, ToCalculator } from "./to-calculator";
 
 function subscribeToHash(callback: () => void) {
   window.addEventListener("hashchange", callback);
@@ -95,8 +95,9 @@ export function HeroCta({ answersAddress = true }: { answersAddress?: boolean })
   return (
     <>
       <button type="button" className={ctaClass()} onClick={() => setOpen(true)}>
-        <CtaIcon />
-        <CtaLabel>Построить график</CtaLabel>
+        <CtaBody>
+          <CtaLabel>Построить график</CtaLabel>
+        </CtaBody>
       </button>
 
       <CreateProfileModal

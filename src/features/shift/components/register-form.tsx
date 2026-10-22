@@ -3,8 +3,7 @@
 import { useState, type ReactNode } from "react";
 
 import { LandingHero } from "@/components/landing/hero";
-import { CtaIcon } from "@/components/landing/to-calculator";
-import { Button } from "@/components/ui/button";
+import { ctaClass, CtaBody } from "@/components/landing/to-calculator";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 
 import { openProfileFile } from "../storage/library";
@@ -43,15 +42,9 @@ export function RegisterForm({ onCreated, notice }: RegisterFormProps) {
             // Та же кнопка, что на посадочной: там она открывает окно на
             // месте, здесь — тоже. Форма и вес совпадают намеренно,
             // человек нажимает то же самое место.
-            <Button
-              type="button"
-              size="lg"
-              className="rounded-xl text-base font-bold"
-              onClick={() => setOpen(true)}
-            >
-              <CtaIcon />
-              Заполнить график
-            </Button>
+            <button type="button" className={ctaClass()} onClick={() => setOpen(true)}>
+              <CtaBody>Заполнить график</CtaBody>
+            </button>
           }
         />
       </main>

@@ -1,4 +1,4 @@
-import { CalendarDays } from "lucide-react";
+import { ArrowRight, CalendarDays } from "lucide-react";
 import Link from "next/link";
 import type { ReactNode } from "react";
 
@@ -23,8 +23,7 @@ export function ToCalculator({
 }) {
   return (
     <Link href="/calculator" className={ctaClass(size)}>
-      <CtaIcon size={size} />
-      {children}
+      <CtaBody size={size}>{children}</CtaBody>
     </Link>
   );
 }
@@ -54,31 +53,12 @@ export function ToCalculator({
  */
 export function CtaLabel({ children }: { children: ReactNode }) {
   return (
-    <span className="grid justify-items-center">
+    <span className="grid justify-items-start">
       <span aria-hidden className="invisible col-start-1 row-start-1 whitespace-nowrap">
         Построить график
       </span>
       <span className="col-start-1 row-start-1 whitespace-nowrap">{children}</span>
     </span>
-  );
-}
-
-/**
- * Значок кнопки — тот же, что у графика в переключателе сеток.
- *
- * Кнопка ведёт к сетке месяцев, и значок называет её тем же рисунком, что
- * стоит над самой сеткой внутри. Совпадение здесь не украшение: человек,
- * попавший внутрь, узнаёт кнопку, которой пришёл.
- *
- * `aria-hidden` обязателен: значок повторяет надпись рядом, и без него
- * программа чтения произносит кнопку дважды.
- */
-export function CtaIcon({ size = "md" }: { size?: "sm" | "md" }) {
-  return (
-    <CalendarDays
-      aria-hidden
-      className={cn("shrink-0", size === "sm" ? "size-4" : "size-5")}
-    />
   );
 }
 
@@ -90,11 +70,83 @@ export function CtaIcon({ size = "md" }: { size?: "sm" | "md" }) {
  * Это разные элементы разметки (`a` и `button`), и разъехаться видом им
  * нельзя: человек нажимает одно и то же место, и одинаковость здесь —
  * обещание, что за ней одно и то же.
+ *
+ * --- Почему плашка, а не залитая чернилами кнопка ----------------------------
+ *
+ * Чёрная (на тёмной теме — белая) таблетка с «календариком» — кнопка из
+ * любого конструктора сайтов: она ничем не говорит, что за ней приложение
+ * со своим языком. Здесь она сделана из того, чем это приложение говорит
+ * везде:
+ *
+ * * поднятая бумага с лампой (`lit`), как окна, меню и карточки внутри:
+ *   кайма горит от лампы и разгорается под курсором;
+ * * знак слева в зелёной плитке — та же зелёная, какой в календаре стоят
+ *   смены, и та же, какой набрана первая строка заголовка над кнопкой;
+ * * надпись узкой гарнитурой названий, прописными, с разрядкой — голосом
+ *   слов «МЕНЮ» и «ВХОД» в шапке и подписей под числами итога;
+ * * стрелка справа, тусклая в покое и проступающая под указателем: она
+ *   говорит «дальше», не крича об этом.
+ *
+ * Нажатие — лёгкое сжатие, как у плиток внутри. Размеры `sm` и `md` — по
+ * высоте плашки (44 и 56 точек); 44 — меньше, чем место под палец не бывает.
  */
 export function ctaClass(size: "sm" | "md" = "md"): string {
   return cn(
-    "inline-flex shrink-0 cursor-pointer items-center gap-2 rounded-xl bg-ink font-bold text-paper no-underline",
-    "hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink",
-    size === "sm" ? "h-9 px-4 text-sm" : "h-11 px-6 text-base",
+    "group lit relative inline-flex shrink-0 cursor-pointer items-center bg-paper-raised text-ink no-underline",
+    "transition-transform duration-200 active:scale-[0.98]",
+    "focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ink",
+    size === "sm" ? "h-11 gap-2.5 rounded-xl pr-4 pl-1.5" : "h-14 gap-3.5 rounded-2xl pr-6 pl-2",
+  );
+}
+
+/**
+ * Содержимое плашки: знак в плитке, надпись, стрелка.
+ *
+ * Надпись приходит снаружи — она бывает «Построить график», «Открыть график»
+ * и «Заполнить график», и ширину под неё при необходимости держит `CtaLabel`.
+ * Знак и стрелка — `aria-hidden`: они повторяют слова рядом, и без этого
+ * программа чтения произносила бы кнопку дважды.
+ *
+ * Знак — тот же, что у графика в переключателе сеток: кнопка ведёт к сетке
+ * месяцев, и называет её тем же рисунком, что стоит над самой сеткой
+ * внутри. Совпадение не украшение: человек, попавший внутрь, узнаёт
+ * кнопку, которой пришёл.
+ */
+export function CtaBody({
+  children,
+  size = "md",
+}: {
+  children: ReactNode;
+  size?: "sm" | "md";
+}) {
+  const small = size === "sm";
+  return (
+    <>
+      <span
+        aria-hidden
+        className={cn(
+          "grid shrink-0 place-items-center rounded-lg bg-verify text-paper",
+          small ? "size-8" : "size-10 rounded-xl",
+        )}
+      >
+        <CalendarDays className={small ? "size-4.5" : "size-5.5"} />
+      </span>
+      <span
+        className={cn(
+          "font-display font-bold uppercase leading-none tracking-wide",
+          small ? "text-base" : "text-xl",
+        )}
+      >
+        {children}
+      </span>
+      <ArrowRight
+        aria-hidden
+        className={cn(
+          "shrink-0 text-ink/30 transition-[transform,color] duration-200",
+          "group-hover:translate-x-0.5 group-hover:text-ink",
+          small ? "size-4" : "size-5",
+        )}
+      />
+    </>
   );
 }
