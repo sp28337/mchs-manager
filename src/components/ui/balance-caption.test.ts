@@ -65,6 +65,21 @@ describe("подпись разницы: «пере» и «недо»", () => {
     expect(of(over!).at(-1)).toMatchObject({ transform: "translateY(100%)" });
   });
 
+  it("приставка и «работка» — один поток строки: на одной базовой линии без центрирования боксов", () => {
+    render(false);
+    const slot = container.querySelector<HTMLElement>("span > span.inline-grid")!;
+    const root = slot.parentElement!;
+
+    // Коробка приставок встаёт в строку и выравнивается браузером по базовой линии.
+    // Ни `overflow` (у такой коробки базовая линия — её дно), ни заданной высоты, ни
+    // `items-center` у обёртки: дробное центрирование двух боксов разной высоты и
+    // давало смещение приставки на точку, разное в разных браузерах.
+    expect(slot.className).not.toMatch(/overflow|\bh-|items-center/);
+    expect(slot.className).toContain("[clip-path:inset(0)]");
+    expect(root.className).not.toMatch(/flex|grid|items-center/);
+    expect(root.lastChild?.textContent).toBe("работка");
+  });
+
   it("приставка на виду стоит без transform — иначе она рисуется на дробной высоте, а хвост рядом на целой", () => {
     render(false);
     const [under, over] = prefixes();
