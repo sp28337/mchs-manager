@@ -8,7 +8,7 @@ import {
   LAMP_STORAGE_KEY,
   type LampColourId,
 } from "./lamp-colour";
-import { clearLampColour } from "./use-appearance";
+import { clearLampColour, useAppearance } from "./use-appearance";
 
 /**
  * Лампа над страницей.
@@ -712,6 +712,12 @@ export function Lamp() {
   // нет вовсе.
   const dark = useSyncExternalStore(subscribeTheme, readDark, noTheme);
   const colour = dark === null ? null : (chosen ?? defaultLampColour(dark));
+  // Лампу можно погасить в настройках (только вошедшему, `appearance.ts`).
+  // Погашенной нет ничего: ни трубки, ни ореола, ни налёта, ни метки на корне —
+  // а значит, и бликов по кромкам блоков, и каймы под курсором: весь этот свет
+  // висит на метке `data-lamp`.
+  const burning = useAppearance().lamp.on;
+  const lit = burning && colour !== null;
 
   // Объявлять смену цвета нужно только тому, кто её вызвал. Живая область,
   // заполненная сразу, произносила бы «зелёный» при каждом открытии
@@ -720,19 +726,28 @@ export function Lamp() {
 
   // Цвет — меткой на КОРНЕ документа, а не свойством самой лампы: из него
   // собираются и трубка, и налёт под содержимым страницы, и блики на
-  // блоках, разбросанных по всему дереву.
+  // блоках, разбросанных по всему дереву. Погасла лампа — метка снимается,
+  // и вместе с ней уходит всё, что на ней висело.
   useEffect(() => {
     if (colour === null) return;
-    document.documentElement.dataset.lamp = colour;
-  }, [colour]);
+    const root = document.documentElement;
+    if (burning) {
+      root.dataset.lamp = colour;
+    } else {
+      delete root.dataset.lamp;
+      delete root.dataset.lampPlay;
+    }
+  }, [colour, burning]);
 
-  // Розжиг — однократный, при первом появлении.
+  // Розжиг при первом появлении — долгий, как при загрузке страницы; включённая
+  // снова после гашения зажигается так же, как после нажатия на неё, с тем
+  // числом попыток, которое выпало.
   const struck = useRef(false);
   useEffect(() => {
-    if (colour === null || struck.current) return;
+    if (!lit) return;
+    playLamp(struck.current ? lampTry() : "strike");
     struck.current = true;
-    playLamp("strike");
-  }, [colour]);
+  }, [lit]);
 
   /**
    * Метки снимаются только при уходе со страницы — и никогда раньше.
@@ -752,9 +767,9 @@ export function Lamp() {
     [],
   );
 
-  useLitTilt(colour !== null);
-  useCursorGlow(colour !== null);
-  useWaver(colour !== null);
+  useLitTilt(lit);
+  useCursorGlow(lit);
+  useWaver(lit);
 
   function switchColour() {
     if (colour === null) return;
@@ -784,7 +799,7 @@ export function Lamp() {
     playLamp(lampTry());
   }
 
-  if (colour === null) return null;
+  if (!lit || colour === null) return null;
 
   return (
     <>

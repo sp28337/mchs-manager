@@ -9,6 +9,7 @@ import {
   applyAppearance,
   isCustomised,
   parseAppearance,
+  serializeAppearance,
   type Appearance,
 } from "./appearance";
 
@@ -53,7 +54,7 @@ function subscribe(listener: () => void): () => void {
 export function saveAppearance(next: Appearance): void {
   try {
     if (isCustomised(next)) {
-      window.localStorage.setItem(APPEARANCE_STORAGE_KEY, JSON.stringify(next));
+      window.localStorage.setItem(APPEARANCE_STORAGE_KEY, serializeAppearance(next));
     } else {
       window.localStorage.removeItem(APPEARANCE_STORAGE_KEY);
     }
@@ -64,10 +65,17 @@ export function saveAppearance(next: Appearance): void {
   window.dispatchEvent(new Event(APPEARANCE_EVENT));
 }
 
-/** Цвет света лампы больше не выбран человеком: лампа снова светит своим. */
+/**
+ * Свой цвет лампы больше не действует: лампа снова светит собственным.
+ *
+ * Конфиги остаются в списке — снимается только выбор. Так лампа и меняет цвет
+ * нажатием на неё: свой цвет, выбранный в настройках, перебивал бы её выбор, и
+ * нажатие ничего не меняло бы на глаз.
+ */
 export function clearLampColour(): void {
   const current = snapshot();
-  if (current.lamp !== null) saveAppearance({ ...current, lamp: null });
+  if (current.lamp.active === null) return;
+  saveAppearance({ ...current, lamp: { ...current.lamp, active: null } });
 }
 
 export function useAppearance(): Appearance {
