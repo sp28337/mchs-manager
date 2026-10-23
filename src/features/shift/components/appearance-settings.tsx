@@ -202,8 +202,8 @@ function ConfigList({
   palette: Palette;
   /** Что выбирают — для программы чтения: «Цвет света лампы». */
   label: string;
-  /** Что показывает строка «Стандартный» — цвет и пояснение. */
-  standard: { hex: string; note?: string };
+  /** Что показывает строка «Стандартный» — её цвет. */
+  standard: { hex: string };
   onSelect: (id: string | null) => void;
   onAdd: () => void;
   onEdit: (id: string) => void;
@@ -212,7 +212,7 @@ function ConfigList({
   const group = useId();
   const full = palette.configs.length >= MAX_CONFIGS;
 
-  const row = (id: string | null, hex: string, name: string, note?: string) => (
+  const row = (id: string | null, hex: string, name: string) => (
     <label
       className={cn(
         "flex min-w-0 flex-1 cursor-pointer items-center gap-2.5 rounded-lg px-2 py-1.5",
@@ -229,10 +229,7 @@ function ConfigList({
         className="peer sr-only"
       />
       <Swatch hex={hex} />
-      <span className="min-w-0 flex-1 truncate text-sm text-ink">
-        {name}
-        {note ? <span className="ml-2 text-xs text-ink-muted">{note}</span> : null}
-      </span>
+      <span className="min-w-0 flex-1 truncate text-sm text-ink">{name}</span>
       {/* Метка выбранного — точка справа: цвет строки её не заменяет, он
           одинаков у выбранной и у той, на которую навели. */}
       <span
@@ -245,7 +242,7 @@ function ConfigList({
   return (
     <div role="radiogroup" aria-label={label} className="grid gap-1">
       <div className="flex items-center gap-1">
-        {row(null, standard.hex, "Стандартный", standard.note)}
+        {row(null, standard.hex, "Стандартный")}
         {/* Место под кнопки, чтобы точки выбора стояли в один столбец. */}
         <span aria-hidden className="w-[4.25rem] shrink-0" />
       </div>
@@ -394,7 +391,7 @@ function EventSample({ eventKey, hex }: { eventKey: EventColorKey; hex?: string 
       aria-hidden
       style={style}
       className={cn(
-        "inline-flex size-8 shrink-0 items-center justify-center border font-mono text-sm",
+        "inline-flex size-8 shrink-0 items-center justify-center rounded-md border font-mono text-sm",
         tone,
       )}
     >
@@ -489,7 +486,7 @@ export function AppearanceEditor() {
     setEditing(null);
   }
 
-  const lampStandard = { hex: standards.lamp, note: "по лампе и теме" };
+  const lampStandard = { hex: standards.lamp };
 
   return (
     <div className="space-y-6">
@@ -522,11 +519,12 @@ export function AppearanceEditor() {
             </div>
           ) : null}
         </Card>
-        <p className="text-xs leading-5 text-ink-muted">
-          {appearance.lamp.on
-            ? "Нажатие на саму лампу возвращает ей собственные цвета: выбранный здесь цвет остаётся в списке."
-            : "Лампа выключена: нет ни света под шапкой, ни бликов на кромках, ни каймы под курсором. Цвета в списке сохранены."}
-        </p>
+        {appearance.lamp.on ? null : (
+          <p className="text-xs leading-5 text-ink-muted">
+            Лампа выключена: нет ни света под шапкой, ни бликов на кромках, ни каймы под
+            курсором. Цвета в списке сохранены.
+          </p>
+        )}
       </section>
 
       <section className="space-y-3">
@@ -591,12 +589,6 @@ export function AppearanceEditor() {
       {isCustomised(appearance) ? (
         <ResetButton onClick={() => save(NO_APPEARANCE)}>Сбросить всё оформление</ResetButton>
       ) : null}
-
-      <p className="text-xs leading-5 text-ink-faint">
-        Цвета и выключатели хранятся в вашей учётной записи в зашифрованном виде и приезжают
-        на другие устройства, где вы вошли. Выйдете — с этого устройства они уйдут вместе с
-        графиками. В светлой и тёмной теме они одинаковы.
-      </p>
 
       {/* Одно окно на все списки: внутри закрытого `details` окно не показалось
           бы, а у каждого списка своё — это семь одинаковых окон в разметке. */}
