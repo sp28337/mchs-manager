@@ -18,10 +18,10 @@ import type { IsoDate } from "../domain/plain-date";
 import { statutoryCalendar } from "../domain/production-calendar";
 import {
   shiftOn,
+  withAbsenceSpan,
   withAbsenceToggled,
-  withAbsenceUntil,
+  withCalloutSpan,
   withCalloutToggled,
-  withCalloutUntil,
   withDayTypeAt,
   withNoteAt,
   withShiftAt,
@@ -488,9 +488,10 @@ function Ring({
    * Отметка, у которой спрашивают срок.
    *
    * Отпуска, больничный и вызов ДЛЯТСЯ, и одним днём дело кончается редко.
-   * Отметка ложится сразу — человек видит её в клетке, — а следом окно
-   * спрашивает, по какое число, и у вызова ещё и часы в сутки. Закрыть его,
-   * ничего не назвав, — это согласиться на один день.
+   * Поэтому нажатие по ним ничего не ставит: окно спрашивает, по какое число
+   * (у вызова ещё и часы в сутки), и только «Готово» кладёт запись в график —
+   * сразу со сроком, и только тогда пересчитываются числа. Крестик окна, Esc
+   * и нажатие мимо отменяют выбор: в графике не остаётся ничего, даже суток.
    */
   const [asking, setAsking] = useState<
     { slot: Slot; endsOn: IsoDate; hours: string } | null
@@ -636,26 +637,25 @@ function Ring({
    */
   function act(slot: Slot) {
     if (slot.kind === "absence") {
-      const on = hasAbsence(slot.absence);
-      onChange((previous) => withAbsenceToggled(previous, day, slot.absence));
       // Снятое не спрашивает ни о чём: срок у того, чего в сутках больше
       // нет, назначать не по чему. И отгул не спрашивает никогда: он не
       // длится — его берут за одну конкретную смену, и «отгул по такое-то
       // число» означало бы череду отгулов, каждый за свою смену. Их и
       // отмечают по одному, в тех сутках, где смена была.
-      if (on || slot.absence === "time_off_in_lieu") {
+      if (hasAbsence(slot.absence) || slot.absence === "time_off_in_lieu") {
+        onChange((previous) => withAbsenceToggled(previous, day, slot.absence));
         onClose();
         return;
       }
+      // Ставить рано: сначала срок. В график запись ляжет по «Готово».
       setAsking({ slot, endsOn: day, hours: DEFAULT_CALLOUT_HOURS });
       return;
     }
     if (slot.kind === "callout") {
-      const on = hasCallout();
-      onChange((previous) =>
-        withCalloutToggled(previous, day, slot.callout, DEFAULT_CALLOUT_HOURS),
-      );
-      if (on) {
+      if (hasCallout()) {
+        onChange((previous) =>
+          withCalloutToggled(previous, day, slot.callout, DEFAULT_CALLOUT_HOURS),
+        );
         onClose();
         return;
       }
@@ -680,16 +680,19 @@ function Ring({
     onClose();
   }
 
-  /** Срок назван: продлить ту же запись, а не завести вторую. */
+  /**
+   * «Готово»: срок назван — запись ложится в график сразу со сроком, одним
+   * изменением, и только теперь пересчитываются числа.
+   */
   function commitSpan(endsOn: IsoDate, hours: string | null) {
     if (asking === null) return;
     const { slot } = asking;
     if (slot.kind === "absence") {
-      onChange((previous) => withAbsenceUntil(previous, day, slot.absence, endsOn));
+      onChange((previous) => withAbsenceSpan(previous, day, slot.absence, endsOn));
     }
     if (slot.kind === "callout" && hours !== null) {
       onChange((previous) =>
-        withCalloutUntil(previous, day, slot.callout, endsOn, hours),
+        withCalloutSpan(previous, day, slot.callout, endsOn, hours),
       );
     }
     onClose();
@@ -867,9 +870,9 @@ function Ring({
         </>
       ) : null}
 
-      {/* Срок у того, что длится. Отметка уже стоит в клетке — окно
-          спрашивает не «отмечать ли», а «по какое число», и закрыть его,
-          ничего не назвав, значит согласиться на один день.
+      {/* Срок у того, что длится. В клетке пока ничего нет: отметка
+          ложится по «Готово» (`commitSpan`), а крестик, Esc и нажатие мимо
+          отменяют выбор — график остаётся как был.
           Окно общее с перечнем внесённых изменений (`day-event-modal.tsx`):
           там тем же окном двигают границу уже поставленного. */}
       <SpanModal

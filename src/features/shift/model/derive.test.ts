@@ -8,7 +8,9 @@ import {
   scheduleSpanAt,
   shiftOn,
   shiftSpanAt,
+  withAbsenceSpan,
   withAbsenceToggled,
+  withCalloutSpan,
   withCalloutToggled,
   withAbsenceEnd,
   withCalloutEnd,
@@ -439,6 +441,48 @@ describe("отметки одним нажатием", () => {
       hoursPerDay: "8",
     });
     expect(withCalloutToggled(marked, "2026-03-12", "callout", "8").callouts).toEqual([]);
+  });
+
+  it("отсутствие по «Готово» рождается сразу со сроком, а не на сутки с продлением", () => {
+    const marked = withAbsenceSpan(profile, "2026-03-12", "annual_leave", "2026-03-18");
+
+    expect(marked.absences).toHaveLength(1);
+    expect(marked.absences[0]).toMatchObject({
+      kind: "annual_leave",
+      startsOn: "2026-03-12",
+      endsOn: "2026-03-18",
+    });
+  });
+
+  it("«Готово» не переключатель: запись, что уже стоит на эти сутки, продлевается, а не снимается", () => {
+    const standing = withAbsenceToggled(profile, "2026-03-12", "annual_leave");
+    const extended = withAbsenceSpan(standing, "2026-03-12", "annual_leave", "2026-03-20");
+
+    expect(extended.absences).toHaveLength(1);
+    expect(extended.absences[0]).toMatchObject({ id: standing.absences[0]?.id, endsOn: "2026-03-20" });
+  });
+
+  it("конец раньше начала — это одни сутки, а не отрицательный срок", () => {
+    const marked = withAbsenceSpan(profile, "2026-03-12", "sick_leave", "2026-03-01");
+
+    expect(marked.absences[0]).toMatchObject({ startsOn: "2026-03-12", endsOn: "2026-03-12" });
+  });
+
+  it("вызов по «Готово» встаёт со сроком и часами, без второго рядом", () => {
+    const marked = withCalloutSpan(profile, "2026-03-12", "callout", "2026-03-14", "6");
+    expect(marked.callouts).toHaveLength(1);
+    expect(marked.callouts[0]).toMatchObject({
+      kind: "callout",
+      startsOn: "2026-03-12",
+      endsOn: "2026-03-14",
+      hoursPerDay: "6",
+    });
+
+    // Повторное «Готово» на тех же сутках правит ту же запись: второй выход
+    // удвоил бы часы.
+    const again = withCalloutSpan(marked, "2026-03-13", "callout", "2026-03-15", "7");
+    expect(again.callouts).toHaveLength(1);
+    expect(again.callouts[0]).toMatchObject({ endsOn: "2026-03-15", hoursPerDay: "7" });
   });
 
   it("пустая заметка не хранится, а записанная обрезается по краям", () => {

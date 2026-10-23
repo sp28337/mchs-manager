@@ -573,11 +573,12 @@ export function withShiftMoved(
  * Кольцо вокруг клетки (`day-ring.tsx`) отвечает на «что было в этот день»
  * одним движением, и день у него ровно один. Срок — отдельный разговор, и
  * заходит он следом, своим окном: до какого числа отпуск, сколько часов
- * вызов (`withAbsenceUntil`, `withCalloutUntil`).
+ * вызов. Но то, что длится, ставится только по «Готово» в этом окне
+ * (`withAbsenceSpan`, `withCalloutSpan`); нажатием по дню отмечается лишь то,
+ * что не длится, и снимается всё.
  *
  * Поэтому здесь самый простой случай: включить на эти сутки и выключить.
- * Правит он ту же запись, которой распоряжается и окно срока, — ту, что
- * накрывает эти сутки; снятие уносит её целиком. Отпуск с первого по
+ * Снятие уносит запись, накрывающую эти сутки, целиком. Отпуск с первого по
  * четырнадцатое, снятый шестого, исчезает весь: человек сказал, что отпуска
  * в этот день не было, а резать чужой период надвое за него приложение не
  * вправе — для этого есть окно с датой окончания.
@@ -682,8 +683,8 @@ export function changeCountOf(profile: StoredProfile): number {
 /**
  * Докуда длится отметка: срок у записи, накрывающей эти сутки.
  *
- * Отметка в кольце (`day-ring.tsx`) ложится на один день, а спрошенный
- * следом срок её продлевает — ту же самую запись, а не вторую рядом.
+ * Срок у записи, которая в графике уже стоит, продлевается — той же
+ * самой записью, а не второй рядом.
  * Открыв середину отпуска с первого по четырнадцатое и назвав двадцатое,
  * человек меняет ЭТОТ отпуск: у него остаются и опознаватель, и дата
  * начала, которая может быть раньше открытых суток. Вторая запись удвоила
@@ -720,6 +721,72 @@ export function withCalloutUntil(
         ? { ...item, endsOn, hoursPerDay }
         : item,
     ),
+  };
+}
+
+/**
+ * Поставить отсутствие сразу со сроком — одним действием, когда срок назван.
+ *
+ * --- Зачем, если есть `withAbsenceToggled` + `withAbsenceUntil` -------------
+ *
+ * Отметка длящегося события не ложится в график, пока человек не нажал
+ * «Готово» в окне срока (`day-ring.tsx`): до этого расчёт не меняется, а
+ * крестик окна отменяет выбор, не оставляя следа. Значит, запись рождается
+ * уже со своим концом — не «на сутки, а потом продлить».
+ *
+ * Действие НЕ переключатель, в отличие от `withAbsenceToggled`: если на эти
+ * сутки запись того же вида уже стоит (профиль успел измениться, пока окно
+ * было открыто), она продлевается, а не снимается. Окно «Готово» не должно
+ * стирать то, что есть.
+ *
+ * Конец раньше начала — опечатка, а не срок: остаются одни сутки, как в
+ * `withAbsenceEnd`.
+ */
+export function withAbsenceSpan(
+  profile: StoredProfile,
+  day: IsoDate,
+  kind: AbsenceKind,
+  endsOn: IsoDate,
+): StoredProfile {
+  const end = endsOn < day ? day : endsOn;
+  const covers = (item: { kind: AbsenceKind; startsOn: IsoDate; endsOn: IsoDate }) =>
+    item.kind === kind && item.startsOn <= day && day <= item.endsOn;
+  if (profile.absences.some(covers)) {
+    return withAbsenceUntil(profile, day, kind, end);
+  }
+  return {
+    ...profile,
+    absences: [
+      ...profile.absences,
+      { id: crypto.randomUUID(), kind, startsOn: day, endsOn: end },
+    ],
+  };
+}
+
+/** То же для работы сверх графика — со своими часами в сутки. */
+export function withCalloutSpan(
+  profile: StoredProfile,
+  day: IsoDate,
+  kind: CalloutKind,
+  endsOn: IsoDate,
+  hoursPerDay: string,
+): StoredProfile {
+  const end = endsOn < day ? day : endsOn;
+  // Как и в `withCalloutToggled`, «уже стоит» — любой выход сверх графика в
+  // этих сутках, каким бы видом он ни был записан: второй рядом удвоил бы
+  // часы. Продлевается он под своим видом.
+  const existing = profile.callouts.find(
+    (item) => item.startsOn <= day && day <= item.endsOn,
+  );
+  if (existing !== undefined) {
+    return withCalloutUntil(profile, day, existing.kind, end, hoursPerDay);
+  }
+  return {
+    ...profile,
+    callouts: [
+      ...profile.callouts,
+      { id: crypto.randomUUID(), kind, startsOn: day, endsOn: end, hoursPerDay },
+    ],
   };
 }
 
