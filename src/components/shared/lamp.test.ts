@@ -12,7 +12,7 @@ import {
   type Appearance,
 } from "./appearance";
 import { Lamp } from "./lamp";
-import { saveAppearance } from "./use-appearance";
+import { forgetAppearance, saveAppearance, writeAppearance } from "./use-appearance";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -89,7 +89,11 @@ describe("лампа: горит и гаснет", () => {
   it("нажатие на лампу снимает выбранный цвет, но не стирает конфиги", () => {
     mount({
       ...NO_APPEARANCE,
-      lamp: { on: true, configs: [{ id: "a", name: "Охра", hex: "#ff8800" }], active: "a" },
+      lamp: {
+        on: true,
+        configs: [{ id: "a", name: "Охра", hex: "#ff8800", createdAt: "" }],
+        active: "a",
+      },
     });
     expect(document.documentElement.style.getPropertyValue("--lamp-rgb")).toBe("255 136 0");
 
@@ -99,5 +103,43 @@ describe("лампа: горит и гаснет", () => {
     expect(lamp.active).toBeNull();
     expect(lamp.configs).toHaveLength(1);
     expect(document.documentElement.style.getPropertyValue("--lamp-rgb")).toBe("");
+  });
+
+  it("выход из учётной записи убирает оформление: погашенная лампа снова горит, цвета стандартные", () => {
+    mount({
+      ...NO_APPEARANCE,
+      at: "2026-10-23T09:00:00.000Z",
+      lamp: {
+        on: false,
+        configs: [{ id: "a", name: "Охра", hex: "#ff8800", createdAt: "" }],
+        active: "a",
+      },
+    });
+    expect(lampOn()).toBe(false);
+
+    act(() => forgetAppearance());
+
+    expect(window.localStorage.getItem(APPEARANCE_STORAGE_KEY)).toBeNull();
+    expect(lampOn()).toBe(true);
+    expect(document.documentElement.style.getPropertyValue("--lamp-rgb")).toBe("");
+  });
+
+  it("принятое с другого устройства пишется со своим временем, а не «сейчас»", () => {
+    mount();
+    const чужое = { ...NO_APPEARANCE, at: "2026-01-01T00:00:00.000Z" };
+
+    act(() => writeAppearance(чужое));
+
+    expect(parseAppearance(window.localStorage.getItem(APPEARANCE_STORAGE_KEY)).at).toBe(
+      "2026-01-01T00:00:00.000Z",
+    );
+  });
+
+  it("правка человека ставит время правки", () => {
+    mount();
+
+    act(() => saveAppearance(NO_APPEARANCE));
+
+    expect(parseAppearance(window.localStorage.getItem(APPEARANCE_STORAGE_KEY)).at).not.toBe("");
   });
 });

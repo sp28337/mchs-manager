@@ -414,10 +414,12 @@ function ResetButton({ onClick, children }: { onClick: () => void; children: Rea
 /**
  * Свои цвета событий и света лампы — только у вошедших в учётную запись.
  *
- * Выбранное применяется сразу и ко всему приложению (`appearance.ts`) и лежит в
- * этом браузере. Невошедшему раздел показывает замок и дорогу ко входу; если
- * цвета выбраны раньше или лампа погашена, вернуть всё как было можно и так —
- * сбросить не значит изменить, а без этого погасшую лампу было бы нечем зажечь.
+ * Выбранное применяется сразу и ко всему приложению (`appearance.ts`), лежит на
+ * устройстве и зеркалится в учётную запись (`features/sync`): оно едет на другие
+ * устройства и уходит с этого при выходе. Невошедшему раздел показывает замок и
+ * дорогу ко входу; если на устройстве осталось выбранное раньше или лампа
+ * погашена, вернуть всё как было можно и так — сбросить не значит изменить, а
+ * без этого погасшую лампу было бы нечем зажечь.
  */
 export function AppearanceSettings() {
   const { enabled, account } = useSync();
@@ -432,7 +434,7 @@ export function AppearanceSettings() {
             <div className="space-y-2 text-sm">
               <p className="text-ink">
                 Свои цвета событий и света лампы, а также выключатель лампы доступны после
-                входа в учётную запись.
+                входа в учётную запись: они хранятся в ней и приезжают на все ваши устройства.
               </p>
               {enabled ? (
                 <Link href="/account" className="text-ink-muted underline hover:text-ink hover:no-underline">
@@ -481,7 +483,7 @@ export function AppearanceEditor() {
     const current = paletteFor(appearance, editing.scope);
     const next =
       editing.id === null
-        ? addConfig(current, { id: newId(), name, hex })
+        ? addConfig(current, { id: newId(), name, hex, createdAt: new Date().toISOString() })
         : updateConfig(current, editing.id, { name, hex });
     save(withPalette(appearance, editing.scope, next));
     setEditing(null);
@@ -591,7 +593,9 @@ export function AppearanceEditor() {
       ) : null}
 
       <p className="text-xs leading-5 text-ink-faint">
-        Цвета хранятся в этом браузере и одинаковы в светлой и тёмной теме.
+        Цвета и выключатели хранятся в вашей учётной записи в зашифрованном виде и приезжают
+        на другие устройства, где вы вошли. Выйдете — с этого устройства они уйдут вместе с
+        графиками. В светлой и тёмной теме они одинаковы.
       </p>
 
       {/* Одно окно на все списки: внутри закрытого `details` окно не показалось

@@ -3,7 +3,11 @@ import { act, createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { APPEARANCE_STORAGE_KEY, parseAppearance } from "@/components/shared/appearance";
+import {
+  APPEARANCE_STORAGE_KEY,
+  isCustomised,
+  parseAppearance,
+} from "@/components/shared/appearance";
 
 import { AppearanceEditor } from "./appearance-settings";
 
@@ -145,7 +149,10 @@ describe("оформление: лампа", () => {
     expect(stored().lamp.configs).toHaveLength(1);
 
     press(button("Удалить: Кирпич"));
-    expect(window.localStorage.getItem(APPEARANCE_STORAGE_KEY)).toBeNull();
+    // Запись остаётся — с временем правки: удаление тоже правка, и без метки
+    // оно не доехало бы до других устройств, а вернулось бы с сервера.
+    expect(isCustomised(stored())).toBe(false);
+    expect(stored().at).not.toBe("");
   });
 
   it("удалить можно и из окна изменения", () => {
@@ -157,7 +164,7 @@ describe("оформление: лампа", () => {
     press(button("Изменить: Охра"));
     press(button("Удалить"));
 
-    expect(window.localStorage.getItem(APPEARANCE_STORAGE_KEY)).toBeNull();
+    expect(isCustomised(stored())).toBe(false);
     expect(dialog()?.hasAttribute("open")).toBe(false);
   });
 });
@@ -201,14 +208,15 @@ describe("оформление: события", () => {
     expect(container.querySelectorAll("details")).toHaveLength(0);
   });
 
-  it("«Сбросить всё оформление» возвращает умолчания и стирает запись", () => {
+  it("«Сбросить всё оформление» возвращает умолчания и помечает это правкой", () => {
     render();
     press(container.querySelector<HTMLElement>('[role="switch"]')!);
     expect(button("Сбросить всё оформление")).toBeTruthy();
 
     press(button("Сбросить всё оформление"));
 
-    expect(window.localStorage.getItem(APPEARANCE_STORAGE_KEY)).toBeNull();
+    expect(isCustomised(stored())).toBe(false);
+    expect(stored().at).not.toBe("");
     expect(container.querySelector('[role="switch"]')?.getAttribute("aria-checked")).toBe("true");
   });
 });

@@ -22,7 +22,7 @@ Blob64 = Annotated[
     str, StringConstraints(pattern=r"^[A-Za-z0-9_-]+$", max_length=1_400_000)
 ]
 
-ItemKind = Literal["index", "profile"]
+ItemKind = Literal["index", "profile", "appearance"]
 
 
 class ItemOut(BaseModel):

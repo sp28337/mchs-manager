@@ -17,7 +17,7 @@
 
 interface Строка {
   id: string;
-  kind: "index" | "profile";
+  kind: "index" | "profile" | "appearance";
   rev: number;
   deleted: boolean;
   blob: string | null;
@@ -101,7 +101,7 @@ export class FakeServer {
     for (const сырое of items) {
       const правка = сырое as {
         id: string;
-        kind: "index" | "profile";
+        kind: "index" | "profile" | "appearance";
         base_rev: number;
         mutation_id: string;
         deleted?: boolean;

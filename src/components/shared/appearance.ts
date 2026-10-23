@@ -17,8 +17,15 @@
  * Два выключателя — у лампы и у цветов событий. Выключенное не применяется, но
  * и не теряется: конфиги лежат, где лежали, и включённое возвращается теми же.
  *
- * Хранится в браузере, а не в графике: это вкус человека, а не часть расчёта,
- * и в файл с графиком он не уезжает.
+ * Хранится не в графике: это вкус человека, а не часть расчёта, и в файл с
+ * графиком он не уезжает. Зато это данные УЧЁТНОЙ ЗАПИСИ: на устройстве запись
+ * лежит в `localStorage`, а слой синхронизации (`features/sync`) зеркалит её на
+ * сервер зашифрованным блобом `appearance` и приносит на остальные устройства;
+ * с выходом из учётной записи она уходит с устройства вместе с графиками.
+ *
+ * `at` — когда человек в последний раз что-то менял, настоящее время правки, а
+ * не отправки: им слияние решает, чья сторона свежее. У конфига `createdAt` —
+ * чтобы список на всех устройствах стоял в одном порядке (по создании).
  *
  * --- Как применяется ------------------------------------------------------
  *
@@ -71,6 +78,8 @@ export interface ColourConfig {
   name: string;
   /** `#rrggbb`, строчными. */
   hex: string;
+  /** Когда заведён, ISO; у записей прежних версий — пусто. Задаёт порядок в списке. */
+  createdAt: string;
 }
 
 /** Список конфигов и действующий из них; `null` — стандартный цвет. */
@@ -80,6 +89,8 @@ export interface Palette {
 }
 
 export interface Appearance {
+  /** Когда человек последний раз менял оформление, ISO; пусто — ни разу. */
+  at: string;
   lamp: Palette & {
     /** Лампа горит. Погашенной нет ни света, ни бликов, ни самой трубки. */
     on: boolean;
@@ -94,6 +105,7 @@ export interface Appearance {
 export const NO_PALETTE: Palette = { configs: [], active: null };
 
 export const NO_APPEARANCE: Appearance = {
+  at: "",
   lamp: { on: true, ...NO_PALETTE },
   events: { on: true, kinds: {} },
 };
@@ -144,12 +156,15 @@ export function configName(name: string, hex: string): string {
  */
 export function addConfig(
   palette: Palette,
-  entry: { id: string; name: string; hex: string },
+  entry: { id: string; name: string; hex: string; createdAt: string },
 ): Palette {
   if (palette.configs.length >= MAX_CONFIGS) return palette;
   const hex = entry.hex.toLowerCase();
   return {
-    configs: [...palette.configs, { id: entry.id, name: configName(entry.name, hex), hex }],
+    configs: [
+      ...palette.configs,
+      { id: entry.id, name: configName(entry.name, hex), hex, createdAt: entry.createdAt },
+    ],
     active: entry.id,
   };
 }
@@ -164,7 +179,7 @@ export function updateConfig(
   return {
     ...palette,
     configs: palette.configs.map((config) =>
-      config.id === id ? { id, name: configName(patch.name, hex), hex } : config,
+      config.id === id ? { ...config, name: configName(patch.name, hex), hex } : config,
     ),
   };
 }
@@ -204,6 +219,11 @@ export function withEventPalette(
 
 // --- Хранилище ---------------------------------------------------------------
 
+/** Время правки из хранилища: строка разумной длины или пусто. */
+function readTime(value: unknown): string {
+  return typeof value === "string" && value.length <= 40 ? value : "";
+}
+
 function readPalette(value: unknown): Palette {
   if (typeof value !== "object" || value === null) return NO_PALETTE;
   const { configs, active } = value as Record<string, unknown>;
@@ -214,13 +234,14 @@ function readPalette(value: unknown): Palette {
   for (const item of configs) {
     if (kept.length >= MAX_CONFIGS) break;
     if (typeof item !== "object" || item === null) continue;
-    const { id, name, hex } = item as Record<string, unknown>;
+    const { id, name, hex, createdAt } = item as Record<string, unknown>;
     if (typeof id !== "string" || id === "" || seen.has(id) || !isHex(hex)) continue;
     seen.add(id);
     kept.push({
       id,
       name: configName(typeof name === "string" ? name : "", hex.toLowerCase()),
       hex: hex.toLowerCase(),
+      createdAt: readTime(createdAt),
     });
   }
   return {
@@ -244,7 +265,9 @@ function readLegacy(data: Record<string, unknown>): Appearance {
       if (!isHex(value)) continue;
       const id = `legacy-${key}`;
       kinds[key] = {
-        configs: [{ id, name: configName("Мой цвет", value), hex: value.toLowerCase() }],
+        configs: [
+          { id, name: configName("Мой цвет", value), hex: value.toLowerCase(), createdAt: "" },
+        ],
         active: id,
       };
     }
@@ -252,11 +275,13 @@ function readLegacy(data: Record<string, unknown>): Appearance {
   const lamp = data.lamp;
   const palette: Palette = isHex(lamp)
     ? {
-        configs: [{ id: "legacy-lamp", name: "Мой цвет", hex: lamp.toLowerCase() }],
+        configs: [
+          { id: "legacy-lamp", name: "Мой цвет", hex: lamp.toLowerCase(), createdAt: "" },
+        ],
         active: "legacy-lamp",
       }
     : NO_PALETTE;
-  return { lamp: { on: true, ...palette }, events: { on: true, kinds } };
+  return { at: "", lamp: { on: true, ...palette }, events: { on: true, kinds } };
 }
 
 /** Прочитать то, что лежит в хранилище; испорченное и чужое отбрасывается по частям. */
@@ -280,6 +305,7 @@ export function parseAppearance(raw: string | null): Appearance {
       }
     }
     return {
+      at: readTime(record.at),
       lamp: {
         on: (lamp as Record<string, unknown>).on !== false,
         ...readPalette(lamp),

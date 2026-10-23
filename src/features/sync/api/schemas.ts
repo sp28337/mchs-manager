@@ -51,7 +51,7 @@ export type Session = z.infer<typeof sessionSchema>;
 
 export const itemSchema = z.object({
   id: z.string(),
-  kind: z.enum(["index", "profile"]),
+  kind: z.enum(["index", "profile", "appearance"]),
   rev: z.number().int().positive(),
   deleted: z.boolean(),
   updated_at: z.string(),
@@ -75,7 +75,7 @@ export const pushSchema = z.object({
   applied: z.array(
     z.object({
       id: z.string(),
-      kind: z.enum(["index", "profile"]),
+      kind: z.enum(["index", "profile", "appearance"]),
       rev: z.number().int().positive(),
     }),
   ),
@@ -100,7 +100,7 @@ export type AccountInfo = z.infer<typeof accountInfoSchema>;
 /** Что отправляют в `POST /sync`. */
 export interface PushItem {
   id: string;
-  kind: "index" | "profile";
+  kind: "index" | "profile" | "appearance";
   base_rev: number;
   mutation_id: string;
   deleted: boolean;

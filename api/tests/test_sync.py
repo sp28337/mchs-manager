@@ -109,6 +109,93 @@ def decode_blob(значение: str) -> bytes:
     return decode_wrapped(значение)
 
 
+async def test_оформление_ходит_как_обычный_элемент(
+    клиент: httpx.AsyncClient,
+) -> None:
+    """Цвета лампы и событий — третий вид элемента, единственный на аккаунт."""
+    заголовки = await factories.войти(клиент)
+
+    первая = await отправить(
+        клиент,
+        заголовки,
+        элемент(kind="appearance", item_id="appearance", содержимое=b"\x07" * 48),
+    )
+    assert первая.status_code == 200
+    assert первая.json()["applied"] == [
+        {"id": "appearance", "kind": "appearance", "rev": 1}
+    ]
+
+    # Правка с базовой ревизией — вторая ревизия того же элемента, а не второй
+    # элемент: оформление у аккаунта одно.
+    вторая = await отправить(
+        клиент,
+        заголовки,
+        элемент(
+            kind="appearance",
+            item_id="appearance",
+            base_rev=1,
+            содержимое=b"\x08" * 48,
+        ),
+    )
+    assert вторая.json()["applied"][0]["rev"] == 2
+
+    выборка = (await выбрать(клиент, заголовки)).json()
+    assert [(item["kind"], item["id"]) for item in выборка["items"]] == [
+        ("appearance", "appearance")
+    ]
+    # Содержимое — байт в байт: сервер оформление не читает, как и остальное.
+    assert decode_blob(выборка["items"][0]["blob"]) == b"\x08" * 48
+
+
+async def test_оформление_расходится_как_остальное(
+    клиент: httpx.AsyncClient,
+) -> None:
+    """Два устройства правили оформление: сервер сообщает, а не сливает."""
+    заголовки = await factories.войти(клиент)
+    await отправить(клиент, заголовки, элемент(kind="appearance", item_id="appearance"))
+
+    # Второе устройство ещё не знает о ревизии 1 и пишет «с нуля».
+    ответ = await отправить(
+        клиент,
+        заголовки,
+        элемент(
+            kind="appearance",
+            item_id="appearance",
+            base_rev=0,
+            содержимое=b"\x09" * 40,
+        ),
+    )
+
+    тело = ответ.json()
+    assert ответ.status_code == 200
+    assert тело["applied"] == []
+    assert [(item["kind"], item["rev"]) for item in тело["conflicts"]] == [
+        ("appearance", 1)
+    ]
+
+
+async def test_оформление_удаляется_надгробием(клиент: httpx.AsyncClient) -> None:
+    заголовки = await factories.войти(клиент)
+    await отправить(клиент, заголовки, элемент(kind="appearance", item_id="appearance"))
+
+    ответ = await отправить(
+        клиент,
+        заголовки,
+        элемент(
+            kind="appearance",
+            item_id="appearance",
+            base_rev=1,
+            содержимое=None,
+            deleted=True,
+        ),
+    )
+
+    assert ответ.status_code == 200
+    item = (await выбрать(клиент, заголовки)).json()["items"][0]
+    assert item["deleted"] is True
+    assert item["blob"] is None
+
+
 async def test_выбирается_только_изменившееся(клиент: httpx.AsyncClient) -> None:
     заголовки = await factories.войти(клиент)
     await отправить(клиент, заголовки, элемент(kind="index", item_id="index"))
@@ -393,6 +480,14 @@ async def test_удаление_освобождает_объём(
     ("правки", "почему"),
     [
         ({"kind": "index", "item_id": "не-index"}, "указатель один на аккаунт"),
+        (
+            {"kind": "appearance", "item_id": "не-appearance"},
+            "оформление одно на аккаунт",
+        ),
+        (
+            {"kind": "appearance", "item_id": ПРОФИЛЬ},
+            "оформлением не подменить профиль",
+        ),
         ({"содержимое": None}, "элемент без содержимого"),
         ({"deleted": True}, "у удаления не бывает содержимого"),
     ],

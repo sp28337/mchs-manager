@@ -628,7 +628,7 @@ components:
           type: string
           maxLength: 64
           description: uuid записи проводника или строка `index`.
-        kind: { type: string, enum: [index, profile] }
+        kind: { type: string, enum: [index, profile, appearance] }
         rev: { type: integer, format: int64 }
         deleted: { type: boolean }
         updated_at: { type: string, format: date-time }
@@ -661,7 +661,7 @@ components:
       required: [id, kind, base_rev, mutation_id]
       properties:
         id: { type: string, maxLength: 64 }
-        kind: { type: string, enum: [index, profile] }
+        kind: { type: string, enum: [index, profile, appearance] }
         base_rev:
           type: integer
           format: int64
@@ -698,7 +698,7 @@ components:
             required: [id, kind, rev]
             properties:
               id: { type: string }
-              kind: { type: string, enum: [index, profile] }
+              kind: { type: string, enum: [index, profile, appearance] }
               rev: { type: integer, format: int64 }
         conflicts:
           type: array

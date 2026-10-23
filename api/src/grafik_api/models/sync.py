@@ -40,11 +40,11 @@ from grafik_api.db.base import Base, TimestampMixin
 # PostgreSQL: добавить значение в CHECK — одна строка миграции, а в тип
 # `enum` — ALTER TYPE, который до PostgreSQL 12 не откатывался и до сих
 # пор не умеет убирать значения.
-ITEM_KINDS = ("index", "profile")
+ITEM_KINDS = ("index", "profile", "appearance")
 
 
 class Blob(TimestampMixin, Base):
-    """Текущая версия элемента: указателя библиотеки или одного профиля."""
+    """Текущая версия элемента: указателя библиотеки, профиля или оформления."""
 
     __tablename__ = "blobs"
     __table_args__ = (
@@ -52,7 +52,7 @@ class Blob(TimestampMixin, Base):
         # составной, а не суррогатный только ради удобства ссылок: по нему
         # ищут и по нему же обновляют.
         UniqueConstraint("user_id", "kind", "item_id"),
-        CheckConstraint("kind IN ('index', 'profile')", name="kind"),
+        CheckConstraint("kind IN ('index', 'profile', 'appearance')", name="kind"),
         CheckConstraint("size >= 0", name="size"),
         # Выборка изменений — «всё, что новее ревизии N», и этот индекс
         # единственное, что держит её быстрой.
@@ -66,8 +66,9 @@ class Blob(TimestampMixin, Base):
 
     kind: Mapped[str] = mapped_column(String(16), nullable=False)
 
-    # `index` для указателя (один на аккаунт) или uuid записи проводника.
-    # Строкой, а не uuid: у указателя идентификатор — слово.
+    # `index` для указателя и `appearance` для оформления (по одному на
+    # аккаунт) или uuid записи проводника. Строкой, а не uuid: у двух
+    # элементов из трёх идентификатор — слово.
     item_id: Mapped[str] = mapped_column(String(64), nullable=False)
 
     rev: Mapped[int] = mapped_column(BigInteger, nullable=False)

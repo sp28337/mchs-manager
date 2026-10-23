@@ -32,8 +32,8 @@ import { type Bytes, concat, utf8 } from "./bytes";
 import { CryptoFormatError, CryptoKeyMismatchError } from "./errors";
 import type { DataKey } from "./dek";
 
-/** Вид элемента. Те же два, что у сервера (`ITEM_KINDS`). */
-export type ItemKind = "index" | "profile";
+/** Вид элемента. Те же три, что у сервера (`ITEM_KINDS`). */
+export type ItemKind = "index" | "profile" | "appearance";
 
 /** Опознание единственного указателя библиотеки — строка `index`. */
 export const INDEX_ID = "index";

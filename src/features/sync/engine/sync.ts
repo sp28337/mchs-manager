@@ -42,15 +42,25 @@ import {
 } from "../store/vault";
 import { deepEqual } from "./deep-equal";
 import {
+  APPEARANCE_ID,
   INDEX_ID,
   parseEnvelopeFor,
+  type AppearanceEnvelope,
   type Envelope,
   type IndexBody,
   type IndexEnvelope,
   type ProfileEnvelope,
 } from "./envelope";
-import { applyIndexBody, applyProfile, readLocalItems, removeProfileItem } from "./local";
+import {
+  appearanceWorthSending,
+  applyAppearanceBody,
+  applyIndexBody,
+  applyProfile,
+  readLocalItems,
+  removeProfileItem,
+} from "./local";
 import { mergeIndex, mergeProfile, type MergeNote } from "./merge";
+import { mergeAppearance } from "./merge-appearance";
 
 /** Сколько элементов уходит в одной отправке (раздел 7 контракта). */
 const BATCH = 50;
@@ -145,6 +155,7 @@ export async function syncOnce(options: SyncOptions): Promise<SyncReport> {
     ...выборка.принятое.keys(),
   ]);
   ids.delete(INDEX_ID);
+  ids.delete(APPEARANCE_ID);
 
   const слитые = new Map<string, ProfileEnvelope>();
 
@@ -252,6 +263,18 @@ export async function syncOnce(options: SyncOptions): Promise<SyncReport> {
     }
   }
 
+  // --- Оформление -----------------------------------------------------------
+
+  const оформление = await слитьОформление(
+    локальные.appearance,
+    выборка.принятое.get(APPEARANCE_ID),
+    bases.get(APPEARANCE_ID) ?? null,
+    revs.get(APPEARANCE_ID) ?? 0,
+  );
+
+  if (оформление.принято) отчёт.received += 1;
+  if (оформление.отправить !== null) отправить.push(оформление.отправить);
+
   // Указатель отправляется последним из списка, но собирается первым:
   // порядок в отправке неважен, сервер применяет элементы независимо.
   if (индекс.отправить !== null) {
@@ -282,6 +305,63 @@ export async function syncOnce(options: SyncOptions): Promise<SyncReport> {
   function применить(id: string, конверт: ProfileEnvelope): void {
     applyProfile(id, конверт.body);
     слитые.set(id, конверт);
+  }
+
+  /**
+   * Оформление: цвета лампы и событий — один элемент на аккаунт.
+   *
+   * Расхождения, о которых надо спрашивать, у него нет (`merge-appearance.ts`):
+   * слияние всегда находит решение. Поэтому, в отличие от профиля, ни `pending`,
+   * ни отложенных вопросов здесь не бывает.
+   */
+  async function слитьОформление(
+    наш: AppearanceEnvelope,
+    принято: Принятое | undefined,
+    было: Envelope | null,
+    rev: number,
+  ): Promise<{
+    принято: boolean;
+    отправить: { item: PushItem; envelope: Envelope } | null;
+  }> {
+    const base = было?.kind === "appearance" ? было.body : null;
+    const чужой = принято?.envelope?.kind === "appearance" ? принято.envelope : null;
+    // От какой ревизии правим: принесённой, даже если это надгробие или
+    // нечитаемое, — иначе отправка пришла бы с устаревшей и вернулась расхождением.
+    const от = принято?.item.rev ?? rev;
+
+    if (чужой === null) {
+      const менялось =
+        base === null ? appearanceWorthSending(наш.body) : !deepEqual(base, наш.body);
+
+      return {
+        принято: false,
+        отправить: менялось
+          ? { item: правка(APPEARANCE_ID, наш, от, newMutationId()), envelope: наш }
+          : null,
+      };
+    }
+
+    const merged = mergeAppearance(base, наш.body, чужой.body);
+    const слитый: AppearanceEnvelope = {
+      ...наш,
+      updatedAt: merged.at !== "" ? merged.at : now(),
+      body: merged,
+    };
+    const изменилось = !deepEqual(merged, наш.body);
+
+    if (изменилось) applyAppearanceBody(merged);
+
+    if (deepEqual(merged, чужой.body)) {
+      // Чужое принято как есть: отправлять нечего, а базовым состоянием
+      // становится оно — иначе следующий проход счёл бы принятое нашей правкой.
+      await writeMirror({ itemId: APPEARANCE_ID, kind: "appearance", rev: от, base: слитый });
+      return { принято: изменилось, отправить: null };
+    }
+
+    return {
+      принято: изменилось,
+      отправить: { item: правка(APPEARANCE_ID, слитый, от, newMutationId()), envelope: слитый },
+    };
   }
 
   function слитьИндекс(
@@ -355,6 +435,14 @@ export async function hasUnsentChanges(
     base === null ? !пустойУказатель(локальные.index.body) : !deepEqual(base, локальные.index.body);
   if (индексМенялся) return true;
 
+  const оформлениеБыло = bases.get(APPEARANCE_ID);
+  const оформлениеBase = оформлениеБыло?.kind === "appearance" ? оформлениеБыло.body : null;
+  const оформлениеМенялось =
+    оформлениеBase === null
+      ? appearanceWorthSending(локальные.appearance.body)
+      : !deepEqual(оформлениеBase, локальные.appearance.body);
+  if (оформлениеМенялось) return true;
+
   const свои = new Set<string>();
 
   for (const профиль of локальные.profiles) {
@@ -364,7 +452,7 @@ export async function hasUnsentChanges(
   }
 
   for (const [id, rev] of revs) {
-    if (id !== INDEX_ID && rev > 0 && !свои.has(id)) return true;
+    if (id !== INDEX_ID && id !== APPEARANCE_ID && rev > 0 && !свои.has(id)) return true;
   }
 
   return false;
@@ -568,6 +656,24 @@ async function пересобрать(
     applyIndexBody(merged);
 
     const слитый: IndexEnvelope = { ...свой.envelope, updatedAt: now(), body: merged };
+    return {
+      item: { ...свой.item, base_rev: чужое.rev, mutation_id: crypto.randomUUID() },
+      envelope: слитый,
+    };
+  }
+
+  if (конверт.kind === "appearance" && свой.envelope.kind === "appearance") {
+    // База неизвестна: слияние объединит списки и решит скаляры по свежести. Удалённое
+    // здесь воскреснет — честнее лишний цвет, чем молча пропавший.
+    const merged = mergeAppearance(null, свой.envelope.body, конверт.body);
+
+    if (!deepEqual(merged, свой.envelope.body)) applyAppearanceBody(merged);
+
+    const слитый: AppearanceEnvelope = {
+      ...свой.envelope,
+      updatedAt: merged.at !== "" ? merged.at : now(),
+      body: merged,
+    };
     return {
       item: { ...свой.item, base_rev: чужое.rev, mutation_id: crypto.randomUUID() },
       envelope: слитый,

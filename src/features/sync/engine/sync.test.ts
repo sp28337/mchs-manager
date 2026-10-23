@@ -6,6 +6,15 @@ import { webcrypto } from "node:crypto";
 import { beforeEach, describe, expect, it } from "vitest";
 
 import {
+  APPEARANCE_STORAGE_KEY,
+  NO_APPEARANCE,
+  addConfig,
+  isCustomised,
+  parseAppearance,
+  serializeAppearance,
+  type Appearance,
+} from "@/components/shared/appearance";
+import {
   loadLibrary,
   readEntryProfile,
   removeEntry,
@@ -633,5 +642,183 @@ describe("есть ли на устройстве непереданное", () 
     } as PendingRow);
 
     expect(await hasUnsentChanges()).toBe(true);
+  });
+});
+
+
+describe("оформление", () => {
+  const T1 = "2026-10-01T10:00:00.000Z";
+  const T2 = "2026-10-02T10:00:00.000Z";
+  const T3 = "2026-10-03T10:00:00.000Z";
+
+  /** Оформление, выбранное человеком на устройстве: лампа и больничный. */
+  function оформление(
+    at: string,
+    lamp: { id: string; hex: string; createdAt: string }[],
+    правки: Partial<Appearance> = {},
+  ): Appearance {
+    let список = NO_APPEARANCE.lamp as import("@/components/shared/appearance").Palette;
+    for (const цвет of lamp) {
+      список = addConfig(список, { ...цвет, name: цвет.id });
+    }
+    return { ...NO_APPEARANCE, at, lamp: { on: true, ...список }, ...правки };
+  }
+
+  function положить(значение: Appearance): void {
+    window.localStorage.setItem(APPEARANCE_STORAGE_KEY, serializeAppearance(значение));
+  }
+
+  const на_устройстве = () => parseAppearance(window.localStorage.getItem(APPEARANCE_STORAGE_KEY));
+
+  it("нетронутое оформление не отправляется: вход на чистом устройстве не поднимает ревизию", async () => {
+    const отчёт = await синхронизировать();
+
+    expect(отчёт.pushed).toBe(0);
+    expect(server.items.has("appearance")).toBe(false);
+    expect(await hasUnsentChanges()).toBe(false);
+  });
+
+  it("выбранное отправляется один раз и приезжает на чистое устройство", async () => {
+    положить(оформление(T2, [{ id: "охра", hex: "#ff8800", createdAt: T1 }]));
+    expect(await hasUnsentChanges()).toBe(true);
+
+    const первый = await синхронизировать();
+
+    expect(первый.pushed).toBe(1);
+    expect(server.items.get("appearance")?.kind).toBe("appearance");
+    // Сервер видит непрозрачные байты: ни цвета, ни имени в блобе нет открытым текстом.
+    expect(server.items.get("appearance")?.blob).not.toContain("ff8800");
+    expect((await синхронизировать()).pushed).toBe(0);
+    expect(await hasUnsentChanges()).toBe(false);
+
+    await чистое();
+    await saveDataKey(dataKey.handle);
+    document.documentElement.removeAttribute("style");
+
+    const отчёт = await синхронизировать();
+
+    expect(отчёт.received).toBeGreaterThan(0);
+    const пришло = на_устройстве();
+    expect(пришло.lamp.configs.map((цвет) => цвет.name)).toEqual(["охра"]);
+    expect(пришло.at).toBe(T2);
+    // И сразу на странице, а не только в хранилище.
+    expect(document.documentElement.style.getPropertyValue("--lamp-rgb")).toBe("255 136 0");
+    expect(await hasUnsentChanges()).toBe(false);
+  });
+
+  it("два устройства добавили по цвету офлайн — на обоих оба, в одном порядке, без перебрасывания", async () => {
+    положить(оформление(T1, [{ id: "база", hex: "#112233", createdAt: T1 }]));
+    await синхронизировать();
+    const телефон = await снять();
+    const ноутбук = await снять();
+
+    // Телефон добавил «лёд».
+    await поставить(телефон);
+    положить(
+      оформление(T2, [
+        { id: "база", hex: "#112233", createdAt: T1 },
+        { id: "лёд", hex: "#3366ff", createdAt: T2 },
+      ]),
+    );
+    await синхронизировать();
+
+    // Ноутбук, не зная об этом, добавил «мох».
+    await поставить(ноутбук);
+    положить(
+      оформление(T3, [
+        { id: "база", hex: "#112233", createdAt: T1 },
+        { id: "мох", hex: "#336633", createdAt: T3 },
+      ]),
+    );
+    const отчёт = await синхронизировать();
+
+    expect(отчёт.pending).toEqual([]);
+    const порядок = (значение: Appearance) => значение.lamp.configs.map((цвет) => цвет.id);
+    expect(порядок(на_устройстве())).toEqual(["база", "лёд", "мох"]);
+
+    // Телефон возвращается: тот же порядок, и после этого кругу нечего отправлять.
+    const после_ноутбука = await снять();
+    await поставить(телефон);
+    await синхронизировать();
+    expect(порядок(на_устройстве())).toEqual(["база", "лёд", "мох"]);
+    expect((await синхронизировать()).pushed).toBe(0);
+
+    await поставить(после_ноутбука);
+    expect((await синхронизировать()).pushed).toBe(0);
+    expect(await hasUnsentChanges()).toBe(false);
+  });
+
+  it("сброс до умолчаний на одном устройстве доезжает до другого — правка, а не отсутствие записи", async () => {
+    положить(оформление(T1, [{ id: "охра", hex: "#ff8800", createdAt: T1 }]));
+    await синхронизировать();
+    const второе = await снять();
+
+    // Первое устройство сбросило всё: запись с новым временем и пустыми списками.
+    положить({ ...NO_APPEARANCE, at: T2 });
+    expect((await синхронизировать()).pushed).toBe(1);
+
+    await поставить(второе);
+    await синхронизировать();
+
+    expect(isCustomised(на_устройстве())).toBe(false);
+    expect(на_устройстве().at).toBe(T2);
+  });
+
+  it("погашенная лампа едет на другие устройства вместе с конфигами", async () => {
+    положить(
+      оформление(T2, [{ id: "охра", hex: "#ff8800", createdAt: T1 }], {
+        lamp: { on: false, configs: [], active: null },
+      }),
+    );
+    await синхронизировать();
+    await чистое();
+    await saveDataKey(dataKey.handle);
+
+    await синхронизировать();
+
+    expect(на_устройстве().lamp.on).toBe(false);
+  });
+
+  it("негодное тело оформления не ломает проход и не стирает своё", async () => {
+    положить(оформление(T2, [{ id: "охра", hex: "#ff8800", createdAt: T1 }]));
+    await синхронизировать();
+    const второе = await снять();
+
+    // Другая версия приложения записала в оформление то, чего мы не знаем:
+    // незнакомые ключи и негодный цвет. Читаем годное и ничего не теряем.
+    const { encryptJson } = await import("../crypto");
+    server.items.get("appearance")!.blob = await encryptJson(
+      dataKey,
+      { kind: "appearance", itemId: "appearance" },
+      {
+        fmt: 1,
+        kind: "appearance",
+        id: "appearance",
+        updatedAt: T3,
+        body: {
+          at: T3,
+          будущее: { что: "угодно" },
+          lamp: {
+            on: true,
+            configs: [
+              { id: "охра", name: "охра", hex: "#ff8800", createdAt: T1 },
+              { id: "x", hex: "не цвет" },
+            ],
+            active: "x",
+          },
+          events: { on: true, kinds: { неизвестное: { configs: [], active: null } } },
+        },
+      },
+    );
+    server.items.get("appearance")!.rev = (server.rev += 1);
+
+    await поставить(второе);
+    const отчёт = await синхронизировать();
+
+    expect(отчёт.skipped).toBe(0);
+    // Негодное отброшено по частям (и действующий цвет, чей конфиг негоден, —
+    // стандартный), годное осталось.
+    expect(на_устройстве().lamp.configs.map((цвет) => цвет.id)).toEqual(["охра"]);
+    expect(на_устройстве().lamp.active).toBeNull();
   });
 });

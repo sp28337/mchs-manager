@@ -13,6 +13,7 @@ import {
 } from "react";
 
 import { useNavigate } from "@/components/shared/navigation-loading";
+import { forgetAppearance, subscribeToAppearance } from "@/components/shared/use-appearance";
 import { forgetEverything, subscribeToLibrary } from "@/features/shift/storage/library";
 import { subscribeToStoredProfile } from "@/features/shift/storage/profile";
 
@@ -28,6 +29,20 @@ import { SyncConflicts } from "./conflict-dialog";
 import { ConsentRenewal } from "./consent-renewal";
 import { SYNC_ENABLED } from "./enabled";
 import { explain, СЕССИЯ_КОНЧИЛАСЬ } from "./messages";
+
+/**
+ * Убрать с устройства всё, что принадлежит учётной записи: графики и оформление.
+ *
+ * Оформление (цвета лампы и событий, выключатели) едет на сервер вместе с
+ * графиками, а значит, и уходит вместе с ними: следующему человеку за этим
+ * браузером чужие цвета и погашенная лампа ни к чему. Отдельной функцией, а не
+ * вызовом одной `forgetEverything`, потому что оформление живёт в общем слое, а
+ * проводник — в хранилище графиков, и ни одно из них не должно знать о другом.
+ */
+function forgetAccountData(): void {
+  forgetEverything();
+  forgetAppearance();
+}
 
 /**
  * Состояние синхронизации на всё приложение.
@@ -101,7 +116,7 @@ export interface SyncActions {
   register: (данные: { email: string; password: string; acts: ConsentActs }) => Promise<void>;
   login: (данные: { email: string; password: string }) => Promise<void>;
   /**
-   * Выйти. Графики с устройства уходят (`forgetEverything`), поэтому сначала
+   * Выйти. Графики и оформление с устройства уходят (`forgetAccountData`), поэтому сначала
    * всё, что ещё не доехало до сервера, отправляется: не удалось — выход не
    * происходит и отвечает `"unsynced"`; `force` выходит всё равно.
    */
@@ -230,7 +245,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
       // графики на чистое устройство, поэтому за проходом стирается всё, включая
       // его след в хранилище слоя.
       if (эпоха.current !== эпохаПрохода) {
-        forgetEverything();
+        forgetAccountData();
         await clearVault();
         return;
       }
@@ -432,7 +447,12 @@ export function SyncProvider({ children }: { children: ReactNode }) {
       позже();
     };
 
-    const отписки = [subscribeToStoredProfile(правка), subscribeToLibrary(правка)];
+    const отписки = [
+      subscribeToStoredProfile(правка),
+      subscribeToLibrary(правка),
+      // Оформление правится так же, как график, и едет тем же проходом.
+      subscribeToAppearance(правка),
+    ];
 
     // Сессия ещё не продолжена — сеть возвращается к ней, а не к проходу:
     // у прохода без ключа данных идти некуда.
@@ -546,7 +566,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
    */
   const убратьГрафикиГостя = useCallback((продолжение: boolean) => {
     if (продолжение) return;
-    forgetEverything();
+    forgetAccountData();
   }, []);
 
   const actions = useMemo<SyncActions>(
@@ -620,7 +640,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
 
           // Стирается до сброса состояния: события хранилища пометили бы его
           // «есть правки», а оно уже не вошедшего.
-          forgetEverything();
+          forgetAccountData();
           неотправлено.current = true;
 
           setState(() => ({

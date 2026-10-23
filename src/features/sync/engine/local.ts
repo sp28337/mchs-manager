@@ -17,6 +17,13 @@
  */
 
 import {
+  APPEARANCE_STORAGE_KEY,
+  isCustomised,
+  parseAppearance,
+  type Appearance,
+} from "@/components/shared/appearance";
+import { writeAppearance } from "@/components/shared/use-appearance";
+import {
   activeEntryId,
   loadLibrary,
   openEntry,
@@ -33,8 +40,10 @@ import {
 
 import { deepEqual } from "./deep-equal";
 import {
+  APPEARANCE_ID,
   FMT,
   INDEX_ID,
+  type AppearanceEnvelope,
   type Envelope,
   type IndexBody,
   type IndexEnvelope,
@@ -47,6 +56,7 @@ export type Bases = ReadonlyMap<string, Envelope>;
 export interface LocalItems {
   index: IndexEnvelope;
   profiles: ProfileEnvelope[];
+  appearance: AppearanceEnvelope;
 }
 
 /** Собрать конверты из хранилища устройства. */
@@ -98,7 +108,51 @@ export function readLocalItems(bases: Bases, now: string): LocalItems {
     body: { folders, entries },
   };
 
-  return { index: индекс, profiles };
+  return { index: индекс, profiles, appearance: readLocalAppearance(now) };
+}
+
+/**
+ * Оформление с устройства — конвертом.
+ *
+ * Время правки у него настоящее и лежит в самом оформлении (`at`): человек
+ * правит оформление не в тот миг, когда идёт проход, и «сейчас» сделало бы любую
+ * свою правку свежее чужой, сколько бы она ни пролежала. Пусто (`at` нет) —
+ * только у записей прежних версий и у нетронутого оформления; тогда конверт
+ * ставится нынешним временем, а слиянию оно ни к чему.
+ */
+export function readLocalAppearance(now: string): AppearanceEnvelope {
+  let raw: string | null = null;
+  try {
+    raw = window.localStorage.getItem(APPEARANCE_STORAGE_KEY);
+  } catch {
+    // Хранилище закрыто — оформления нет, и синхронизировать нечего.
+  }
+  const body = parseAppearance(raw);
+
+  return {
+    fmt: FMT,
+    kind: "appearance",
+    id: APPEARANCE_ID,
+    updatedAt: body.at !== "" ? body.at : now,
+    body,
+  };
+}
+
+/**
+ * Есть ли у оформления что отправлять, если на сервере его ещё не было.
+ *
+ * Нетронутое — ни одной правки, ничего не выбрано — отправлять незачем: вход на
+ * чистом устройстве поднимал бы ревизию аккаунта, не сказав ничего (так же и с
+ * пустым указателем). Тронутое — своя запись с временем правки или выбранное
+ * когда-то прежней версией, которая времени не вела.
+ */
+export function appearanceWorthSending(body: Appearance): boolean {
+  return body.at !== "" || isCustomised(body);
+}
+
+/** Положить принятое (или слитое) оформление: на устройство и на страницу. */
+export function applyAppearanceBody(body: Appearance): void {
+  writeAppearance(body);
 }
 
 /** Положить принятый указатель: папки и перечень записей целиком. */

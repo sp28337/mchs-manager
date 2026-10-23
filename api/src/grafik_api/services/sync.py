@@ -56,6 +56,12 @@ logger = get_logger("service.sync")
 #: Опознание единственного указателя библиотеки.
 INDEX_ID = "index"
 
+#: Опознание единственного оформления: цвета лампы и событий, выключатели.
+#: Для сервера это такой же непрозрачный блоб, как остальные; отдельный вид
+#: нужен затем, чтобы его не принять за профиль и чтобы AAD расшифровки (вид и
+#: опознание, раздел 2.5 контракта) не позволял подменить им другой элемент.
+APPEARANCE_ID = "appearance"
+
 #: Сколько версий элемента держим и сколько они живут (раздел 4 контракта).
 HISTORY_KEEP = 10
 HISTORY_DAYS = 30
@@ -320,6 +326,9 @@ class SyncService:
 
         if команда.kind == "index" and команда.item_id != INDEX_ID:
             raise ValidationFailedError("указатель библиотеки у аккаунта один")
+
+        if команда.kind == "appearance" and команда.item_id != APPEARANCE_ID:
+            raise ValidationFailedError("оформление у аккаунта одно")
 
         if команда.deleted:
             if команда.blob is not None:

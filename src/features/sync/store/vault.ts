@@ -55,7 +55,7 @@ export interface SyncMeta {
 /** Состояние элемента на момент подтверждённой сервером ревизии. */
 export interface MirrorRow {
   itemId: string;
-  kind: "index" | "profile";
+  kind: "index" | "profile" | "appearance";
   rev: number;
   /** Конверт элемента (раздел 3 контракта) — как он был на сервере. */
   base: unknown;

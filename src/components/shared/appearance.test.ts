@@ -36,10 +36,22 @@ afterEach(() => {
   document.documentElement.removeAttribute("data-lamp");
 });
 
-const config = (id: string, hex: string, name = id) => ({ id, name, hex });
+const config = (id: string, hex: string, name = id, createdAt = "") => ({
+  id,
+  name,
+  hex,
+  createdAt,
+});
+
+/** Новый цвет без времени создания — для тестов, которым оно не нужно. */
+const add = (
+  palette: Palette,
+  entry: { id: string; name: string; hex: string; createdAt?: string },
+) => addConfig(palette, { createdAt: "", ...entry });
 
 /** Выбор человека: у лампы два цвета, у больничного один; лампа горит. */
 const chosen: Appearance = {
+  at: "2026-10-23T09:00:00.000Z",
   lamp: {
     on: true,
     configs: [config("l1", "#ffd080", "Янтарь"), config("l2", "#88aaff", "Лёд")],
@@ -53,34 +65,34 @@ const chosen: Appearance = {
 
 describe("список конфигов", () => {
   it("новый цвет встаёт в конец и сразу действует", () => {
-    const next = addConfig(NO_PALETTE, { id: "a", name: "Охра", hex: "#C4400F" });
+    const next = add(NO_PALETTE, { id: "a", name: "Охра", hex: "#C4400F" });
     expect(next).toEqual({ configs: [config("a", "#c4400f", "Охра")], active: "a" });
 
-    const more = addConfig(next, { id: "b", name: "Мох", hex: "#336633" });
+    const more = add(next, { id: "b", name: "Мох", hex: "#336633" });
     expect(more.configs.map((item) => item.id)).toEqual(["a", "b"]);
     expect(more.active).toBe("b");
   });
 
   it("без названия конфиг называется своим цветом; длинное название обрезается", () => {
-    expect(addConfig(NO_PALETTE, { id: "a", name: "   ", hex: "#c4400f" }).configs[0]?.name).toBe(
+    expect(add(NO_PALETTE, { id: "a", name: "   ", hex: "#c4400f" }).configs[0]?.name).toBe(
       "#C4400F",
     );
-    const long = addConfig(NO_PALETTE, { id: "a", name: "я".repeat(60), hex: "#c4400f" });
+    const long = add(NO_PALETTE, { id: "a", name: "я".repeat(60), hex: "#c4400f" });
     expect(long.configs[0]?.name).toHaveLength(NAME_MAX);
   });
 
   it("полный список новых не принимает", () => {
     let palette: Palette = NO_PALETTE;
     for (let index = 0; index < MAX_CONFIGS + 3; index += 1) {
-      palette = addConfig(palette, { id: `c${index}`, name: "", hex: "#102030" });
+      palette = add(palette, { id: `c${index}`, name: "", hex: "#102030" });
     }
     expect(palette.configs).toHaveLength(MAX_CONFIGS);
     expect(palette.active).toBe(`c${MAX_CONFIGS - 1}`);
   });
 
   it("изменение переписывает название и цвет и не меняет выбор", () => {
-    const base = addConfig(NO_PALETTE, { id: "a", name: "Охра", hex: "#c4400f" });
-    const other = addConfig(base, { id: "b", name: "Мох", hex: "#336633" });
+    const base = add(NO_PALETTE, { id: "a", name: "Охра", hex: "#c4400f" });
+    const other = add(base, { id: "b", name: "Мох", hex: "#336633" });
     const edited = updateConfig(other, "a", { name: "Кирпич", hex: "#AA3300" });
 
     expect(edited.configs[0]).toEqual(config("a", "#aa3300", "Кирпич"));
@@ -91,8 +103,8 @@ describe("список конфигов", () => {
   });
 
   it("удаление действующего возвращает стандартный цвет, а не соседний", () => {
-    const base = addConfig(
-      addConfig(NO_PALETTE, { id: "a", name: "Охра", hex: "#c4400f" }),
+    const base = add(
+      add(NO_PALETTE, { id: "a", name: "Охра", hex: "#c4400f" }),
       { id: "b", name: "Мох", hex: "#336633" },
     );
     expect(removeConfig(base, "b")).toEqual({ configs: [config("a", "#c4400f", "Охра")], active: null });
@@ -101,7 +113,7 @@ describe("список конфигов", () => {
   });
 
   it("выбор: свой номер действует, пустой и чужой — стандартный цвет", () => {
-    const base = addConfig(NO_PALETTE, { id: "a", name: "Охра", hex: "#c4400f" });
+    const base = add(NO_PALETTE, { id: "a", name: "Охра", hex: "#c4400f" });
     expect(selectConfig(base, null).active).toBeNull();
     expect(selectConfig(selectConfig(base, null), "a").active).toBe("a");
     expect(selectConfig(base, "нет").active).toBeNull();
@@ -113,12 +125,12 @@ describe("список конфигов", () => {
     const withSick = withEventPalette(
       NO_APPEARANCE,
       "sick_leave",
-      addConfig(NO_PALETTE, { id: "s", name: "", hex: "#112233" }),
+      add(NO_PALETTE, { id: "s", name: "", hex: "#112233" }),
     );
     const both = withEventPalette(
       withSick,
       "callout",
-      addConfig(NO_PALETTE, { id: "c", name: "", hex: "#445566" }),
+      add(NO_PALETTE, { id: "c", name: "", hex: "#445566" }),
     );
     expect(Object.keys(both.events.kinds).sort()).toEqual(["callout", "sick_leave"]);
     expect(paletteOf(both, "annual_leave")).toEqual(NO_PALETTE);
@@ -142,6 +154,7 @@ describe("parseAppearance", () => {
 
   it("выключенное помнится вместе с конфигами", () => {
     const off: Appearance = {
+      ...chosen,
       lamp: { ...chosen.lamp, on: false },
       events: { ...chosen.events, on: false },
     };
@@ -222,7 +235,7 @@ describe("parseAppearance", () => {
     expect(isCustomised({ ...NO_APPEARANCE, events: { on: false, kinds: {} } })).toBe(true);
     expect(
       isCustomised(
-        withEventPalette(NO_APPEARANCE, "callout", addConfig(NO_PALETTE, { id: "c", name: "", hex: "#112233" })),
+        withEventPalette(NO_APPEARANCE, "callout", add(NO_PALETTE, { id: "c", name: "", hex: "#112233" })),
       ),
     ).toBe(true);
   });
@@ -251,7 +264,11 @@ describe("applyAppearance", () => {
 
   it("выключенное не применяется", () => {
     const root = document.documentElement;
-    applyAppearance(root, { lamp: { ...chosen.lamp, on: false }, events: { ...chosen.events, on: false } });
+    applyAppearance(root, {
+      ...chosen,
+      lamp: { ...chosen.lamp, on: false },
+      events: { ...chosen.events, on: false },
+    });
     expect(properties(root)).toEqual({});
   });
 
