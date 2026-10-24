@@ -5,7 +5,7 @@
     "effective_from": null,
     "status": "draft",
     "url": "/privacy",
-    "sha256": "39ebabaabfdf9049b95f505489a1622eecfebad3de869ae3b752001cbd72d74b"
+    "sha256": "162757fa4f49aa958acffc64e272753de7e7541a8736562db7c1b24d4304fbcc"
   },
   "consent": {
     "title": "Согласие на обработку персональных данных",
@@ -29,6 +29,6 @@
     "effective_from": null,
     "status": "draft",
     "url": "/cookies",
-    "sha256": "0a3eef3e960842cc77550ca8c14c8991aa967dde714bed2cf3481accd8943032"
+    "sha256": "c99375503c605f5d2788dd4e1206e1b93cfdca6638a5080b0f9018dfb6c64685"
   }
 }
