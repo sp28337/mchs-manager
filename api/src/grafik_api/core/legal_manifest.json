@@ -1,34 +1,34 @@
 {
   "policy": {
     "title": "Политика в отношении обработки персональных данных",
-    "version": "2026-10-20",
+    "version": "2026-10-24",
     "effective_from": null,
     "status": "draft",
     "url": "/privacy",
-    "sha256": "d3c691fe51ba49ca6f5d24b237630c24478fe09f1b1ad1b5cd9ff663f2820acf"
+    "sha256": "39ebabaabfdf9049b95f505489a1622eecfebad3de869ae3b752001cbd72d74b"
   },
   "consent": {
     "title": "Согласие на обработку персональных данных",
-    "version": "2026-10-20",
+    "version": "2026-10-24",
     "effective_from": null,
     "status": "draft",
     "url": "/consent",
-    "sha256": "5ea1df9f01086e9cdeceffaa3201d8bccb406928bb311522473d28b33c602d02"
+    "sha256": "a14d343457af0dd2f9594e96070adf9afe2f94b5b7a66f6eeb6c9b616dfc017d"
   },
   "terms": {
     "title": "Пользовательское соглашение",
-    "version": "2026-10-11",
+    "version": "2026-10-24",
     "effective_from": null,
     "status": "draft",
     "url": "/terms",
-    "sha256": "a9bf28f0ae6ecf1c891b080edbcd21111508156dbe2f9420f8adc637aee283f3"
+    "sha256": "913f42a67f7827cdce5f997b19225eef93ba28630fdbcbd335796ab94575eb42"
   },
   "cookies": {
     "title": "Файлы cookie и счётчик посещений",
-    "version": "2026-10-15",
+    "version": "2026-10-24",
     "effective_from": null,
     "status": "draft",
     "url": "/cookies",
-    "sha256": "00ed26dd1f10ec8e70a649837addb47a29cfeb9ea99929339d79646b1aafbd78"
+    "sha256": "0a3eef3e960842cc77550ca8c14c8991aa967dde714bed2cf3481accd8943032"
   }
 }

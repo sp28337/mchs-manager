@@ -2,9 +2,9 @@
 
 import { Check } from "lucide-react";
 
-import { Segmented, SegmentedItem } from "@/components/ui/segmented";
 import { cn } from "@/lib/utils/cn";
 
+import { CookieCategories } from "./cookie-categories";
 import { answerCookies, useCookieConsent } from "./cookie-consent";
 import { METRIKA_ID } from "@/components/shared/metrika";
 
@@ -18,11 +18,11 @@ import { METRIKA_ID } from "@/components/shared/metrika";
  * где человек потом ищет этот выбор, — документ, в котором о нём написано.
  * Ссылка на него стоит в подвале каждой страницы.
  *
- * --- Почему переключатель, а не две кнопки ---------------------------------
+ * --- Почему те же категории, что в панели внизу страницы --------------------
  *
- * Потому что это выбор одного из двух положений, а не два действия: занято
- * всегда ровно одно, и видно какое. Тот же переключатель, что у темы и у
- * вида сетки (`ui/segmented.tsx`).
+ * Отозвать согласие надо теми же средствами, какими его дали: здесь стоит
+ * тот же блок «Необходимые» / «Аналитические» с кнопкой «Сохранить
+ * настройки» (`cookie-categories.tsx`), что и в панели.
  */
 export function CookieChoice() {
   const { choice, at } = useCookieConsent();
@@ -39,30 +39,21 @@ export function CookieChoice() {
   return (
     <div className="lit space-y-3 rounded-xl bg-paper-raised px-5 py-4">
       <div className="space-y-1">
-        <h2 className="text-sm font-medium text-ink">Счётчик посещений</h2>
+        <h2 className="text-sm font-medium text-ink">Настройка файлов cookie</h2>
         <p className="text-xs leading-5 text-ink-muted">
-          Выбор применяется сразу. «Только необходимое» означает, что счётчик
-          больше не загрузится; уже поставленные им cookie удаляются
+          Выбор применяется сразу после сохранения. Если аналитика выключена,
+          счётчик больше не загрузится; уже поставленные им cookie удаляются
           средствами браузера.
         </p>
       </div>
 
-      <Segmented label="Согласие на аналитику" className="w-full max-w-md">
-        <SegmentedItem
-          active={choice === "necessary"}
-          onClick={() => answerCookies("necessary")}
-          className="flex-1"
-        >
-          Только необходимое
-        </SegmentedItem>
-        <SegmentedItem
-          active={choice === "all"}
-          onClick={() => answerCookies("all")}
-          className="flex-1"
-        >
-          Согласен на аналитику
-        </SegmentedItem>
-      </Segmented>
+      {/* Ключ — прежний ответ: сменился он в другой вкладке, и переключатель
+          встаёт в новое положение, а не остаётся в устаревшем. */}
+      <CookieCategories
+        key={choice ?? "none"}
+        analytics={choice === "all"}
+        onSave={(analytics) => answerCookies(analytics ? "all" : "necessary")}
+      />
 
       <p className={cn("flex items-center gap-1.5 text-xs", choice === null ? "text-ink-faint" : "text-ink-muted")}>
         {choice === null ? (
@@ -88,5 +79,5 @@ function при(время: string): string {
 
   if (Number.isNaN(дата.getTime())) return "";
 
-  return ` ${дата.toLocaleDateString("ru-RU", { day: "numeric", month: "long", year: "numeric" })}.`;
+  return ` ${дата.toLocaleDateString("ru-RU", { day: "numeric", month: "long", year: "numeric" })}`;
 }
